@@ -37,7 +37,7 @@ function toBlock(c, role) {
  * the cache instead of reprocessing it. It lowers what a repeat costs, not the
  * tokens processed.
  */
-export function toAnthropicRequest(wire, { model, maxTokens, fallback = false, cache = true }) {
+export function toAnthropicRequest(wire, { model, maxTokens, reasoningEffort, fallback = false, cache = true }) {
   const checked = checkWire(wire);
   if (checked.error) return checked;
   const messages = [];
@@ -67,6 +67,8 @@ export function toAnthropicRequest(wire, { model, maxTokens, fallback = false, c
       // Opt-in: a declined request is retried on the model the API picks for
       // that category, inside the same call (with `FALLBACK_BETA`).
       ...(fallback ? { fallbacks: 'default' } : {}),
+      // The model's own effort level (`output_config.effort`), when set; otherwise the model's default.
+      ...(reasoningEffort ? { output_config: { effort: reasoningEffort } } : {}),
     },
   };
 }
@@ -88,7 +90,9 @@ export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 export const anthropicProvider = {
   name: 'anthropic',
-  defaultModel: 'claude-sonnet-5-5',
+  // Haiku by default for interactive cost; the viewer escalates requests its routing policy names.
+  defaultModel: 'claude-haiku-5-5',
+  defaultEscalationModel: 'claude-sonnet-5-5',
   url: 'https://api.anthropic.com/v1/messages',
   headers: (apiKey, { fallback = false } = {}) => ({
     'x-api-key': apiKey,

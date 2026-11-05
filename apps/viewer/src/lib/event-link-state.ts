@@ -35,8 +35,8 @@ const kinds = builtinEventKinds();
 function check(ok: unknown, message: string): asserts ok {
   if (!ok) throw new ViewStateError(`Event context: ${message}`);
 }
-function object(value: unknown): Record<string, unknown> {
-  check(value !== null && typeof value === 'object' && !Array.isArray(value), 'malformed definition.');
+function object(value: unknown, field?: string): Record<string, unknown> {
+  check(value !== null && typeof value === 'object' && !Array.isArray(value), field ? `malformed definition: ${field} must be an object.` : 'malformed definition.');
   return value as Record<string, unknown>;
 }
 const text = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 512;
@@ -51,7 +51,7 @@ export function validateEventLinkState(value: unknown): EventLinkState {
   check(Array.isArray(s.queries) && s.queries.length <= 16, 'share at most 16 searches.');
   let totalSteps = 0;
   const queries: SharedEventQuery[] = s.queries.map((raw) => {
-    const entry = object(raw), q = object(entry.query), w = object(q.window);
+    const entry = object(raw), q = object(entry.query, 'query'), w = object(q.window, 'query.window {start, end} in ET seconds');
     const kind = typeof q.kind === 'string' ? kinds.get(q.kind) : undefined;
     check(kind, `event type "${String(q.kind)}" is unavailable.`);
     let trajectoryAnalysis: TrajectoryExtremaQuery | undefined;

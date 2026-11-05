@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ViewerControl, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment, resolveDevAskToolMode } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askApproval, answerAskApproval, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
+import { ask, askApproval, answerAskApproval, askAvailable, checkNote, clearAsk, disposeAsk, endNote, type AskTurn, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import * as loader from '../loader';
@@ -172,17 +172,20 @@ describe('the Ask session', () => {
     const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, removeBookmark: vi.fn(() => true) } as unknown as ViewerControl;
     vi.spyOn(loader, 'getCosmo').mockReturnValue(host);
     const saved = vi.spyOn(host, 'removeBookmark');
-    let round = 0;
-    vi.stubGlobal('fetch', async () => {
-      const reply: AgentResponse = ++round % 3 === 1
-        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] }
-        : round % 3 === 2
-          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
-          : textReply('Finished.');
+    // Replies by what the request holds: a deletion is first proposed unescalated, dropped, and proposed again escalated (#345).
+    const escalations: boolean[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body) as AgentRequest;
+      const last = JSON.stringify(request.messages.at(-1));
+      const reply: AgentResponse = last.includes('"toolUseId":"write"') ? textReply('Finished.')
+        : last.includes('"toolUseId":"desc"')
+          ? (escalations.push(request.escalated === true), { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] })
+          : { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] };
       return new Response(JSON.stringify({ version: 1, ...reply }));
     });
     const denied = submitAsk('Delete this view');
     await until(() => !!askApproval.pending);
+    expect(escalations).toEqual([false, true]);
     expect(saved).not.toHaveBeenCalled();
     expect(askApproval.pending).toMatchObject({ kind: 'authoring', operation: 'bookmarks.removeBookmark' });
     answerAskApproval(false);
@@ -208,7 +211,7 @@ describe('the Ask session', () => {
     const transport = new MockTransport(() => ++round % 3 === 1
       ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.saveBookmark'] } }] }
       : round % 3 === 2
-        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'once' } } }] }
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'once' } } }] }
         : textReply('Finished.'));
     setHostAskTransport(transport, { allowAuthoring: true, confirmAuthoring: async () => true });
     await submitAsk('Save');
@@ -240,12 +243,44 @@ describe('the Ask session', () => {
     vi.useRealTimers();
   });
 
+  it('on a budget stop, names exactly what is already applied, once, in the action list\'s words (#345)', () => {
+    const outcome = { writes: ['camera' as const], expected: [], report: null, unobservable: null };
+    const ok = (name: string, input: unknown = {}, write = false) => ({ id: name, name, input, result: { ok: true as const, summary: 'Done', ...(write ? { outcome } : {}) } });
+    // Writes are known by their contract's outcome, not by their names.
+    const steps = [ok('describeScene'), ok('invokeCapability', { id: 'camera.composeView', input: { anchor: 'Psyche', target: 'Mars' } }, true), ok('checkGoal'), { id: 'x', name: 'dolly', input: {}, result: { ok: false as const, code: 'refused' as const, error: 'no' } }];
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps, reply: '', notes: [], status: 'error', error: 'cap', errorCode: 'budget_exhausted', stats: { rounds: 3, rawTokens: 30000 }, result: null }, s => s.name === 'invokeCapability' ? 'Rotated around Psyche to show Mars' : s.name)!;
+    expect(note.text).toContain('Already applied: Rotated around Psyche to show Mars. 1 step refused.');
+    expect(note.text).not.toMatch(/receipt|readback|unverified/i);
+  });
+
+  it('puts the viewer\'s own verdict beside a finished answer (#345)', () => {
+    const turn = (result: Partial<NonNullable<AskTurn['result']>> & Pick<NonNullable<AskTurn['result']>, 'status'>): AskTurn => ({ id: 1, prompt: '', fresh: null, steps: [], reply: 'Mars is in view.', notes: [], status: 'done', error: null, errorCode: null, stats: null,
+      result: { report: null, unobservable: [], changes: [], facts: [], answerIssues: [], intentStated: true, escalated: null, ...result } });
+    const unmet = { status: 'unmet' as const, checks: [{ slot: 'view:Mars', ok: false, detail: 'Mars out of frame', soft: false }] };
+    expect(checkNote(turn({ status: 'failed', report: unmet }))).toEqual({ tone: 'warning', text: 'Viewer check: Mars out of frame.' });
+    expect(checkNote(turn({ status: 'verified', report: { status: 'met', checks: [] } }))).toEqual({ tone: 'muted', text: 'Checked in the viewer.' });
+    // Without a stated goal, verified covers each change's own result, never the whole request.
+    expect(checkNote(turn({ status: 'verified', intentStated: false, report: { status: 'met', checks: [] } }))?.text).toBe('Each change checked in the viewer; the request as a whole was not stated, so not checked.');
+    expect(checkNote(turn({ status: 'verified', escalated: 'removeBookmark destroys saved state', report: { status: 'met', checks: [] } }))?.text).toBe('Checked in the viewer. Answered by the escalation model: removeBookmark destroys saved state.');
+    expect(checkNote(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } })))
+      .toEqual({ tone: 'muted', text: 'Holds; not yet observed: terrain on Mars partial.' });
+    expect(checkNote(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }))).toEqual({ tone: 'muted', text: 'Not checked against the viewer: trajectory visibility has no read.' });
+    expect(checkNote(turn({ status: 'no-change' }))).toBeNull();
+    expect(checkNote(turn({ status: 'no-change', answerIssues: ['flyby'] }))).toEqual({ tone: 'warning', text: 'The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' });
+  });
+
+  it('passes a proxy\'s per-round usage through, and ignores a malformed one', () => {
+    const usage = { inputTokens: 10, cacheReadTokens: 9000, cacheWriteTokens: 0, outputTokens: 50 };
+    expect(parseWireResponse({ version: 1, stop: 'end', content: [], usage }).usage).toEqual(usage);
+    expect(parseWireResponse({ version: 1, stop: 'end', content: [], usage: { inputTokens: 'lots' } }).usage).toBeUndefined();
+  });
+
   it('counts capability lookups separately from completed viewer steps', () => {
     const steps = ['listCapabilities', 'describeCapabilities', 'getOperationResult', 'describeScene'].map(name => ({ id: name, name, input: {}, result: { ok: true as const, summary: 'Read' } }));
     expect(tally({ steps })).toMatchObject({ inspected: 3, done: 1, partial: 0 });
-    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null });
-    expect(note?.text).toContain('3 capability lookups completed');
-    expect(note?.text).not.toContain('changes already made');
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null, stats: null, result: null });
+    // Lookups change nothing, so they are not reported as applied.
+    expect(note?.text).toBe('Stopped.');
   });
 
   it('uses the normal proxy with the dev URL mode and resets history when it changes', async () => {
@@ -353,7 +388,7 @@ describe('the Ask session', () => {
       expect(turn).toMatchObject({ status: 'error', errorCode: 'budget_exhausted', reply: '' });
       expect(turn.steps).toHaveLength(0);
       const note = endNote(turn)!;
-      expect(note.text).toContain('raw-token safety cap (including cached tokens) is exhausted');
+      expect(note.text).toContain('raw-token safety cap (cached tokens included) is used up');
       expect(note.text).not.toContain('actions ran');
       expect(note.tone).toBe('warning');
     });
@@ -367,8 +402,8 @@ describe('the Ask session', () => {
       expect(turn.steps.map((s) => [s.name, s.result?.ok])).toEqual([['describeScene', true], ['select', false], ['describeScene', true], ['select', false]]);
       expect(turn.reply).toBe(''); // the planning remark of a round that never got its answer
       const note = endNote(turn)!;
-      expect(note.text).toContain('4 steps ran (2 done, 2 refused)');
-      expect(note.text).toContain('changes already made to the view remain');
+      // Reads are not changes; the refused writes are counted, not claimed.
+      expect(note.text).toContain('Nothing changed; 2 steps refused.');
       // No retry is offered, and nothing ran after the failure.
       expect(note.text).not.toMatch(/try again|retry/i);
       expect(transport.requests).toHaveLength(3);

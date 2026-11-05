@@ -215,6 +215,12 @@ export class LabelManager {
     if (entry) entry.sprite.visible = visible && this._globalVisible;
   }
 
+  /** The show/hide choice for one object's label; null when it has none. */
+  isLabelVisible(name: string): boolean | null {
+    const entry = this.labels.get(name);
+    return entry ? entry.sprite.visible : null;
+  }
+
   setAllVisible(visible: boolean): void {
     this._globalVisible = visible;
     for (const entry of this.labels.values()) {

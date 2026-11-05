@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { etFromCalendarString } from '@cosmolabe/core';
 import { createAgentTools, fixedAgentDefinitions, type AgentToolResult } from './agent.js';
 import { VERBS } from './verbs.js';
 import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
@@ -76,8 +77,8 @@ describe('agent tools: discovery', () => {
         },
       });
       expect(fail(await tools.call(name, {})).code).toBe('invalid-input');
-      expect(fail(await tools.call(name, { degrees: '45' })).code).toBe('invalid-input');
-      expect(fail(await tools.call(name, { degrees: 45, seconds: '2' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 'forty-five' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 45, seconds: 'two' })).code).toBe('invalid-input');
       expect(host.calls).toHaveLength(0);
       expect((await tools.call(name, { degrees: 45 })).ok).toBe(true);
       expect((await tools.call(name, { degrees: -30, seconds: 2 })).ok).toBe(true);
@@ -124,7 +125,7 @@ describe('agent tools: validation', () => {
   it('rejects unknown fields, missing fields, wrong types and bad enums before anything runs', async () => {
     expect(fail(await tools.call('select', { object: 'Titan', extra: 1 }))).toMatchObject({ code: 'invalid-input', error: expect.stringContaining('unknown field "extra"') });
     expect(fail(await tools.call('select', {}))).toMatchObject({ code: 'invalid-input', error: expect.stringContaining('missing "object"') });
-    expect(fail(await tools.call('setTimeRate', { rate: '10' }))).toMatchObject({ code: 'invalid-input', error: 'rate must be a number' });
+    expect(fail(await tools.call('setTimeRate', { rate: 'ten' }))).toMatchObject({ code: 'invalid-input', error: 'rate must be a number' });
     expect(fail(await tools.call('flyTo', { object: 'Titan', path: 'scenic' }))).toMatchObject({ code: 'invalid-input' });
     expect(fail(await tools.call('select', 'Titan'))).toMatchObject({ code: 'invalid-input' });
   });
@@ -148,7 +149,7 @@ describe('agent tools: validation', () => {
   it('takes a time as a calendar string or seconds past J2000', async () => {
     const host = new FakeViewer();
     const calls: unknown[] = [];
-    host.setTime = (when) => { calls.push(when); if (when.kind === 'et') host.time = when.et; return true; };
+    host.setTime = (when) => { calls.push(when); host.time = when.kind === 'et' ? when.et : etFromCalendarString(when.text); return true; };
     const t = createAgentTools(host);
     expect((await t.call('setTime', { when: '2021-04-30T19:00:00' })).ok).toBe(true);
     expect((await t.call('setTime', { when: 1000 })).ok).toBe(true);
@@ -214,7 +215,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     const pending = createAgentTools(host).call('flyTo', { object: 'Titan' });
     await tick();
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
+    expect(await pending).toMatchObject({ ok: true, summary: expect.stringContaining('flyTo Titan: arrived at Titan.'), completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' }, outcome: { report: { status: 'met' } } });
   });
 
   it('leaves the camera to a person who takes it, for the rest of the task', async () => {
@@ -268,7 +269,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     await tick();
     expect(settled).toBe(false);
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
+    expect(await pending).toMatchObject({ ok: true, summary: expect.stringContaining('flyTo Titan: arrived at Titan.'), completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' }, outcome: { report: { status: 'met' } } });
   });
 
   it('reports its flight stopped when another command replaces it, and does not wait on the replacement', async () => {
@@ -371,7 +372,7 @@ const use = (id: string, name: string, input: unknown) => ({ type: 'tool_use' as
 
 describe('runAgent: the transport gives out partway', () => {
   const budget = () => new AgentTransportError('the model proxy answered 429: the proxy has spent its token budget', 'budget_exhausted', 429);
-  const round = (n: number): AgentResponse => ({ stop: 'tool_use', content: [use(`s${n}`, 'select', { object: n % 2 ? 'Titan' : 'Saturn' })] });
+  const round = (n: number): AgentResponse => ({ stop: 'tool_use', content: [...(n === 1 ? [use('g', 'checkGoal', { require: [] })] : []), use(`s${n}`, 'select', { object: n % 2 ? 'Titan' : 'Saturn' })] });
 
   // A cap hit before any action, after one round, and after five.
   for (const rounds of [0, 1, 5]) {
@@ -384,7 +385,7 @@ describe('runAgent: the transport gives out partway', () => {
       const run = await runAgent({ transport, tools: createAgentTools(host), prompt: 'tour', onEvent: (e) => { if (e.type === 'tool-result') seen.push(`${e.name}:${e.result.ok}`); } });
       expect(run.outcome).toEqual({ kind: 'error', message: expect.stringContaining('token budget'), code: 'budget_exhausted' });
       // Only the rounds that ran acted, once each, and nothing ran after the failure.
-      expect(seen).toHaveLength(rounds);
+      expect(seen.filter(s => s.startsWith('select'))).toEqual(Array(rounds).fill('select:true'));
       expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(rounds);
       expect(transport.requests).toHaveLength(rounds + 1);
       // Ends on the last results (or the prompt), so the next request continues a valid conversation.
@@ -406,7 +407,7 @@ describe('runAgent', () => {
   it('runs a multi-step request, reporting partial failure, with a valid history', async () => {
     const host = new FakeViewer();
     const transport = new MockTransport([
-      { stop: 'tool_use', content: [{ type: 'provider', block: { type: 'thinking', thinking: '', signature: 's' } }, use('a', 'select', { object: 'Titan' }), use('b', 'showImagery', { object: 'Titan', layer: 'ctx', visible: true })] },
+      { stop: 'tool_use', content: [{ type: 'provider', block: { type: 'thinking', thinking: '', signature: 's' } }, use('g', 'checkGoal', { require: [] }), use('a', 'select', { object: 'Titan' }), use('b', 'showImagery', { object: 'Titan', layer: 'ctx', visible: true })] },
       { stop: 'end', content: [{ type: 'text', text: 'Selected Titan; it has no "ctx" layer.' }] },
     ]);
     const events: string[] = [];
@@ -415,14 +416,14 @@ describe('runAgent', () => {
       onEvent: (e) => events.push(e.type === 'tool-result' ? `${e.name}:${e.result.ok}` : e.type),
     });
     expect(run.outcome).toEqual({ kind: 'done' });
-    expect(events).toEqual(['thinking', 'tool', 'select:true', 'tool', 'showImagery:false', 'thinking', 'text']);
+    expect(events).toEqual(['thinking', 'tool', 'checkGoal:true', 'tool', 'select:true', 'tool', 'showImagery:false', 'thinking', 'text']);
     expect(run.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
     // The provider block went back untouched, and both calls got results.
     const second = transport.requests[1];
     expect(second.messages[1].content[0]).toEqual({ type: 'provider', block: { type: 'thinking', thinking: '', signature: 's' } });
     const results = second.messages[2].content;
-    expect(results.map((r) => r.type === 'tool_result' && [r.toolUseId, r.isError])).toEqual([['a', false], ['b', true]]);
-    expect(JSON.stringify(results[1])).toContain('layers: iss, radar');
+    expect(results.map((r) => r.type === 'tool_result' && [r.toolUseId, r.isError])).toEqual([['g', false], ['a', false], ['b', true]]);
+    expect(JSON.stringify(results[2])).toContain('layers: iss, radar');
   });
 
   it('stops at the step limit', async () => {
@@ -467,7 +468,7 @@ describe('runAgent: acceptance scenarios', () => {
     const host = new FakeViewer();
     const transport = new MockTransport([
       { stop: 'tool_use', content: [{ type: 'text', text: 'The object Mars is clearly meant.' }, use('a', 'describeScene', {})] },
-      { stop: 'tool_use', content: [use('b', 'resolve', { query: 'Titan' }), use('c', 'select', { object: 'Titan' })] },
+      { stop: 'tool_use', content: [use('b', 'resolve', { query: 'Titan' }), use('g', 'checkGoal', { require: [] }), use('c', 'select', { object: 'Titan' })] },
       { stop: 'end', content: [{ type: 'text', text: 'Selected Titan.' }] },
     ]);
     const texts: { text: string; final: boolean }[] = [];
@@ -481,7 +482,7 @@ describe('runAgent: acceptance scenarios', () => {
     });
     expect(run.outcome).toEqual({ kind: 'done' });
     expect(texts).toEqual([{ text: 'The object Mars is clearly meant.', final: false }, { text: 'Selected Titan.', final: true }]);
-    expect(results).toEqual(['describeScene:true', 'resolve:true', 'select:true']);
+    expect(results).toEqual(['describeScene:true', 'resolve:true', 'checkGoal:true', 'select:true']);
     expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(1);
   });
 
@@ -489,7 +490,7 @@ describe('runAgent: acceptance scenarios', () => {
     const host = new FakeViewer();
     const tools = createAgentTools(host);
     const transport = new MockTransport([
-      () => ({ stop: 'tool_use', content: [use('a', 'select', { object: 'Titan' })] }),
+      () => ({ stop: 'tool_use', content: [use('g', 'checkGoal', { require: [] }), use('a', 'select', { object: 'Titan' })] }),
       () => {
         host.scene = { id: 2, catalog: 'Other', ready: true }; // a catalog loaded while the model was thinking
         return { stop: 'tool_use', content: [use('b', 'gotoPlace', { place: host.places[0].ref }), use('c', 'select', { object: 'Saturn' })] };
@@ -501,7 +502,7 @@ describe('runAgent: acceptance scenarios', () => {
       transport, tools, prompt: 'go',
       onEvent: (e) => { if (e.type === 'tool-result') results.push([e.name, e.result.ok, e.result.ok ? undefined : e.result.code]); },
     });
-    expect(results).toEqual([['select', true, undefined], ['gotoPlace', false, 'stale'], ['select', false, 'stale']]);
+    expect(results).toEqual([['checkGoal', true, undefined], ['select', true, undefined], ['gotoPlace', false, 'stale'], ['select', false, 'stale']]);
     expect(host.calls.filter((c) => c.startsWith('gotoPlace'))).toEqual([]);
     expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(1);
     expect(run.outcome).toEqual({ kind: 'stale' });
@@ -527,7 +528,7 @@ describe('runAgent: acceptance scenarios', () => {
     const host = new FakeViewer();
     const tools = createAgentTools(host);
     const transport = new MockTransport([
-      { stop: 'tool_use', content: [use('a', 'describeScene', {}), use('b', 'flyTo', { object: 'Titan' })] },
+      { stop: 'tool_use', content: [use('a', 'describeScene', {}), use('g', 'checkGoal', { require: [] }), use('b', 'flyTo', { object: 'Titan' })] },
       (req) => ({ stop: 'end', content: [{ type: 'text', text: JSON.stringify(req.messages.at(-1)!.content.map((c) => c.type === 'tool_result' && c.isError)) }] }),
     ]);
     const pending = runAgent({ transport, tools, prompt: 'fly to titan' });
@@ -629,7 +630,7 @@ describe('agent tools: what a write leaves in place', () => {
     const host = new MissionViewer();
     const tools = createAgentTools(host, { formatTime: fmt });
     expect(await tools.call('selectActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({
-      ok: true, summary: expect.stringContaining('The viewer now reports Flight 5 (ingenuity:flight:5) as the selected activity.'),
+      ok: true, outcome: { expected: [{ p: 'activity', id: 'ingenuity:flight:5' }], report: { status: 'met', checks: [{ detail: 'activity ingenuity:flight:5 selected' }] } },
     });
     expect(await tools.call('seekActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({ ok: true, summary: expect.stringContaining('The clock now reads ET 673687471.') });
   });
@@ -638,7 +639,7 @@ describe('agent tools: what a write leaves in place', () => {
     const host = new MissionViewer();
     host.loseSelection = true; // something clears it between the write and the read
     const r = await createAgentTools(host).call('selectActivity', { activity: 'ingenuity:flight:5' });
-    expect(r).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining('the viewer reports none as selected') });
+    expect(r).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining('activity none selected') });
   });
 
   it('reads a place selection back after navigating', async () => {
@@ -646,7 +647,7 @@ describe('agent tools: what a write leaves in place', () => {
     const place = host.places[0];
     const r = await createAgentTools(host).call('gotoPlace', { place: place.ref });
     // The host's fake flight starts no animation, so this returns at once.
-    expect(r).toMatchObject({ ok: true, summary: expect.stringContaining('The viewer now reports Airfield B as the selected place.') });
+    expect(r).toMatchObject({ ok: true, outcome: { report: { status: 'met', checks: [{ detail: 'place Airfield B selected' }] } } });
   });
 
   it('Flight 5: select, seek, go to its site, then a final read agrees with every step', async () => {
@@ -658,6 +659,7 @@ describe('agent tools: what a write leaves in place', () => {
       (req) => {
         const listed = JSON.parse((req.messages.at(-1)!.content[0] as { content: string }).content).data;
         return { stop: 'tool_use', content: [
+          use('g', 'checkGoal', { require: [{ p: 'activity', id: listed.id }] }),
           use('b', 'selectActivity', { activity: listed.id }),
           use('c', 'seekActivity', { activity: listed.id }),
           use('d', 'gotoPlace', { place: listed.site.places[0].ref }),
@@ -677,7 +679,7 @@ describe('agent tools: what a write leaves in place', () => {
       onEvent: (e) => { if (e.type === 'text' && e.final) answer = e.text; if (e.type === 'tool-result') results.push([e.name, e.result.ok]); },
     });
     expect(run.outcome).toEqual({ kind: 'done' });
-    expect(results).toEqual([['listActivities', true], ['getActivity', true], ['selectActivity', true], ['seekActivity', true], ['gotoPlace', true], ['describeScene', true]]);
+    expect(results).toEqual([['listActivities', true], ['getActivity', true], ['checkGoal', true], ['selectActivity', true], ['seekActivity', true], ['gotoPlace', true], ['describeScene', true]]);
     expect(answer).toBe('Flight 5 selected; Airfield B; ET 673687471; link name match.');
     // And the viewer itself agrees.
     expect(host.getSelectedActivity()?.id).toBe('ingenuity:flight:5');
@@ -830,5 +832,22 @@ describe('compact activity collections', () => {
       expect(page.activities.map((a: { durationSeconds: number | null }) => a.durationSeconds)).toEqual([108, null]);
     }
     tools.dispose();
+  });
+});
+
+describe('agent tools: mis-encoded model input', () => {
+  it('takes numbers, booleans, arrays and JSON-text parameters the way models often send them, and nothing else', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host, { vocabulary: 'catalog', allowAuthoring: true });
+    expect(await tools.call('setTimeRate', { rate: '10' })).toMatchObject({ ok: true });
+    expect(host.rate).toBe(10);
+    expect(await tools.call('setPlaying', { on: 'false' })).toMatchObject({ ok: true });
+    host.tracked = 'Titan';
+    expect(await tools.call('frameObject', { object: null })).toMatchObject({ ok: true });
+    // A JSON-text parameter sent as the object itself.
+    expect(await tools.call('upsertMeasurement', { id: 'm', kind: 'distance', source: { kind: 'entity', bodyName: 'Titan' }, target: { kind: 'entity', bodyName: 'Saturn' }, vertex: null, visible: true })).toMatchObject({ ok: true });
+    expect(host.listMeasurements().map(m => m.id)).toEqual(['m']);
+    expect(fail(await tools.call('setTimeRate', { rate: '10x' })).code).toBe('invalid-input');
+    expect(fail(await tools.call('select', JSON.parse('{"object":"Titan","__proto__":{}}'))).code).toBe('invalid-input');
   });
 });

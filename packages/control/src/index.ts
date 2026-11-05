@@ -11,11 +11,14 @@ export type {
   ScriptAvailability,
   ScriptObjectState,
   ViewerSnapshotState,
+  ViewerState,
   CircleDirection,
   CoordinateNavigationOptions,
   FlightPath,
   SurfaceView,
   ScriptCamera,
+  ScriptViewComposition,
+  ScriptComposedObject,
   ScriptEventMap,
   ScriptEventName,
   ScriptFlight,
@@ -55,7 +58,8 @@ export type { ScriptProblem, ScriptProblemKind } from './errors.js';
 
 // The vocabulary
 export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, FLIGHT_PATHS, SURFACE_VIEWS, LAYERS, verbUsage } from './verbs.js';
-export type { ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
+export type { OperationContract, ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
+export { registerVerb } from './verbs.js';
 export { suggest } from './suggest.js';
 
 // Editor support
@@ -73,11 +77,16 @@ export { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from '.
 export type { CapabilityTools, CapabilityToolsOptions, CapabilityQuery, CapabilityPage, CapabilitySummary, CapabilityDescription, CapabilityEffect, CapabilityScope, OperationReceipt, OperationStatus } from './capabilities.js';
 export { createAgentTools, agentDefinitions } from './agent.js';
 export type {
-  AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions,
+  AgentTools, AgentTask, AgentToolDef, AgentDefinition, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions, OperationOutcome, ResultFact, EventResultFact,
 } from './agent.js';
-export { runAgent, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION, AgentTransportError } from './agent-loop.js';
+export { runAgent, compactHistory, systemPrompt, escalateDestructive, AGENT_WIRE_VERSION, AgentTransportError, HOST_CHECK_PREFIX } from './agent-loop.js';
+export { checkAnswer, factSummary, statedDistancesKm, statedDates } from './answer-check.js';
+export { composeView } from './compose.js';
+export type { ComposeOutcome } from './compose.js';
+export { evaluate, parsePredicate, preconditionProblem, adopt, release, retireDomain, slotOf, PREDICATE_KINDS, STATE_DOMAINS } from './outcome.js';
+export type { Predicate, PredicateKind, StateDomain, GoalCheck, GoalReport, GoalStatus } from './outcome.js';
 export type {
-  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
+  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun, RequestResult, RequestStatus,
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

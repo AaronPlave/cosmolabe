@@ -1,0 +1,74 @@
+name: Ask live reliability benchmark
+
+# Paid model calls (#345). Off unless the repository variable ASK_LIVE_BENCHMARK
+# is 'true' and the ANTHROPIC_API_KEY secret exists. Deterministic Ask checks run
+# in Fast PR CI (Vitest); this only detects model/provider drift.
+on:
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: Fresh-session repetitions per cell (1-10)
+        default: '1'
+      cases:
+        description: Comma-separated case IDs (empty = whole reliability suite)
+        default: ''
+  schedule:
+    - cron: '41 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ask-live-benchmark
+  cancel-in-progress: false
+
+jobs:
+  live:
+    if: vars.ASK_LIVE_BENCHMARK == 'true'
+    name: Ask reliability (Sonnet + Haiku, fixed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+      - name: Fetch mission kernels for the benchmark catalogs
+        run: |
+          git lfs install --local
+          git lfs pull --include "apps/viewer/test-catalogs/kernels/**,apps/viewer/test-catalogs/textures/**"
+      - name: Build packages
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run benchmark against this commit's viewer
+        env:
+          ASK_BENCHMARK_LIVE: '1'
+          ASK_BENCHMARK_SUITE: reliability
+          ASK_BENCHMARK_MODES: fixed
+          ASK_BENCHMARK_REPETITIONS: ${{ inputs.repetitions || '1' }}
+          ASK_BENCHMARK_CASES: ${{ inputs.cases }}
+          ASK_BENCHMARK_REPORT: /tmp/ask-benchmark.json
+          CL_VIEWER_URL: http://127.0.0.1:5299/
+        run: |
+          test -n "$ANTHROPIC_API_KEY" || { echo 'ANTHROPIC_API_KEY secret is not set'; exit 1; }
+          VITE_ASK_ENDPOINT=http://127.0.0.1:8799 npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5299 --strictPort > /tmp/ask-vite.log 2>&1 &
+          for i in $(seq 1 60); do curl --fail --silent "$CL_VIEWER_URL" >/dev/null && break; sleep 1; done
+          node scripts/benchmark-ask.mjs
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ask-live-benchmark
+          path: |
+            /tmp/ask-benchmark.json
+            /tmp/ask-vite.log
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Ask live reliability: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          node -e "const r=require('/tmp/ask-benchmark.json');for(const g of r.reliabilitySummary??[])console.log('- '+[g.model,g.mode,g.firstAttemptSuccess+'/'+g.samples,'p95 rounds '+g.rounds.p95,'est $'+g.estimatedUsd].join(' | '))" >> "$GITHUB_STEP_SUMMARY" || true
