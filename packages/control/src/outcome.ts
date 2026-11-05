@@ -66,6 +66,10 @@ export interface Predicate {
   readonly body?: string;
   /** probeUnder: the surface the sub-point is projected to (default rendered). */
   readonly policy?: 'reference' | 'rendered' | 'terrain';
+  /** eventRun: the search window spans the participants' whole loaded coverage ("all", "every"). */
+  readonly whole?: boolean;
+  /** Set by the loop on what the person asked for (checkGoal), as opposed to an action's derived result. Only the person's restatement or release changes it. */
+  readonly stated?: boolean;
 }
 
 export interface GoalCheck {
@@ -110,7 +114,7 @@ export function slotOf(p: Predicate): string {
 /** A short label for notes: "inView Mars", "epoch 2026-05-15T…". */
 export function describePredicate(p: Predicate): string {
   const bits = [p.object, p.query, p.id, p.read, p.path, p.kind, p.body, p.layer, p.feature, p.utc, p.et, p.maxKm !== undefined ? `<= ${p.maxKm} km` : undefined,
-    p.minKm !== undefined ? `>= ${p.minKm} km` : undefined, p.value, p.equals === undefined ? undefined : `= ${JSON.stringify(p.equals)}`, p.pick, p.encounter ? 'encounter' : undefined]
+    p.minKm !== undefined ? `>= ${p.minKm} km` : undefined, p.value, p.equals === undefined ? undefined : `= ${JSON.stringify(p.equals)}`, p.pick, p.encounter ? 'encounter' : undefined, p.policy, p.whole ? 'whole coverage' : undefined]
     .filter(v => v !== undefined && v !== null);
   return `${p.p}${bits.length ? ` ${bits.join(' ')}` : ''}`;
 }
@@ -136,7 +140,10 @@ export function parsePredicate(input: unknown): Predicate {
     case 'paused': need(typeof g.value === 'boolean', 'paused needs value true|false'); break;
     case 'rate': need(typeof g.value === 'number' && Number.isFinite(g.value), 'rate needs value'); break;
     case 'activity': case 'place': need(g.id === null || text('id'), `${p} needs id`); break;
-    case 'eventQuery': case 'eventRun': case 'eventEpoch': case 'eventFramed': case 'eventDrawn': need(text('query'), `${p} needs query`); break;
+    case 'eventQuery': case 'eventRun': case 'eventEpoch': case 'eventFramed': case 'eventDrawn':
+      need(text('query'), `${p} needs query`);
+      need(g.whole === undefined || (p === 'eventRun' && typeof g.whole === 'boolean'), 'whole is a boolean on eventRun');
+      break;
     case 'eventSelected':
       need(text('query'), 'eventSelected needs query');
       need(g.pick === undefined || g.pick === 'closest', 'pick is closest');
@@ -154,7 +161,9 @@ export function parsePredicate(input: unknown): Predicate {
   }
   if (g.framing !== undefined) need(g.framing === 'pair' || g.framing === 'target', 'framing is pair|target');
   if (g.policy !== undefined) need(['reference', 'rendered', 'terrain'].includes(g.policy as string), 'policy is reference|rendered|terrain');
-  return g as unknown as Predicate;
+  // Only the loop marks what the person stated.
+  const { stated: _stated, ...rest } = g;
+  return rest as unknown as Predicate;
 }
 
 // ── Holding a conversation's goal ──
@@ -168,25 +177,34 @@ function anchorOf(preds: readonly Predicate[]): string | null {
 }
 
 /**
- * Add predicates to what a conversation holds. A predicate replaces the held
- * one on its slot. When the incoming ones move the camera to another subject
- * (another tracked object, or an event's framing), the earlier camera
- * predicates are retired: there is one camera. Everything else stays.
+ * Add predicates to what a conversation holds. What the person stated
+ * (`by: 'person'`, from checkGoal) outranks what an action derives: an action
+ * never replaces a stated predicate (it only names the event result it
+ * selected), and a moving camera retires only derived camera predicates. A
+ * stated predicate changes only when the person restates or releases it.
+ * Otherwise a predicate replaces the held one on its slot, and a new camera
+ * subject (another tracked object, an event's framing) retires the earlier
+ * derived camera predicates: there is one camera.
  */
-export function adopt(held: readonly Predicate[], incoming: readonly Predicate[], protect: ReadonlySet<string> = new Set()): { held: Predicate[]; replaced: string[]; retired: string[] } {
+export function adopt(held: readonly Predicate[], incoming: readonly Predicate[], by: 'person' | 'action' = 'action'): { held: Predicate[]; replaced: string[]; retired: string[] } {
   const next = new Map(held.map(p => [slotOf(p), p]));
   const replaced: string[] = [], retired: string[] = [];
   const before = anchorOf(held), after = anchorOf(incoming);
   if (after && after !== before) {
-    // What the person asked about the new subject itself ("keep Psyche close") stays.
-    // So does what this request itself asked for (`protect`): its own actions do not undo it.
-    for (const [slot, p] of next) if (isViewPredicate(p) && p.object !== after && !protect.has(slot) && !incoming.some(q => slotOf(q) === slot)) { next.delete(slot); retired.push(describePredicate(p)); }
+    for (const [slot, p] of next) if (isViewPredicate(p) && !p.stated && p.object !== after && !incoming.some(q => slotOf(q) === slot)) { next.delete(slot); retired.push(describePredicate(p)); }
   }
-  for (const p of incoming) {
+  for (const q of incoming) {
+    const p = by === 'person' ? { ...q, stated: true } : q;
     const old = next.get(slotOf(p));
-    // The result an operation selects inherits what the person required of it (the closest, a real encounter).
-    const merged = old && p.p === 'eventSelected' && old.p === 'eventSelected' && old.query === p.query ? { ...old, ...p } : p;
-    if (old && JSON.stringify(old) !== JSON.stringify(merged) && merged === p) replaced.push(`${describePredicate(old)} → ${describePredicate(p)}`);
+    const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && old.query === p.query;
+    if (old?.stated && by === 'action') {
+      // The person's requirement stays; an action only fills in which result it selected.
+      if (sameSearch && p.id !== undefined) next.set(slotOf(p), { ...old, id: p.id });
+      continue;
+    }
+    // A selected result inherits what was required of it (the closest, a real encounter).
+    const merged = sameSearch ? { ...old, ...p } : p;
+    if (old && !sameSearch && !same(old, merged)) replaced.push(`${describePredicate(old)} → ${describePredicate(p)}`);
     next.set(slotOf(p), merged);
   }
   return { held: [...next.values()], replaced, retired };
@@ -262,31 +280,42 @@ export function findEventResult(host: ViewerControl, query: string, id: string) 
 export function encounterOf(host: ViewerControl, query: string, id: string) {
   const event = findEventResult(host, query, id);
   if (!event?.bodies.target) return null;
-  let max: number | undefined;
-  try { max = host.getEventQueryInfo?.(query).definition?.query.params?.maxRangeKm as number | undefined; } catch { max = undefined; }
-  return classifyApproach([event.bodies.observer, event.bodies.target], event.metrics?.find(m => m.key === 'range')?.value, max);
+  return classifyApproach([event.bodies.observer, event.bodies.target], event.metrics?.find(m => m.key === 'range')?.value);
 }
 
+/** Kinds whose end state an action's own expectation settles before it runs; the rest (composition, ranges, times) are judged after. */
+const DECIDED_BEFORE = new Set<PredicateKind>(['selected', 'tracked', 'paused', 'rate', 'activity', 'place', 'probeUnder', 'featureSelected', 'state']);
+const DEFINING = ['object', 'value', 'id', 'policy', 'equals', 'layer', 'feature'] as const;
+
 /**
- * What a write would contradict before it runs: a result the person required
- * to be the closest, or a real encounter, judged on the result itself. Null
- * when nothing held speaks to it. This is how an intent stated before acting
- * stops a wrong action instead of reporting it afterwards.
+ * What a write would contradict before it runs, or null. Judged against what
+ * the person stated, never against another action's result: a pin on the
+ * reference ellipsoid when they asked for the drawn ground, another object
+ * selected, a result that is not the closest or not a real encounter. This is
+ * how an intent stated before acting stops a wrong action instead of
+ * reporting it afterwards.
  */
 export function preconditionProblem(host: ViewerControl, expected: readonly Predicate[], held: readonly Predicate[]): string | null {
   for (const e of expected) {
-    if (e.p !== 'eventSelected' || !e.id || !e.query) continue;
-    const want = held.find(h => h.p === 'eventSelected' && h.query === e.query);
+    const want = held.find(h => h.stated && slotOf(h) === slotOf(e));
     if (!want) continue;
-    if (want.encounter) {
-      const c = encounterOf(host, e.query, e.id);
-      if (c?.encounter === false) return `the person asked for an encounter, and result ${e.id} is not one: ${c.basis}`;
+    if (e.p === 'eventSelected') {
+      if (!e.id || !e.query || want.query !== e.query) continue;
+      if (want.encounter) {
+        const c = encounterOf(host, e.query, e.id);
+        if (c?.encounter === false) return `the person asked for an encounter, and result ${e.id} is not one: ${c.basis}`;
+      }
+      if (want.pick === 'closest' && host.getEventResultPage) {
+        let best: string | undefined;
+        try { best = host.getEventResultPage(e.query, { order: 'range-ascending', limit: 1 }).items[0]?.reference.id; } catch { best = undefined; }
+        if (best && best !== e.id) return `the person asked for the closest result, which is ${best}, not ${e.id}`;
+      }
+      continue;
     }
-    if (want.pick === 'closest' && host.getEventResultPage) {
-      let best: string | undefined;
-      try { best = host.getEventResultPage(e.query, { order: 'range-ascending', limit: 1 }).items[0]?.reference.id; } catch { best = undefined; }
-      if (best && best !== e.id) return `the person asked for the closest result, which is ${best}, not ${e.id}`;
-    }
+    if (!DECIDED_BEFORE.has(e.p)) continue;
+    const key = DEFINING.find(k => k in want && k in e && !same(want[k], e[k]))
+      ?? (e.p === 'probeUnder' && !('policy' in want) && e.policy && e.policy !== 'rendered' ? 'policy' : undefined);
+    if (key) return `the person asked for ${describePredicate(want)}, and this would leave ${describePredicate(e)}. If they changed their mind, restate it with checkGoal (or release ${slotOf(want)}) first`;
   }
   return null;
 }
@@ -319,6 +348,8 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
             : o.occlusion ? `${p.object} in frame, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : `${p.object} in frame`);
         }
         if (p.p === 'legible') {
+          // Legible means seen at a usable size: out of frame or hidden is a plain failure, never a soft one.
+          if (!o.inView || !o.drawEnabled) return { ...check(p, false, `${p.object} ${o.drawEnabled ? 'out of frame' : 'is hidden'}`), soft: false };
           const size = o.angularRadiusDeg === null ? null : Math.tan(o.angularRadiusDeg * Math.PI / 180) / tanHalf;
           return check(p, size === null ? null : size >= LEGIBLE_NDC, size === null ? `${p.object} size unknown` : size >= LEGIBLE_NDC ? `${p.object} drawn at a visible size` : `${p.object} is only a few pixels across`);
         }
@@ -354,7 +385,13 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         const page = host.getEventResultPage ? try_(() => host.getEventResultPage!(p.query!, { limit: 1 })) : undefined;
         if (!page) return check(p, null, 'event search unobservable');
         const ok = ['ready', 'no-results'].includes(page.status);
-        return check(p, ok, ok ? `search ${p.query} complete, ${page.total} results` : `search ${p.query} ${page.status}`);
+        if (!ok || !p.whole) return check(p, ok, ok ? `search ${p.query} complete, ${page.total} results` : `search ${p.query} ${page.status}`);
+        // "All": the window must span every loaded coverage window of these participants, to within a step.
+        const def = page.query.definition?.query, windows = page.query.coverage?.windows ?? [];
+        if (!def || !windows.length) return check(p, null, `search ${p.query} complete; its participants' coverage is unknown`);
+        const tol = def.step ?? 3600;
+        const missed = windows.filter(w => def.window.start > w.start + tol || def.window.end < w.end - tol);
+        return check(p, !missed.length, missed.length ? `search ${p.query} misses ${missed.length} of ${windows.length} coverage windows` : `search ${p.query} spans the whole coverage, ${page.total} results`);
       }
       case 'eventSelected': {
         if (!viz) return check(p, null, 'this viewer cannot observe events');
@@ -447,5 +484,7 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
       }
     }
   });
-  return summarize(checks);
+  // Legible size alone says nothing about where the camera is: it is a secondary check only beside a placement of the same object.
+  const placed = new Set(predicates.filter(p => p.p === 'inView' || p.p === 'range').map(p => p.object));
+  return summarize(checks.map((c, i) => predicates[i].p === 'legible' && !placed.has(predicates[i].object) ? { ...c, soft: false } : c));
 }

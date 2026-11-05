@@ -117,9 +117,12 @@ describe('outcome predicates', () => {
     expect(distant.status).toBe('unmet');
     expect(distant.checks[0].detail).toMatch(/sphere of influence .* not a flyby/);
     // Asked for before acting, it stops the presentation instead of reporting it afterwards.
-    expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toMatch(/not one/);
-    expect(preconditionProblem(events('e2'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toBeNull();
-    expect(preconditionProblem(events('e1'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest' }])).toMatch(/closest result, which is e1/);
+    const asked = flyby.map(p => ({ ...p, stated: true }));
+    expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], asked)).toMatch(/not one/);
+    expect(preconditionProblem(events('e2'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], asked)).toBeNull();
+    expect(preconditionProblem(events('e1'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', stated: true }])).toMatch(/closest result, which is e1/);
+    // Only what the person stated stops an action; an earlier action's result does not.
+    expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toBeNull();
   });
 
   it('state predicates compare any registered read; unregistered reads are not called', () => {
@@ -174,5 +177,37 @@ describe('outcome predicates', () => {
       expect(evaluate(saved([10, 18.44]), goal).status).toBe('unmet');
       expect(evaluate(saved([77.45, 18.44], true, 'Polygon'), goal).status).toBe('unmet');
     });
+  });
+
+  it('legible alone is not a placement: out of frame fails it outright, and a small size counts only beside one', () => {
+    const legible: Predicate[] = [{ p: 'legible', object: 'Mars' }];
+    expect(evaluate(view({ inView: false, ndc: null }), legible).status).toBe('unmet');
+    // A few pixels across, with nothing else saying where the camera is: not a soft "partial".
+    expect(evaluate(view({ rangeKm: 5.7e6, angularRadiusDeg: 0.03 }), legible).status).toBe('unmet');
+    expect(evaluate(view({ rangeKm: 5.7e6, angularRadiusDeg: 0.03 }), [{ p: 'inView', object: 'Mars' }, ...legible]).status).toBe('partial');
+  });
+
+  it('"all" needs the search window to span the pair\'s whole coverage; unknown coverage is inconclusive, not met', () => {
+    const page = (window: { start: number; end: number }, windows: { start: number; end: number }[] | null) => host({ getEventResultPage: () => ({ status: 'ready', total: 3, offset: 0, nextOffset: null, items: [],
+      query: { status: 'available', error: null, provenance: null, coverage: windows ? { status: 'available', windows, exact: true, problems: [] } : null,
+        definition: { id: 'q', label: 'q', enabled: true, visible: true, query: { id: 'q', kind: 'closest-approach', bodies, window, step: 3600, abcorr: 'NONE', params: {} } } } }) as never });
+    const all: Predicate[] = [{ p: 'eventRun', query: 'q', whole: true }];
+    expect(evaluate(page({ start: 0, end: 1e9 }, [{ start: 100, end: 1e9 - 100 }]), all).status).toBe('met');
+    expect(evaluate(page({ start: 0, end: 5e8 }, [{ start: 100, end: 1e9 - 100 }]), all).checks[0].detail).toMatch(/misses 1 of 1 coverage windows/);
+    expect(evaluate(page({ start: 0, end: 1e9 }, null), all).status).toBe('inconclusive');
+    // Without "whole", a complete search is enough.
+    expect(evaluate(page({ start: 0, end: 5e8 }, [{ start: 100, end: 1e9 - 100 }]), [{ p: 'eventRun', query: 'q' }]).status).toBe('met');
+  });
+
+  it('what the person stated outranks an action\'s derived result, and survives a new camera subject', () => {
+    const stated = adopt([], [{ p: 'range', object: 'Psyche', maxKm: 0.1 }, { p: 'selected', object: 'Mars' }], 'person').held;
+    expect(stated.every(p => p.stated)).toBe(true);
+    const after = adopt(stated, [{ p: 'tracked', object: 'Mars' }, { p: 'selected', object: 'Earth' }, { p: 'range', object: 'Psyche', maxKm: 500 }]);
+    expect(after.held).toEqual(expect.arrayContaining([{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }, { p: 'selected', object: 'Mars', stated: true }, { p: 'tracked', object: 'Mars' }]));
+    expect(after.retired).toEqual([]);
+    // The person restating it replaces it.
+    expect(adopt(after.held, [{ p: 'selected', object: 'Earth' }], 'person').held).toContainEqual({ p: 'selected', object: 'Earth', stated: true });
+    // A model cannot mark its own predicate as stated.
+    expect(parsePredicate({ p: 'paused', value: true, stated: true })).toEqual({ p: 'paused', value: true });
   });
 });

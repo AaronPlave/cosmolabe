@@ -7,7 +7,7 @@ import type { ScriptReadinessRequest, ViewerControl } from './contracts.js';
 import { VERBS } from './verbs.js';
 
 export const CAPABILITY_VERSION = 1;
-export const CAPABILITY_LIMITS = { page: 12, selected: 8, query: 160, receipts: 64, inputChars: 16000 } as const;
+export const CAPABILITY_LIMITS = { page: 12, selected: 8, query: 160, receipts: 64, inputChars: 16000, index: 8000 } as const;
 export type CapabilityEffect = 'read' | 'viewer' | 'authoring' | 'external';
 export interface CapabilityScope { readonly viewer: string; readonly scene: number | null; readonly revision: number }
 export interface CapabilitySummary {
@@ -29,6 +29,8 @@ export interface CapabilityDescription extends CapabilitySummary {
   readonly provenance: string;
   /** 'host' retains allowAuthoring; destructive input variants also need confirmation. */
   readonly permission: 'none' | 'host' | 'host-and-confirmation';
+  /** The operation's own usage notes, from its contract. */
+  readonly guide: string | null;
   /** From the operation's contract: what it changes and how its result is observed. */
   readonly behaviour: {
     readonly writes: readonly StateDomain[];
@@ -245,7 +247,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         conventions: 'Time: ET seconds past J2000 or UTC calendar; angles: degrees; distances and camera poses: km. Scene body/frame conventions are authoritative; no implicit coordinate transform. Consult verb parameter descriptions.',
         provenance: 'Scene/catalog declarations and observed runtime state are distinct. Null/withheld provenance, accuracy and coverage remain unknown.',
         permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : def.requiresAuthoring ? 'host' : 'none',
-        behaviour: behaviour(def.contract) };
+        guide: def.contract.guide ?? null, behaviour: behaviour(def.contract) };
     });
   };
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -298,7 +300,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             const descriptions = describeCapabilities(args.ids as string[], args.version as number | undefined);
             return { ok: true, summary: 'Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task.', data: {
               version: CAPABILITY_VERSION, scope: scope(),
-              selected: descriptions.map(({ id, tool, outputSchema, effect, available, reason, references, permission }) => ({ id, name: tool.name, description: tool.description.slice(0, 640), inputSchema: tool.inputSchema, outputDataSchema: outputSchema.properties?.data, effect, available, reason, references, permission })),
+              selected: descriptions.map(({ id, tool, outputSchema, effect, available, reason, references, permission, guide }) => ({ id, name: tool.name, description: tool.description.slice(0, 640), inputSchema: tool.inputSchema, outputDataSchema: outputSchema.properties?.data, effect, available, reason, references, permission, ...(guide ? { guide } : {}) })),
               conventions: descriptions[0].conventions, provenance: descriptions[0].provenance,
               output: 'ok/summary/data or ok/code/error, plus receipt: id, operation, version, scope, task, status, requestedTarget, resolvedTarget, observation, warnings, provenance, verification. Inspect getOperationResult for authoritative progress/results. Full output schema is available through the typed host describeCapabilities API.',
             } };
@@ -398,8 +400,28 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     };
     return wrapped;
   };
+  const direct = () => opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!];
+  const signature = (def: AgentDefinition) => `${idOf(def)}${def.contract.guide ? '*' : ''}(${Object.entries(def.inputSchema.properties ?? {}).map(([key, prop]) => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(prop.type) ? prop.type.join('|') : prop.type ?? 'json'}${prop.enum ? '=' + prop.enum.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${prop.maximum !== undefined ? '<=' + prop.maximum : ''}`).join(',')})`;
+  /**
+   * The registry index the model sees, within a fixed budget however many
+   * operations are registered: entries in registration order (built-ins
+   * first) until the budget, then a count of the rest, which stay findable
+   * through listCapabilities and invocable by ID.
+   */
+  const index = () => {
+    const entries: string[] = [];
+    let used = 0;
+    const all = definitions();
+    for (const def of all) {
+      const entry = signature(def);
+      if (used + entry.length + 2 > CAPABILITY_LIMITS.index) break;
+      entries.push(entry); used += entry.length + 2;
+    }
+    const rest = all.length - entries.length;
+    return `Compact registry IDs (* has usage notes: describe it before first use): ${entries.join(', ')}${rest ? `, and ${rest} more: find them with listCapabilities` : ''}.`;
+  };
   const api: CapabilityTools = {
-    list: () => { versionCheck(); return [...(opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!]), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} Compact registry IDs: ${definitions().map(def => `${idOf(def)}(${Object.keys(def.inputSchema.properties ?? {}).map(key => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(def.inputSchema.properties![key].type) ? def.inputSchema.properties![key].type!.join('|') : def.inputSchema.properties![key].type ?? 'json'}${def.inputSchema.properties![key].enum ? '=' + def.inputSchema.properties![key].enum!.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${def.inputSchema.properties![key].maximum !== undefined ? '<=' + def.inputSchema.properties![key].maximum : ''}`).join(',')})`).join(', ')}.` } : d)]; },
+    list: () => { versionCheck(); return [...direct(), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} ${index()}` } : d)]; },
     inspect: () => { versionCheck(); return raw.inspect!(); }, verify: goal => { versionCheck(); return raw.verify!(goal); }, listCapabilities, describeCapabilities, getOperationResult, begin,
     contractOf: (name, input) => {
       if (DISCOVERY.some(d => d.name === name && d.name !== 'invokeCapability')) return { namespace: 'scene', writes: [] };
@@ -411,8 +433,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const def = name === 'invokeCapability' ? definitions().find(d => idOf(d) === (input as { id?: unknown } | null)?.id) : definitions().find(d => d.name === name || idOf(d) === name);
       return def ? raw.preflight?.(def.name, name === 'invokeCapability' ? (input as { input?: unknown }).input : input, held) ?? null : null;
     },
-    // Usage notes of every operation available now, direct or through the bridge.
-    guides: () => definitions().filter(d => d.contract.guide && summary(d).available).map(d => ({ name: d.name, guide: d.contract.guide! })),
+    // Notes for the directly offered tools only, so the prompt stays bounded; every other operation's notes come from the same registry when described or first used.
+    guides: () => direct().filter(d => d.contract.guide && summary(d).available).map(d => ({ name: d.name, guide: d.contract.guide! })),
     call: async (name, input) => { const task = begin(); try { return await task.call(name, input); } finally { task.finish(); } },
     cancel: () => raw.cancel(),
     dispose: () => { disposed = true; offLoad(); raw.dispose(); receipts.clear(); },

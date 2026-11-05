@@ -83,7 +83,7 @@ export { runAgent, compactHistory, systemPrompt, AGENT_WIRE_VERSION, AgentTransp
 export { checkAnswer, factSummary, statedDistancesKm, statedDates } from './answer-check.js';
 export { composeView } from './compose.js';
 export type { ComposeOutcome } from './compose.js';
-export { evaluate, parsePredicate, preconditionProblem, encounterOf, findEventResult, adopt, release, retireDomain, slotOf, describePredicate, valueAt, summarize, isViewPredicate, PREDICATE_KINDS, STATE_DOMAINS, EVENT_PAGE, EVENT_PAGES } from './outcome.js';
+export { evaluate, parsePredicate, preconditionProblem, adopt, release, retireDomain, slotOf, PREDICATE_KINDS, STATE_DOMAINS } from './outcome.js';
 export type { Predicate, PredicateKind, StateDomain, GoalCheck, GoalReport, GoalStatus } from './outcome.js';
 export type {
   AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun, RequestResult, RequestStatus,

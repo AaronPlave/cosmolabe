@@ -229,16 +229,18 @@ describe('verified receipts and partial workflows', () => {
   it('keeps feature guidance with the operations: the core prompt names no feature operation', () => {
     const core = systemPrompt([], []);
     for (const def of agentDefinitions()) if (!['checkGoal', 'describeScene'].includes(def.name)) expect(core, def.name).not.toMatch(new RegExp(`\\b${def.name}\\b`));
-    const tools = createCapabilityTools(Object.assign(new FakeViewer(), { getSurfaceData: () => undefined }), { surface: 'discovery' });
+    const tools = createCapabilityTools(Object.assign(new FakeViewer(), { getSurfaceData: () => undefined }), { surface: 'fixed' });
     const prompt = systemPrompt(tools.list(), tools.guides!());
+    // Only the directly offered tools' notes are in the prompt; the rest come from the registry on demand.
     expect(prompt).toContain('- composeView: To bring another object into a close-up');
-    // An operation this host lacks brings no guidance.
-    expect(systemPrompt(tools.list(), createCapabilityTools(new FakeViewer()).guides!())).not.toContain('- getSurfaceData:');
+    expect(prompt).not.toContain('- getSurfaceData:');
+    expect(tools.describeCapabilities(['surface.getSurfaceData'])[0].guide).toMatch(/^Zero getImagery layers/);
     for (const name of ['listCapabilities', 'describeCapabilities', 'invokeCapability']) expect(prompt).toContain(name);
     expect(prompt).toContain('source provenance withheld');
-    // A guide reaches the prompt only through its operation.
-    expect(prompt).toContain('- getSurfaceData: Zero getImagery layers');
-    expect(prompt).toContain('current-view coverage is unknown');
+    // Discovery offers describeScene alone directly, so only its notes are in the prompt.
+    const discovery = createCapabilityTools(new FakeViewer(), { surface: 'discovery' });
+    expect(discovery.guides!().map(g => g.name)).toEqual(['describeScene']);
+    discovery.dispose();
     tools.dispose();
   });
 
@@ -360,7 +362,7 @@ describe('verified receipts and partial workflows', () => {
       requests.push(request);
       round++;
       if (round === 1) return uses('describeCapabilities', { ids: ['scene.select', 'surface.showImagery'] });
-      if (round === 2) return uses('invokeCapability', { id: 'scene.select', version: 1, input: { object: 'Titan' } });
+      if (round === 2) return { stop: 'tool_use', content: [{ type: 'tool_use', id: 'g', name: 'checkGoal', input: { require: [] } }, ...uses('invokeCapability', { id: 'scene.select', version: 1, input: { object: 'Titan' } }).content] };
       if (round === 3) return uses('invokeCapability', { id: 'surface.showImagery', version: 1, input: { object: 'Titan', layer: 'absent', visible: true } });
       if (round === 4) return uses('describeScene', {});
       return { stop: 'end', content: [{ type: 'text', text: 'Titan selected; imagery refused.' }] };

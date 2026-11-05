@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
-import { createCapabilityTools } from './capabilities.js';
+import { CAPABILITY_LIMITS, createCapabilityTools } from './capabilities.js';
 import { runAgent, systemPrompt, type AgentContent, type AgentEvent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import { checkAnswer, statedDistancesKm, statedDates } from './answer-check.js';
 import { registerVerb, type VerbSpec } from './verbs.js';
@@ -16,6 +16,8 @@ import type { ResultFact } from './agent.js';
 const use = (id: string, name: string, input: unknown): AgentContent => ({ type: 'tool_use', id, name, input });
 const say = (text: string): AgentResponse => ({ content: [{ type: 'text', text }], stop: 'end' });
 const call = (...uses: AgentContent[]): AgentResponse => ({ content: uses, stop: 'tool_use' });
+const goal = (require: unknown[] = []) => use('goal', 'checkGoal', { require });
+const describe_ = (...ids: string[]) => use('describe', 'describeCapabilities', { ids });
 
 /** A model that plays its replies in order, whatever it is told. */
 function scripted(replies: AgentResponse[]) {
@@ -70,7 +72,7 @@ describe('answers are shown only after the viewer has checked them', () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })),
+      call(goal(), use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })),
       call(use('2', 'invokeCapability', { id: 'display.setObjectVisible', input: { object: 'Mars', visible: false } })),
       say('Mars is selected and in view.'),
       say('Mars is selected, but it is hidden.'),
@@ -122,7 +124,7 @@ describe('scientific answers are grounded in published facts', () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'v1-neptune', encounter: true }] })),
+      call(describe_('events.presentEventResult'), use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'v1-neptune', encounter: true }] })),
       call(use('2', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('v1-neptune') } })),
       say('Voyager 1 never flew past Neptune; I did not show the distant closest approach.'),
     ]);
@@ -137,13 +139,13 @@ describe('scientific answers are grounded in published facts', () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true }] })),
+      call(describe_('events.presentEventResult'), use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true }] })),
       call(use('2', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('psyche-mars') } })),
       say('Showing the Psyche–Mars flyby at 4,500 km.'),
     ]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'show the psyche mars flyby' });
     expect(host.presented).toEqual(['psyche-mars-0']);
-    expect(run.goals).toContainEqual({ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true, id: 'psyche-mars-0' });
+    expect(run.goals).toContainEqual({ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true, id: 'psyche-mars-0', stated: true });
     expect(run.result).toMatchObject({ status: 'verified', report: { status: 'met' } });
   });
 
@@ -164,7 +166,7 @@ describe('the person keeps what they take', () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } }), use('2', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } })),
+      call(goal(), use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } }), use('2', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } })),
       say('Framed Mars, paused.'),
     ]);
     const send = model.transport.send;
@@ -181,7 +183,7 @@ describe('the person keeps what they take', () => {
   it('a scene reload ends the request: nothing later runs against the new scene', async () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
-    const model = scripted([call(use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })), call(use('2', 'invokeCapability', { id: 'scene.select', input: { object: 'Psyche' } })), say('done')]);
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })), call(use('2', 'invokeCapability', { id: 'scene.select', input: { object: 'Psyche' } })), say('done')]);
     const send = model.transport.send;
     model.transport.send = async (req: AgentRequest) => { if (model.requests.length === 1) { host.scene = { id: 4, catalog: 'other', ready: true }; host.emit('load', { objects: [] }); } return send(req); };
     const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars then psyche' });
@@ -215,11 +217,15 @@ describe('operations come and go without an Ask change', () => {
       const host = new WidgetViewer();
       const tools = createCapabilityTools(host, { surface: 'fixed' });
       const now = offered(tools);
-      expect(now.index).toContain('display.setWidgetColor(color:string=grey|teal)');
-      expect(now.prompt).toContain('- setWidgetColor: Teal means the widget is armed.');
-      expect(tools.describeCapabilities(['display.setWidgetColor'])[0]).toMatchObject({ available: true, behaviour: { writes: ['display'], unobservable: null, idempotent: true } });
-      const model = scripted([call(use('1', 'invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } })), say('The widget is teal.')]);
+      // Indexed and marked as having notes; the notes stay out of the prompt and come from the registry.
+      expect(now.index).toContain('display.setWidgetColor*(color:string=grey|teal)');
+      expect(now.prompt).not.toContain('Teal means');
+      expect(tools.describeCapabilities(['display.setWidgetColor'])[0]).toMatchObject({ available: true, guide: 'Teal means the widget is armed.', behaviour: { writes: ['display'], unobservable: null, idempotent: true } });
+      const invoke = (id: string) => use(id, 'invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } });
+      const model = scripted([call(goal(), invoke('1')), call(invoke('2')), say('The widget is teal.')]);
       const run = await runAgent({ transport: model.transport, tools, prompt: 'arm the widget' });
+      // Its first use returns the notes instead of running; the second runs.
+      expect(JSON.stringify(model.requests[1].messages.at(-1))).toMatch(/Not run: this operation's usage notes apply before its first use.*Teal means the widget is armed/);
       expect(run.result).toMatchObject({ status: 'verified', report: { status: 'met' } });
       expect(run.goals).toEqual([{ p: 'state', read: 'getWidget', path: 'color', equals: 'teal' }]);
       // A host that says yes and changes nothing is caught by the same contract.
@@ -259,5 +265,141 @@ describe('stated goals are held only over real reads', () => {
     const r = run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result') as { content: string };
     expect(JSON.parse(r.content).error).toMatch(/display.layer is not a read on this viewer/);
     expect(run.goals).toEqual([]);
+  });
+});
+
+/** Two local minima of Psyche–Mars range: the 2026 flyby and a distant 2030 minimum, with the pair's coverage. */
+class TwoMinima extends EventScene {
+  readonly results = [{ id: 'pm-0', et: 832_000_000, km: 4500 }, { id: 'pm-1', et: 950_000_000, km: 1.719e8 }];
+  private item(r: { id: string; et: number; km: number }) {
+    return { reference: { scene: 3, query: 'pm', id: r.id, revision: 1 }, event: { id: r.id, queryId: 'pm', kind: 'closest-approach', temporality: 'instant', et: r.et,
+      bodies: { observer: 'Psyche', target: 'Mars' }, metrics: [{ key: 'range', label: 'Range', value: r.km, unit: 'km' }] } as never };
+  }
+  override getEventQueryInfo() {
+    return { status: 'available', error: null, provenance: null, coverage: { status: 'available', windows: [{ start: 0, end: 2e9 }], exact: true, problems: [] },
+      definition: { id: 'pm', label: 'pm', enabled: true, visible: true, query: { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} } } } as never;
+  }
+  override getEventResultPage(_q?: string, opts: { order?: string; limit?: number } = {}): ScriptEventResultPage {
+    const items = [...this.results].sort((a, b) => opts.order === 'range-ascending' ? a.km - b.km : a.et - b.et).slice(0, opts.limit ?? 5).map(r => this.item(r));
+    return { status: 'ready', total: 2, offset: 0, nextOffset: null, items, query: this.getEventQueryInfo() };
+  }
+  override listEventResults() { return { total: 2, items: this.results.map(r => this.item(r).event) }; }
+  override async presentEventResult(reference: ScriptEventReference) {
+    this.presented.push(reference.id); this.selectedRef = reference; this.playing = false;
+    this.time = this.results.find(r => r.id === reference.id)!.et;
+    return { status: 'observed', reference, anchor: 'middle', observation: this.getEventVisualization() } as never;
+  }
+  override getEventVisualization(): ScriptEventVisualization {
+    return { ...super.getEventVisualization(), presentation: this.selectedRef ? { tracked: 'Mars', reference: null, participants: ['Psyche', 'Mars'].map(object => ({ object, ndc: [0, 0, 0.5], inView: true, drawEnabled: true })) } : undefined };
+  }
+}
+const present = (id: string, result: string) => use(id, 'invokeCapability', { id: 'events.presentEventResult', input: { reference: JSON.stringify({ scene: 3, query: 'pm', id: result, revision: 1 }) } });
+const errorOf = (run: Awaited<ReturnType<typeof runAgent>>, id: string) =>
+  JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content).error as string | undefined;
+
+describe('the Haiku misses of the final gate, replayed offline', () => {
+  it('"the closest": a distant minimum is refused before it is shown, and the closest then verifies', async () => {
+    const host = new TwoMinima();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(describe_('events.presentEventResult'), goal([{ p: 'eventSelected', query: 'pm', pick: 'closest' }]), present('1', 'pm-1')),
+      call(present('2', 'pm-0')),
+      say('The closest approach is the 2026 flyby at 4,500 km.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me the one where psyche is closest to mars' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for the closest result, which is pm-0, not pm-1/);
+    expect(host.presented).toEqual(['pm-0']);
+    expect(run.result.status).toBe('verified');
+  });
+
+  it('"all": a search that misses part of the coverage fails the stated goal, and the answer must say so', async () => {
+    const host = new TwoMinima();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(describe_('events.presentEventResult'), goal([{ p: 'eventRun', query: 'pm', whole: true }]), present('1', 'pm-0')),
+      say('These are all of Psyche\'s approaches to Mars.'),
+      say('The search covered only part of the loaded data, so these may not be all of them.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me all psyche flybys of mars' });
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm misses 1 of 1 coverage windows\)/);
+    expect(run.result.status).toBe('failed');
+    expect(run.answer).toMatch(/only part/);
+  });
+
+  it('"on the ground": a pin on the reference ellipsoid is refused before it is placed', async () => {
+    const host = new EventScene();
+    let pinned = 0;
+    host.pinGroundPoint = ((object: string, policy: never) => { pinned++; return FakeViewer.prototype.pinGroundPoint.call(host, object, policy); }) as never;
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const pin = (id: string, policy?: string) => use(id, 'invokeCapability', { id: 'spatial.pinGroundPoint', input: { object: 'Mars', ...(policy ? { policy } : {}) } });
+    const model = scripted([call(describe_('spatial.pinGroundPoint'), goal([{ p: 'probeUnder', object: 'Mars' }]), pin('1', 'reference')), say('I could not pin it.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'place a pick marker on the ground where mars currently is' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for probeUnder Mars, and this would leave probeUnder Mars reference\./);
+    expect(pinned).toBe(0);
+  });
+
+  it('"keep it close": a stated distance survives a change of camera subject, so a later view that loses it is not verified', async () => {
+    const host = new EventScene();
+    host.objects = ['Psyche', 'Mars'];
+    host.bodies = { Psyche: { position: [0, 0, 0], radiusKm: 0.0125 }, Mars: { position: [-6000, 1500, 7800], radiusKm: 3389.5 } } as never;
+    host.camera = { position: [0, 0, 0.06], target: [0, 0, 0], up: [0, 1, 0], fov: 45 };
+    // Framing Mars moves the camera to Mars, far from Psyche.
+    host.frameObject = (name?: string) => { host.tracked = name ?? null; host.camera = { position: [-6000, 1500, 20_000], target: [-6000, 1500, 7800], up: [0, 1, 0], fov: 45 }; return true; };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })), say('Framed Mars.'), say('Framed Mars; Psyche is no longer close.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show mars', goals: [{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }] });
+    expect(run.goals).toContainEqual({ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true });
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/range:Psyche unmet/);
+    expect(run.result.status).toBe('failed');
+  });
+});
+
+describe('intent comes before any change', () => {
+  it('a change before the goal is stated does not run', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })), say('Could not select Mars.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: state what the person asked for with checkGoal first/);
+    expect(host.selected).toBeNull();
+    expect(run.result.status).toBe('no-change');
+  });
+
+  it('an action cannot overwrite what the person stated; the person restating it can', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const select = (id: string, object: string) => use(id, 'invokeCapability', { id: 'scene.select', input: { object } });
+    const held = [{ p: 'selected' as const, object: 'Mars', stated: true }];
+    const blocked = await runAgent({ transport: scripted([call(goal(), select('1', 'Psyche')), say('Mars stays selected.')]).transport, tools, prompt: 'select psyche', goals: held });
+    expect(errorOf(blocked, '1')).toMatch(/the person asked for selected Mars, and this would leave selected Psyche\. If they changed their mind, restate it/);
+    expect(host.selected).toBeNull();
+    const restated = await runAgent({ transport: scripted([call(goal([{ p: 'selected', object: 'Psyche' }]), select('1', 'Psyche')), say('Psyche is selected.')]).transport, tools, prompt: 'no, select psyche instead', goals: held });
+    expect(host.selected).toBe('Psyche');
+    expect(restated.goals).toEqual([{ p: 'selected', object: 'Psyche', stated: true }]);
+    expect(restated.result.status).toBe('verified');
+  });
+});
+
+describe('the model-facing context stays bounded as operations are added', () => {
+  it('300 more operations leave the prompt unchanged and the index within its budget, and a new one is still found and run', async () => {
+    const measure = () => {
+      const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+      return { tools, prompt: systemPrompt(tools.list(), tools.guides!()), index: tools.list().find(t => t.name === 'invokeCapability')!.description };
+    };
+    const before = measure();
+    const unregister = Array.from({ length: 300 }, (_, i) => registerVerb({
+      name: `synthetic${i}`, params: [{ name: 'level', type: 'number' }], category: 'Display', method: 'getScene', help: `Synthetic feature ${i}.`, invoke: () => true,
+      contract: { namespace: 'display', writes: ['display'], unobservable: 'synthetic', guide: `Notes for synthetic feature ${i}, which only matter when it is used.` },
+    }));
+    try {
+      const after = measure();
+      expect(after.prompt).toBe(before.prompt);
+      expect(after.index.length).toBeLessThan(CAPABILITY_LIMITS.index + 600);
+      expect(after.index).toMatch(/and \d+ more: find them with listCapabilities\.$/);
+      const found = after.tools.listCapabilities({ query: 'synthetic299' }).items[0];
+      expect(found).toMatchObject({ id: 'display.synthetic299', available: true });
+      expect(after.tools.describeCapabilities(['display.synthetic299'])[0].guide).toMatch(/synthetic feature 299/);
+      expect(await after.tools.call('invokeCapability', { id: 'display.synthetic299', input: { level: 1 } })).toMatchObject({ ok: true });
+    } finally { unregister.forEach(u => u()); }
   });
 });

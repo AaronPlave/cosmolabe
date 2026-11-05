@@ -177,7 +177,7 @@ describe('the Ask session', () => {
       const reply: AgentResponse = ++round % 3 === 1
         ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] }
         : round % 3 === 2
-          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
+          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
           : textReply('Finished.');
       return new Response(JSON.stringify({ version: 1, ...reply }));
     });
@@ -208,7 +208,7 @@ describe('the Ask session', () => {
     const transport = new MockTransport(() => ++round % 3 === 1
       ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.saveBookmark'] } }] }
       : round % 3 === 2
-        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'once' } } }] }
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'once' } } }] }
         : textReply('Finished.'));
     setHostAskTransport(transport, { allowAuthoring: true, confirmAuthoring: async () => true });
     await submitAsk('Save');

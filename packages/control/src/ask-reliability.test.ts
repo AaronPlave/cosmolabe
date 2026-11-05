@@ -39,47 +39,46 @@ const say = (text: string): AgentResponse => ({ content: [{ type: 'text', text }
 const call = (...uses: AgentContent[]): AgentResponse => ({ content: uses, stop: 'tool_use', usage: { inputTokens: 300, cacheReadTokens: 9000, cacheWriteTokens: 0, outputTokens: 80 } });
 
 /**
- * The turns, as the shipped prompt directs: act, and state with checkGoal only
- * what the actions do not imply. Every write holds itself to its own result.
+ * The turns, as the shipped prompt directs: state what the person asked for
+ * with checkGoal before the first change, in the same reply, then act. Every
+ * write also holds itself to its own result.
  */
+const goal = (id: string, require: unknown[] = [], release?: string[]) => use(id, 'checkGoal', { require, ...(release ? { release } : {}) });
 const SCRIPT: Record<string, AgentResponse[]> = {
   'show me when psyche is within 10000km of mars': [
-    call(use('a1', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } }), use('a2', 'invokeCapability', { id: 'time.setTime', input: { when: ENCOUNTER } })),
+    call(goal('a0'), use('a1', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } }), use('a2', 'invokeCapability', { id: 'time.setTime', input: { when: ENCOUNTER } })),
     say('Psyche is within 10,000 km of Mars for about 40 minutes; paused at the start.'),
   ],
   'zoom into psyche': [
-    call(use('b1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Psyche' } })),
-    call(use('b2', 'checkGoal', { require: [{ p: 'range', object: 'Psyche', maxKm: 0.1 }] })),
+    call(goal('b0', [{ p: 'range', object: 'Psyche', maxKm: 0.1 }]), use('b1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Psyche' } })),
     say('Zoomed in on Psyche.'),
   ],
   'frame the scene so psyche and mars are both in view': [
-    call(use('c1', 'composeView', { anchor: 'Psyche', target: 'Mars' })),
-    call(use('c2', 'checkGoal', { require: [{ p: 'legible', object: 'Mars' }] })),
+    call(goal('c0', [{ p: 'inView', object: 'Mars' }, { p: 'legible', object: 'Mars' }]), use('c1', 'composeView', { anchor: 'Psyche', target: 'Mars' })),
     say('Rotated around Psyche; Mars is now in frame.'),
   ],
   'but keep psyche up close': [
-    call(use('d1', 'checkGoal', { require: [{ p: 'range', object: 'Psyche', maxKm: 0.1 }] })),
+    call(goal('d1', [{ p: 'range', object: 'Psyche', maxKm: 0.1 }])),
     say('Psyche is still close (60 m) and Mars stays in frame.'),
   ],
   'pull way back': [
-    call(use('f1', 'invokeCapability', { id: 'camera.dolly', input: { km: 5000 } })),
+    call(goal('f0'), use('f1', 'invokeCapability', { id: 'camera.dolly', input: { km: 5000 } })),
     say('Pulled back.'),
     say('Pulled back 5,000 km; Psyche is no longer up close, so that earlier request no longer holds.'),
   ],
   'not true just need to rotate the camera around psyche to see mars': [
-    call(use('e1', 'composeView', { anchor: 'Psyche', target: 'Mars' })),
     // States only Mars: the close-up limit from turn 2 is held anyway.
-    call(use('e2', 'checkGoal', { require: [{ p: 'inView', object: 'Mars' }] })),
+    call(goal('e0', [{ p: 'inView', object: 'Mars' }]), use('e1', 'composeView', { anchor: 'Psyche', target: 'Mars' })),
     say('Rotated around Psyche while staying close; Mars is in frame.'),
   ],
-  // A new subject: the Psyche close-up no longer applies; the Mars terrain colouring still does.
+  // A new subject: the person dropped the Psyche close-up, so the model releases it; the Mars terrain colouring still holds.
   'now just show mars': [
-    call(use('g1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })),
+    call(goal('g0', [{ p: 'inView', object: 'Mars' }], ['range:Psyche', 'view:Psyche']), use('g1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })),
     say('Framed Mars.'),
   ],
   // A change on another subject that breaks an earlier goal the model did not think of.
   'hide mars': [
-    call(use('h1', 'invokeCapability', { id: 'display.setObjectVisible', input: { object: 'Mars', visible: false } })),
+    call(goal('h0'), use('h1', 'invokeCapability', { id: 'display.setObjectVisible', input: { object: 'Mars', visible: false } })),
     say('Mars is hidden.'),
     say('Mars is hidden, so it is no longer in view beside Psyche.'),
   ],
@@ -153,9 +152,9 @@ describe('Psyche/Mars five-turn close-up (#345)', () => {
   it('stays cheap: earlier turns are condensed, not replayed tool by tool', async () => {
     const { model, turns } = await converse();
     const stats = turns.map(t => t.stats);
-    expect(stats.map(s => s.rounds)).toEqual([2, 3, 3, 2, 3]);
+    expect(stats.map(s => s.rounds)).toEqual([2, 2, 2, 2, 2]);
     expect(stats.every(s => s.rawTokens !== null && s.rawTokens <= 3 * 9440)).toBe(true);
-    const lastTurnFirstRequest = model.requests.at(-3)!;
+    const lastTurnFirstRequest = model.requests.at(-2)!;
     const priorResults = lastTurnFirstRequest.messages.slice(0, -1).flatMap(m => m.content).filter(c => c.type !== 'text');
     expect(priorResults).toEqual([]);
     // Four earlier turns condense to eight short messages, not dozens of tool exchanges.
@@ -184,9 +183,10 @@ describe('the loop holds the conversation to its goals (#345 review)', () => {
   it('a check that omits an earlier constraint is still judged by it', async () => {
     const { turns } = await converse();
     const last = turns.at(-1)!;
-    expect(last.goals).toEqual(expect.arrayContaining([{ p: 'range', object: 'Psyche', maxKm: 0.1 }, { p: 'paused', value: true }, { p: 'epoch', et: ENCOUNTER }, { p: 'inView', object: 'Mars' }]));
-    const summary = last.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result').map(c => JSON.parse((c as { content: string }).content).summary).at(-1);
-    expect(summary).toMatch(/^Goal met\. Held: .*range:Psyche/);
+    expect(last.goals).toEqual(expect.arrayContaining([{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }, { p: 'paused', value: true }, { p: 'epoch', et: ENCOUNTER }, { p: 'inView', object: 'Mars', stated: true }]));
+    const summaries = last.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result').map(c => JSON.parse((c as { content: string }).content).summary);
+    // Stated before the change, it is held, not yet judged.
+    expect(summaries[0]).toMatch(/^Held: .*range:Psyche/);
     expect(last.result).toMatchObject({ status: 'verified', report: { status: 'met' } });
     expect(last.result.report!.checks.map(c => c.slot)).toEqual(expect.arrayContaining(['range:Psyche', 'clock', 'playing', 'view:Mars']));
   });
@@ -206,19 +206,19 @@ describe('the loop holds the conversation to its goals (#345 review)', () => {
     expect(compactHistory(run.messages)).toHaveLength(12);
   });
 
-  it('every write holds itself to its own result: no goal statement is needed to verify a clock change', async () => {
+  it('every write holds itself to its own result: an empty goal statement is enough to verify a clock change', async () => {
     const { turns } = await converse();
     expect(turns[0].stats.rounds).toBe(2);
     expect(turns[0].result).toMatchObject({ status: 'verified', report: { status: 'met' } });
     expect(turns[0].goals).toEqual([{ p: 'paused', value: true }, { p: 'epoch', et: ENCOUNTER }]);
   });
 
-  it('a new subject retires the earlier camera goals but keeps independent ones', async () => {
+  it('a person who drops a subject releases its goals; independent ones stay', async () => {
     const { turns } = await converse(undefined, [...FIVE, 'now just show mars'], [SURFACE]);
     const run = turns.at(-1)!;
     expect(run.goals.map(p => p.p === 'state' ? 'surface' : `${p.p}${p.object ? `:${p.object}` : ''}`).sort())
       .toEqual(['epoch', 'inView:Mars', 'legible:Mars', 'paused', 'surface', 'tracked:Mars']);
-    expect(run.result.changes.join(' ')).toMatch(/camera moved to another subject: .*inView Psyche.*range Psyche <= 0.1 km/);
+    expect(run.result.changes.join(' ')).toMatch(/Released range Psyche <= 0.1 km/);
     // The stale close-up is not held against the new request.
     expect(run.result.status).toBe('verified');
     expect(run.stats.rounds).toBe(2);
@@ -254,8 +254,8 @@ describe('fixed Ask vocabulary parity', () => {
     expect(VERBS.has('circleCenter')).toBe(false);
     const tools = createCapabilityTools(new PsycheScene(), { surface: 'fixed' });
     const index = tools.list().find(t => t.name === 'invokeCapability')!.description;
-    for (const d of ['Right', 'Left', 'Up', 'Down']) expect(index).toContain(`camera.circleCenter${d}(`);
-    expect(index).not.toMatch(/camera\.circleCenter\(/);
-    expect(index).toContain('camera.composeView(');
+    for (const d of ['Right', 'Left', 'Up', 'Down']) expect(index).toMatch(new RegExp(`camera\\.circleCenter${d}\\*?\\(`));
+    expect(index).not.toMatch(/camera\.circleCenter\*?\(/);
+    expect(index).toContain('camera.composeView*(');
   });
 });

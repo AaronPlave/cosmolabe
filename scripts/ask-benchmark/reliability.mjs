@@ -12,7 +12,7 @@
  * multi-turn conversations, and several are negative (no flyby, no such body,
  * a declined approval, an ambiguous reference).
  */
-import { evaluate } from '@cosmolabe/control';
+import { evaluate, statedDistancesKm, statedDates } from '@cosmolabe/control';
 
 const PSYCHE_CLOSEUP = [
   'show me when psyche is within 10000km of mars',
@@ -134,23 +134,11 @@ export async function judge(predicates, read, methods) {
 const NEGATION = /\b(not|no|never|none|couldn'?t|cannot|can'?t|unable|unavailable|hidden|isn'?t|wasn'?t|didn'?t|doesn'?t|only partly|partial)\b/i;
 const FLYBY = /\b(fly-?bys?|flew (?:past|by)|swing-?bys?|close (?:flyby|pass|encounter)|encounters?)\b/i;
 const AU_KM = 1.495978707e8;
-const SCALE = { thousand: 1e3, million: 1e6, billion: 1e9 };
-const DISTANCE = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*(?:e|[×x]\s*10\^?)\s*([+-]?\d+))?\s*(thousand|million|billion)?\s*(km|kilomet(?:er|re)s?|AU|astronomical units?)\b/gi;
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-const DATE = /\b(\d{4})-(\d{2})-(\d{2})\b|\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b|\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g;
 const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
 
-export function distancesKm(text) {
-  return [...text.matchAll(DISTANCE)].map(m => {
-    const base = Number(m[1].replace(/,/g, '')) * (m[2] ? 10 ** Number(m[2]) : 1) * (m[3] ? SCALE[m[3].toLowerCase()] : 1);
-    return { text: m[0], km: /^a/i.test(m[4]) ? base * AU_KM : base };
-  });
-}
-export function dates(text) {
-  return [...text.matchAll(DATE)].map(m => m[1] ? `${m[1]}-${m[2]}-${m[3]}`
-    : m[4] ? `${m[6]}-${String(MONTHS.indexOf(m[4].toLowerCase()) + 1).padStart(2, '0')}-${m[5].padStart(2, '0')}`
-      : `${m[9]}-${String(MONTHS.indexOf(m[8].toLowerCase()) + 1).padStart(2, '0')}-${m[7].padStart(2, '0')}`);
-}
+// Reading numbers and dates out of prose is shared with Ask's own answer check; what they are compared against (the harness's truth) is not.
+export const distancesKm = statedDistancesKm;
+export const dates = text => statedDates(text).map(d => d.day);
 /**
  * A sentence that presents a flyby of the task's subject. Names quoted from
  * the catalog ("Mars Flyby (2026-05-15)") are not claims, and neither is a

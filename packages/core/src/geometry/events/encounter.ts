@@ -22,7 +22,7 @@ export const SPHERE_OF_INFLUENCE_KM: Readonly<Record<string, number>> = {
 
 export interface EncounterClass {
   /** The criterion applied, or null when none applies to this target. */
-  readonly criterion: 'sphere-of-influence' | 'query-max-range' | null;
+  readonly criterion: 'sphere-of-influence' | null;
   /** The participant whose sphere of influence was used. */
   readonly body: string | null;
   readonly thresholdKm: number | null;
@@ -35,10 +35,10 @@ export interface EncounterClass {
 /**
  * Classify one closest-approach result against the sphere of influence of
  * whichever participant has the larger one (range is symmetric, so which was
- * called observer does not matter), or, when neither has one, the search's own
- * max-range filter when it had one (every result already passed it).
+ * called observer does not matter). Without one the encounter is unknown: a
+ * search's own max-range filter is a choice of the searcher, not a criterion.
  */
-export function classifyApproach(bodies: string | readonly (string | null | undefined)[], rangeKm: number | null | undefined, queryMaxRangeKm?: number): EncounterClass {
+export function classifyApproach(bodies: string | readonly (string | null | undefined)[], rangeKm: number | null | undefined): EncounterClass {
   const range = typeof rangeKm === 'number' && Number.isFinite(rangeKm) ? rangeKm : null;
   const names = (typeof bodies === 'string' ? [bodies] : bodies).filter((b): b is string => !!b);
   const target = names.filter(n => SPHERE_OF_INFLUENCE_KM[n] !== undefined).sort((a, b) => SPHERE_OF_INFLUENCE_KM[b] - SPHERE_OF_INFLUENCE_KM[a])[0] ?? names.at(-1) ?? 'the target';
@@ -47,10 +47,6 @@ export function classifyApproach(bodies: string | readonly (string | null | unde
     const encounter = range === null ? null : range <= soi;
     return { criterion: 'sphere-of-influence', body: target, thresholdKm: soi, rangeKm: range, encounter,
       basis: `${target}'s sphere of influence is ${soi.toExponential(2)} km (Laplace radius, Curtis Table A.2); ${range === null ? 'range unmeasured' : encounter ? 'this approach is inside it: a flyby' : 'this approach is outside it: a distant range minimum, not a flyby'}.` };
-  }
-  if (queryMaxRangeKm !== undefined && Number.isFinite(queryMaxRangeKm)) {
-    return { criterion: 'query-max-range', body: null, thresholdKm: queryMaxRangeKm, rangeKm: range, encounter: range === null ? null : range <= queryMaxRangeKm,
-      basis: `within the search's own ${queryMaxRangeKm} km limit; no sphere-of-influence value for ${target}.` };
   }
   return { criterion: null, body: null, thresholdKm: null, rangeKm: range, encounter: null,
     basis: `no encounter criterion for ${names.join(' or ')}: this is a range minimum; whether it counts as a flyby is not established here.` };

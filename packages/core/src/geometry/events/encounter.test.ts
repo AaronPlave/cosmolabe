@@ -9,9 +9,10 @@ describe('classifyApproach', () => {
     expect(classifyApproach(['Voyager 1', 'Jupiter'], 348_900)).toMatchObject({ encounter: true });
     expect(classifyApproach(['Voyager 1', 'Neptune'], 3.48e9)).toMatchObject({ encounter: false });
   });
-  it('has no criterion for small bodies unless the search set one', () => {
+  it('has no criterion for small bodies, whatever range limit a search used', () => {
     expect(classifyApproach(['Cassini', 'Mimas'], 9.5)).toMatchObject({ criterion: null, encounter: null });
-    expect(classifyApproach(['Cassini', 'Mimas'], 9.5, 1000)).toMatchObject({ criterion: 'query-max-range', encounter: true });
+    // A search's range limit is a filter the model chose, not a definition of an encounter.
+    expect((classifyApproach as (...a: unknown[]) => unknown)(['Cassini', 'Mimas'], 9.5, 1000)).toMatchObject({ criterion: null, encounter: null });
     expect(classifyApproach(['Psyche', 'Mars'], null)).toMatchObject({ encounter: null });
   });
 });
