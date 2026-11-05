@@ -7,8 +7,9 @@
       "id": "base/solarsys",
       "name": "Solar System",
       "catalog": "./base/solarsys.json",
-      "description": "Planets, moons and small bodies; explore the Earth\u2013Moon system with SPICE ephemerides.",
-      "group": "Explore"
+      "description": "Planets, moons and small bodies; explore the Earth–Moon system with SPICE ephemerides.",
+      "group": "Explore",
+      "featured": true
     },
     {
       "id": "iss",
@@ -60,8 +61,7 @@
       "name": "MoonFall at Shackleton",
       "catalog": "./moonfall-shackleton.json",
       "description": "Synthetic four-hopper south-pole mission, December 2028; pinned lunar terrain and imagery.",
-      "group": "Missions",
-      "featured": true
+      "group": "Missions"
     },
     {
       "id": "msl-dingo-gap",
@@ -82,17 +82,27 @@
       "id": "psyche",
       "name": "Psyche",
       "catalog": "./psyche.json",
-      "description": "Launch, Mars flyby and asteroid arrival in the catalog\u2019s predicted trajectory.",
+      "description": "Launch, Mars flyby and asteroid arrival in the catalog’s predicted trajectory.",
       "group": "Missions"
     },
     {
       "id": "earth-moon-tour",
-      "name": "Earth\u2013Moon Scripted Tour",
+      "name": "Earth–Moon Scripted Tour",
       "catalog": "./earth-moon-tour.json",
       "script": "./earth-moon-tour.cosmo",
       "description": "From Earth to the lunar far side: camera flights, frame changes and days passing in seconds.",
       "group": "Guided / Scripting",
       "featured": true
+    }
+  ],
+  "unlistedCatalogs": [
+    {
+      "id": "ingenuity-analysis-tour",
+      "name": "Ingenuity Analysis Tour",
+      "catalog": "./ingenuity-jezero.json",
+      "script": "./ingenuity-analysis-tour.cosmo",
+      "description": "Reproducible Flight 5 scene: place, surface navigation, imagery, measurement and layer controls, with explicit readiness",
+      "group": "Technical examples"
     }
   ]
 }

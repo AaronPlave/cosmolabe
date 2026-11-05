@@ -149,3 +149,16 @@ describe('isCurrentEntry', () => {
     expect(isCurrentEntry({ catalogUrl: scene }, null, null)).toBe(false);
   });
 });
+
+describe('unlisted scripted launch compatibility', () => {
+  it('resolves an old entry without listing or featuring it, even with featured metadata', () => {
+    const state = ready('examples', 'Examples', [entry('visible', 'https://x/a.json')]);
+    if (state.status !== 'ready') throw new Error('fixture');
+    const legacy = entry('old-tour', 'https://x/a.json', { scriptUrl: 'https://x/tour.cosmo', featured: true });
+    state.index.unlistedCatalogs = [legacy];
+    expect(findEntry([state], 'examples/old-tour')?.entry).toBe(legacy);
+    expect(allEntries([state]).map(e => e.entry.id)).toEqual(['visible']);
+    expect(featuredEntries([state]).map(e => e.entry.id)).toEqual(['visible']);
+    expect(catalogLocation(findEntry([state], 'examples/old-tour')!, PAGE)).toEqual({ entry: 'examples/old-tour' });
+  });
+});

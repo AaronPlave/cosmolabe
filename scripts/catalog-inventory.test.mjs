@@ -12,9 +12,10 @@ describe('curated catalog discovery', () => {
   const publicIndex = read('index.json');
   const devIndex = read('dev-index.json');
   it('keeps twelve distinct experiences and six representative featured entries', () => {
-    const groups = Object.groupBy(publicIndex.catalogs, e => e.group);
-    expect(Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length]))).toEqual({ Explore: 2, Missions: 9, 'Guided / Scripting': 1 });
+    const groups = publicIndex.catalogs.reduce((counts, e) => ({ ...counts, [e.group]: (counts[e.group] ?? 0) + 1 }), {});
+    expect(groups).toEqual({ Explore: 2, Missions: 9, 'Guided / Scripting': 1 });
     expect(publicIndex.catalogs.filter(e => e.featured)).toHaveLength(6);
+    expect(publicIndex.catalogs.find(e => e.id === 'base/solarsys').featured).toBe(true);
     const ids = publicIndex.catalogs.map(e => e.id);
     expect(ids).toEqual(['base/solarsys', 'iss', 'europa-clipper', 'cassini-soi', 'ingenuity-jezero', 'voyagers', 'lro-moon', 'moonfall-shackleton', 'msl-dingo-gap', 'rosetta', 'psyche', 'earth-moon-tour']);
     expect(publicIndex.catalogs.find(e => e.id === 'earth-moon-tour').script).toBe('./earth-moon-tour.cosmo');
@@ -40,6 +41,12 @@ describe('curated catalog discovery', () => {
     expect(report.dependencies.some(d => d.path.endsWith('.oem'))).toBe(true);
     expect(report.dependencies.some(d => /\.bds(\.gz)?$/.test(d.path))).toBe(true);
     expect(report.dependencies.some(d => /\.bsp(\.gz)?$/.test(d.path))).toBe(true);
+  });
+  it('validates launch-only compatibility targets too', () => {
+    expect(publicIndex.unlistedCatalogs.map(e => e.id)).toEqual(['ingenuity-analysis-tour']);
+    expect(catalogInventory().compatibilityEntries).toBe(1);
+    expect(() => validateIndex({ ...publicIndex, unlistedCatalogs: [{ ...publicIndex.catalogs[0] }] }, root)).toThrow(/duplicate/);
+    expect(() => validateIndex({ ...publicIndex, unlistedCatalogs: [{ ...publicIndex.unlistedCatalogs[0], script: './absent.cosmo' }] }, root)).toThrow(/missing/);
   });
   it('rejects duplicate ids, missing files, escaping paths and missing groups', () => {
     const entry = publicIndex.catalogs[0];

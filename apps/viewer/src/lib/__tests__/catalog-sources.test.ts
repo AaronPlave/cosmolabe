@@ -73,6 +73,17 @@ describe('parseSourceConfig', () => {
 describe('parseCatalogIndex', () => {
   const indexUrl = 'https://data.example/mission/catalogs/index.json';
 
+  it('resolves launch-only entries while keeping their IDs unique across both lists', () => {
+    const { index, warnings } = parseCatalogIndex({ version: 1,
+      catalogs: [{ id: 'visible', catalog: './scene.json' }],
+      unlistedCatalogs: [{ id: 'old-tour', catalog: './scene.json', script: './story.cosmo' }, { id: 'visible', catalog: './duplicate.json' }],
+    }, indexUrl);
+    expect(index.catalogs.map(e => e.id)).toEqual(['visible']);
+    expect(index.unlistedCatalogs).toEqual([{ id: 'old-tour', name: 'old-tour', catalogUrl: 'https://data.example/mission/catalogs/scene.json', scriptUrl: 'https://data.example/mission/catalogs/story.cosmo' }]);
+    expect(warnings).toEqual(['Entry id "visible" is used more than once; later one skipped']);
+    expect(() => parseCatalogIndex({ version: 1, catalogs: [], unlistedCatalogs: {} }, indexUrl)).toThrow(/unlistedCatalogs/);
+  });
+
   it('keeps featured only when it is exactly true', () => {
     const { index } = parseCatalogIndex(
       {
@@ -311,6 +322,18 @@ describe('the repository Examples index', () => {
     // top-level file, and the graph pulls in the rest.
     expect(graph.catalogs.length).toBeGreaterThan(1);
     expect(graph.catalogs.at(-1)!.url).toBe(pathToFileURL(fileURLToPath(solarsys!.catalogUrl)).href);
+  });
+});
+
+describe('legacy scripted entry compatibility', () => {
+  it('retains the Ingenuity script with the default public source', () => {
+    const url = new URL('../../../test-catalogs/index.json', import.meta.url);
+    const { index, warnings } = parseCatalogIndex(JSON.parse(readFileSync(url, 'utf8')), url.href);
+    expect(warnings).toEqual([]);
+    expect(index.catalogs).toHaveLength(12);
+    const legacy = index.unlistedCatalogs?.find(e => e.id === 'ingenuity-analysis-tour');
+    expect(legacy?.catalogUrl).toBe(new URL('ingenuity-jezero.json', url).href);
+    expect(legacy?.scriptUrl).toBe(new URL('ingenuity-analysis-tour.cosmo', url).href);
   });
 });
 

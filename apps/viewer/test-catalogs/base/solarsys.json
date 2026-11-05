@@ -26,6 +26,7 @@
       "name": "Earth–Moon System",
       "type": "Viewpoint",
       "center": "Earth",
+      "lookAt": "Earth",
       "distance": 900000,
       "latitude": 35,
       "longitude": 0

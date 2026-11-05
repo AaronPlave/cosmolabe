@@ -14,6 +14,7 @@ try {
   await page.goto(base);
   await page.getByRole('button', { name: 'Browse examples', exact: true }).waitFor();
   assert.equal(await page.locator('.start-row').count(), 6);
+  assert.ok((await page.locator('.start-row').allTextContents()).some(text => text.includes('Solar System')));
   await page.screenshot({ path: `${output}/home.png` });
   await page.getByRole('button', { name: 'Browse examples', exact: true }).click();
   await page.locator('.catalog-list .row').first().waitFor();
@@ -30,6 +31,27 @@ try {
     return gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
   });
   console.log(`Public home, grouped browser and ISS selection passed; GPU: ${gpu}`);
+  await page.goto(new URL('?catalog=test-catalogs/base/solarsys', base).href);
+  await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 180000 });
+  await page.evaluate(() => { window.cosmo.setPlaying(false); window.cosmo.viewpoint('Earth–Moon System'); });
+  await page.waitForTimeout(1000);
+  const framing = await page.evaluate(() => {
+    const r = window.renderer;
+    const camera = r.camera.clone();
+    camera.updateMatrixWorld(true);
+    return ['Earth', 'Moon'].map(name => {
+      const body = r.bodyMeshes.get(name);
+      const ndc = body.position.clone().project(camera);
+      const distance = r.camera.position.distanceTo(body.position);
+      return { name, x: ndc.x, y: ndc.y, z: ndc.z, distance, visible: body.visible };
+    });
+  });
+  for (const body of framing) {
+    assert.ok(body.visible && Math.abs(body.x) < 0.9 && Math.abs(body.y) < 0.9 && body.z > -1 && body.z < 1, `${body.name} framing: ${JSON.stringify(body)}`);
+  }
+  assert.ok(Math.hypot(framing[0].x - framing[1].x, framing[0].y - framing[1].y) > 0.08, 'Earth and Moon are separated in the view');
+  await page.screenshot({ path: `${output}/earth-moon-system.png` });
+  console.log(`Earth–Moon System framing: ${JSON.stringify(framing)}`);
   await page.goto(new URL('?entry=examples/earth-moon-tour', base).href);
   const status = page.getByRole('status', { name: 'Script status', exact: true });
   await status.waitFor({ timeout: 180000 });
@@ -64,4 +86,18 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${output}/complete.png` });
   console.log(`Tour completed through ?entry=: ${observations.length} observations; camera motion, lunar tracking and accelerated time verified`);
+  await page.goto(new URL('?entry=examples/ingenuity-analysis-tour', base).href);
+  await page.waitForFunction(() => /Completed|Failed|nothing ran|Stopped/.test(document.querySelector('[aria-label="Script status"]')?.textContent ?? ''), null, { timeout: 180000 });
+  assert.match(await page.getByRole('status', { name: 'Script status', exact: true }).innerText(), /Completed/);
+  const compatibility = await page.evaluate(() => ({
+    testHook: !!window.__cosmolabe,
+    activity: window.cosmo.getSelectedActivity()?.id,
+    measurement: window.cosmo.getSelectedMeasurement(),
+  }));
+  assert.equal(compatibility.testHook, false, 'compatibility launch uses the ordinary viewer');
+  assert.equal(compatibility.activity, 'ingenuity:flight:5');
+  assert.equal(compatibility.measurement, 'tour:mars-centre-distance');
+  assert.equal(new URL(page.url()).searchParams.get('entry'), 'examples/ingenuity-analysis-tour');
+  assert.deepEqual(errors, []);
+  console.log('Historical Ingenuity scripted entry completed in the ordinary viewer');
 } finally { await browser.close(); }

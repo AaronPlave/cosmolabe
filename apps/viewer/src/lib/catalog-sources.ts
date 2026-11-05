@@ -57,6 +57,8 @@ export interface CatalogIndex {
   name?: string;
   description?: string;
   catalogs: CatalogEntry[];
+  /** Launch-only compatibility entries; excluded from discovery and featured lists. */
+  unlistedCatalogs?: CatalogEntry[];
 }
 
 /**
@@ -137,42 +139,49 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
   if (!Array.isArray(json.catalogs)) throw new Error('Catalog index is missing a "catalogs" array');
 
   const warnings: string[] = [];
-  const catalogs: CatalogEntry[] = [];
   const ids = new Set<string>();
-  json.catalogs.forEach((e, i) => {
-    if (!isObject(e) || !isNonEmptyString(e.id) || !isNonEmptyString(e.catalog)) {
-      warnings.push(`Entry #${i + 1} needs a string "id" and "catalog"; skipped`);
-      return;
-    }
-    if (ids.has(e.id)) {
-      warnings.push(`Entry id "${e.id}" is used more than once; later one skipped`);
-      return;
-    }
-    let catalogUrl: string;
-    try {
-      catalogUrl = new URL(e.catalog, indexUrl).href;
-    } catch {
-      warnings.push(`Entry "${e.id}" has an invalid catalog URL; skipped`);
-      return;
-    }
-    ids.add(e.id);
-    const entry: CatalogEntry = { id: e.id, name: isNonEmptyString(e.name) ? e.name : e.id, catalogUrl };
-    if (isNonEmptyString(e.description)) entry.description = e.description;
-    if (isNonEmptyString(e.group)) entry.group = e.group;
-    if (e.featured === true) entry.featured = true;
-    if (e.script !== undefined) {
-      // A bad script URL costs the tour, not the catalog it tours.
-      try {
-        if (!isNonEmptyString(e.script)) throw new Error();
-        entry.scriptUrl = new URL(e.script, indexUrl).href;
-      } catch {
-        warnings.push(`Entry "${e.id}" has an invalid script URL; listed without its script`);
+  const parseEntries = (values: unknown[]): CatalogEntry[] => {
+    const catalogs: CatalogEntry[] = [];
+    values.forEach((e, i) => {
+      if (!isObject(e) || !isNonEmptyString(e.id) || !isNonEmptyString(e.catalog)) {
+        warnings.push(`Entry #${i + 1} needs a string "id" and "catalog"; skipped`);
+        return;
       }
-    }
-    catalogs.push(entry);
-  });
-
+      if (ids.has(e.id)) {
+        warnings.push(`Entry id "${e.id}" is used more than once; later one skipped`);
+        return;
+      }
+      let catalogUrl: string;
+      try {
+        catalogUrl = new URL(e.catalog, indexUrl).href;
+      } catch {
+        warnings.push(`Entry "${e.id}" has an invalid catalog URL; skipped`);
+        return;
+      }
+      ids.add(e.id);
+      const entry: CatalogEntry = { id: e.id, name: isNonEmptyString(e.name) ? e.name : e.id, catalogUrl };
+      if (isNonEmptyString(e.description)) entry.description = e.description;
+      if (isNonEmptyString(e.group)) entry.group = e.group;
+      if (e.featured === true) entry.featured = true;
+      if (e.script !== undefined) {
+        // A bad script URL costs the tour, not the catalog it tours.
+        try {
+          if (!isNonEmptyString(e.script)) throw new Error();
+          entry.scriptUrl = new URL(e.script, indexUrl).href;
+        } catch {
+          warnings.push(`Entry "${e.id}" has an invalid script URL; listed without its script`);
+        }
+      }
+      catalogs.push(entry);
+    });
+    return catalogs;
+  };
+  const catalogs = parseEntries(json.catalogs);
   const index: CatalogIndex = { version: json.version, catalogs };
+  if (json.unlistedCatalogs !== undefined) {
+    if (!Array.isArray(json.unlistedCatalogs)) throw new Error('Catalog index "unlistedCatalogs" must be an array');
+    index.unlistedCatalogs = parseEntries(json.unlistedCatalogs);
+  }
   if (isNonEmptyString(json.name)) index.name = json.name;
   if (isNonEmptyString(json.description)) index.description = json.description;
   return { index, warnings };

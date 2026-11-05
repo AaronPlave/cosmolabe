@@ -1055,9 +1055,12 @@ chat/MCP/voice transport or new solver is introduced.
 
 ### Mission tour and capture fixture
 
-The ordinary index entry **Ingenuity Analysis Tour** links
+The developer index entry **Ingenuity Analysis Tour** links
 [`ingenuity-analysis-tour.cosmo`](../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo)
-to the existing Ingenuity/Jezero catalog. It composes Flight 5 selection/seek, a
+to the existing Ingenuity/Jezero catalog. Configure the developer source to
+browse it, or launch the preserved `?entry=examples/ingenuity-analysis-tour`
+compatibility entry with the default public source. Both run the script in
+the ordinary viewer. It composes Flight 5 selection/seek, a
 stable named place, coordinate navigation, imagery and geographic styles, a saved
 Mars-centre distance definition and physical-terrain appearance. The caption
 retains the trajectory's estimated timing/path limitation and does not describe

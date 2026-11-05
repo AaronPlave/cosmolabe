@@ -41,7 +41,7 @@ See [workflow details and data requirements](docs/viewer-overview.md#workflows).
 
 **[Launch the hosted viewer](https://aaronplave.com/cosmolabe/)** and choose an example catalog.
 
-To run locally, use Node.js 20+ and install [Git LFS](https://git-lfs.com/) before
+To run locally, use Node.js 24+ and install [Git LFS](https://git-lfs.com/) before
 cloning to download tracked binary assets:
 
 ```sh

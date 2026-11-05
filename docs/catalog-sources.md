@@ -44,6 +44,7 @@ textures and kernels resolve against the catalog file itself, not the index
 | `name` | no | Display name for the index. |
 | `description` | no | One-line description. |
 | `catalogs` | yes | The entries, in display order. |
+| `unlistedCatalogs` | no | Launch-only compatibility entries, with the same fields and URL resolution as `catalogs`. IDs must be unique across both lists. These entries resolve through `?entry=` but are excluded from browsing and featured rows. |
 | `catalogs[].id` | yes | Identifier, unique within the index. |
 | `catalogs[].catalog` | yes | URL of the entry-point catalog. **Relative URLs resolve against the index's own URL**, the same way a catalog's relative paths resolve against the catalog's URL. |
 | `catalogs[].name` | no | Display name. Defaults to `id`. |
@@ -143,8 +144,11 @@ All existing `?catalog=test-catalogs/<path>` links retain their files, including
 plain Earth–Moon and named places. Script launch still uses
 `?entry=examples/earth-moon-tour`; the developer analysis tour uses
 `?entry=developer/ingenuity-analysis-tour` with the extra source configured.
-Removed public entries are discoverable in the developer source; their old
-`?entry=examples/<removed-id>` discovery IDs are no longer advertised. Use
+The historical `?entry=examples/ingenuity-analysis-tour` also remains launchable
+with the default public source through its `unlistedCatalogs` compatibility
+entry, preserving the script as well as the scene.
+Other removed public entries are discoverable in the developer source; their
+old `?entry=examples/<removed-id>` discovery IDs are no longer advertised. Use
 existing direct catalog URLs or the configured developer entry instead.
 
 Run `npm run check:catalogs` for an index and dependency inventory, or
