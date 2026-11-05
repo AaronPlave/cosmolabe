@@ -2,11 +2,12 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { viewerBrowserOptions } from './lib/viewer-browser.mjs';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5208/';
 const output = process.env.CL_CAPTURE_DIR ?? '/tmp/cosmolabe-catalog-curation';
 mkdirSync(output, { recursive: true });
-const browser = await chromium.launch({ headless: true, args: ['--use-angle=' + (process.env.CL_ANGLE ?? (process.platform === 'darwin' ? 'metal' : 'gl')), '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch(viewerBrowserOptions());
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
   const errors = [];
@@ -19,10 +20,20 @@ try {
   await page.getByRole('button', { name: 'Browse examples', exact: true }).click();
   await page.locator('.catalog-list .row').first().waitFor();
   assert.equal(await page.locator('.catalog-list .row').count(), 12);
-  assert.deepEqual(await page.locator('.group-heading').allTextContents(), ['Explore', 'Missions', 'Guided / Scripting']);
+  assert.deepEqual(await page.locator('.group-heading').allTextContents(), ['Explore', 'Missions', 'Tours']);
   assert.ok(!(await page.locator('.catalog-list').innerText()).includes('Sensor Frustums'));
+  assert.ok(await page.locator('.browser .body').evaluate(body => body.scrollHeight <= body.clientHeight + 1), 'desktop entries fit without scrolling');
+  assert.equal(await page.locator('.browser .context').count(), 0, 'single source needs no visible subtitle');
   await page.screenshot({ path: `${output}/browser.png` });
-  await page.locator('.catalog-list .row').filter({ hasText: 'ISS (TLE)' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.locator('.catalog-list .row').count(), 12);
+  assert.ok(await page.locator('.browser').evaluate(modal => modal.scrollWidth <= modal.clientWidth), 'no horizontal overflow');
+  await page.locator('.catalog-list .row').last().scrollIntoViewIfNeeded();
+  assert.ok(await page.locator('.catalog-list .row').last().isVisible(), 'last tour is reachable on narrow screens');
+  await page.locator('.browser .body').evaluate(body => { body.scrollTop = 0; });
+  await page.screenshot({ path: `${output}/browser-narrow.png` });
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.locator('.catalog-list .row').filter({ hasText: 'Explore the ISS in Earth orbit (2011).' }).click();
   await page.waitForFunction(() => window.cosmo?.listObjects().includes('ISS'), null, { timeout: 120000 });
   assert.ok(new URL(page.url()).searchParams.get('catalog').endsWith('test-catalogs/iss'));
   const gpu = await page.evaluate(() => {
@@ -86,18 +97,4 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${output}/complete.png` });
   console.log(`Tour completed through ?entry=: ${observations.length} observations; camera motion, lunar tracking and accelerated time verified`);
-  await page.goto(new URL('?entry=examples/ingenuity-analysis-tour', base).href);
-  await page.waitForFunction(() => /Completed|Failed|nothing ran|Stopped/.test(document.querySelector('[aria-label="Script status"]')?.textContent ?? ''), null, { timeout: 180000 });
-  assert.match(await page.getByRole('status', { name: 'Script status', exact: true }).innerText(), /Completed/);
-  const compatibility = await page.evaluate(() => ({
-    testHook: !!window.__cosmolabe,
-    activity: window.cosmo.getSelectedActivity()?.id,
-    measurement: window.cosmo.getSelectedMeasurement(),
-  }));
-  assert.equal(compatibility.testHook, false, 'compatibility launch uses the ordinary viewer');
-  assert.equal(compatibility.activity, 'ingenuity:flight:5');
-  assert.equal(compatibility.measurement, 'tour:mars-centre-distance');
-  assert.equal(new URL(page.url()).searchParams.get('entry'), 'examples/ingenuity-analysis-tour');
-  assert.deepEqual(errors, []);
-  console.log('Historical Ingenuity scripted entry completed in the ordinary viewer');
 } finally { await browser.close(); }

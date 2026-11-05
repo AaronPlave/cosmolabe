@@ -1058,16 +1058,17 @@ chat/MCP/voice transport or new solver is introduced.
 The developer index entry **Ingenuity Analysis Tour** links
 [`ingenuity-analysis-tour.cosmo`](../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo)
 to the existing Ingenuity/Jezero catalog. Configure the developer source to
-browse it, or launch the preserved `?entry=examples/ingenuity-analysis-tour`
-compatibility entry with the default public source. Both run the script in
-the ordinary viewer. It composes Flight 5 selection/seek, a
+browse it and launch `?entry=developer/ingenuity-analysis-tour` in the ordinary
+viewer. The public index does not include this developer tour. It composes Flight 5 selection/seek, a
 stable named place, coordinate navigation, imagery and geographic styles, a saved
 Mars-centre distance definition and physical-terrain appearance. The caption
 retains the trajectory's estimated timing/path limitation and does not describe
 centre distance as terrain clearance. Missing products fail transparently.
 
 Run `CL_VIEWER_URL=http://127.0.0.1:5297/ node scripts/test-modern-scene-automation.mjs`
-against a viewer from this checkout. The fixture exercises the ordinary scripted
+against a viewer from this checkout with the developer source configured as
+shown in [catalog sources](catalog-sources.md#public-curation-and-developer-discovery).
+The fixture exercises the ordinary scripted
 entry and `?test=1` script execution, asserts semantic state and readiness,
 round-trips the supported snapshot, tests missing-source refusal, and writes
 screenshots plus a compact JSON report under `/tmp/modern-scene-automation`.

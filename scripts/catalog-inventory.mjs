@@ -13,8 +13,7 @@ export function validateIndex(index, root) {
   assert.equal(index.version, 1, 'index version');
   assert.ok(Array.isArray(index.catalogs), 'catalogs array');
   const ids = new Set();
-  assert.ok(index.unlistedCatalogs === undefined || Array.isArray(index.unlistedCatalogs), 'unlistedCatalogs array');
-  for (const e of [...index.catalogs, ...(index.unlistedCatalogs ?? [])]) {
+  for (const e of index.catalogs) {
     assert.ok(typeof e.id === 'string' && e.id && !ids.has(e.id), `duplicate/empty id: ${e.id}`);
     ids.add(e.id);
     assert.ok(e.name?.trim() && e.description?.trim() && e.group?.trim(), `${e.id}: missing discovery copy/group`);
@@ -38,7 +37,6 @@ function files(root, rel = '') {
 export function catalogInventory({ root = defaultRoot, dist } = {}) {
   const publicIndex = read(resolve(root, 'index.json'));
   const publicEntries = validateIndex(publicIndex, root);
-  const compatibilityEntries = publicIndex.unlistedCatalogs ?? [];
   const devEntries = validateIndex(read(resolve(root, 'dev-index.json')), root);
   const datasets = loadDatasets().datasets;
   const scenes = new Set();
@@ -67,16 +65,16 @@ export function catalogInventory({ root = defaultRoot, dist } = {}) {
     };
     strings(json);
   }
-  for (const e of [...publicEntries, ...compatibilityEntries, ...devEntries]) visit(e.catalog.slice(2));
+  for (const e of [...publicEntries, ...devEntries]) visit(e.catalog.slice(2));
   const publicPaths = new Set(publicEntries.map(e => e.catalog.slice(2)));
   const localOnly = Object.values(datasets).filter(d => d.localOnly).flatMap(d => d.catalogs ?? []);
-  const report = { publicEntries: publicEntries.length, developerEntries: devEntries.length, compatibilityEntries: compatibilityEntries.length,
+  const report = { publicEntries: publicEntries.length, developerEntries: devEntries.length,
     catalogGraph: [...scenes].sort(), localOnlyCatalogs: localOnly,
     dependencies: [...dependencies.values()].sort((a, b) => a.path.localeCompare(b.path)) };
   if (dist) {
     const shipped = files(resolve(dist, 'test-catalogs'));
     for (const path of publicPaths) assert.ok(shipped.includes(path), `public catalog missing from bundle: ${path}`);
-    for (const e of [...publicEntries, ...compatibilityEntries, ...devEntries].filter(e => e.script)) {
+    for (const e of [...publicEntries, ...devEntries].filter(e => e.script)) {
       assert.ok(shipped.includes(e.script.slice(2)), `script missing from bundle: ${e.script}`);
     }
     for (const path of scenes) {
@@ -98,7 +96,7 @@ export function catalogInventory({ root = defaultRoot, dist } = {}) {
     }
     report.bundle = { files: shipped.length, bytes,
       listed: shipped.filter(p => publicPaths.has(p)),
-      unlistedCatalogs: shipped.filter(p => scenes.has(p) && !publicPaths.has(p)),
+      unlistedScenes: shipped.filter(p => scenes.has(p) && !publicPaths.has(p)),
       unindexedScenes: shipped.filter(p => /^(?:[^/]+|(?:base|experiments|fixtures)\/[^/]+)\.json$/.test(p) && !scenes.has(p))
         .filter(p => { const json = read(resolve(dist, 'test-catalogs', p)); return json.items || json.require; }),
       omittedCatalogs: [...scenes].filter(p => !shipped.includes(p)),

@@ -10,7 +10,7 @@ const catalogsDir = new URL('../../../test-catalogs/', import.meta.url);
 const scripted = ['index.json', 'dev-index.json'].flatMap(name => {
   const indexUrl = new URL(name, catalogsDir).href;
   const { index } = parseCatalogIndex(JSON.parse(readFileSync(new URL(indexUrl), 'utf8')), indexUrl);
-  return [...index.catalogs, ...(index.unlistedCatalogs ?? [])].filter(e => e.scriptUrl);
+  return index.catalogs.filter(e => e.scriptUrl);
 });
 
 describe('scripted demos', () => {

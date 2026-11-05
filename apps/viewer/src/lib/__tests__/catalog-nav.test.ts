@@ -150,15 +150,14 @@ describe('isCurrentEntry', () => {
   });
 });
 
-describe('unlisted scripted launch compatibility', () => {
-  it('resolves an old entry without listing or featuring it, even with featured metadata', () => {
-    const state = ready('examples', 'Examples', [entry('visible', 'https://x/a.json')]);
-    if (state.status !== 'ready') throw new Error('fixture');
-    const legacy = entry('old-tour', 'https://x/a.json', { scriptUrl: 'https://x/tour.cosmo', featured: true });
-    state.index.unlistedCatalogs = [legacy];
-    expect(findEntry([state], 'examples/old-tour')?.entry).toBe(legacy);
-    expect(allEntries([state]).map(e => e.entry.id)).toEqual(['visible']);
-    expect(featuredEntries([state]).map(e => e.entry.id)).toEqual(['visible']);
-    expect(catalogLocation(findEntry([state], 'examples/old-tour')!, PAGE)).toEqual({ entry: 'examples/old-tour' });
+describe('developer scripted entry', () => {
+  it('resolves the tour only through its configured developer source', () => {
+    const tour = entry('ingenuity-analysis-tour', 'https://x/ingenuity.json', { scriptUrl: 'https://x/tour.cosmo' });
+    const states = [ready('examples', 'Examples', [entry('visible', 'https://x/a.json')]),
+      ready('developer', 'Developer examples', [tour])];
+    expect(findEntry(states, 'examples/ingenuity-analysis-tour')).toBeNull();
+    expect(findEntry(states.slice(0, 1), 'developer/ingenuity-analysis-tour')).toBeNull();
+    expect(catalogLocation(findEntry(states, 'developer/ingenuity-analysis-tour')!, PAGE))
+      .toEqual({ entry: 'developer/ingenuity-analysis-tour' });
   });
 });

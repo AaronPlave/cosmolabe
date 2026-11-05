@@ -20,7 +20,7 @@ It does not change the public Pages list or mission/embed sources.
 | Seven `experiments/moon-*` scenes | Lunar cube, quantized/polar, imagery grid/NAC/registration and geographic comparisons; generated products may be needed. |
 | Two `experiments/mars-*`, `mars-cube-imagery-experiment` | Surface-build and cube imagery experiments. The Jezero cube pair is explicitly local-only and excluded from production. |
 | `rotation-demo`, `io-volcanos`, `fixtures/mission-activities` | Retained advanced examples / regression fixtures. No retirement is justified by this curation. |
-| `ingenuity-analysis-tour` | Developer discovery plus the preserved launch-only `examples/ingenuity-analysis-tour` entry. |
+| `ingenuity-analysis-tour` | Opt-in developer discovery: `developer/ingenuity-analysis-tour`. |
 
 Install Git LFS before cloning. Follow [local asset setup](../../../docs/viewer-overview.md#local-setup-and-assets)
 for models and mission kernels. Development asset resolution prefers complete

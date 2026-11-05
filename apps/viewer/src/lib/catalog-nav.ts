@@ -106,7 +106,7 @@ export function findEntry(states: readonly CatalogSourceState[], param: string):
   const entryId = param.slice(slash + 1);
   const state = states.find((s) => s.source.id === sourceId);
   if (state?.status !== 'ready') return null;
-  const entry = [...state.index.catalogs, ...(state.index.unlistedCatalogs ?? [])].find((e) => e.id === entryId);
+  const entry = state.index.catalogs.find((e) => e.id === entryId);
   return entry ? { sourceId, entry } : null;
 }
 

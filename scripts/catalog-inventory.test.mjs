@@ -13,7 +13,7 @@ describe('curated catalog discovery', () => {
   const devIndex = read('dev-index.json');
   it('keeps twelve distinct experiences and six representative featured entries', () => {
     const groups = publicIndex.catalogs.reduce((counts, e) => ({ ...counts, [e.group]: (counts[e.group] ?? 0) + 1 }), {});
-    expect(groups).toEqual({ Explore: 2, Missions: 9, 'Guided / Scripting': 1 });
+    expect(groups).toEqual({ Explore: 2, Missions: 9, Tours: 1 });
     expect(publicIndex.catalogs.filter(e => e.featured)).toHaveLength(6);
     expect(publicIndex.catalogs.find(e => e.id === 'base/solarsys').featured).toBe(true);
     const ids = publicIndex.catalogs.map(e => e.id);
@@ -41,12 +41,6 @@ describe('curated catalog discovery', () => {
     expect(report.dependencies.some(d => d.path.endsWith('.oem'))).toBe(true);
     expect(report.dependencies.some(d => /\.bds(\.gz)?$/.test(d.path))).toBe(true);
     expect(report.dependencies.some(d => /\.bsp(\.gz)?$/.test(d.path))).toBe(true);
-  });
-  it('validates launch-only compatibility targets too', () => {
-    expect(publicIndex.unlistedCatalogs.map(e => e.id)).toEqual(['ingenuity-analysis-tour']);
-    expect(catalogInventory().compatibilityEntries).toBe(1);
-    expect(() => validateIndex({ ...publicIndex, unlistedCatalogs: [{ ...publicIndex.catalogs[0] }] }, root)).toThrow(/duplicate/);
-    expect(() => validateIndex({ ...publicIndex, unlistedCatalogs: [{ ...publicIndex.unlistedCatalogs[0], script: './absent.cosmo' }] }, root)).toThrow(/missing/);
   });
   it('rejects duplicate ids, missing files, escaping paths and missing groups', () => {
     const entry = publicIndex.catalogs[0];
@@ -79,7 +73,7 @@ describe('bundle inventory guards', () => {
       write(shipped, 'b.json', { items: [] });
       const report = catalogInventory({ root, dist });
       expect(report.bundle.listed).toEqual(['a.json']);
-      expect(report.bundle.unlistedCatalogs).toEqual(['b.json']);
+      expect(report.bundle.unlistedScenes).toEqual(['b.json']);
       expect(report.dependencies.find(d => d.path === 'keep.oem').localPresent).toBe(false);
       rmSync(join(root, 'b.json'));
       expect(() => catalogInventory({ root, dist })).toThrow(/missing require/);

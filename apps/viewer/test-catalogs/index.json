@@ -1,28 +1,27 @@
 {
   "version": 1,
   "name": "Examples",
-  "description": "Twelve ways to explore worlds, missions and scripted stories.",
   "catalogs": [
     {
       "id": "base/solarsys",
       "name": "Solar System",
       "catalog": "./base/solarsys.json",
-      "description": "Planets, moons and small bodies; explore the Earth–Moon system with SPICE ephemerides.",
+      "description": "Explore planets, moons and small bodies across the Solar System.",
       "group": "Explore",
       "featured": true
     },
     {
       "id": "iss",
-      "name": "ISS (TLE)",
+      "name": "ISS",
       "catalog": "./iss.json",
-      "description": "Historical 2011 TLE orbit around Earth; no SPICE kernels.",
+      "description": "Explore the ISS in Earth orbit (2011).",
       "group": "Explore"
     },
     {
       "id": "europa-clipper",
       "name": "Europa Clipper",
       "catalog": "./europa-clipper.json",
-      "description": "Jupiter science phase, 2031: encounters and instrument fields of view.",
+      "description": "Explore Jupiter encounters and spacecraft observations.",
       "group": "Missions",
       "featured": true
     },
@@ -30,7 +29,7 @@
       "id": "cassini-soi",
       "name": "Cassini at Saturn",
       "catalog": "./cassini-soi.json",
-      "description": "2004 orbit insertion through Enceladus E-2; mission kernels required.",
+      "description": "Follow Cassini into Saturn orbit and past Enceladus.",
       "group": "Missions",
       "featured": true
     },
@@ -38,7 +37,7 @@
       "id": "ingenuity-jezero",
       "name": "Ingenuity at Jezero",
       "catalog": "./ingenuity-jezero.json",
-      "description": "Estimated flight reconstructions with pinned Jezero terrain and imagery; not 3D telemetry.",
+      "description": "Explore reconstructed helicopter flights over Jezero crater.",
       "group": "Missions",
       "featured": true
     },
@@ -46,35 +45,35 @@
       "id": "voyagers",
       "name": "Voyager 1 & 2",
       "catalog": "./voyagers.json",
-      "description": "The Grand Tour from 1977 launch to interstellar space; mission kernels required.",
+      "description": "Follow the Grand Tour from launch to interstellar space.",
       "group": "Missions"
     },
     {
       "id": "lro-moon",
       "name": "LRO at the Moon",
       "catalog": "./lro-moon.json",
-      "description": "Lunar orbit in 2025 with regional terrain and imagery; mission kernels required.",
+      "description": "Explore lunar orbit, terrain and imagery with LRO.",
       "group": "Missions"
     },
     {
       "id": "moonfall-shackleton",
       "name": "MoonFall at Shackleton",
       "catalog": "./moonfall-shackleton.json",
-      "description": "Synthetic four-hopper south-pole mission, December 2028; pinned lunar terrain and imagery.",
+      "description": "Explore a fictional four-hopper mission at the lunar south pole.",
       "group": "Missions"
     },
     {
       "id": "msl-dingo-gap",
       "name": "Curiosity at Dingo Gap",
       "catalog": "./msl-dingo-gap.json",
-      "description": "Orbital-localized position and estimated site registration; wheel clearance unknown.",
+      "description": "Visit Curiosity at Dingo Gap in Gale crater.",
       "group": "Missions"
     },
     {
       "id": "rosetta",
       "name": "Rosetta + Philae",
       "catalog": "./rosetta.json",
-      "description": "From launch to comet 67P: Philae landing, Rosetta impact and DSK shape.",
+      "description": "Follow Rosetta and Philae to comet 67P.",
       "group": "Missions",
       "featured": true
     },
@@ -82,7 +81,7 @@
       "id": "psyche",
       "name": "Psyche",
       "catalog": "./psyche.json",
-      "description": "Launch, Mars flyby and asteroid arrival in the catalog’s predicted trajectory.",
+      "description": "Follow Psyche’s planned journey to a metal-rich asteroid.",
       "group": "Missions"
     },
     {
@@ -90,19 +89,9 @@
       "name": "Earth–Moon Scripted Tour",
       "catalog": "./earth-moon-tour.json",
       "script": "./earth-moon-tour.cosmo",
-      "description": "From Earth to the lunar far side: camera flights, frame changes and days passing in seconds.",
-      "group": "Guided / Scripting",
+      "description": "Fly from Earth to the lunar far side as days pass in seconds.",
+      "group": "Tours",
       "featured": true
-    }
-  ],
-  "unlistedCatalogs": [
-    {
-      "id": "ingenuity-analysis-tour",
-      "name": "Ingenuity Analysis Tour",
-      "catalog": "./ingenuity-jezero.json",
-      "script": "./ingenuity-analysis-tour.cosmo",
-      "description": "Reproducible Flight 5 scene: place, surface navigation, imagery, measurement and layer controls, with explicit readiness",
-      "group": "Technical examples"
     }
   ]
 }
