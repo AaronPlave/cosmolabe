@@ -109,9 +109,15 @@ export function createConfiguredEventQuery(
 export function createConfiguredProfile(
   profile: ConfiguredContinuousProfile['profile'],
   label: string,
+  id?: string,
 ): ConfiguredContinuousProfile {
+  let identity = id;
+  if (identity === undefined) {
+    do { identity = `continuous-profile-${++itemSequence}`; } while (configuredItem(identity));
+  }
+  if (Object.hasOwn(Object.prototype, identity) || configuredItem(identity)) throw new Error('Profile ID is reserved or already in use');
   const item: ConfiguredContinuousProfile = {
-    id: `continuous-profile-${++itemSequence}`,
+    id: identity,
     type: 'continuous-profile',
     label,
     enabled: true,
@@ -149,6 +155,7 @@ export function updateConfiguredProfile(
   if (!item || item.type !== 'continuous-profile') return undefined;
   item.profile = profile;
   if (label !== undefined) item.label = label;
+  emit('events', {});
   return item;
 }
 

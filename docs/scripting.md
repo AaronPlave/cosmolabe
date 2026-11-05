@@ -863,6 +863,24 @@ plugins or execute arbitrary JavaScript. Agent measurement reads withhold endpoi
 and resource provenance; trusted local hosts receive complete definitions.
 Operations without verified receipt readback remain explicitly `partial`.
 
+### Continuous timeline profiles
+
+`getProfileOptions`, `listProfiles` and `getProfile(id, { scene })` inspect the existing timeline profiles. Scripts and embedded hosts create or update them through `upsertProfile`; IDs, edits and visibility are shared with the native timeline and Ask. New profiles and explicit show actions expand the timeline without changing camera, time or selection. Omitted flags preserve existing state; new profiles default to enabled and visible. The optional `scene` guard rejects stale mutations after catalog replacement.
+
+```js
+control.upsertProfile({
+  id: 'distance',
+  profile: { quantity: 'range', bodies: { observer: 'Philae', target: '67P/Churyumov-Gerasimenko' } },
+  enabled: true, visible: true,
+});
+const state = control.getProfile('distance'); // inspect after the UI has updated
+control.removeProfile('distance');
+```
+
+The text verbs accept `upsertProfile "<JSON definition>"` and `removeProfile <id>`. Quantities are `range` (center-to-center km), `relative-speed` and `range-rate` (km/s), and `phase-angle` (degrees). Optional `{start,end}` windows use ET seconds past J2000. Profile parameters inherit the shared relationship/window; the illuminator defaults to Sun. Frame, aberration and sampling-step overrides are refused because the existing pixel-density display sampler does not implement them.
+
+`getProfile` reports resolved participants/window, configured flags, native row presence, sampled trace visibility and missing samples. An accepted mutation alone is not visual success: absent UI integration or position samples yields partial/unavailable. Samples come from `Universe.absolutePositionOf`, including non-SPICE trajectories, without GF certification. Range is not physical surface clearance, and sampled minima are not certified contact events.
+
 ### Event Finder, instruments and session views
 
 `listEventQueries`, `upsertEventQuery`, `removeEventQuery` and `openEventQuery`

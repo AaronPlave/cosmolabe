@@ -1836,3 +1836,83 @@ it('merges session bookmarks through snapshot/parse/execute, protects catalog vi
   expect(host.getInstrument!()).toBeNull();
   expect(() => host.saveBookmark!('no-renderer')).toThrow('No renderer');
 });
+
+describe('shared continuous timeline profiles (#359)', () => {
+  function profileScene() {
+    const universe = viewerState.getSceneUniverse()!;
+    Object.assign(universe, {
+      getBody: (name: string) => OBJECTS.includes(name) ? { name } : undefined,
+      absolutePositionOf: (name: string, et: number) => name === 'Cassini' ? [et, 0, 0] : [100, 0, 0],
+    });
+    vs.scrubBaseMin = vs.scrubMin = 0; vs.scrubBaseMax = vs.scrubMax = 10;
+    vs.kernelCount = 0;
+    return createViewerControl();
+  }
+  const def = { id: 'distance-test', profile: { quantity: 'range', bodies: { observer: 'Cassini', target: 'Titan' } } };
+  it('script and Ask share the native identity, with position samples but no GF certificate', async () => {
+    const c = profileScene(), before = { time: c.getTime(), camera: c.getCamera(), selected: c.getSelected(), tracked: c.getTracked() };
+    await execute(parse(`upsertProfile ${JSON.stringify(JSON.stringify(def))}`), c);
+    expect(c.listProfiles().items).toEqual([expect.objectContaining(def)]);
+    const info = c.getProfile(def.id);
+    expect(info).toMatchObject({ status: 'partial', definition: { id: def.id, enabled: true, visible: true }, resolved: { quantity: 'range', bodies: def.profile.bodies }, timeline: { present: false } });
+    const { observeProfileRow, profileSignature } = await import('../profile-control');
+    const off = observeProfileRow(def.id, { signature: profileSignature(def.id), samples: 65, missing: 0, traceVisible: true });
+    expect(c.getProfile(def.id)).toMatchObject({ status: 'available', timeline: { present: true, traceVisible: true } });
+    const gapOff = observeProfileRow(def.id, { signature: profileSignature(def.id), samples: 1000, missing: 1, traceVisible: true });
+    expect(c.getProfile(def.id).status).toBe('partial');
+    gapOff();
+    observeProfileRow(def.id, { signature: profileSignature(def.id), samples: 65, missing: 0, traceVisible: true });
+    const tools = createCapabilityTools(c, { surface: 'discovery' });
+    expect(tools.listCapabilities({ query: 'continuous distance profile timeline' }).items.some(i => i.id === 'profiles.upsertProfile')).toBe(true);
+    const description = tools.describeCapabilities(['profiles.upsertProfile'])[0];
+    expect(description.permission).toBe('none');
+    expect(description.guide).toContain('physical surface height');
+    expect((await tools.call('invokeCapability', { id: 'profiles.getProfile', input: { id: def.id } })).ok).toBe(true);
+    const hidden = await tools.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify({ ...def, visible: false }) } });
+    expect(hidden.ok).toBe(true);
+    expect(c.getProfile(def.id).definition?.visible).toBe(false);
+    expect(c.getProfile(def.id).timeline.traceVisible).toBe(false);
+    expect({ time: c.getTime(), camera: c.getCamera(), selected: c.getSelected(), tracked: c.getTracked() }).toEqual(before);
+    off(); tools.dispose();
+    expect(c.removeProfile(def.id)).toBe(true);
+    expect(c.getProfile(def.id).status).toBe('missing-profile');
+  });
+  it('rejects unsupported clearance, unknown quantities, missing pair and unsupported sampling overrides without mutation', () => {
+    const c = profileScene();
+    for (const profile of [{ quantity: 'physical-clearance', bodies: def.profile.bodies }, { quantity: 'range' }, { quantity: 'range', bodies: { observer: 'Cassini', target: 'missing' } }, { ...def.profile, step: 10 }, { ...def.profile, window: { start: 10, end: 0 } }]) {
+      expect(() => c.upsertProfile({ id: def.id, profile })).toThrow();
+    }
+    expect(c.listProfiles().total).toBe(0);
+  });
+  it('reports missing/gapped positions and refuses old scene references', () => {
+    const c = profileScene(); c.upsertProfile(def);
+    const u = viewerState.getSceneUniverse()!;
+    const scene = c.getScene()!.id;
+    u.absolutePositionOf = (_name, et) => et < 5 ? [NaN, 0, 0] : [1, 0, 0];
+    expect(c.getProfile(def.id).status).toBe('partial');
+    expect(c.getProfile(def.id).limitations.join(' ')).toContain('missing');
+    u.absolutePositionOf = () => { throw new Error('gap'); };
+    expect(c.getProfile(def.id).status).toBe('unavailable');
+    bind();
+    expect(c.getProfile(def.id, { scene }).status).toBe('scene-reloaded');
+    expect(() => c.upsertProfile(def, { scene })).toThrow('another scene');
+    expect(c.getProfile(def.id).status).toBe('missing-profile');
+  });
+  it('returns a partial receipt when a host accepts configuration without native timeline integration', async () => {
+    const c = profileScene(), tools = createCapabilityTools(c, { surface: 'discovery' });
+    tools.describeCapabilities(['profiles.upsertProfile']);
+    const result = await tools.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify(def) } });
+    expect(result.receipt?.status).toBe('partial');
+    expect(c.listProfiles().total).toBe(1);
+    expect(c.getProfile(def.id).timeline.present).toBe(false);
+    tools.dispose();
+  });
+  it('cancellation prevents an Ask mutation', async () => {
+    const c = profileScene(), tools = createCapabilityTools(c, { surface: 'discovery' });
+    tools.describeCapabilities(['profiles.upsertProfile']);
+    const task = tools.begin(); task.cancel();
+    expect((await task.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify(def) } })).ok).toBe(false);
+    expect(c.listProfiles().total).toBe(0);
+    tools.dispose();
+  });
+});

@@ -47,6 +47,8 @@ export class FakeViewer implements ViewerControl {
   saveBookmark(name: string) { this.log('saveBookmark', name); return true; }
   upsertBookmark(input: import('../contracts.js').ScriptBookmark) { this.log('upsertBookmark', input.name); return true; }
   removeBookmark(name: string) { this.log('removeBookmark', name); return true; }
+  upsertProfile(input: import('../contracts.js').ScriptProfileDefinition) { this.log('upsertProfile', input.id); return true; }
+  removeProfile(id: string) { this.log('removeProfile', id); return true; }
   upsertEventQuery(input: import('../contracts.js').ScriptEventQuery) { this.log('upsertEventQuery', input.id); return true; }
   openEventQuery(id: string) { this.log('openEventQuery', id); return true; }
   removeEventQuery(id: string) { this.log('removeEventQuery', id); return true; }

@@ -1,7 +1,7 @@
 export type { MeasurementDefinition, SpatialEndpoint, ReferenceVector, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 // The port
 export type {
-  ViewerControl,
+  ViewerControl, ScriptProfileDefinition, ScriptProfileInfo, ScriptProfileOptions,
   ScriptEventQuery, ScriptEventSearch, ScriptInstrument, ScriptBookmark,
   ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptSurfacePolicy,
   ScriptEventReference, ScriptEventProvenance, ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization, ScriptEventFocusReceipt,

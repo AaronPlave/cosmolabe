@@ -1,4 +1,4 @@
-import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, ContinuousProfileConfiguration, EventQuery, GeometryEvent } from '@cosmolabe/core';
 import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
@@ -22,6 +22,28 @@ import type { GridSettings } from './grid.js';
  * `Universe.getBody`. The host does not raise: it does not know the line number.
  * The interpreter, which does, turns that `false` into a located error.
  */
+
+/** Existing timeline profile definition; IDs belong to the current scene. */
+export interface ScriptProfileDefinition {
+  id: string;
+  label?: string;
+  profile: ContinuousProfileConfiguration;
+  enabled?: boolean;
+  visible?: boolean;
+}
+export interface ScriptProfileInfo {
+  scene: number | null;
+  status: 'available' | 'partial' | 'unavailable' | 'missing-profile' | 'scene-reloaded';
+  definition: ScriptProfileDefinition | null;
+  resolved: ContinuousProfileConfiguration | null;
+  timeline: { present: boolean; traceVisible: boolean; window: { start: number; end: number }; samples: number; missing: number };
+  limitations: string[];
+}
+export interface ScriptProfileOptions {
+  quantities: { id: string; label: string; unit: string }[];
+  window: { start: number; end: number };
+  limitations: string[];
+}
 
 /** A three-component vector, in the units the method documents. */
 export type ScriptVec3 = readonly [number, number, number];
@@ -727,6 +749,11 @@ export interface ViewerControl {
     suggestedWindow: { start: number; end: number } | null;
     error: { code: string } | null;
   };
+  getProfileOptions?(): ScriptProfileOptions;
+  listProfiles?(): { scene: number | null; total: number; items: ScriptProfileDefinition[] };
+  getProfile?(id: string, opts?: ScriptSceneOptions): ScriptProfileInfo;
+  upsertProfile?(definition: ScriptProfileDefinition, opts?: ScriptSceneOptions): boolean;
+  removeProfile?(id: string, opts?: ScriptSceneOptions): boolean;
   listEventQueries?(): readonly ConfiguredEventQuery[];
   upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
   openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;

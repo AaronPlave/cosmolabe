@@ -4,6 +4,7 @@ import { capabilityDomain, defaultAskDefinitions } from './capabilities.js';
 import { VERBS } from './verbs.js';
 
 const UI: Readonly<Record<string, string>> = {
+  profiles: 'AddProfile / ProfileConfig / ProfileRow / TimelineDock',
   analysis: 'EventFinder / EventDetails / TimelineDock',
   spatial: 'Point Probe / DrawToolbar',
   scene: 'BodyDrawer / NavigationView / ScriptConsole', camera: 'NavigationActions / NavigationView / ScriptConsole',

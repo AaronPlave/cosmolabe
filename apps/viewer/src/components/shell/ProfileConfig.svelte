@@ -50,18 +50,23 @@
     return 'Shared (none)';
   }
 
+  let error = $state<string | null>(null);
+
   function submit() {
     const bodies: EventParticipants = {};
     if (observer) bodies.observer = observer;
     if (target) bodies.target = target;
     if (quantity === 'phase-angle' && illuminator) bodies.illuminator = illuminator;
-    onSubmit({ ...initial, quantity, bodies });
+    error = null;
+    try { onSubmit({ ...initial, quantity, bodies }); }
+    catch (e) { error = e instanceof Error ? e.message : 'Unable to configure profile'; }
   }
 
   const selectClass = 'ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none';
 </script>
 
 <div class="flex flex-col gap-1.5">
+  {#if error}<p role="alert" class="text-sm text-red-400">{error}</p>{/if}
   <label class="cfg-field">
     <span class="ui-label">Quantity</span>
     <select class={selectClass} bind:value={quantity}>
