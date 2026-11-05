@@ -4,8 +4,8 @@
    * sidebar. A request shows what the person typed, the model's one answer, and
    * a quiet action status. Opening
    * that line lists the actions in plain words; one Details view under them
-   * holds the raw tool calls, results and the model's narration for anyone
-   * debugging. A request that stops early says why and what its actions came
+   * holds every raw tool call and full result, one collapsible step each, the
+   * model's narration and a copy of the whole trace, for anyone debugging. A request that stops early says why and what its actions came
    * to, from their actual results. The panel's own chrome minimizes and closes
    * it; closing stops a running request.
    *
@@ -123,12 +123,13 @@
     return LABELS[step.name]?.(input) ?? actionMetadata(step).label;
   }
 
-  /** Everything raw, as one block: the tool calls, their results and the model's narration. */
-  function details(turn: AskTurn): string {
-    const lines = turn.steps.map((s) => JSON.stringify({ tool: s.name, input: s.input, result: s.result }, null, 1));
-    if (turn.notes.length) lines.push(`model notes: ${JSON.stringify(turn.notes)}`);
-    const out = lines.join('\n');
-    return out.length > 8000 ? `${out.slice(0, 8000)}…` : out;
+  /** The whole raw trace, untruncated: every tool call with its input and full host result, and the model's narration. */
+  function trace(turn: AskTurn): string {
+    return JSON.stringify({ prompt: turn.prompt, steps: turn.steps.map((s) => ({ tool: s.name, input: s.input, result: s.result })), notes: turn.notes }, null, 1);
+  }
+  let copied = $state<number | null>(null);
+  async function copyTrace(turn: AskTurn) {
+    try { await navigator.clipboard.writeText(trace(turn)); copied = turn.id; } catch { copied = null; }
   }
 </script>
 
@@ -223,7 +224,14 @@
               </ul>
               <details class="ask-details mt-1">
                 <summary class="ui-helper cursor-pointer select-none text-text-faint">Details</summary>
-                <pre class="ui-helper mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{details(turn)}</pre>
+                <button class="ui-meta mt-1 rounded px-1.5 py-0.5 text-text-secondary hover:bg-hover hover:text-text-primary" onclick={() => copyTrace(turn)}>{copied === turn.id ? 'Copied full trace' : 'Copy full trace'}</button>
+                {#each turn.steps as step, i (step.id)}
+                  <details class="mt-1">
+                    <summary class="ui-helper cursor-pointer select-none font-mono text-[10px] text-text-faint">{i + 1}. {step.name === 'invokeCapability' && step.input && typeof step.input === 'object' ? String((step.input as Record<string, unknown>).id) : step.name} · {!step.result ? 'running' : step.result.ok ? 'ok' : step.result.code}</summary>
+                    <pre class="ui-helper mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify({ input: step.input, result: step.result }, null, 1)}</pre>
+                  </details>
+                {/each}
+                {#if turn.notes.length}<pre class="ui-helper mt-1 whitespace-pre-wrap font-mono text-[10px]">model notes: {JSON.stringify(turn.notes)}</pre>{/if}
               </details>
             </details>
           {/if}

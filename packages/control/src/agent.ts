@@ -170,8 +170,8 @@ export interface AgentTools {
   verify?(predicates: readonly Predicate[]): GoalReport;
   /** The contract of the operation a call would run (resolving a discovery bridge), or null for an unknown one. */
   contractOf?(name: string, input: unknown): OperationContract | null;
-  /** Usage notes of the operations this viewer offers now, by name: the planner's feature guidance. */
-  guides?(): readonly { name: string; guide: string }[];
+  /** Usage notes by operation name: of the directly offered operations, or of every available one in a contract namespace. */
+  guides?(namespace?: string): readonly { name: string; guide: string }[];
   /** Whether a `state` predicate may read this method on this viewer. */
   readable?(method: string): boolean;
   /** Why a write would contradict what the conversation holds, judged before it runs; null when nothing held speaks to it. */
@@ -895,8 +895,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     getEventSearchOptions: input => {
       const options = host.getEventSearchOptions!(input as Parameters<NonNullable<ViewerControl['getEventSearchOptions']>>[0]);
       const coverage = options.coverage;
+      // A named kind gets its own defaults only; an unknown one still lists every kind.
+      const kind = options.kinds.filter(k => k.kind === input.kind);
       return { ok: true, summary: 'Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
-        ...options, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
+        ...options, kinds: kind.length ? kind : options.kinds, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
       } };
     },
     getEventQueryInfo: input => ({ ok: true, summary: 'Shared query availability and provenance.', data: eventQueryMetadata(host.getEventQueryInfo!(input.query as string), metadata.text) }),
@@ -1189,7 +1191,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (!def?.contract.expect || !held.length) return null;
       try { return preconditionProblem(host, def.contract.expect((input ?? {}) as Input, host), held); } catch { return null; }
     },
-    guides: () => available().filter(d => d.contract.guide && !opts.omittedTools?.[d.name]).map(d => ({ name: d.name, guide: d.contract.guide! })),
+    guides: namespace => available().filter(d => d.contract.guide && !opts.omittedTools?.[d.name] && (!namespace || d.contract.namespace === namespace)).map(d => ({ name: d.name, guide: d.contract.guide! })),
     list: () => list().filter(def => !opts.omittedTools?.[def.name]),
     begin,
     call: async (name, input) => {

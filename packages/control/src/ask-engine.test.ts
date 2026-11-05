@@ -427,6 +427,34 @@ describe('routing before the first change', () => {
   });
 });
 
+describe('round trips a closest-approach request does not need', () => {
+  it('the event search read carries its domain\'s notes and only the asked kind; reads resend no observation; no change is refused for notes', async () => {
+    const host = Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }, { kind: 'occultation', step: 60 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const invoke = (id: string, op: string, input: unknown) => use(id, 'invokeCapability', { id: op, input });
+    const query = { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} };
+    // The shape of the seven-round Cassini–Titan trace: scene, options, configure, run, page, present.
+    const model = scripted([
+      call(use('scene', 'describeScene', {})),
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' } })),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), invoke('upsert', 'events.upsertEventQuery', { definition: JSON.stringify({ id: 'pm', label: 'pm', enabled: true, visible: true, query }) })),
+      call(invoke('run', 'events.runEventQuery', { id: 'pm' })),
+      call(invoke('page', 'events.getEventResultPage', { query: 'pm', order: 'range-ascending' })),
+      call(present('present', 'pm-0')),
+      say('Psyche came closest to Mars at 4,500 km.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'when was psyche closest to mars? show me' });
+    const result = (id: string) => JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content);
+    expect(run.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result' && /Not run/.test(c.content))).toEqual([]);
+    expect(run.stats.rounds).toBe(7);
+    for (const op of ['upsertEventQuery', 'presentEventResult', 'getEventResultPage']) expect(result('options').summary).toContain(`${op}: `);
+    expect(result('options').data.kinds.map((k: { kind: string }) => k.kind)).toEqual(['closest-approach']);
+    expect(result('scene').receipt).not.toHaveProperty('observation');
+    expect(result('scene').receipt.status).toBe('completed');
+    expect(run.result.status).toBe('verified');
+  });
+});
+
 describe('the model-facing context stays bounded as operations are added', () => {
   it('300 more operations leave the prompt unchanged and the index within its budget, and a new one is still found and run', async () => {
     const measure = () => {

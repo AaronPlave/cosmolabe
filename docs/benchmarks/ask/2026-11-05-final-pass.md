@@ -149,3 +149,33 @@ The rescoring also recognises "haven't" as a negation, so a clarifying question 
 **Release decision, revised.** Haiku is the default. Sonnet answers only requests the routing policy names, decided before any change. Nothing is replayed after partial execution. Evidence for Haiku on its own is the tables above and the final-pass results. Its remaining measured misses are two:
 - **"Closest" (1/5):** Haiku read "Psyche" as the asteroid 16 Psyche, not the spacecraft, and Ask reported the result as verified. The viewer checked the search it ran, but it cannot check which body the person meant. This is the residual risk of a Haiku default: an interpretation error with a confident answer.
 - **"Place a point" (1/3):** Haiku asked a clarifying question and changed nothing.
+
+## Efficiency pass (2026-11-05)
+
+The review traced the seven-round Cassini–Titan request and asked for small changes only: no new Event Finder orchestration, planner or macro.
+
+**Where the rounds went.** The final gate's Haiku trace ("when did cassini get nearest to titan? show me") was: `describeScene`; `getEventSearchOptions`; configure two searches, one per coverage window, with one invalid definition retried; run both; one result page each; present.
+- **Necessary waits:** options, then configure, run, page, present. Each needs the result of the one before it: coverage, a saved search, results, and a result reference.
+- **Avoidable:**
+  - `describeScene` when the request names its bodies;
+  - the invalid-definition retry, which was a model error;
+  - on current code before this pass, two first-use refusals. `upsertEventQuery` and `presentEventResult` were each refused once just to show their notes.
+
+**What changed.**
+- **Notes come with the read that precedes the change.** A read now also returns the not-yet-seen notes of the other operations in its contract namespace. `getEventSearchOptions` therefore carries the event search, result page and present notes, so neither change is refused. Writes still return their notes instead of running if no read or description came first. Nothing runs before the model has seen its constraints, and no discovery call was added.
+- **Reads resend no observation.** A read's model-facing receipt carries only its ID, status and warnings, because its data is the observation. The full receipt stays in the host trace and `getOperationResult`. `describeScene` had sent most of its scene a second time.
+- **`getEventSearchOptions` with a kind** returns that kind's defaults only. An unknown kind still lists them all.
+- **The Details view is no longer cut at 8,000 characters.** Each step is collapsible, with its input and full host result, and Copy full trace copies everything.
+
+**Offline replay, $0.** The same call sequence, scripted against a fake host with eight event kinds:
+
+| | Rounds | Refusals | Model input across rounds (chars) | describeScene result | getEventSearchOptions result |
+| --- | --- | --- | --- | --- | --- |
+| Before | 9 | 2 | 250,733 | 1,738 | 2,742 |
+| After | 7 | 0 | 173,398 (−31%) | 735 | 2,108, including the domain notes |
+
+`ask-engine.test.ts` keeps this as a regression test.
+
+**Paid runs.** None were made, because the replay answers the question.
+
+**What would take fewer rounds and was not done.** Five waits are inherent to the existing `eventControl` surface: options, configure, run, page, present. A model can already batch configure and run in one reply, since calls in a batch run in order. Going below five would need one operation that searches and returns ranked results, which is a new Event Finder API. Per the review, it is not in #351.

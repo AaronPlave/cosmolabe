@@ -251,8 +251,8 @@ const CORE_PROMPT = `You operate a Cosmolabe space-mission viewer for the person
 - Numbers, dates and classifications in your answer come from tool results, never from memory: quote measured distances with units and say which quantity (range or altitude) they are.
 - Reply once, after the tools are done, in one to three short plain sentences about what the person now sees or what the data says. No Markdown, bullets, preamble or Details section, and never the words receipt, readback, observation, verification, NDC or pixel proof. Under 90 words.`;
 
-const FIXED_PROMPT = '- Start with describeScene unless you already know the state. Operations marked * in the invokeCapability index have usage notes: describe them (up to eight IDs in one call) before their first use, or the first change returns the notes instead of running.';
-const DISCOVERY_PROMPT = '- invokeCapability carries a compact index of exact operation IDs: invoke a known one directly with schema-valid input; invalid input returns the expected schema. Use describeCapabilities (up to eight IDs together) when you need input details and before the first use of one marked * (its usage notes come back with it; otherwise the first change returns them instead of running), and listCapabilities to search, including for operations past the index. Direct tools, when offered, are the same operations. Search the relevant domain before saying a feature is unsupported, and rediscover after a scene reload.';
+const FIXED_PROMPT = '- Start with describeScene unless you already know the state. Operations marked * in the invokeCapability index have usage notes: a read in their domain returns them; otherwise describe them (up to eight IDs in one call) before their first use, or the first change returns the notes instead of running.';
+const DISCOVERY_PROMPT = '- invokeCapability carries a compact index of exact operation IDs: invoke a known one directly with schema-valid input; invalid input returns the expected schema. Use describeCapabilities (up to eight IDs together) when you need input details and before the first use of one marked * (its usage notes come back with it, or with a read in its domain; otherwise the first change returns them instead of running), and listCapabilities to search, including for operations past the index. Direct tools, when offered, are the same operations. Search the relevant domain before saying a feature is unsupported, and rediscover after a scene reload.';
 
 /** The system prompt for the tools on offer, with their operations' own usage notes. */
 export function systemPrompt(offered: readonly AgentToolDef[], guides: readonly { name: string; guide: string }[]): string {
@@ -261,9 +261,11 @@ export function systemPrompt(offered: readonly AgentToolDef[], guides: readonly 
 }
 
 /** Model transport keeps full observed camera state only where it informs the
- * operation. Full typed receipts remain available via getOperationResult. */
-function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>) {
+ * operation; a read's own data is its observation, so its receipt carries only
+ * status. Full typed receipts remain with the host and getOperationResult. */
+function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>, read: boolean) {
   const { observation, ...base } = receipt;
+  if (read) return { id: receipt.id, operation: receipt.operation, status: receipt.status, ...(receipt.warnings.length ? { warnings: receipt.warnings } : {}) };
   if (/^(camera|time|scene)\./.test(receipt.operation)) return receipt;
   const events = (observation.state as { events?: unknown } | null)?.events;
   return { ...base, observation: { scope: observation.scope,
@@ -273,8 +275,9 @@ function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>) {
 }
 
 /** Preserve JSON and explicit page boundaries even when a host returns oversized data. */
-export const resultText = (result: AgentToolResult, max: number): string => {
-  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...(result.receipt ? { receipt: modelReceipt(result.receipt) } : {}) } : { error: result.error, code: result.code, ...(result.receipt ? { receipt: modelReceipt(result.receipt) } : {}) };
+export const resultText = (result: AgentToolResult, max: number, read = false): string => {
+  const receipt = result.receipt ? { receipt: modelReceipt(result.receipt, read) } : {};
+  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt } : { error: result.error, code: result.code, ...receipt };
   const text = JSON.stringify(payload);
   if (text.length <= max) return text;
   if (result.ok && result.data && typeof result.data === 'object' && 'activities' in result.data) {
@@ -333,9 +336,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   // An operation's usage notes reach the model before its first change: from the
   // prompt (directly offered tools), a description, or the first call itself.
   const noted = new Set((opts.tools.guides?.() ?? []).map(g => g.name));
-  const notesFor = (use: { name: string; input: unknown }) => {
-    const guide = contractOf(use.name, use.input)?.guide;
-    return guide && !noted.has(actionName(use)) ? guide : null;
+  // A read also carries the notes of its namespace's other operations, so the change it precedes is not refused for them.
+  const notesFor = (use: { name: string; input: unknown }, read: boolean) => {
+    const c = contractOf(use.name, use.input), self = actionName(use);
+    const own = c?.guide ? [{ name: self, guide: c.guide }] : [];
+    const domain = read && c && !DISCOVERY_NAMES.has(use.name) ? opts.tools.guides?.(c.namespace) ?? [] : [];
+    return [...own, ...domain.filter(g => g.name !== self)].filter(g => !noted.has(g.name));
   };
   const hold = (incoming: readonly Predicate[], by: 'person' | 'action') => {
     const r = adopt(held, incoming, by);
@@ -485,8 +491,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         opts.onEvent?.({ type: 'tool', id: use.id, name: use.name, input: use.input });
         const read = isRead(use.name, use.input);
         if (use.name === 'describeCapabilities') for (const id of (use.input as { ids?: unknown } | null)?.ids as unknown[] ?? []) if (typeof id === 'string') noted.add(id.split('.').at(-1)!);
-        const notes = isCheck(use) ? null : notesFor(use);
-        if (notes) noted.add(actionName(use));
+        const pending = isCheck(use) ? [] : notesFor(use, read);
+        for (const g of pending) noted.add(g.name);
+        const notes = pending.length ? pending.map(g => g.name === actionName(use) ? g.guide : `${g.name}: ${g.guide}`).join(' ') : null;
         let result: AgentToolResult;
         if (isCheck(use) && opts.tools.verify) result = task.ended ? { ok: false, code: task.ended, error: 'this request was stopped; nothing was checked' } : runCheck(use);
         else if (batchFailed && !read && !task.ended) result = { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' };
@@ -497,7 +504,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
             : opts.tools.preflight?.(use.name, use.input, held) ?? null;
           if (!conflict && !read) ran = true;
           result = conflict ? { ok: false, code: 'refused', error: `Not run: ${conflict}.` } : await task.call(use.name, use.input);
-          if (notes && read) { if (result.ok) result = { ...result, summary: `${result.summary} Notes: ${notes}` }; else noted.delete(actionName(use)); }
+          if (notes && read) { if (result.ok) result = { ...result, summary: `${result.summary} Notes: ${notes}` }; else for (const g of pending) noted.delete(g.name); }
         }
         if (result.outcome && result.ok) {
           wrote = true; seen.clear(); report = null;
@@ -510,7 +517,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
-        results.push({ type: 'tool_result', toolUseId: use.id, content: resultText(result, budget), isError: !result.ok });
+        results.push({ type: 'tool_result', toolUseId: use.id, content: resultText(result, budget, read), isError: !result.ok });
       }
       messages.push({ role: 'user', content: results });
     }

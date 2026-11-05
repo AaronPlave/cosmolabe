@@ -433,8 +433,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const def = name === 'invokeCapability' ? definitions().find(d => idOf(d) === (input as { id?: unknown } | null)?.id) : definitions().find(d => d.name === name || idOf(d) === name);
       return def ? raw.preflight?.(def.name, name === 'invokeCapability' ? (input as { input?: unknown }).input : input, held) ?? null : null;
     },
-    // Notes for the directly offered tools only, so the prompt stays bounded; every other operation's notes come from the same registry when described or first used.
-    guides: () => direct().filter(d => d.contract.guide && summary(d).available).map(d => ({ name: d.name, guide: d.contract.guide! })),
+    // Notes for the directly offered tools only, so the prompt stays bounded; every other operation's notes come from the same registry: with a read in its namespace, a description, or its first use.
+    guides: namespace => (namespace ? definitions().filter(d => d.contract.namespace === namespace) : direct()).filter(d => d.contract.guide && summary(d).available).map(d => ({ name: d.name, guide: d.contract.guide! })),
     call: async (name, input) => { const task = begin(); try { return await task.call(name, input); } finally { task.finish(); } },
     cancel: () => raw.cancel(),
     dispose: () => { disposed = true; offLoad(); raw.dispose(); receipts.clear(); },
