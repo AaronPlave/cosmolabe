@@ -1,6 +1,6 @@
 # Ask final pass: intent before change, bounded context (#345, PR #351), 2026-11-05
 
-This pass answers the review after the [2026-11-04 final gate](2026-11-04-final.md). In five of Haiku's six misses there, the model left the person's intent out of the goal, so an otherwise valid action was verified against an incomplete objective. The review also asked that the model's context stay bounded as operations are added, and for a subtraction pass. Per-run data, with every answer: [2026-11-05-final-pass-runs.json](2026-11-05-final-pass-runs.json).
+This pass answers the review after the [2026-11-04 final gate](2026-11-04-final.md). In five of Haiku's six misses there, the model left the person's intent out of the goal, so an otherwise valid action was verified against an incomplete objective. The review also asked that the model's context stay bounded as operations are added, and for a subtraction pass.
 
 ## What changed
 
