@@ -56,7 +56,8 @@ function cellProxy(model, cellUsage) {
     } },
     // A fixed-model proxy per fresh cell. Closing it drains/aborts its requests
     // before the next cell; late usage cannot be attributed to another model.
-    model, maxTokens: 1536, perMinute: 1000, cache: true, reasoningEffort: process.env.ASK_BENCHMARK_EFFORT || undefined,
+    // Escalated requests (the viewer's routing policy) go to ASK_BENCHMARK_ESCALATION_MODEL; unset, to the cell's model.
+    model, escalationModel: process.env.ASK_BENCHMARK_ESCALATION_MODEL || model, maxTokens: 1536, perMinute: 1000, cache: true, reasoningEffort: process.env.ASK_BENCHMARK_EFFORT || undefined,
     tokenBudget: report.limits.rawTokens, costBudgetUsd: report.limits.estimatedUsd,
     fetchImpl: async (url, options) => {
       const totals = summarizeUsage(allUsage);
@@ -336,7 +337,7 @@ try {
         for (const step of run.result.steps) { step.modelVisible = visibleResults.get(step.id) ?? null; delete step.id; }
         if (test.viewpoint) run.result.state.navigation.poseMatches = poseMatches(run.result.state.camera, run.result.state.navigation.expectedPose);
         run.score = scoreState(test, initial, run.result);
-        run.score.checks.modelIdentity = cellUsage.length > 0 && cellUsage.every(row => row.model === model);
+        run.score.checks.modelIdentity = cellUsage.length > 0 && cellUsage.every(row => row.model === row.requestedModel && [model, process.env.ASK_BENCHMARK_ESCALATION_MODEL].includes(row.model));
         run.score.checks.toolMode = rounds[0]?.discoveryOffered === (mode === 'discovery');
         run.score.passed = Object.values(run.score.checks).every(Boolean);
         run.cacheFirstRequest = cellUsage[0]?.cacheReadTokens > 0 ? 'observed-cache-read' : 'no-observed-cache-read';

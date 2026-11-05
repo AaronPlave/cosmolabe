@@ -90,7 +90,9 @@ export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 export const anthropicProvider = {
   name: 'anthropic',
-  defaultModel: 'claude-sonnet-5-5',
+  // Haiku by default for interactive cost; the viewer escalates requests its routing policy names.
+  defaultModel: 'claude-haiku-5-5',
+  defaultEscalationModel: 'claude-sonnet-5-5',
   url: 'https://api.anthropic.com/v1/messages',
   headers: (apiKey, { fallback = false } = {}) => ({
     'x-api-key': apiKey,

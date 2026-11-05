@@ -353,8 +353,8 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
             : o.occlusion ? `${p.object} in frame, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : `${p.object} in frame`);
         }
         if (p.p === 'legible') {
-          // Legible means seen at a usable size: out of frame or hidden is a plain failure, never a soft one.
-          if (!o.inView || !o.drawEnabled) return { ...check(p, false, `${p.object} ${o.drawEnabled ? 'out of frame' : 'is hidden'}`), soft: false };
+          // Legible means seen at a usable size: out of frame, hidden or fully occluded is a plain failure, never a soft one.
+          if (!o.inView || !o.drawEnabled || o.occlusion?.kind === 'full') return { ...check(p, false, `${p.object} ${!o.drawEnabled ? 'is hidden' : !o.inView ? 'out of frame' : `hidden behind ${o.occlusion!.by}`}`), soft: false };
           const size = o.angularRadiusDeg === null ? null : Math.tan(o.angularRadiusDeg * Math.PI / 180) / tanHalf;
           return check(p, size === null ? null : size >= LEGIBLE_NDC, size === null ? `${p.object} size unknown` : size >= LEGIBLE_NDC ? `${p.object} drawn at a visible size` : `${p.object} is only a few pixels across`);
         }
@@ -392,12 +392,18 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         if (!page) return check(p, null, 'event search unobservable');
         const ok = ['ready', 'no-results'].includes(page.status);
         if (!ok || !p.whole) return check(p, ok, ok ? `search ${p.query} complete, ${page.total} results` : `search ${p.query} ${page.status}`);
-        // "All": the window must span every loaded coverage window of these participants, to within a step.
-        const def = page.query.definition?.query, windows = page.query.coverage?.windows ?? [];
-        if (!def || !windows.length) return check(p, null, `search ${p.query} complete; its participants' coverage is unknown`);
-        const tol = def.step ?? 3600;
-        const missed = windows.filter(w => def.window.start > w.start + tol || def.window.end < w.end - tol);
-        return check(p, !missed.length, missed.length ? `search ${p.query} misses ${missed.length} of ${windows.length} coverage windows` : `search ${p.query} spans the whole coverage, ${page.total} results`);
+        // "All", as far as the solver can promise it: every local result (not deepest-only), at no
+        // coarser a step than the kind's own (its shortest event not to miss), over the pair's one
+        // exact coverage window to within a step. One search cannot span disjoint windows.
+        const def = page.query.definition?.query, coverage = page.query.coverage;
+        if (!def) return check(p, null, `search ${p.query} has no readable definition`);
+        if ((def.params as { scope?: unknown } | undefined)?.scope === 'global') return check(p, false, `search ${p.query} is deepest-only: one minimum, not every one`);
+        const kindStep = try_(() => host.getEventSearchOptions?.())?.kinds.find(k => k.kind === def.kind)?.step;
+        if (def.step !== undefined && !(kindStep !== undefined && def.step <= kindStep)) return check(p, null, `search ${p.query} steps ${def.step} s, coarser than the kind's ${kindStep ?? 'unknown'} s: events between samples may be missed`);
+        if (!coverage?.exact || coverage.windows.length !== 1) return check(p, null, `search ${p.query} complete; ${coverage?.windows.length ? `the coverage is ${coverage.exact ? `${coverage.windows.length} disjoint windows, which one search cannot span` : 'an estimate'}` : 'its participants\' coverage is unknown'}`);
+        const [w] = coverage.windows, tol = def.step ?? kindStep ?? 3600;
+        const spans = def.window.start <= w.start + tol && def.window.end >= w.end - tol;
+        return check(p, spans, spans ? `search ${p.query} spans the whole coverage, ${page.total} results` : `search ${p.query} does not span the participants' coverage`);
       }
       case 'eventSelected': {
         if (!viz) return check(p, null, 'this viewer cannot observe events');
@@ -459,19 +465,23 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         return check(p, ok, sel ? `feature ${sel.feature} on ${sel.layer} selected` : 'no saved feature selected');
       }
       case 'featureUnder': {
-        // The selected saved point must be where the vehicle is, on its body, in the layer's own convention.
+        // A saved point where the vehicle is, on its body, in a visible layer: the selected one, or else the nearest in the
+        // layer new annotations go to (whose convention the projection uses). Selecting it is featureSelected's to ask.
         const proj = projection(p.object as string);
         const body = proj?.status === 'available' ? proj.body : null;
         const sel = host.getSelectedGeographicFeature ? try_(() => host.getSelectedGeographicFeature!()) ?? null : null;
-        if (!sel) return check(p, false, 'no saved feature selected');
-        const layer = host.listGeographicLayers ? try_(() => host.listGeographicLayers!().find(l => l.id === sel.layer)) : undefined;
+        const layerId = sel?.layer ?? proj?.annotation?.layer;
+        if (!layerId) return check(p, proj ? false : null, proj ? 'no saved point: nothing selected and no annotation layer' : 'coordinates unavailable');
+        const layer = host.listGeographicLayers ? try_(() => host.listGeographicLayers!().find(l => l.id === layerId)) : undefined;
         if (layer && body && layer.body !== body) return check(p, false, `saved point on ${layer.body}, ${p.object} is over ${body}`);
-        const feature = host.listGeographicFeatures ? try_(() => host.listGeographicFeatures!(sel.layer, { limit: 100 })?.features.find(f => f.id === sel.feature)) : undefined;
-        if (feature && feature.type !== 'Point') return check(p, false, `saved feature is a ${feature.type}, not a point`);
+        const features = host.listGeographicFeatures ? try_(() => host.listGeographicFeatures!(layerId, { limit: 100 })?.features) : undefined;
         const target = proj?.annotation?.position;
-        if (!feature?.point || !target || !layer) return check(p, null, !feature ? 'saved feature unreadable' : 'coordinates unavailable');
-        const lat = feature.point[1] * Math.PI / 180;
-        const off = Math.hypot(feature.point[1] - target[1], ((feature.point[0] - target[0] + 540) % 360 - 180) * Math.cos(lat));
+        if (!features || !target || !layer) return check(p, null, !features ? 'saved features unreadable' : 'coordinates unavailable');
+        const offset = (point: readonly number[]) => Math.hypot(point[1] - target[1], ((point[0] - target[0] + 540) % 360 - 180) * Math.cos(point[1] * Math.PI / 180));
+        const candidates = sel ? features.filter(f => f.id === sel.feature) : features.filter(f => f.type === 'Point' && f.point);
+        if (sel && candidates[0] && candidates[0].type !== 'Point') return check(p, false, `saved feature is a ${candidates[0].type}, not a point`);
+        const off = Math.min(...candidates.flatMap(f => f.point ? [offset(f.point)] : []));
+        if (!Number.isFinite(off)) return check(p, sel ? null : false, sel ? 'saved feature unreadable' : `no saved point in ${layerId}`);
         // A point in a hidden layer is not on screen: not success.
         return check(p, off < 1e-3 && layer.visible, `saved point ${round(off)}° from ${p.object}'s sub-point${layer.visible ? '' : '; its layer is hidden'}`);
       }

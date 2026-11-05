@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { CAPABILITY_LIMITS, createCapabilityTools } from './capabilities.js';
-import { runAgent, systemPrompt, type AgentContent, type AgentEvent, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { escalateDestructive, runAgent, systemPrompt, type AgentContent, type AgentEvent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import { checkAnswer, statedDistancesKm, statedDates } from './answer-check.js';
 import { registerVerb, type VerbSpec } from './verbs.js';
 import type { ScriptEventReference, ScriptEventResultPage, ScriptEventVisualization, ViewerControl } from './contracts.js';
@@ -285,6 +285,7 @@ class TwoMinima extends EventScene {
     return { status: 'ready', total: 2, offset: 0, nextOffset: null, items, query: this.getEventQueryInfo() };
   }
   override listEventResults() { return { total: 2, items: this.results.map(r => this.item(r).event) }; }
+  getEventSearchOptions() { return { kinds: [{ kind: 'closest-approach', step: 3600 }] } as never; }
   override async presentEventResult(reference: ScriptEventReference) {
     this.presented.push(reference.id); this.selectedRef = reference; this.playing = false;
     this.time = this.results.find(r => r.id === reference.id)!.et;
@@ -335,7 +336,7 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
       say('The search covered only part of the loaded data, so these may not be all of them.'),
     ]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'show me all psyche flybys of mars' });
-    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm misses 1 of 1 coverage windows\)/);
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm does not span the participants' coverage\)/);
     expect(run.result.status).toBe('failed');
     expect(run.answer).toMatch(/only part/);
   });
@@ -391,6 +392,38 @@ describe('intent comes before any change', () => {
     expect(host.selected).toBe('Psyche');
     expect(restated.goals).toEqual([{ p: 'selected', object: 'Psyche', stated: true }]);
     expect(restated.result.status).toBe('verified');
+  });
+});
+
+describe('routing before the first change', () => {
+  const select = (id: string, object: string) => use(id, 'invokeCapability', { id: 'scene.select', input: { object } });
+
+  it('a first change the policy names is dropped unrun and the round asked again of the escalation model, which keeps the request', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal([{ p: 'selected', object: 'Mars' }]), select('1', 'Psyche')), call(goal([{ p: 'selected', object: 'Mars' }]), select('2', 'Mars')), say('Mars is selected.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars', escalate: ({ name }) => name === 'select' ? 'selection is routed' : null });
+    expect(model.requests.map(r => r.escalated)).toEqual([undefined, true, true]);
+    // The dropped proposal ran nothing and is not in the escalated model's history.
+    expect(JSON.stringify(model.requests[1].messages)).not.toMatch(/Psyche/);
+    expect(host.selected).toBe('Mars');
+    expect(run.result).toMatchObject({ status: 'verified', escalated: 'selection is routed', intentStated: true });
+  });
+
+  it('once a change has run the request stays on its model: nothing partly done is replayed', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'time.setPlaying', input: { playing: false } })), call(select('2', 'Mars')), say('Paused, Mars selected.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'pause and select mars', escalate: ({ name }) => name === 'select' ? 'selection is routed' : null });
+    expect(model.requests.every(r => !r.escalated)).toBe(true);
+    expect(host.selected).toBe('Mars');
+    // require: [] stated nothing: verified covers each change's own result, not the request.
+    expect(run.result).toMatchObject({ status: 'verified', escalated: null, intentStated: false });
+  });
+
+  it('by default, a change that destroys saved state is routed, by its contract', () => {
+    expect(escalateDestructive({ name: 'removeBookmark', input: { name: 'x' }, contract: { namespace: 'bookmarks', writes: ['bookmarks'], destructive: () => true } })).toBe('removeBookmark destroys saved state');
+    expect(escalateDestructive({ name: 'editAnnotation', input: { json: '{"type":"add"}' }, contract: { namespace: 'geographic', writes: ['geographic'], destructive: a => a.json === '{}' } })).toBeNull();
   });
 });
 

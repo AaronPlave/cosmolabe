@@ -79,7 +79,7 @@ export { createAgentTools, agentDefinitions } from './agent.js';
 export type {
   AgentTools, AgentTask, AgentToolDef, AgentDefinition, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions, OperationOutcome, ResultFact, EventResultFact,
 } from './agent.js';
-export { runAgent, compactHistory, systemPrompt, AGENT_WIRE_VERSION, AgentTransportError, HOST_CHECK_PREFIX } from './agent-loop.js';
+export { runAgent, compactHistory, systemPrompt, escalateDestructive, AGENT_WIRE_VERSION, AgentTransportError, HOST_CHECK_PREFIX } from './agent-loop.js';
 export { checkAnswer, factSummary, statedDistancesKm, statedDates } from './answer-check.js';
 export { composeView } from './compose.js';
 export type { ComposeOutcome } from './compose.js';

@@ -62,6 +62,8 @@ export function summarizeUsage(rows) {
     cacheReads: sum('cacheReadTokens'), cacheWrites: sum('cacheWriteTokens'), output: sum('outputTokens'),
     rawProcessed: sum('inputTokens') + sum('cacheReadTokens') + sum('cacheWriteTokens') + sum('outputTokens'),
     estimatedUsd: rows.length && rows.every(r => r.estimatedUsd !== null) ? sum('estimatedUsd') : null,
+    // Rounds and estimated spend per model, for routed runs.
+    byModel: Object.fromEntries([...new Set(rows.map(r => r.model))].map(m => { const own = rows.filter(r => r.model === m); return [m, { requests: own.length, estimatedUsd: own.every(r => r.estimatedUsd !== null) ? own.reduce((n, r) => n + r.estimatedUsd, 0) : null }]; })),
     actualBilledUsd: null };
 }
 

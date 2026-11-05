@@ -22,6 +22,7 @@
  */
 import type { ScriptCancelSignal } from './contracts.js';
 import type { AgentTask, AgentToolDef, AgentToolResult, AgentTools, ResultFact } from './agent.js';
+import type { OperationContract } from './verbs.js';
 import { checkAnswer, factSummary } from './answer-check.js';
 import { adopt, parsePredicate, release, retireDomain, slotOf, type GoalReport, type Predicate } from './outcome.js';
 
@@ -42,6 +43,8 @@ export interface AgentRequest {
   readonly system: string;
   readonly messages: readonly AgentMessage[];
   readonly tools: readonly AgentToolDef[];
+  /** The host's routing policy asks for the deployment's escalation model; which model that is, is the server's choice. */
+  readonly escalated?: true;
 }
 
 /** Why the model stopped: done, wants tools run, out of tokens, declined, or anything else. */
@@ -123,8 +126,20 @@ export interface AgentRunOptions {
   readonly goals?: readonly Predicate[];
   /** A task already begun (so a caller can cancel it); one is begun otherwise. */
   readonly task?: AgentTask;
+  /**
+   * Routing before the first change of a request: given a change the model
+   * proposes, why the rest of the request should go to the escalation model,
+   * or null. The proposal is dropped unrun and the same round is asked again
+   * with `escalated`; once a change has run the request stays on its model,
+   * so nothing partly done is replayed. Default `escalateDestructive`.
+   */
+  readonly escalate?: (call: { readonly name: string; readonly input: Readonly<Record<string, unknown>>; readonly contract: OperationContract | null }) => string | null;
   readonly onEvent?: (event: AgentEvent) => void;
 }
+
+/** The default routing policy: a change that destroys saved state (its contract's `destructive`) goes to the escalation model. */
+export const escalateDestructive: NonNullable<AgentRunOptions['escalate']> = ({ name, input, contract }) =>
+  contract?.destructive?.(input) ? `${name} destroys saved state` : null;
 
 /**
  * How a request's changes stand, judged by the viewer after the last of them,
@@ -149,6 +164,14 @@ export interface RequestResult {
   readonly facts: readonly ResultFact[];
   /** Where the model's final answer still contradicted those facts after its one correction; the shown answer is then the host's account. */
   readonly answerIssues: readonly string[];
+  /**
+   * Whether this request stated what the person asked for (a non-empty
+   * checkGoal). False means a `verified` status covers the changes' own
+   * results only, not the request as a whole.
+   */
+  readonly intentStated: boolean;
+  /** Why the request moved to the escalation model before its first change, or null. */
+  readonly escalated: string | null;
 }
 
 export interface AgentRun {
@@ -296,7 +319,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const changes: string[] = [];
   const unobservable: string[] = [];
   const facts: ResultFact[] = [];
-  let wrote = false, repaired = false, cutOff = false, checks = 0;
+  let wrote = false, ran = false, repaired = false, cutOff = false, checks = 0, intentStated = false;
+  let escalated: string | null = null;
+  const escalate = opts.escalate ?? escalateDestructive;
+  const requestStart = messages.length - 1;
   /** Slots whose verdict the model has seen since the last change. */
   const seen = new Set<string>();
   let report: GoalReport | null = null;
@@ -331,7 +357,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     if (wrote && !report) report = verify();
     if (answer) opts.onEvent?.({ type: 'text', text: answer, final: true });
     return { messages, stats: stats(), outcome, goals: [...held], answer,
-      result: { status: status(), report, unobservable: [...unobservable], changes: [...changes], facts: [...facts], answerIssues } };
+      result: { status: status(), report, unobservable: [...unobservable], changes: [...changes], facts: [...facts], answerIssues, intentStated, escalated } };
   };
 
   /** checkGoal, wherever it sits: the loop holds what it states and answers it from the host's check of the whole goal. */
@@ -368,6 +394,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     }
     const r = hold(incoming, 'person');
     goalStated = true;
+    if (incoming.length) intentStated = true;
     if (r.retired.length) notes.push(`No longer held (the camera's subject changed): ${r.retired.join(', ')}.`);
     if (r.replaced.length) notes.push(`Replaced ${r.replaced.join('; ')}.`);
     // Before any change it is a statement, not a check: there is nothing yet to judge.
@@ -389,7 +416,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         const offered = opts.tools.list();
         const system = opts.system ?? systemPrompt(offered, opts.tools.guides?.() ?? []);
         rounds++;
-        reply = await opts.transport.send({ system, messages, tools: offered }, task.signal);
+        reply = await opts.transport.send({ system, messages, tools: offered, ...(escalated ? { escalated: true as const } : {}) }, task.signal);
       } catch (err) {
         const code = err instanceof AgentTransportError ? err.code : undefined;
         return finish(ended() ?? { kind: 'error', message: err instanceof Error ? err.message : String(err), ...(code ? { code } : {}) });
@@ -412,6 +439,17 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         cutOff = true;
         messages[messages.length - 1] = { role: 'assistant', content: [{ type: 'text', text: '(reply cut off at the output limit)' }] };
         messages.push({ role: 'user', content: [{ type: 'text', text: `${HOST_CHECK_PREFIX} Your last reply was cut off at the output limit, so nothing in it ran. Send the call again, shorter.` }] });
+        continue;
+      }
+      // Routing: a first change the host's policy sends to the escalation model is dropped unrun and
+      // the round asked again there. Earlier rounds only read, so nothing is replayed.
+      const route: string | null | undefined = !answering && !escalated && !ran ? uses.map(use => isRead(use.name, use.input) || isCheck(use) ? null
+        : escalate({ name: actionName(use), input: (callInput(use) ?? {}) as Record<string, unknown>, contract: contractOf(use.name, use.input) })).find(Boolean) : null;
+      if (route) {
+        escalated = route;
+        messages.pop();
+        // Another model's own blocks (its thinking) are not the escalation model's to replay.
+        for (let i = requestStart; i < messages.length; i++) if (messages[i].role === 'assistant') messages[i] = { ...messages[i], content: messages[i].content.filter(c => c.type !== 'provider') };
         continue;
       }
       if (!answering) {
@@ -457,6 +495,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
             ? 'state what the person asked for with checkGoal first (require: [] when the actions say it all), in the same reply before this change'
             : notes ? `this operation's usage notes apply before its first use; call it again if it still fits. Notes: ${notes}`
             : opts.tools.preflight?.(use.name, use.input, held) ?? null;
+          if (!conflict && !read) ran = true;
           result = conflict ? { ok: false, code: 'refused', error: `Not run: ${conflict}.` } : await task.call(use.name, use.input);
           if (notes && read) { if (result.ok) result = { ...result, summary: `${result.summary} Notes: ${notes}` }; else noted.delete(actionName(use)); }
         }

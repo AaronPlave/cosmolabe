@@ -128,9 +128,10 @@ export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'mut
   const r = turn.result;
   if (turn.status !== 'done' || !r) return null;
   const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
-  const replaced = r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : '';
+  const replaced = `${r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : ''}${r.escalated ? ` Answered by the escalation model: ${r.escalated}.` : ''}`;
   switch (r.status) {
-    case 'verified': return { tone: 'muted', text: `Checked in the viewer.${replaced}` };
+    // Without a stated goal the check covers what each change itself promised, not the whole request.
+    case 'verified': return { tone: 'muted', text: `${r.intentStated ? 'Checked in the viewer.' : 'Each change checked in the viewer; the request as a whole was not stated, so not checked.'}${replaced}` };
     case 'partial': return { tone: 'muted', text: `Holds; not yet observed: ${plainList(failing)}.${replaced}` };
     case 'failed': return { tone: 'warning', text: `Viewer check: ${plainList(failing)}.${replaced}` };
     case 'unverified': return { tone: 'muted', text: `Not checked against the viewer: ${plainList([...r.unobservable.map(u => u.replace(/^[^:]+: /, '')), ...failing])}.${replaced}` };

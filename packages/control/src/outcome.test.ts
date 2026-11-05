@@ -177,26 +177,48 @@ describe('outcome predicates', () => {
       expect(evaluate(saved([10, 18.44]), goal).status).toBe('unmet');
       expect(evaluate(saved([77.45, 18.44], true, 'Polygon'), goal).status).toBe('unmet');
     });
+
+    it('a saved point need not be selected unless that was asked: the nearest in the annotation layer counts', () => {
+      const saved = (points: [number, number][]) => host({ projectGroundPoint: () => projection, getSelectedGeographicFeature: () => null,
+        listGeographicLayers: () => [{ id: 'notes', body: 'Mars', visible: true }] as never,
+        listGeographicFeatures: () => ({ total: points.length, features: points.map((point, i) => ({ id: `f${i}`, name: 'p', type: 'Point', sourceId: null, point })) }) });
+      const under: Predicate[] = [{ p: 'featureUnder', object: 'Ingenuity' }];
+      expect(evaluate(saved([[10, 18.44], [77.45, 18.44]]), under).status).toBe('met');
+      expect(evaluate(saved([[10, 18.44]]), under).status).toBe('unmet');
+      expect(evaluate(saved([]), under).checks[0].detail).toBe('no saved point in notes');
+      expect(evaluate(saved([[77.45, 18.44]]), [{ p: 'featureSelected' }, ...under]).status).toBe('unmet');
+    });
   });
 
   it('legible alone is not a placement: out of frame fails it outright, and a small size counts only beside one', () => {
     const legible: Predicate[] = [{ p: 'legible', object: 'Mars' }];
     expect(evaluate(view({ inView: false, ndc: null }), legible).status).toBe('unmet');
+    // In frame and large, but wholly behind a nearer body: not seen at all.
+    expect(evaluate(view({ occlusion: { kind: 'full', by: 'Psyche' } } as never), legible).checks[0]).toMatchObject({ ok: false, soft: false, detail: 'Mars hidden behind Psyche' });
     // A few pixels across, with nothing else saying where the camera is: not a soft "partial".
     expect(evaluate(view({ rangeKm: 5.7e6, angularRadiusDeg: 0.03 }), legible).status).toBe('unmet');
     expect(evaluate(view({ rangeKm: 5.7e6, angularRadiusDeg: 0.03 }), [{ p: 'inView', object: 'Mars' }, ...legible]).status).toBe('partial');
   });
 
-  it('"all" needs the search window to span the pair\'s whole coverage; unknown coverage is inconclusive, not met', () => {
-    const page = (window: { start: number; end: number }, windows: { start: number; end: number }[] | null) => host({ getEventResultPage: () => ({ status: 'ready', total: 3, offset: 0, nextOffset: null, items: [],
-      query: { status: 'available', error: null, provenance: null, coverage: windows ? { status: 'available', windows, exact: true, problems: [] } : null,
-        definition: { id: 'q', label: 'q', enabled: true, visible: true, query: { id: 'q', kind: 'closest-approach', bodies, window, step: 3600, abcorr: 'NONE', params: {} } } } }) as never });
+  it('"all" is only as exhaustive as the solver: every local result, the kind\'s step, one exact coverage window spanned', () => {
+    const page = (window: { start: number; end: number }, windows: { start: number; end: number }[] | null, { step = 3600, scope = 'local', exact = true } = {}) => host({
+      getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }] }) as never,
+      getEventResultPage: () => ({ status: 'ready', total: 3, offset: 0, nextOffset: null, items: [],
+        query: { status: 'available', error: null, provenance: null, coverage: windows ? { status: 'available', windows, exact, problems: [] } : null,
+          definition: { id: 'q', label: 'q', enabled: true, visible: true, query: { id: 'q', kind: 'closest-approach', bodies, window, step, abcorr: 'NONE', params: { scope } } } } }) as never });
     const all: Predicate[] = [{ p: 'eventRun', query: 'q', whole: true }];
-    expect(evaluate(page({ start: 0, end: 1e9 }, [{ start: 100, end: 1e9 - 100 }]), all).status).toBe('met');
-    expect(evaluate(page({ start: 0, end: 5e8 }, [{ start: 100, end: 1e9 - 100 }]), all).checks[0].detail).toMatch(/misses 1 of 1 coverage windows/);
-    expect(evaluate(page({ start: 0, end: 1e9 }, null), all).status).toBe('inconclusive');
+    const one = [{ start: 100, end: 1e9 - 100 }], whole = { start: 0, end: 1e9 };
+    expect(evaluate(page(whole, one), all).status).toBe('met');
+    expect(evaluate(page({ start: 0, end: 5e8 }, one), all).checks[0].detail).toMatch(/does not span/);
+    // Deepest-only returns one minimum: never "all".
+    expect(evaluate(page(whole, one, { scope: 'global' }), all).status).toBe('unmet');
+    // What the solver cannot promise is inconclusive, never met: a coarser step, disjoint or estimated coverage, unknown coverage.
+    expect(evaluate(page(whole, one, { step: 86400 }), all).status).toBe('inconclusive');
+    expect(evaluate(page(whole, [{ start: 100, end: 4e8 }, { start: 6e8, end: 1e9 - 100 }]), all).checks[0].detail).toMatch(/2 disjoint windows/);
+    expect(evaluate(page(whole, one, { exact: false }), all).status).toBe('inconclusive');
+    expect(evaluate(page(whole, null), all).status).toBe('inconclusive');
     // Without "whole", a complete search is enough.
-    expect(evaluate(page({ start: 0, end: 5e8 }, [{ start: 100, end: 1e9 - 100 }]), [{ p: 'eventRun', query: 'q' }]).status).toBe('met');
+    expect(evaluate(page({ start: 0, end: 5e8 }, one), [{ p: 'eventRun', query: 'q' }]).status).toBe('met');
   });
 
   it('what the person stated outranks an action\'s derived result, and survives a new camera subject', () => {

@@ -137,6 +137,19 @@ describe('ask proxy server', () => {
     expect(JSON.parse(seen[0].body).fallbacks).toBe('default');
   });
 
+  it('answers an escalated request with the configured escalation model; the client never names one', async () => {
+    const models = [], usage = [];
+    const url = await start(async (u, init) => {
+      models.push(JSON.parse(init.body).model);
+      return new Response(JSON.stringify({ content: [], stop_reason: 'end_turn' }), { status: 200 });
+    }, { model: 'claude-haiku-5-5', escalationModel: 'claude-sonnet-5-5', onUsage: u => usage.push(u.requestedModel) });
+    await post(url, WIRE);
+    await post(url, { ...WIRE, escalated: true });
+    await post(url, { ...WIRE, escalated: 'claude-opus-5-5', model: 'claude-opus-5-5' });
+    expect(models).toEqual(['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+    expect(usage).toEqual(models);
+  });
+
   it('reports an upstream failure without its credentials problem looking like the viewer\'s', async () => {
     const url = await start(async () => new Response(JSON.stringify({ error: { message: 'invalid x-api-key' } }), { status: 401 }));
     const res = await post(url, WIRE);

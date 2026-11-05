@@ -52,8 +52,9 @@ export const reliabilityCases = [
     goal: () => [{ p: 'state', read: 'getSurfaceAppearance', args: ['Mars'], path: 'settings.baseColor', equals: 'elevation' }, { p: 'ready', kind: 'terrain', body: 'Mars' }],
     rubric: 'Elevation base colour on Mars; says whether the terrain data is drawn yet (partial when not).' },
   { id: 'ingenuity-pin-point', catalog: 'ingenuity-jezero', turns: ['place a pick marker on the ground where ingenuity currently is', 'can you place a point then'], critical: true,
-    goals: [() => [{ p: 'probeUnder', object: 'Ingenuity' }, { p: 'probeDrawn' }], () => [{ p: 'featureSelected' }, { p: 'featureUnder', object: 'Ingenuity' }, { p: 'probeUnder', object: 'Ingenuity' }]],
-    rubric: 'Turn 1 transient pin on Mars under Ingenuity; turn 2 one saved, selected point from the pin, in a visible layer; pin kept.' },
+    // "Place a point" asks for a saved point, not a selection: selecting it is not judged (#351 review).
+    goals: [() => [{ p: 'probeUnder', object: 'Ingenuity' }, { p: 'probeDrawn' }], () => [{ p: 'featureUnder', object: 'Ingenuity' }, { p: 'probeUnder', object: 'Ingenuity' }]],
+    rubric: 'Turn 1 transient pin on Mars under Ingenuity; turn 2 one saved point from the pin, in a visible layer; pin kept.' },
   { id: 'psyche-mars-closeup', catalog: 'psyche', turns: PSYCHE_CLOSEUP, critical: true, composition: { anchor: 'Psyche', include: ['Mars'], closeTurn: 1, epochTurn: 0, rangeFactor: 1.5 },
     rubric: 'Ends close to Psyche (within 1.5x the turn-2 close-up range) with Mars in frame at the paused encounter epoch, or states a truthful tradeoff.' },
   { id: 'earth-moon-switch', catalog: 'earth-moon', turns: ['pause time and select the moon', 'now select earth instead'],

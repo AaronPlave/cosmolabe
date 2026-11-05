@@ -16,7 +16,8 @@
  * non-browser client can send an `Origin` header, and whoever reaches this
  * endpoint spends the key's budget on inference. Before exposing it, put your
  * own caller authentication and per-user quotas in front of it. What it does
- * enforce itself: a fixed model and token cap (the client chooses neither),
+ * enforce itself: a fixed model and token cap (the client chooses neither; it
+ * can only ask for the configured escalation model, `escalated` on the wire),
  * limits on the request's size, a total token budget for the process (every
  * token processed, cached or not), and a
  * usage line per request that names the model asked for and the model the
@@ -37,7 +38,10 @@
  *   OPENAI_API_KEY     required for openai
  *   ALLOW_ORIGIN       required; comma-separated origins allowed to call
  *   PORT               default 8787
- *   ASK_MODEL          default claude-sonnet-5-5 (anthropic) or gpt-5.1 (openai)
+ *   ASK_MODEL          default claude-haiku-5-5 (anthropic) or gpt-5.1 (openai)
+ *   ASK_ESCALATION_MODEL  answers requests the viewer's routing policy escalates
+ *                      (before their first change); default claude-sonnet-5-5
+ *                      (anthropic) or ASK_MODEL (openai); empty for ASK_MODEL
  *   MAX_TOKENS         per reply; default 4096
  *   ASK_REASONING_EFFORT  passed as `output_config.effort` (anthropic) or `reasoning.effort`
  *                      (openai) when set; otherwise the model's default
@@ -95,7 +99,7 @@ function readBody(req) {
 }
 
 export function createProxy({
-  apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false, cache = true,
+  apiKey, origins, model, escalationModel = model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false, cache = true,
   tokenBudget = 0, costBudgetUsd = 0, onUsage = () => {}, fetchImpl = fetch,
 }) {
   const allow = rateLimiter(perMinute);
@@ -131,7 +135,7 @@ export function createProxy({
     if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has reached its raw-token safety cap (includes cached tokens; not a billing amount)', 'budget_exhausted');
 
     if (costBudgetUsd > 0 && (!costKnown || estimatedSpentUsd >= costBudgetUsd)) return fail(429, 'the proxy estimated-cost guard is reached or pricing is unavailable; check provider spending limits', 'cost_budget_exhausted');
-    if (costBudgetUsd > 0 && estimatedCostUsd(provider.name, { model, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 }) === null) return fail(503, 'no reviewed pricing for this model; estimated-cost guard cannot authorize requests', 'cost_budget_exhausted');
+    if (costBudgetUsd > 0 && [model, escalationModel].some(m => estimatedCostUsd(provider.name, { model: m, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 }) === null)) return fail(503, 'no reviewed pricing for this model; estimated-cost guard cannot authorize requests', 'cost_budget_exhausted');
 
     let parsed;
     try {
@@ -139,7 +143,9 @@ export function createProxy({
     } catch (err) {
       return fail(400, err instanceof Error ? err.message : 'invalid JSON');
     }
-    const request = provider.toRequest(parsed, { model, maxTokens, reasoningEffort, fallback, cache });
+    // The client may ask for escalation, never name a model.
+    const chosen = parsed?.escalated === true ? escalationModel : model;
+    const request = provider.toRequest(parsed, { model: chosen, maxTokens, reasoningEffort, fallback, cache });
     if (request.error) return fail(400, request.error);
 
     // The client going away (the viewer's Stop) ends the upstream call too.
@@ -174,7 +180,7 @@ export function createProxy({
     const estimatedUsd = estimatedCostUsd(provider.name, usage);
     if (estimatedUsd === null) costKnown = false;
     else estimatedSpentUsd += estimatedUsd;
-    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent, estimatedUsd, estimatedSpentUsd: costKnown ? estimatedSpentUsd : null });
+    onUsage({ requestedModel: chosen, ...usage, model: usage.model ?? 'unknown', spent, estimatedUsd, estimatedSpentUsd: costKnown ? estimatedSpentUsd : null });
     // What this round processed, so the viewer can show per-request cost (#345). Counts only; no billing claim.
     send(200, { ...wire, usage: { inputTokens: usage.inputTokens, cacheReadTokens: usage.cacheReadTokens, cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens } });
   });
@@ -200,6 +206,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     origins,
     provider,
     model: process.env.ASK_MODEL ?? provider.defaultModel,
+    escalationModel: (process.env.ASK_ESCALATION_MODEL ?? provider.defaultEscalationModel) || (process.env.ASK_MODEL ?? provider.defaultModel),
     maxTokens: Number(process.env.MAX_TOKENS ?? 4096),
     reasoningEffort: process.env.ASK_REASONING_EFFORT || undefined,
     fallback: process.env.ASK_ANTHROPIC_FALLBACK === '1',

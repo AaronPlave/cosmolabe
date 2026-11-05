@@ -172,17 +172,20 @@ describe('the Ask session', () => {
     const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, removeBookmark: vi.fn(() => true) } as unknown as ViewerControl;
     vi.spyOn(loader, 'getCosmo').mockReturnValue(host);
     const saved = vi.spyOn(host, 'removeBookmark');
-    let round = 0;
-    vi.stubGlobal('fetch', async () => {
-      const reply: AgentResponse = ++round % 3 === 1
-        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] }
-        : round % 3 === 2
-          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
-          : textReply('Finished.');
+    // Replies by what the request holds: a deletion is first proposed unescalated, dropped, and proposed again escalated (#345).
+    const escalations: boolean[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body) as AgentRequest;
+      const last = JSON.stringify(request.messages.at(-1));
+      const reply: AgentResponse = last.includes('"toolUseId":"write"') ? textReply('Finished.')
+        : last.includes('"toolUseId":"desc"')
+          ? (escalations.push(request.escalated === true), { stop: 'tool_use', content: [{ type: 'tool_use', id: 'goal', name: 'checkGoal', input: { require: [] } }, { type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] })
+          : { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] };
       return new Response(JSON.stringify({ version: 1, ...reply }));
     });
     const denied = submitAsk('Delete this view');
     await until(() => !!askApproval.pending);
+    expect(escalations).toEqual([false, true]);
     expect(saved).not.toHaveBeenCalled();
     expect(askApproval.pending).toMatchObject({ kind: 'authoring', operation: 'bookmarks.removeBookmark' });
     answerAskApproval(false);
@@ -252,10 +255,13 @@ describe('the Ask session', () => {
 
   it('puts the viewer\'s own verdict beside a finished answer (#345)', () => {
     const turn = (result: Partial<NonNullable<AskTurn['result']>> & Pick<NonNullable<AskTurn['result']>, 'status'>): AskTurn => ({ id: 1, prompt: '', fresh: null, steps: [], reply: 'Mars is in view.', notes: [], status: 'done', error: null, errorCode: null, stats: null,
-      result: { report: null, unobservable: [], changes: [], facts: [], answerIssues: [], ...result } });
+      result: { report: null, unobservable: [], changes: [], facts: [], answerIssues: [], intentStated: true, escalated: null, ...result } });
     const unmet = { status: 'unmet' as const, checks: [{ slot: 'view:Mars', ok: false, detail: 'Mars out of frame', soft: false }] };
     expect(checkNote(turn({ status: 'failed', report: unmet }))).toEqual({ tone: 'warning', text: 'Viewer check: Mars out of frame.' });
     expect(checkNote(turn({ status: 'verified', report: { status: 'met', checks: [] } }))).toEqual({ tone: 'muted', text: 'Checked in the viewer.' });
+    // Without a stated goal, verified covers each change's own result, never the whole request.
+    expect(checkNote(turn({ status: 'verified', intentStated: false, report: { status: 'met', checks: [] } }))?.text).toBe('Each change checked in the viewer; the request as a whole was not stated, so not checked.');
+    expect(checkNote(turn({ status: 'verified', escalated: 'removeBookmark destroys saved state', report: { status: 'met', checks: [] } }))?.text).toBe('Checked in the viewer. Answered by the escalation model: removeBookmark destroys saved state.');
     expect(checkNote(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } })))
       .toEqual({ tone: 'muted', text: 'Holds; not yet observed: terrain on Mars partial.' });
     expect(checkNote(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }))).toEqual({ tone: 'muted', text: 'Not checked against the viewer: trajectory visibility has no read.' });
