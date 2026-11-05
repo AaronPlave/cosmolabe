@@ -46,6 +46,8 @@ export class BloomEffect {
   private readonly bloomComposer: EffectComposer;
   private readonly renderPass: RenderPass;
   private readonly bloomPass: UnrealBloomPass;
+  // Drawing-buffer size the composer is allocated for, in device pixels.
+  private readonly bufferSize = new THREE.Vector2();
 
   private readonly darkMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
   private readonly originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
@@ -61,14 +63,18 @@ export class BloomEffect {
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,
     camera: THREE.Camera,
-    width: number,
-    height: number,
+    _width: number,
+    _height: number,
     config: BloomConfig = {},
   ) {
     this.renderer = renderer;
     this.scene = scene;
     this.enabled = config.enabled ?? true;
 
+    // The composer works in device pixels at ratio 1, sized from the renderer's
+    // drawing buffer, so its targets always match the canvas it composites
+    // onto — including a backing store fitted to the device-pixel box.
+    const { x: width, y: height } = renderer.getDrawingBufferSize(this.bufferSize);
     const renderTarget = new THREE.WebGLRenderTarget(width, height, {
       type: THREE.HalfFloatType,
       magFilter: THREE.LinearFilter,
@@ -78,6 +84,7 @@ export class BloomEffect {
     });
 
     this.bloomComposer = new EffectComposer(renderer, renderTarget);
+    this.bloomComposer.setPixelRatio(1);
     this.bloomComposer.renderToScreen = false;
 
     this.renderPass = new RenderPass(scene, camera);
@@ -123,9 +130,17 @@ export class BloomEffect {
     this.compositeScene.add(this.compositeQuad);
   }
 
-  setSize(width: number, height: number): void {
-    this.bloomComposer.setSize(width, height);
-    this.bloomPass.setSize(width, height);
+  /**
+   * Follow the renderer's drawing buffer after a resize or DPR change. The
+   * arguments (CSS size) are ignored; the buffer already accounts for them.
+   * A no-op, with no reallocation, when the buffer size is unchanged.
+   */
+  setSize(_width?: number, _height?: number): void {
+    const { x, y } = this.renderer.getDrawingBufferSize(_buffer);
+    if (x === this.bufferSize.x && y === this.bufferSize.y) return;
+    this.bufferSize.set(x, y);
+    // Sizes both targets and every pass (the bloom mip chain) in device pixels.
+    this.bloomComposer.setSize(x, y);
   }
 
   setConfig(config: BloomConfig): void {
@@ -242,6 +257,8 @@ export class BloomEffect {
     this.darkMaterial.dispose();
   }
 }
+
+const _buffer = new THREE.Vector2();
 
 /** Reusable Layers object that has only BLOOM_LAYER enabled — used for `mesh.layers.test()`. */
 const _bloomTestLayers = /* @__PURE__ */ (() => {

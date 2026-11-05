@@ -372,7 +372,14 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
-  private _dprMediaQuery: MediaQueryList | null = null;
+  private _devicePixelObserver: ResizeObserver | null = null;
+  private _devicePixelBox: {
+    pixels: ResizeObserverSize;
+    cssWidth: number;
+    cssHeight: number;
+    dpr: number;
+  } | null = null;
+  private readonly _labelBufferSize = new THREE.Vector2();
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -520,11 +527,26 @@ export class UniverseRenderer {
     });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-    // Watch for devicePixelRatio changes — fires when the window is dragged
-    // across monitors with different DPI scaling. Without this, the WebGL
-    // backing store stays at the original DPR and the browser upscales it
-    // (blurry), and label canvas textures stay sized for the original DPR.
-    this._watchDevicePixelRatio();
+    // The backing store follows the canvas's device-pixel box (see
+    // _syncBackingStore), which only a ResizeObserver reports.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._devicePixelObserver = new ResizeObserver(([entry]) => {
+        const pixels = entry?.devicePixelContentBoxSize?.[0];
+        this._devicePixelBox = pixels ? {
+          pixels,
+          // clientWidth/clientHeight are integer CSS pixels too. Keep the
+          // observed content size paired with its device-pixel measurement.
+          cssWidth: Math.round(entry.contentRect.width),
+          cssHeight: Math.round(entry.contentRect.height),
+          dpr: window.devicePixelRatio,
+        } : null;
+      });
+      try {
+        this._devicePixelObserver.observe(canvas, { box: 'device-pixel-content-box' });
+      } catch {
+        // Not supported (Safari): fall back to the rounded CSS size × DPR.
+      }
+    }
     // Shadow maps for small mesh-on-terrain shadows (helicopter, drones, etc.).
     // Driven by the model-shadow DirectionalLight set up alongside the sun
     // PointLight; planet/moon eclipse shadows go through the analytical
@@ -833,6 +855,7 @@ export class UniverseRenderer {
 
   /** Render a single frame at current time */
   renderFrame(): void {
+    this._syncBackingStore();
     const et = this.timeController.et;
     const canvasHeight = this.renderer.domElement.clientHeight;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
@@ -1199,10 +1222,12 @@ export class UniverseRenderer {
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
+      const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this.labelManager.update(
         bodyMeshArr,
         this.camera,
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
       );
 
       // Apply occlusion fade to sensor frustum labels
@@ -1555,8 +1580,10 @@ export class UniverseRenderer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    // A resize can be the first sign of a DPR change (window moved between
+    // monitors); fit the backing store to the device pixels the browser uses now.
+    this._syncBackingStore();
     this.instrumentView?.onResize();
-    this.bloomEffect?.setSize(width, height);
     this.events.emit('renderer:resize', { width, height });
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
@@ -1702,20 +1729,44 @@ export class UniverseRenderer {
     return maxSkyBrightness;
   }
 
-  private _watchDevicePixelRatio(): void {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
-    this._dprMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    this._dprMediaQuery.addEventListener('change', this._onDprChange);
+  /**
+   * Keep the WebGL backing store at exactly the canvas's device-pixel size, at
+   * the browser's current devicePixelRatio. Run every frame and on resize, so a
+   * monitor move, zoom or display-scaling change is never missed.
+   *
+   * Three sizes the buffer `floor(cssSize × dpr)`. At a fractional DPR that is
+   * up to a pixel short of the box the browser composites into (1388 for
+   * 1111 × 1.25 = 1388.75 → 1389), and the compositor then stretches the whole
+   * canvas, smearing every label by up to half a pixel. The buffer is fitted
+   * to the device-pixel content box the browser reports instead, or to the
+   * rounded product where it reports none.
+   */
+  private _syncBackingStore(): void {
+    if (typeof window === 'undefined') return;
+    const dpr = window.devicePixelRatio;
+    if (Number.isFinite(dpr) && dpr > 0 && dpr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(dpr);
+    const pr = this.renderer.getPixelRatio();
+    const canvas = this.renderer.domElement;
+    const observed = this._devicePixelBox;
+    // A frame can resize before ResizeObserver delivers the new measurement.
+    // Even a one-pixel-old box passes the DPR tolerance below, so only use an
+    // observation made for the current CSS size and DPR.
+    const box = observed?.cssWidth === canvas.clientWidth
+      && observed.cssHeight === canvas.clientHeight && observed.dpr === pr
+      ? observed.pixels : null;
+    // Emulated DPRs (devtools, CDP) report the box in CSS pixels; trust it only
+    // when it agrees with the DPR.
+    const fit = (reported: number | undefined, css: number) =>
+      reported !== undefined && Math.abs(reported - css * pr) < 1.5 ? reported : Math.round(css * pr);
+    const width = fit(box?.inlineSize, canvas.clientWidth);
+    const height = fit(box?.blockSize, canvas.clientHeight);
+    if (width >= 1 && height >= 1 && (width !== canvas.width || height !== canvas.height)) {
+      // The quarter pixel keeps three's floor()/round() of size × ratio on
+      // `width` despite floating-point error. Leaves the CSS size alone.
+      this.renderer.setDrawingBufferSize((width + 0.25) / pr, (height + 0.25) / pr, pr);
+    }
+    this.bloomEffect?.setSize(); // no-op unless the buffer changed
   }
-
-  private _onDprChange = (): void => {
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
-    this.labelManager?.refreshTextures();
-    // Rebind the media query against the new DPR so the next monitor change fires.
-    this._watchDevicePixelRatio();
-  };
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
@@ -3874,8 +3925,8 @@ export class UniverseRenderer {
     this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
-    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
-    this._dprMediaQuery = null;
+    this._devicePixelObserver?.disconnect();
+    this._devicePixelObserver = null;
     // Clean up custom visuals
     for (const [bodyName, obj] of this._customVisuals) {
       const body = this.universe.getBody(bodyName);
