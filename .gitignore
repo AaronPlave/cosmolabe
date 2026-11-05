@@ -21,9 +21,12 @@ vendor/
 apps/viewer/test-screenshots/atmosphere-surface/
 
 # SPICE kernels — see scripts/fetch-*.sh for downloads.
-# Tier rule: anything > ~5 MB lives behind a fetch script, not in the repo.
+# Viewer binary mission kernels are fetched locally or served from pinned R2.
+apps/viewer/test-catalogs/kernels/**/*.bsp
+apps/viewer/test-catalogs/kernels/**/*.bc
+apps/viewer/test-catalogs/kernels/**/*.bpc
+!apps/viewer/test-catalogs/kernels/de440s.bsp
 *.gz
-apps/viewer/test-catalogs/kernels/de440s.bsp
 apps/viewer/test-catalogs/kernels/codes_300ast_20100725.bsp
 apps/viewer/test-catalogs/kernels/mar099s.bsp
 apps/viewer/test-catalogs/kernels/jup348.bsp

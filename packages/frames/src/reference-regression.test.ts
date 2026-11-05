@@ -12,11 +12,6 @@ import { createHeritageSpice, type HeritageSpice } from './index.js';
 
 const KERNEL_DIR = fileURLToPath(new URL('../../../kernels/test-data/', import.meta.url));
 
-/** The viewer's catalog kernels, for the MSL coverage case below. */
-const CATALOG_KERNEL_DIR = fileURLToPath(
-  new URL('../../../apps/viewer/test-catalogs/kernels/', import.meta.url),
-);
-
 /** Kernel bytes as a standalone ArrayBuffer. readFileSync can hand back a view
  *  into a larger pooled buffer, so slice to this file's own bytes. */
 function bytesAt(dir: string, rel: string): ArrayBuffer {
@@ -27,7 +22,7 @@ function bytesAt(dir: string, rel: string): ArrayBuffer {
   if (buf.length < 1024 && buf.subarray(0, 7).toString('utf8') === 'version') {
     throw new Error(
       `${dir}${rel} is a git-lfs pointer, not a kernel. Run \`git lfs pull\` for it, ` +
-        'or add the path to the sparse fetch in .github/workflows/ci.yml.',
+        'or add the path to the sparse fetch in .github/actions/ci-setup/action.yml.',
     );
   }
   const key = relative(fileURLToPath(new URL('../../../', import.meta.url)), dir + rel);
@@ -584,7 +579,7 @@ describe('pinned CSPICE reference: CK coverage on a second mission', () => {
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
     }
     for (const rel of MSL_KERNELS) {
-      const data = bytesAt(CATALOG_KERNEL_DIR, rel);
+      const data = bytesAt(KERNEL_DIR, rel);
       const filename = rel.split('/').pop()!;
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename });
     }
