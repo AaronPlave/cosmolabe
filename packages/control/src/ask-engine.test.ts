@@ -275,7 +275,8 @@ class TwoMinima extends EventScene {
     return { reference: { scene: 3, query: 'pm', id: r.id, revision: 1 }, event: { id: r.id, queryId: 'pm', kind: 'closest-approach', temporality: 'instant', et: r.et,
       bodies: { observer: 'Psyche', target: 'Mars' }, metrics: [{ key: 'range', label: 'Range', value: r.km, unit: 'km' }] } as never };
   }
-  override getEventQueryInfo() {
+  override getEventQueryInfo(q?: string) {
+    if (q !== undefined && q !== 'pm') return { status: 'missing-query', definition: null, coverage: null, error: null, provenance: null } as never;
     return { status: 'available', error: null, provenance: null, coverage: { status: 'available', windows: [{ start: 0, end: 2e9 }], exact: true, problems: [] },
       definition: { id: 'pm', label: 'pm', enabled: true, visible: true, query: { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} } } } as never;
   }
@@ -302,7 +303,8 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     const host = new TwoMinima();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(describe_('events.presentEventResult'), goal([{ p: 'eventSelected', query: 'pm', pick: 'closest' }]), present('1', 'pm-1')),
+      // Stated before the search is named: it binds to the result this request presents.
+      call(describe_('events.presentEventResult'), goal([{ p: 'eventSelected', pick: 'closest' }]), present('1', 'pm-1')),
       call(present('2', 'pm-0')),
       say('The closest approach is the 2026 flyby at 4,500 km.'),
     ]);
@@ -310,6 +312,15 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for the closest result, which is pm-0, not pm-1/);
     expect(host.presented).toEqual(['pm-0']);
     expect(run.result.status).toBe('verified');
+    expect(run.goals).toContainEqual({ p: 'eventSelected', pick: 'closest', query: 'pm', id: 'pm-0', stated: true });
+  });
+
+  it('a search named by its label instead of its ID is refused, not held where it can never be met', async () => {
+    const tools = createCapabilityTools(new TwoMinima(), { surface: 'fixed' });
+    const model = scripted([call(goal([{ p: 'eventRun', query: 'Psyche within 10000 km of Mars', whole: true }])), say('ok')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when psyche is within 10000km of mars' });
+    expect(errorOf(run, 'goal')).toMatch(/no search with ID "Psyche within 10000 km of Mars".*omit query/);
+    expect(run.goals).toEqual([]);
   });
 
   it('"all": a search that misses part of the coverage fails the stated goal, and the answer must say so', async () => {

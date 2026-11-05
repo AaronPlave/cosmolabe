@@ -100,7 +100,8 @@ export function slotOf(p: Predicate): string {
     case 'range': return `range:${p.object}`;
     case 'epoch': case 'eventEpoch': return 'clock';
     case 'paused': return 'playing';
-    case 'eventQuery': case 'eventRun': return `${p.p}:${p.query}`;
+    case 'eventQuery': return `${p.p}:${p.query}`;
+    case 'eventRun': return p.stated && !p.query ? 'eventRun:' : `eventRun:${p.query}`;
     case 'eventSelected': return 'event';
     case 'probeUnder': return 'probe';
     case 'featureSelected': return 'feature';
@@ -141,11 +142,12 @@ export function parsePredicate(input: unknown): Predicate {
     case 'rate': need(typeof g.value === 'number' && Number.isFinite(g.value), 'rate needs value'); break;
     case 'activity': case 'place': need(g.id === null || text('id'), `${p} needs id`); break;
     case 'eventQuery': case 'eventRun': case 'eventEpoch': case 'eventFramed': case 'eventDrawn':
-      need(text('query'), `${p} needs query`);
+      // eventRun may leave the search unnamed: it binds to the search this request runs.
+      need(text('query') || (p === 'eventRun' && g.query === undefined), `${p} needs query`);
       need(g.whole === undefined || (p === 'eventRun' && typeof g.whole === 'boolean'), 'whole is a boolean on eventRun');
       break;
     case 'eventSelected':
-      need(text('query'), 'eventSelected needs query');
+      need(text('query') || g.query === undefined, 'eventSelected query must be text, or omitted for the search this request presents');
       need(g.pick === undefined || g.pick === 'closest', 'pick is closest');
       need(g.encounter === undefined || typeof g.encounter === 'boolean', 'encounter is boolean');
       break;
@@ -195,11 +197,14 @@ export function adopt(held: readonly Predicate[], incoming: readonly Predicate[]
   }
   for (const q of incoming) {
     const p = by === 'person' ? { ...q, stated: true } : q;
+    // A stated "all" without a named search binds to the first search this request runs.
+    const unbound = by === 'action' && p.p === 'eventRun' ? next.get('eventRun:') : undefined;
+    if (unbound) { next.delete('eventRun:'); next.set(slotOf(p), { ...unbound, query: p.query }); continue; }
     const old = next.get(slotOf(p));
-    const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && old.query === p.query;
+    const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && (old.query === p.query || (!!old.stated && !old.query));
     if (old?.stated && by === 'action') {
       // The person's requirement stays; an action only fills in which result it selected.
-      if (sameSearch && p.id !== undefined) next.set(slotOf(p), { ...old, id: p.id });
+      if (sameSearch && p.id !== undefined) next.set(slotOf(p), { ...old, query: p.query, id: p.id });
       continue;
     }
     // A selected result inherits what was required of it (the closest, a real encounter).
@@ -300,7 +305,7 @@ export function preconditionProblem(host: ViewerControl, expected: readonly Pred
     const want = held.find(h => h.stated && slotOf(h) === slotOf(e));
     if (!want) continue;
     if (e.p === 'eventSelected') {
-      if (!e.id || !e.query || want.query !== e.query) continue;
+      if (!e.id || !e.query || (want.query && want.query !== e.query)) continue;
       if (want.encounter) {
         const c = encounterOf(host, e.query, e.id);
         if (c?.encounter === false) return `the person asked for an encounter, and result ${e.id} is not one: ${c.basis}`;
@@ -382,6 +387,7 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
       }
       case 'eventRun': {
         // This query's own results, not whichever search ran last: running another search does not undo this one.
+        if (!p.query) return check(p, false, 'no search has run in this request');
         const page = host.getEventResultPage ? try_(() => host.getEventResultPage!(p.query!, { limit: 1 })) : undefined;
         if (!page) return check(p, null, 'event search unobservable');
         const ok = ['ready', 'no-results'].includes(page.status);
@@ -395,18 +401,19 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
       }
       case 'eventSelected': {
         if (!viz) return check(p, null, 'this viewer cannot observe events');
-        const sel = selectedOf(p.query!);
-        if (!sel) return check(p, false, 'no result of this search is selected');
+        // Unnamed: whichever search's result is selected.
+        const sel = p.query ? selectedOf(p.query) : viz.selected;
+        if (!sel) return check(p, false, p.query ? 'no result of this search is selected' : 'no event result is selected');
         if (p.id && sel.id !== p.id) return check(p, false, `result ${sel.id} selected, not ${p.id}`);
         const notes: string[] = [`result ${sel.id} selected`];
         let ok: boolean | null = true;
         if (p.pick === 'closest') {
-          const best = host.getEventResultPage ? try_(() => host.getEventResultPage!(p.query!, { order: 'range-ascending', limit: 1 }).items[0]) : undefined;
+          const best = host.getEventResultPage ? try_(() => host.getEventResultPage!(sel.query, { order: 'range-ascending', limit: 1 }).items[0]) : undefined;
           if (!best) { ok = null; notes.push('no ranked result'); }
           else if (best.reference.id !== sel.id) { ok = false; notes.push(`closest is ${best.reference.id}`); }
         }
         if (p.encounter) {
-          const c = encounterOf(host, p.query!, sel.id);
+          const c = encounterOf(host, sel.query, sel.id);
           if (!c || c.encounter === null) { if (ok) ok = null; notes.push(c ? c.basis : 'encounter unclassifiable'); }
           else if (!c.encounter) { ok = false; notes.push(c.basis); }
         }

@@ -346,6 +346,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     // A goal is held only over reads that exist: an invented one could never be checked.
     const unknownRead = incoming.find(p => p.p === 'state' && opts.tools.readable && !opts.tools.readable(p.read!));
     if (unknownRead) return { ok: false, code: 'invalid-input', error: `${unknownRead.read} is not a read on this viewer; state predicates read a registered get/list operation (e.g. getViewerState, getSurfaceAppearance) or use a typed predicate.` };
+    // A search is named by its exact ID, never its label; an unknown one could never be met.
+    const unknownSearch = incoming.find(p => p.query && opts.tools.verify?.([{ p: 'eventQuery', query: p.query }]).checks[0]?.ok === false);
+    if (unknownSearch) return { ok: false, code: 'invalid-input', error: `There is no search with ID "${unknownSearch.query}". Use the exact ID of a saved search, or omit query on eventSelected/eventRun to mean the search this request runs or presents.` };
     const names = Array.isArray(input.release) ? input.release.filter((n): n is string => typeof n === 'string') : [];
     const notes: string[] = [];
     if (names.length) {
