@@ -111,7 +111,7 @@ no single reproducible multiplier was used.
 Capture *identical poses and epochs* with the legacy and fixed settings,
 holding camera FOV, viewport, DPR, bloom toggle, source catalogs, asset-settled
 state, render settings and texture/terrain revisions constant. Required
-before/after matrix (not yet captured in this foundational change):
+before/after matrix (the bounded smoke subset below does not complete this matrix):
 
 1. Earth: daylight orbit, low-altitude horizon, sunrise/sunset and an eclipsed
    surface. Verify warm solar disk/extinction, twilight and day/night contrast.
@@ -161,5 +161,61 @@ a different feature from presentation rendering.
 
 **Acceptance still outstanding:** scene-wide HDR accumulation, combined
 physical response for stars and standard materials, transparent-object order,
-matched fixed-view GPU captures, and actual GPU memory/frame-time results.
+the full fixed-view GPU capture matrix, and actual GPU memory/frame-time results.
 The issue should remain open until those gates have evidence.
+
+## 6. PR #279 reference smoke (2026-11-05)
+
+The opt-in reference suite captures the same five poses in legacy and fixed
+modes. PNGs have JSON sidecars containing checked live exposure metadata,
+viewport/DPR, initial asset results, GPU identity and optional readback timings.
+Fixed/paired names are prefixed to avoid changing established legacy goldens.
+Run a smoke without creating or accepting goldens:
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5197 \
+VR_SOLAR_EXPOSURE=paired VR_CAPTURE_ONLY=1 VR_PROFILE=1 \
+VR_OUTPUT_DIR=/tmp/exposure-reference node scripts/visual-regression.mjs
+```
+
+Omit `CL_VIEWER_URL` to build packages and the viewer and start preview.
+`VR_SOLAR_EXPOSURE=fixed` selects only fixed captures; `VR_SCENES` selects
+reference catalogs. For physical GPU evidence, set `VR_HARDWARE=1` and
+`CL_CHROMIUM` to a browser that supports the machine's GPU. Check the recorded
+GPU string: headless Chromium may fall back to software even when requested.
+Golden creation/comparison remains an explicit, separate operation using the
+existing create/update flags. Smoke output does not establish a pixel baseline.
+
+Verified against the loaded checkout on port 5197, using installed Chrome:
+`ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)`,
+1024 x 768, DPR 1. All ten images passed metadata/nonempty/asset/browser-error
+checks and were inspected. Fixed multiplier: **5760.913745246377**, response
+`reinhard-0.94`, units `relative-solar-center`, reference distance 149597870 km.
+Legacy metadata explicitly reports a null multiplier.
+
+| Pose | Legacy capture + readback median (ms) | Fixed (ms) |
+| --- | ---: | ---: |
+| atmosphere-earth / Surface horizon | 3.9 | 3.9 |
+| atmosphere-earth / Orbit 400 km | 4.8 | 4.4 |
+| atmosphere-mars-twilight / Sunward horizon | 6.3 | 5.9 |
+| atmosphere-titan / Whole disc | 4.6 | 4.1 |
+| atmosphere-titan / Surface horizon | 3.1 | 3.3 |
+
+These synchronous six-warm-sample measurements include PNG encoding/readback;
+they are smoke observations, not GPU frame-time benchmarks. No new render
+target is introduced by this policy; GPU buffer memory was not measured.
+
+The Earth catalog retains its existing synthetic Sun at 100 million km.
+The new Mars twilight fixture places it at 1.52 AU, three degrees above the
+surface horizon, and Titan at 9.5 AU. These use fixed analytical bodies and
+untextured globes, with no SPICE/mission, imagery or physical terrain claim.
+The fixed Titan captures show a much fainter haze/limb than legacy, while
+unscaled stock surface lighting remains visible, illustrating the documented
+material/compositor limit. Earth and Mars retain their authored coefficients.
+
+This smoke completes the bounded PR review request. It does not complete the
+Moon/eclipses/stars/transparent-overlap/instrument matrix or #212's scene-wide
+HDR acceptance. StarField has since gained its own flux/PSF implementation on
+main; the solar-only multiplier still does not calibrate stellar or surface
+radiance. The historical inventory above describes the foundation's limits;
+consult current StarField code for its separately evolved rendering path.
