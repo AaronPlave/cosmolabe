@@ -60,6 +60,12 @@ body label in the same catalog. DPR 2 captures are reduced to CSS dimensions
 for this actual-size comparison; inspect the original
 device-pixel captures from the acceptance run for sharpness.
 
+Martian Mono was also compared at regular weight, 12 CSS px, with the same
+color, opacity and shadow, over Mars terrain and against space at DPR 1 and 2.
+Retain generic monospace: Martian Mono's finer details and fuller appearance
+were harder to read, and Ingenuity's label box grew from 73 to 84 CSS px.
+No web-font loading changes are needed for body labels.
+
 Reproduce with `node scripts/test-label-sharpness.mjs VIEWER_URL OUT_DIR --typography`.
 The comparison waits for the streamed Mars view to settle and uses the loaded
 production texture generator for the chosen column.
