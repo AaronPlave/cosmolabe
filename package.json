@@ -36,6 +36,7 @@
     "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
     "typecheck": "npm run build && npm run typecheck:tests && npm run typecheck:viewer && npm run typecheck:svelte",
     "test": "vitest run",
+    "check:catalogs": "node scripts/catalog-inventory.mjs",
     "test:permalinks": "node scripts/test-view-permalinks.mjs",
     "test:instrument-window": "node scripts/test-instrument-window.mjs",
     "test:embed": "node scripts/test-embed-package.mjs && node scripts/test-embed-host.mjs",
@@ -53,7 +54,7 @@
     "build:surface": "tsc --build packages/core && node scripts/build-surface.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

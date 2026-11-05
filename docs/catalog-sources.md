@@ -116,6 +116,41 @@ resolves under the configured viewer base path on GitHub Pages and in local
 development. Directly loading an example uses that same namespace, for example
 `?catalog=test-catalogs/cassini-soi`.
 
+## Public curation and developer discovery
+
+`test-catalogs/index.json` offers 12 experiences in Explore, Missions and
+Tours. The canonical public Solar System remains
+`base/solarsys` (SPICE/composed library), with an Earth–Moon System viewpoint.
+The older `solar-system.json` keeps its different analytical trajectories,
+Ceres and synthetic Explorer arcs as a technical example. Paths and scene
+provenance are preserved.
+
+`test-catalogs/dev-index.json` is a separate opt-in **local development**
+source. To browse it alongside the public lineup, put this in
+`apps/viewer/.env.development.local`:
+
+```sh
+VITE_CATALOG_SOURCES='[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"},{"id":"developer","name":"Developer examples","indexUrl":"test-catalogs/dev-index.json"}]'
+```
+
+Restart Vite after changing the configuration. Public Pages configures only
+`examples`; mission and bare embeds retain their configured sources. The
+developer index includes local-only experiments that deliberately do not ship
+in a Pages bundle, and fixtures that need generated data. It is not a claim
+that every developer scene runs without its prerequisites.
+
+All existing `?catalog=test-catalogs/<path>` links retain their files, including
+plain Earth–Moon and named places. Script launch still uses
+`?entry=examples/earth-moon-tour`; the developer analysis tour uses
+`?entry=developer/ingenuity-analysis-tour` with the extra source configured.
+Removed public discovery IDs have no aliases or redirects. Use existing direct
+catalog URLs or the configured developer entry instead.
+
+Run `npm run check:catalogs` for an index and dependency inventory, or
+`node scripts/catalog-inventory.mjs --dist apps/viewer/dist` after a bundled
+build for actual shipped files versus public listings. Neither command prunes
+files. See [fixture maintenance and serving audit](../apps/viewer/test-catalogs/README.md).
+
 ## Where the catalogs appear
 
 - **Home screen** (no scene up): a short list — featured entries, or the first

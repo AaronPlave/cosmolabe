@@ -7,7 +7,8 @@
  * front rather than failing inside CSPICE — and name the shipped demo catalogs
  * it applies to, so a catalog gaining or losing kernels is a visible change.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { loadCatalogFromUrl, type EtInterval } from '@cosmolabe/core';
 import {
@@ -357,7 +358,10 @@ describe('which demo catalogs cannot search at all', () => {
     const dir = new URL('../../../test-catalogs/', import.meta.url);
     const fetchJson = async (url: string) => JSON.parse(readFileSync(new URL(url), 'utf8'));
     const free: string[] = [];
-    for (const name of readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'index.json').sort()) {
+    const manifests = new Set(['index.json', 'dev-index.json']);
+    // Audit shipped fixtures, independently of ignored local experiments.
+    const tracked = execFileSync('git', ['ls-files', '--', '*.json'], { cwd: dir, encoding: 'utf8' });
+    for (const name of tracked.trim().split('\n').filter(f => !f.includes('/') && !manifests.has(f)).sort()) {
       const graph = await loadCatalogFromUrl(new URL(name, dir).href, fetchJson);
       if (graph.kernels.length === 0) free.push(name);
     }

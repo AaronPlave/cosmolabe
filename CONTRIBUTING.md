@@ -11,7 +11,7 @@ Thanks for your interest. This project is in early development and contributions
 
 ## Development setup
 
-This is an npm workspaces monorepo. Node 20+ required.
+This is an npm workspaces monorepo. Node 24+ required.
 
 ```bash
 git clone https://github.com/AaronPlave/cosmolabe.git

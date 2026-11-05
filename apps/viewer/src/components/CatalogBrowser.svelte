@@ -44,9 +44,7 @@
     const sources = catalogs.sources;
     if (sources.length === 0) return 'No catalog sources are configured for this viewer.';
     if (sources.length > 1) return `${sources.length} catalog sources`;
-    const only = sources[0];
-    const description = only.status === 'ready' ? only.index.description : undefined;
-    return description ? `${only.source.name} · ${description}` : only.source.name;
+    return null;
   });
 
   // The home screen has no scene, whatever the last one was called.
@@ -117,7 +115,11 @@
       <header class="head">
         <div class="head-text">
           <DialogPrimitive.Title class="title">Open catalog</DialogPrimitive.Title>
-          <DialogPrimitive.Description class="context">{context}</DialogPrimitive.Description>
+          {#if context}
+            <DialogPrimitive.Description class="context">{context}</DialogPrimitive.Description>
+          {:else}
+            <DialogPrimitive.Description class="sr-only">Choose a catalog to open.</DialogPrimitive.Description>
+          {/if}
         </div>
         {#if currentName}
           <div class="current" title="Loaded now">

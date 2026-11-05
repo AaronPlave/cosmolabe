@@ -41,7 +41,7 @@ See [workflow details and data requirements](docs/viewer-overview.md#workflows).
 
 **[Launch the hosted viewer](https://aaronplave.com/cosmolabe/)** and choose an example catalog.
 
-To run locally, use Node.js 20+ and install [Git LFS](https://git-lfs.com/) before
+To run locally, use Node.js 24+ and install [Git LFS](https://git-lfs.com/) before
 cloning to download tracked binary assets:
 
 ```sh
@@ -64,11 +64,12 @@ See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 | Europa Clipper | Europa encounters, spacecraft model and instrument FOVs |
 | Cassini Saturn Tour | Saturn orbit insertion, Titan and Enceladus encounters |
 | LRO at the Moon | Lunar orbit, terrain and imagery |
-| ISS (TLE) | Satellite propagation without SPICE |
+| ISS | Satellite propagation without SPICE |
 | Psyche | An interplanetary cruise trajectory |
 | Earth–Moon Scripted Tour | Scripted camera, time and display changes |
 
-Browse the [full catalog index](apps/viewer/test-catalogs/index.json) or
+Browse the [12 public experiences](apps/viewer/test-catalogs/index.json),
+[developer examples and regression fixtures](apps/viewer/test-catalogs/README.md), or
 [configure another catalog source](docs/catalog-sources.md).
 
 ## Gallery

@@ -1,5 +1,6 @@
 {
   "name": "LRO at the Moon",
+  "description": "2025 LRO orbit and attitude from mission kernels. Lunar surface uses MOON_ME_DE421 with pinned cube terrain and imagery; coverage and resolution are product-bounded, not a guarantee of high-resolution terrain everywhere. See docs/validation/lro-cube/README.md.",
   "defaultGeographicNames": ["Moon"],
   "defaultTime": "2025-01-15T00:00:00Z",
   "defaultViewpoint": "Track LRO",
