@@ -11,6 +11,7 @@ const limitations = [
   'Display samples of Universe.absolutePositionOf in km and ET seconds past J2000; no SPICE GF coverage certificate is required. Missing position samples remain gaps.',
   'Range is center-to-center distance, not altitude or height above an irregular physical surface. Sampled minima are not certified contact events. Never substitute a closest-approach search or distance profile for requested physical clearance without explicit acceptance.',
   'Relative speed and signed range rate use central differences at ±0.5 seconds; negative range rate is closing. Phase angle is at the target between observer and illuminator (default Sun), in degrees.',
+  'This profile API does not assess physical-surface model availability. Unsupported clearance or null terrain metadata does not prove a scene lacks an irregular mesh or DSK surface model. State the unsupported profile quantity, not an unverified absence of surface data.',
   'The timeline samples its visible window at pixel-dependent density, clipped to the optional profile window. Frame/aberration/step overrides are not supported: positions use the existing absolute-position display path.',
 ];
 interface TimelineObservation { signature: string; samples: number; missing: number; traceVisible: boolean }

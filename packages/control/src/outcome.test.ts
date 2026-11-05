@@ -125,6 +125,17 @@ describe('outcome predicates', () => {
     expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toBeNull();
   });
 
+  it('allows only an operation contract to classify incomplete state evidence as partial', () => {
+    const h = host({ getProfile: () => ({ status: 'partial', definition: { id: 'p' } }) as never });
+    const reads = new Set(['getProfile']);
+    const presentation: Predicate = { p: 'state', read: 'getProfile', args: ['p'], path: 'status', equals: 'available', soft: true };
+    const definition: Predicate = { p: 'state', read: 'getProfile', args: ['p'], path: 'definition.id', equals: 'p' };
+    expect(evaluate(h, [definition, presentation], { reads }).status).toBe('partial');
+    expect(evaluate(h, [{ ...definition, equals: 'missing' }, presentation], { reads }).status).toBe('unmet');
+    const modelGoal = parsePredicate(presentation);
+    expect(modelGoal).not.toHaveProperty('soft');
+    expect(evaluate(h, [modelGoal], { reads }).status).toBe('unmet');
+  });
   it('state predicates compare any registered read; unregistered reads are not called', () => {
     const settings = { baseColor: 'elevation', palette: 'terrain' };
     let called = false;

@@ -1883,6 +1883,7 @@ describe('shared continuous timeline profiles (#359)', () => {
       expect(() => c.upsertProfile({ id: def.id, profile })).toThrow();
     }
     expect(c.listProfiles().total).toBe(0);
+    expect(c.getProfileOptions().limitations.join(' ')).toContain('does not prove a scene lacks');
   });
   it('reports missing/gapped positions and refuses old scene references', () => {
     const c = profileScene(); c.upsertProfile(def);
@@ -1902,6 +1903,7 @@ describe('shared continuous timeline profiles (#359)', () => {
     const c = profileScene(), tools = createCapabilityTools(c, { surface: 'discovery' });
     tools.describeCapabilities(['profiles.upsertProfile']);
     const result = await tools.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify(def) } });
+    expect(result.ok).toBe(true);
     expect(result.receipt?.status).toBe('partial');
     expect(c.listProfiles().total).toBe(1);
     expect(c.getProfile(def.id).timeline.present).toBe(false);
