@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { parseIssueRelationships as parse } from './ingest-issue-relationships.mjs';
 
 test('explicitly independent issue', () => {
@@ -23,4 +24,13 @@ test('unambiguous number syntax only', () => {
 test('reject self and duplicate relations', () => {
   assert.throws(() => parse('## Issue relationships\n- Parent issue: #324\n- Blocked by: None', 324), /itself/);
   assert.throws(() => parse('## Issue relationships\n- Parent issue: None\n- Blocked by: #307, #307', 324), /Duplicate/);
+});
+
+test('CLI accesses Node process.env without helper shadowing', () => {
+  const { status, stderr } = spawnSync(process.execPath, [new URL('./ingest-issue-relationships.mjs', import.meta.url)], {
+    env: {},
+    encoding: 'utf8',
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /Expected GITHUB_TOKEN and GITHUB_REPOSITORY/);
 });
