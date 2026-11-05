@@ -12,23 +12,64 @@ Local development serves repository examples under `/test-catalogs/` from
 middleware still gunzips `.terrain` files on the fly. Viewer-owned assets are
 separate in `apps/viewer/public/`.
 
-Vite serves existing local files first. If a requested file is missing and belongs
-to a published managed dataset in `datasets.json`, Vite streams it from that
-dataset's pinned deployed build (`https://data.aaronplave.com` by default).
-Catalogs and relative manifest URLs stay on the local origin, so the fallback
-works on any dev-server port without browser CORS changes. This also applies to
-direct requests for CPU grids, tiles, imagery and kernels. An upstream 404 stays
-a 404; unpublished, local-only and unmanaged paths retain local-only behavior.
-Local fallback URLs use revalidation (`Cache-Control: no-cache`), so changing a
-pin does not leave year-cached responses at an unversioned local alias. No
-dataset inventory scan or large download is needed before starting a demo.
+## Local development
 
-Set `DATA_BASE_URL` to use another data host. For generating or debugging partial
-local products, use `DEV_DATA_MODE=local` to disable remote fallback and ensure
-missing output remains visible. Restart Vite after changing these environment
-settings or registry pins. Production catalog rewriting is unchanged. Partial
-local products should match their pinned build; use local-only mode when they do
-not, rather than mixing an experimental local product with published files.
+`npm run dev --workspace apps/viewer` automatically prefers complete local
+managed products and falls back to the immutable `build` pinned in
+`scripts/data-hosting/datasets.json` when a product is missing or incomplete.
+The default development host is `https://data.aaronplave.com`; set
+`DATA_BASE_URL=https://your-host.example` to override it. Hosted selections use a same-origin pinned proxy, so arbitrary dev ports need
+no CDN CORS changes. The catalog URL stays the same, including `?catalog=test-catalogs/moonfall-shackleton`.
+
+Selection happens for the whole product: cube terrain's tileset, GLBs, CPU
+manifest and height grids stay together, as do imagery manifests and tiles.
+Local validation and product revisions use the publisher's validators;
+kernel references in each catalog are checked together. Vite logs each source
+choice and the reason for fallback. If local output is unavailable and no hosted
+build is pinned, local URLs are retained and Vite warns with instructions to
+generate, fetch or publish the dataset. The catalog remains usable; missing
+assets return their normal 404s. External services and unmanaged assets retain
+their original URLs. Production deployment rewriting is unchanged.
+
+To inspect new or incomplete local output without any hosted substitution:
+
+```sh
+DEV_DATA_MODE=local npm run dev --workspace apps/viewer
+```
+
+This keeps local paths, skips completeness scans entirely, and lets missing
+files return their normal 404s. `DEV_DATA_MODE=auto` is the default. Checks are
+cached for the dev-server session; **restart Vite after generating, deleting or replacing a
+product**, changing the pinned manifest, or changing these environment variables.
+For quantized-mesh terrain above 4,096 tiles, prepare an immutable local build
+before using automatic selection:
+
+```sh
+node scripts/validate-dev-data.mjs terrain/mars-terrain-fused
+node scripts/benchmark-dev-catalogs.mjs terrain/mars-terrain-fused
+```
+
+Validation checks every tile's gzip/raw encoding and completeness with the
+publisher's validator, then saves a receipt under ignored `.data-hosting/`.
+No uploads or registry changes occur. A fresh catalog request checks that receipt
+against all directory signatures, both manifests, and decoded-header samples;
+it does not open every tile. Missing, stale or invalid receipts select the pinned
+hosted product immediately, with an instruction to validate. Small pyramids keep
+exhaustive inline checks, bounded to 4,096 tiles. Publishing always retains its
+exhaustive validation.
+
+Receipts apply to **immutable generated builds**. Directory additions, deletions
+or replacements, manifest edits and sampled tile edits invalidate them. Arbitrary
+in-place edits to other tiles cannot be detected cheaply: use local-only mode
+while editing, and rerun validation after **any** tile edit before returning to
+auto mode. Stop generation before validation; restart Vite after revalidating.
+The benchmark reports first resolver selection separately from in-session cache
+hits and local-only mode; filesystem caches may already be warm.
+
+Direct missing-asset requests also retain Vite's existing pinned proxy fallback,
+including HEAD, ranges, encoding and upstream status handling. Catalog selection
+uses whole products; direct asset URLs may mix local output with the pinned build.
+Use local-only mode when developing incompatible output.
 
 ## How the pieces fit
 

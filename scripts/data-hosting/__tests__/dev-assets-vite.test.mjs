@@ -1,17 +1,18 @@
 import { createServer as createHttpServer } from 'node:http';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer as createViteServer } from 'vite';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const servers=[],caches=[];
+const servers=[],caches=[],files=[];
 afterEach(async()=>{
   for(const server of servers.splice(0).reverse()) {
     if(server.middlewares) await server.close();
     else {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
   }
   caches.splice(0).forEach(dir=>rmSync(dir,{recursive:true,force:true}));
+  files.splice(0).forEach(file => rmSync(file, { force: true }));
   vi.unstubAllEnvs();
 });
 async function fixture(mode='auto') {
@@ -54,3 +55,25 @@ it('keeps missing local files as real 404s when remote fallback is disabled',asy
   expect((await fetch(base+'data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/__dev-fallback-test-missing.json')).status).toBe(404);
   expect(requests).toHaveLength(0);
 },30000);
+
+it('keeps whole-product hosted selections same-origin and bypasses local files on the pinned route', async () => {
+  const { base, requests } = await fixture();
+  const name = `__dev-product-test-${process.pid}.json`;
+  const file = resolve('apps/viewer/test-catalogs', name);
+  files.push(file);
+  writeFileSync(file, JSON.stringify({ url: 'kernels/naif0012.tls', missing: 'kernels/__dev-product-test-missing.bsp' }));
+  const catalog = await (await fetch(base + name)).json();
+  const hostedUrls = [];
+  const visit = v => {
+    if (typeof v === 'string' && v.includes('/__hosted/')) hostedUrls.push(v);
+    else if (v && typeof v === 'object') Object.values(v).forEach(visit);
+  };
+  visit(catalog);
+  expect(hostedUrls).toHaveLength(2);
+  expect(readFileSync(resolve('apps/viewer/test-catalogs/kernels/naif0012.tls'), 'utf8')).toContain('KPL/LSK');
+  const manifestUrl = new URL(hostedUrls[0], base);
+  expect(manifestUrl.origin).toBe(new URL(base).origin);
+  expect(await (await fetch(manifestUrl)).json()).toEqual({ hosted: true });
+  expect(requests.at(-1).url).toBe(manifestUrl.pathname.split('/__hosted/')[1].replace(/^/, '/'));
+
+});
