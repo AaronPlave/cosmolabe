@@ -23,8 +23,8 @@ const PSYCHE_CLOSEUP = [
 ];
 
 /** An encounter task: the closest computed approach, presented, against independently sampled truth. */
-const closest = (id, catalog, prompt, [observer, target], { encounter = null, targetRadiusKm, critical = false, rubric } = {}) =>
-  ({ id, catalog, turns: [prompt], critical, event: { bodies: [observer, target], pick: 'closest', encounter }, targetRadiusKm,
+const closest = (id, catalog, prompt, [observer, target], { encounter = null, targetRadiusKm, critical = false, heldOut, rubric } = {}) =>
+  ({ id, catalog, turns: [prompt], critical, ...(heldOut ? { heldOut } : {}), event: { bodies: [observer, target], pick: 'closest', encounter }, targetRadiusKm,
     truth: { bodies: [observer, target], window: 'coverage', mode: 'closest' }, rubric });
 
 export const reliabilityCases = [
@@ -83,6 +83,18 @@ export const reliabilityCases = [
     rubric: 'Read-only: the view and clock are unchanged.' },
   { id: 'unresolved-viewpoint', catalog: 'earth-moon', turns: ['Show that viewpoint.'], unchanged: true, asks: true,
     rubric: 'No viewpoint was mentioned before: ask which, without changing the scene.' },
+  // Held out: wordings first written after the final gate, for the intent its Haiku misses left unstated.
+  closest('heldout-psyche-nearest', 'psyche', "which of psyche's passes brought it nearest to mars? show that one", ['Psyche', 'Mars'], { encounter: true, targetRadiusKm: 3389.5, heldOut: true,
+    rubric: 'Held-out paraphrase of psyche-mars-closest: the range-ranked closest (2026-05-15).' }),
+  { id: 'heldout-psyche-earth-every', catalog: 'psyche', turns: ['find every close approach psyche makes to earth in the loaded data'], heldOut: true, event: { bodies: ['Psyche', 'Earth'], all: true },
+    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', mode: 'minima', stepSeconds: 600 }, noFlyby: true, flybySubject: /earth/i,
+    rubric: 'Held-out paraphrase of psyche-earth-all: every minimum over the whole coverage; none is a flyby.' },
+  { id: 'heldout-ingenuity-surface', catalog: 'ingenuity-jezero', turns: ['drop a marker on the surface directly under ingenuity'], heldOut: true,
+    goal: () => [{ p: 'probeUnder', object: 'Ingenuity' }, { p: 'probeDrawn' }],
+    rubric: 'Held-out paraphrase of ingenuity-pin-point turn 1: the pin on the drawn ground, not the reference ellipsoid.' },
+  { id: 'heldout-psyche-closeup', catalog: 'psyche', heldOut: true, composition: { anchor: 'Psyche', include: ['Mars'], closeTurn: 1, epochTurn: 0, rangeFactor: 1.5 },
+    turns: ['show me when psyche is within 10000km of mars', 'get right up next to psyche', 'now swing around so mars is in the shot too, without backing off'],
+    rubric: 'Held-out three-turn close-up: ends within 1.5x the turn-2 range of Psyche, Mars in frame, at the paused encounter epoch, or states a truthful tradeoff.' },
 ];
 
 export const promptsOf = test => test.turns;
