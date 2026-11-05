@@ -64,7 +64,7 @@ See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 | Europa Clipper | Europa encounters, spacecraft model and instrument FOVs |
 | Cassini Saturn Tour | Saturn orbit insertion, Titan and Enceladus encounters |
 | LRO at the Moon | Lunar orbit, terrain and imagery |
-| ISS (TLE) | Satellite propagation without SPICE |
+| ISS | Satellite propagation without SPICE |
 | Psyche | An interplanetary cruise trajectory |
 | Earth–Moon Scripted Tour | Scripted camera, time and display changes |
 
