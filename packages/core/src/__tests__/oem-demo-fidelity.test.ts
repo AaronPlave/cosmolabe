@@ -89,9 +89,9 @@ describe('OEM demo fidelity: the file-driven arc matches SPICE truth', () => {
     spice = await createHeritageSpice();
     // Through the shared harness rather than a local readFileSync: it slices the
     // Buffer by its own offset (see kernelArrayBuffer) and refuses a git-lfs
-    // pointer loudly. The truth SPK here is LFS-routed, and furnishing an
-    // unsmudged pointer loads nothing silently — the resulting failure is a
-    // SPICE(NOLOADEDFILES) from the first spkezr, 40 lines away from the cause.
+    // pointer loudly. The pinned truth SPK is a regular Git binary under
+    // kernels/test-data/cassini/. Without this check, an unsmudged LFS pointer
+    // elsewhere could load nothing silently and fail later with SPICE(NOLOADEDFILES).
     await furnishKernels(spice, CATALOG_KERNELS, VIEWER_KERNELS);
     await furnishKernels(spice, [TRUTH_KERNEL], SPICE_TEST_KERNELS);
 
