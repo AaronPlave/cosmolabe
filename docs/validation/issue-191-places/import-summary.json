@@ -1,0 +1,451 @@
+{
+  "recordedOn": "2026-10-21",
+  "scope": "Historical initial importer acceptance, before later label-policy refinements; timings include parsing/clone/startup and are not scientific accuracy claims. Repeated DOM label snapshots and terrain telemetry omitted.",
+  "results": [
+    {
+      "phase": "catalog-relative require graph",
+      "readyMs": 1423,
+      "places": 11139,
+      "indexBuildMs": 24.80000001192093,
+      "importMs": 479.5,
+      "workerRoundtripMs": [
+        57.400000005960464,
+        56.80000001192093,
+        86,
+        54,
+        53.70000001788139,
+        27.399999976158142
+      ],
+      "usedHeapBytes": 97175891,
+      "longTasksMs": [
+        200,
+        384
+      ],
+      "sources": [
+        {
+          "id": "mars:usgs:places:001",
+          "status": "ready",
+          "features": 2051,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:001",
+          "status": "ready",
+          "features": 2259,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:002",
+          "status": "ready",
+          "features": 2257,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:003",
+          "status": "ready",
+          "features": 2296,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:004",
+          "status": "ready",
+          "features": 2275,
+          "skipped": 0
+        },
+        {
+          "id": "example-user-sites",
+          "status": "ready",
+          "features": 1,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "phase": "Mars places orbit",
+      "frameMs": {
+        "median": 16.699999999999818,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "median": 3.800000011920929,
+        "p95": 4.199999988079071
+      },
+      "labelCpuMs": {
+        "median": 3.199999988079071,
+        "p95": 3.5
+      },
+      "labelCandidates": 1024,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "phase": "Moon places orbit",
+      "frameMs": {
+        "median": 16.699999999999818,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "median": 3.5,
+        "p95": 3.800000011920929
+      },
+      "labelCpuMs": {
+        "median": 3,
+        "p95": 3.199999988079071
+      },
+      "labelCandidates": 1024,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "phase": "HTTPS/CORS require graph",
+      "places": 11139,
+      "indexBuildMs": 17.099999994039536,
+      "importMs": 451.40000000596046,
+      "workerRoundtripMs": [
+        57.400000005960464,
+        56.80000001192093,
+        86,
+        54,
+        53.70000001788139,
+        27.399999976158142,
+        56.29999998211861,
+        55.900000005960464,
+        63.80000001192093,
+        57.20000001788139,
+        56.20000001788139,
+        29.400000005960464
+      ],
+      "usedHeapBytes": 140396580,
+      "longTasksMs": [
+        200,
+        384,
+        73,
+        112
+      ],
+      "sources": [
+        {
+          "id": "mars:usgs:places:001",
+          "status": "ready",
+          "features": 2051,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:001",
+          "status": "ready",
+          "features": 2259,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:002",
+          "status": "ready",
+          "features": 2257,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:003",
+          "status": "ready",
+          "features": 2296,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:004",
+          "status": "ready",
+          "features": 2275,
+          "skipped": 0
+        },
+        {
+          "id": "example-user-sites",
+          "status": "ready",
+          "features": 1,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "phase": "Local multiple files",
+      "places": 11139,
+      "indexBuildMs": 20,
+      "importMs": 432.80000001192093,
+      "workerRoundtripMs": [
+        57.400000005960464,
+        56.80000001192093,
+        86,
+        54,
+        53.70000001788139,
+        27.399999976158142,
+        56.29999998211861,
+        55.900000005960464,
+        63.80000001192093,
+        57.20000001788139,
+        56.20000001788139,
+        29.400000005960464,
+        55.900000005960464,
+        60.099999994039536,
+        57.5,
+        61.30000001192093,
+        80.19999998807907,
+        29.5
+      ],
+      "usedHeapBytes": 173550174,
+      "longTasksMs": [
+        200,
+        384,
+        73,
+        112,
+        292
+      ],
+      "sources": [
+        {
+          "id": "mars:usgs:places:001",
+          "status": "ready",
+          "features": 2051,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:001",
+          "status": "ready",
+          "features": 2259,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:002",
+          "status": "ready",
+          "features": 2257,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:003",
+          "status": "ready",
+          "features": 2296,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:004",
+          "status": "ready",
+          "features": 2275,
+          "skipped": 0
+        },
+        {
+          "id": "example-user-sites",
+          "status": "ready",
+          "features": 1,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "phase": "Local directory",
+      "places": 11139,
+      "indexBuildMs": 17.299999982118607,
+      "importMs": 401.7999999821186,
+      "workerRoundtripMs": [
+        57.400000005960464,
+        56.80000001192093,
+        86,
+        54,
+        53.70000001788139,
+        27.399999976158142,
+        56.29999998211861,
+        55.900000005960464,
+        63.80000001192093,
+        57.20000001788139,
+        56.20000001788139,
+        29.400000005960464,
+        55.900000005960464,
+        60.099999994039536,
+        57.5,
+        61.30000001192093,
+        80.19999998807907,
+        29.5,
+        55.79999998211861,
+        57.400000005960464,
+        59.599999994039536,
+        57.10000002384186,
+        58.5,
+        29.099999994039536
+      ],
+      "usedHeapBytes": 186704587,
+      "longTasksMs": [
+        200,
+        384,
+        73,
+        112,
+        292,
+        151
+      ],
+      "sources": [
+        {
+          "id": "mars:usgs:places:001",
+          "status": "ready",
+          "features": 2051,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:001",
+          "status": "ready",
+          "features": 2259,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:002",
+          "status": "ready",
+          "features": 2257,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:003",
+          "status": "ready",
+          "features": 2296,
+          "skipped": 0
+        },
+        {
+          "id": "moon:usgs:places:004",
+          "status": "ready",
+          "features": 2275,
+          "skipped": 0
+        },
+        {
+          "id": "example-user-sites",
+          "status": "ready",
+          "features": 1,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "phase": "Optional failures",
+      "places": 2051,
+      "indexBuildMs": 5.700000017881393,
+      "importMs": 143.09999999403954,
+      "workerRoundtripMs": [
+        57.400000005960464,
+        56.80000001192093,
+        86,
+        54,
+        53.70000001788139,
+        27.399999976158142,
+        56.29999998211861,
+        55.900000005960464,
+        63.80000001192093,
+        57.20000001788139,
+        56.20000001788139,
+        29.400000005960464,
+        55.900000005960464,
+        60.099999994039536,
+        57.5,
+        61.30000001192093,
+        80.19999998807907,
+        29.5,
+        55.79999998211861,
+        57.400000005960464,
+        59.599999994039536,
+        57.10000002384186,
+        58.5,
+        29.099999994039536,
+        73.09999999403954,
+        43.900000005960464
+      ],
+      "usedHeapBytes": 173347017,
+      "longTasksMs": [
+        200,
+        384,
+        73,
+        112,
+        292,
+        151,
+        125
+      ],
+      "sources": [
+        {
+          "id": "mars:usgs:places:001",
+          "status": "ready",
+          "features": 2051,
+          "skipped": 0
+        },
+        {
+          "id": "missing",
+          "status": "error",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "layer-load",
+              "message": "GeoJSON fetch failed: https://127.0.0.1:61397/places/missing.geojson (404)"
+            }
+          ]
+        },
+        {
+          "id": "blocked",
+          "status": "error",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "layer-load",
+              "message": "Failed to fetch"
+            }
+          ]
+        },
+        {
+          "id": "malformed",
+          "status": "error",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "layer-load",
+              "message": "Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+            }
+          ]
+        },
+        {
+          "id": "oversized",
+          "status": "error",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "code": "layer-load",
+              "message": "GeoJSON exceeds 2097152 bytes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "Moon measured terrain",
+      "body": "Moon",
+      "source": "terrain-sample",
+      "hasTerrain": true,
+      "frameMs": {
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "probe": {
+        "lat": -89.66999999988055,
+        "lon": 129.77999999540936,
+        "source": "terrain"
+      },
+      "labelSamples": 30
+    },
+    {
+      "phase": "Mars measured terrain",
+      "body": "Mars",
+      "source": "reference-shape",
+      "hasTerrain": true,
+      "frameMs": {
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "probe": {
+        "lat": 18.61185035406181,
+        "lon": 77.68730001831042,
+        "source": "terrain"
+      },
+      "labelSamples": 30
+    }
+  ],
+  "errors": []
+}

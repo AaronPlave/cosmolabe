@@ -31,6 +31,7 @@ const point: SurfacePoint = {
 const hits: Record<HitLayer, SceneHit> = {
   event: { kind: 'event', eventId: 'e1', queryId: 'q1', et: 0 },
   label: { kind: 'entity', bodyName: 'MRO', via: 'label' },
+  'geographic-feature': { kind: 'geographic-feature', layerId: 'traverse', featureId: 'site', bodyName: 'Mars' },
   body: { kind: 'entity', bodyName: 'Mars', via: 'mesh' },
   surface: { kind: 'surface', point, cameraRangeKm: 12 },
 };
@@ -42,11 +43,22 @@ function layers(present: Partial<Record<HitLayer, boolean>>) {
     calls.push(name);
     return present[name] ? hits[name] : null;
   };
-  const discover = { event: layer('event'), label: layer('label'), body: layer('body'), surface: layer('surface') };
+  const discover = { event: layer('event'), label: layer('label'), 'geographic-feature': layer('geographic-feature'), body: layer('body'), surface: layer('surface') };
   return { discover, calls };
 }
 
 describe('resolveSceneHit', () => {
+  it('selects a geographic feature after events/labels, before its parent body, without intercepting surface tools', () => {
+    const present = { event: true, label: true, 'geographic-feature': true, body: true, surface: true };
+    expect(resolveSceneHit('select', layers(present).discover)).toBe(hits.event);
+    expect(resolveSceneHit('select', layers({ ...present, event: false }).discover)).toBe(hits.label);
+    expect(resolveSceneHit('select', layers({ ...present, event: false, label: false }).discover)).toBe(hits['geographic-feature']);
+    for (const intent of ['probe', 'pivot', 'endpoint'] as const) {
+      const { discover, calls } = layers({ 'geographic-feature': true, surface: true });
+      expect(resolveSceneHit(intent, discover)).toBe(hits.surface);
+      expect(calls).not.toContain('geographic-feature');
+    }
+  });
   it('selection takes an event glyph, then a label, then the body', () => {
     expect(resolveSceneHit('select', layers({ event: true, label: true, body: true }).discover)).toBe(hits.event);
     expect(resolveSceneHit('select', layers({ label: true, body: true }).discover)).toBe(hits.label);

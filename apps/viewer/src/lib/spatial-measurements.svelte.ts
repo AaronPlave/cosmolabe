@@ -1,5 +1,5 @@
 import {
-  bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
+  surfacePointEndpoint, type SurfacePoint, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
   resolveSpatialRelationship, type ReferenceRequest, type ReferenceVector, type SpatialEndpoint, type SpatialRelationship,
 } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
@@ -7,9 +7,12 @@ import { flushSync, mount, unmount } from 'svelte';
 import { Ruler, Crosshair, TriangleRight, Gauge, Axis3d } from 'lucide-svelte';
 import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
+import { cancelAppearancePick } from './surface-appearance-pick.svelte';
 import { getCurrentRenderer, getUniverse } from './loader';
-import { excludeFromProbe, setProbeActive, vs } from './viewer-state.svelte';
+import { excludeFromProbe, setProbeActive, vs, emit, onViewerEvent } from './viewer-state.svelte';
+import { workspaceNode } from './workspace.svelte';
 import { definitionEndpoints, validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
+import { resettable } from './session.svelte';
 export type { MeasurementDefinition } from './measurement-link-state';
 
 export type Slot = 'source' | 'target' | 'vertex';
@@ -46,8 +49,10 @@ export const measurements = $state({
   selectedId: null as string | null,
   hoveredId: null as string | null,
 });
+resettable(measurements);
 
 export function cloneEndpoint(endpoint: SpatialEndpoint): SpatialEndpoint {
+  if (endpoint.kind === 'surface-point') return surfacePointEndpoint(endpoint.point, endpoint.label);
   return endpoint.kind === 'entity' ? { ...endpoint } : { ...endpoint, positionKm: [...endpoint.positionKm] };
 }
 export function cloneVector(vector: ReferenceVector): ReferenceVector {
@@ -101,7 +106,8 @@ function defaultDraftFrame(): void {
   const origin = measurements.draft.source;
   if (measurements.draftKind !== 'axes' || !origin || origin.kind === 'coordinate') return;
   if (measurements.draftFrame && measurements.draftFrame !== autoFrame) return;
-  const frame = getUniverse()?.getBody(origin.bodyName)?.rotation ? bodyFixedFrameName(origin.bodyName) : 'ECLIPJ2000';
+  const bodyName = origin.kind === 'surface-point' ? origin.point.bodyName : origin.bodyName;
+  const frame = getUniverse()?.getBody(bodyName)?.rotation ? getUniverse()!.frames.bodyFixedFrameFor(bodyName) : 'ECLIPJ2000';
   if (measurements.draftFrame !== frame) measurements.draftFrame = frame;
   autoFrame = frame;
 }
@@ -115,7 +121,10 @@ export function applyMeasurementFields(): void {
     const endpoint = measurements.draft[slot];
     if (JSON.stringify(item[slot]) !== JSON.stringify(endpoint)) item[slot] = endpoint && cloneEndpoint(endpoint);
   }
-  if (measurements.draftFrame) item.frame = measurements.draftFrame; else delete item.frame;
+  if (measurements.draftFrame) item.frame = measurements.draftFrame;
+  // Deleting even an absent property invalidates Svelte's proxy iteration
+  // dependencies. The panel effect reads the definition, so only delete once.
+  else if ('frame' in item) delete item.frame;
   for (const operand of ['first', 'second'] as const) {
     const vector = measurements.draftOperands[operand];
     if (JSON.stringify(item[operand] ?? null) !== JSON.stringify(vector)) item[operand] = vector && cloneVector(vector);
@@ -128,10 +137,13 @@ export function renderedMeasurements(): SpatialRelationship[] {
     return valid ? [{ ...valid, selected: item.id === measurements.selectedId, hovered: item.id === measurements.hoveredId, editing: item.id === measurements.editingId }] : [];
   });
 }
+let lastNotification = '';
 export function syncMeasurements(): void {
   defaultDraftFrame();
   const renderer = getCurrentRenderer();
   const rendered = renderedMeasurements();
+  const notification = JSON.stringify([measurements.items, measurements.selectedId]);
+  if (notification !== lastNotification) { lastNotification = notification; emit('measurements', {}); }
   renderer?.setSpatialRelationships(rendered);
   const selected = measurements.items.find(item => item.id === measurements.editingId);
   renderer?.setSpatialDraftEndpoints(selected && relationship(selected) ? []
@@ -183,9 +195,22 @@ export function restoreSharedMeasurements(input: MeasurementLinkState | undefine
   if (state.selected) selectMeasurement(state.selected);
   syncMeasurements();
 }
+/** Install already validated host definitions without discarding the person's creation draft. */
+export function installMeasurementDefinitions(state: MeasurementLinkState): void {
+  applyMeasurementFields();
+  const selected = state.selected ?? null;
+  const keptDraft = measurements.editingId ? suspendedDraft : snapshot();
+  measurements.editingId = null;
+  measurements.selectedId = null;
+  measurements.items = state.items;
+  if (keptDraft) restore(keptDraft);
+  if (selected) selectMeasurement(selected);
+  else if (!keptDraft) resetMeasurementDraft();
+  syncMeasurements();
+}
 export function openMeasurementEditor(id: string): void {
   selectMeasurement(id); openTool('measure');
-  requestAnimationFrame(() => document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
+  requestAnimationFrame(() => workspaceNode().querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
 }
 export function hoverMeasurement(id: string | null): void {
   if (measurements.hoveredId === id) return;
@@ -203,7 +228,8 @@ export function addMeasurement(item: SpatialRelationship): void {
  */
 export function showReference(request: ReferenceRequest): string {
   applyMeasurementFields();
-  const item = definition(referenceRelationship(request, crypto.randomUUID()));
+  const resolvedRequest = request.kind === 'bodyAxes' ? { kind: 'frameAxes' as const, frame: getUniverse()?.frames.bodyFixedFrameFor(request.object) ?? `IAU_${request.object.toUpperCase()}`, origin: request.object } : request;
+  const item = definition(referenceRelationship(resolvedRequest, crypto.randomUUID()));
   const colored = item.kind !== 'axes';
   if (colored) item.color = colors[measurements.nextColor % colors.length];
   measurements.items.push(item); if (colored) measurements.nextColor++;
@@ -278,6 +304,7 @@ export function resetMeasurementDraft(preserveKind = false): void {
   autoFrame = null;
 }
 export function startMeasurementPick(slot: Slot, mode: 'object' | 'surface'): void {
+  cancelAppearancePick();
   // One pointer mode at a time: an endpoint pick and the Point Probe would
   // both claim the next click.
   if (vs.probeActive) setProbeActive(false);
@@ -299,6 +326,7 @@ excludeFromProbe(cancelMeasurementPick);
 
 /** Measurements are scene-owned: entity references never leak into a replacement catalog. */
 export function resetMeasurementsForScene(): void {
+  cancelAppearancePick();
   measurements.nextColor = 0;
   measurements.nextPoint = 1;
   measurements.selectedId = null;
@@ -307,7 +335,8 @@ export function resetMeasurementsForScene(): void {
   resetMeasurementDraft();
   syncMeasurements();
 }
-export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [number, number, number]): boolean {
+export function captureSurfaceEndpoint(point: SurfacePoint): boolean {
+  const { bodyName, bodyFixedPositionKm: positionKm } = point;
   const slot = measurements.pendingPickSlot;
   if (!slot || measurements.pickMode !== 'surface') return false;
   const endpoints = [...measurements.items.flatMap(definitionEndpoints), ...definitionEndpoints({ ...measurements.draft, ...measurements.draftOperands }),
@@ -317,7 +346,7 @@ export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [n
   let name: string;
   do { name = `${bodyName} point ${measurements.nextPoint++}`; }
   while (endpoints.some(e => e?.label === name || e?.label?.startsWith(`${name} (`)));
-  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
+  measurements.draft[slot] = surfacePointEndpoint(point, `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)`);
   cancelMeasurementPick(); syncMeasurements();
   return true;
 }
@@ -333,7 +362,7 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
         else measurements.pickFeedback = 'No object here. Pick a body, marker, or label.';
       } else {
         const hit = renderer.pickScene(x, y, 'probe');
-        if (hit?.kind === 'surface') captureSurfaceEndpoint(hit.point.bodyName, hit.point.bodyFixedPositionKm);
+        if (hit?.kind === 'surface') captureSurfaceEndpoint(hit.point);
         else measurements.pickFeedback = 'No surface here. Pick a visible body surface.';
       }
       return true; // A miss also consumes the gesture and leaves the pick active.
@@ -404,3 +433,15 @@ export function pickInstruction(): string {
   if (measurements.draftKind === 'axes') return object ? 'Pick the axes origin' : 'Pick a surface point for the axes origin';
   return object ? `Pick ${slot === 'source' ? 'first' : 'second'} object` : 'Pick a surface point';
 }
+
+/** Start the ordinary distance editor with an independent snapshot in the source slot. */
+export function measureFromHere(point: SurfacePoint): void {
+  applyMeasurementFields();
+  resetMeasurementDraft();
+  measurements.draft.source = surfacePointEndpoint(point);
+  openTool('measure');
+  startMeasurementPick('target', 'surface');
+}
+
+// Dispose scene-owned definitions even when replacement loading fails.
+onViewerEvent('unload', resetMeasurementsForScene);

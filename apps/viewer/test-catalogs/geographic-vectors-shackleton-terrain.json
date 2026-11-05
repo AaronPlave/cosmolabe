@@ -1,0 +1,170 @@
+{
+  "name": "Geographic vectors \u00b7 measured Shackleton",
+  "description": "Synthetic registration points, traverse and polygon with a hole on measured terrain. Requires the local terrain pyramid; this is not surveyed geology. Use the saved detail, close, regional and orbit viewpoints to compare LOD transitions.",
+  "defaultViewpoint": "Shackleton detail",
+  "geographicLayers": [
+    {
+      "id": "registration",
+      "name": "Synthetic registration marks on measured terrain",
+      "body": "Moon",
+      "source": "geographic/shackleton-registration.json",
+      "coordinates": {
+        "latitude": "planetographic",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        }
+      },
+      "display": {
+        "color": "#59c5dd"
+      },
+      "provenance": {
+        "kind": "synthetic-validation",
+        "scientificTerrain": false
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Shackleton detail",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "eye": [
+        -6.457947966693959,
+        7.756573849479786,
+        -1752.3709340405578
+      ],
+      "target": [
+        -6.402669936848942,
+        7.690179985212382,
+        -1737.3711828361477
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Shackleton close",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "eye": [
+        -6.413725542817946,
+        7.703458758065864,
+        -1740.3711330770298
+      ],
+      "target": [
+        -6.402669936848942,
+        7.690179985212382,
+        -1737.3711828361477
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Shackleton regional",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "eye": [
+        -6.771190135815728,
+        8.132805746995068,
+        -1837.3695241988821
+      ],
+      "target": [
+        -6.402669936848942,
+        7.690179985212382,
+        -1737.3711828361477
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Shackleton orbit",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "eye": [
+        -10.087871926516803,
+        12.11643760303924,
+        -2737.354596463492
+      ],
+      "target": [
+        -6.402669936848942,
+        7.690179985212382,
+        -1737.3711828361477
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          20000000,
+          100000000,
+          -20000000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "terrain": {
+          "type": "3dtiles",
+          "url": "data/moon-terrain-cube/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "cubeSphere": {
+            "cpuGrids": "data/moon-terrain-cube/cpu-grids.json"
+          },
+          "sourceMetadata": {
+            "id": "LOLA 118m + south-pole LOLA 10m residual",
+            "kind": "height-grid"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -4,8 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { createReadStream, readFileSync, existsSync, cpSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { gunzipSync } from 'zlib';
-import { loadDatasets } from '../../scripts/data-hosting/lib/datasets.mjs';
+import { loadDatasets, remotePrefix } from '../../scripts/data-hosting/lib/datasets.mjs';
 import { createDevCatalogResolver } from '../../scripts/data-hosting/lib/dev-catalogs.mjs';
+import { createDevAssetFallback } from '../../scripts/data-hosting/lib/dev-assets.mjs';
 
 function normalizeBase(raw: string | undefined): string {
   if (!raw) return '/';
@@ -39,11 +40,7 @@ const fusedTerrainPlugin = {
       const match = cleanUrl.match(/\/((?:mars|moon)-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
       const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
-      if (!existsSync(filePath)) {
-        res.statusCode = 404;
-        res.end();
-        return;
-      }
+      if (!existsSync(filePath)) return next();
       try {
         const gzipped = readFileSync(filePath);
         const decompressed = gunzipSync(gzipped);
@@ -62,13 +59,21 @@ const fusedTerrainPlugin = {
 const testCatalogsPlugin = {
   name: 'test-catalogs-static-files',
   configureServer(server: any) {
+    const route = `${server.config.base}test-catalogs/`.replace(/\\/g, '/');
+    const hostedRoute = `${route}__hosted/`;
+    const datasets = loadDatasets().datasets;
     const resolveCatalog = createDevCatalogResolver({
-      datasets: loadDatasets().datasets,
+      datasets,
       baseUrl: process.env.DATA_BASE_URL,
+      hostedBaseUrl: hostedRoute,
       mode: process.env.DEV_DATA_MODE ?? 'auto',
       log: (message: string) => server.config.logger.info(message),
     });
-    const route = `${server.config.base}test-catalogs/`.replace(/\\/g, '/');
+    const fallback = createDevAssetFallback({
+      datasets,
+      baseUrl: process.env.DATA_BASE_URL || 'https://data.aaronplave.com',
+      mode: process.env.DEV_DATA_MODE || 'auto',
+    });
     const contentTypes: Record<string, string> = {
       '.json': 'application/json; charset=utf-8',
       '.cosmo': 'text/plain; charset=utf-8',
@@ -94,6 +99,19 @@ const testCatalogsPlugin = {
         return;
       }
       if (!pathname.startsWith(route)) return next();
+      // Hosted catalog choices bypass local files for the whole product. Keep
+      // them same-origin so arbitrary development ports need no CDN CORS rule.
+      if (pathname.startsWith(hostedRoute)) {
+        const hostedPath = pathname.slice(hostedRoute.length);
+        for (const ds of Object.values(datasets)) {
+          if (!ds.build || ds.localOnly) continue;
+          const prefix = remotePrefix(ds);
+          if (hostedPath.startsWith(prefix) && fallback(req, res, ds.catalogPrefix + hostedPath.slice(prefix.length))) return;
+        }
+        res.statusCode = 404;
+        res.end('Not found');
+        return;
+      }
       const filePath = path.resolve(TEST_CATALOGS_DIR, pathname.slice(route.length));
       if (!filePath.startsWith(`${TEST_CATALOGS_DIR}${path.sep}`)) {
         res.statusCode = 403;
@@ -103,7 +121,9 @@ const testCatalogsPlugin = {
       let stat;
       try {
         stat = statSync(filePath);
-      } catch {
+      } catch (error: any) {
+        if ((error.code === 'ENOENT' || error.code === 'ENOTDIR') &&
+          fallback(req, res, path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/'))) return;
         res.statusCode = 404;
         res.end('Not found');
         return;
@@ -114,7 +134,8 @@ const testCatalogsPlugin = {
         return;
       }
       // Product manifests and other assets stay byte-for-byte local. Only
-      // catalog documents are resolved; no per-file redirect fallback exists.
+      // catalog documents are resolved. Direct missing-asset requests retain the
+      // existing pinned proxy fallback (including its local-only mode).
       const relative = path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/');
       if (relative.endsWith('.json') && !/^(data|kernels|textures|models)\//.test(relative)) {
         try {
@@ -154,13 +175,17 @@ const bundleTestCatalogsPlugin = {
     const outDir = options.dir ?? path.resolve(__dirname, 'dist');
     const catalogsOutDir = path.join(outDir, 'test-catalogs');
     mkdirSync(catalogsOutDir, { recursive: true });
-    let keep: (absolutePath: string) => boolean = () => true;
+    const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
+    const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
+    const datasets = loadDatasets().datasets;
+    let keep = publicDirCopyFilter(
+      Object.fromEntries(Object.entries(datasets).filter(([, ds]) => ds.localOnly)),
+      TEST_CATALOGS_DIR,
+    );
     if (hostedData) {
-      const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
-      const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
       // HOSTED_DATA_SKIP=id,id also skips datasets that are not pinned yet.
       const alsoSkip = (process.env.HOSTED_DATA_SKIP ?? '').split(',').filter(Boolean);
-      keep = publicDirCopyFilter(loadDatasets().datasets, TEST_CATALOGS_DIR, alsoSkip);
+      keep = publicDirCopyFilter(datasets, TEST_CATALOGS_DIR, alsoSkip);
     }
     for (const name of readdirSync(TEST_CATALOGS_DIR)) {
       const src = path.join(TEST_CATALOGS_DIR, name);
@@ -200,6 +225,8 @@ export default defineConfig({
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
+        // The embeddable build's output (npm run build:embed) is not app source.
+        '**/dist-embed/**',
         '**/test-catalogs/data/mars-terrain-fused/**',
         // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
         '**/test-catalogs/data/mars-terrain/**',
@@ -213,6 +240,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // Scientific assets contain no dependency entrypoints.
+    entries: ['index.html'],
     // Don't pre-bundle workspace packages — use source directly for HMR
     exclude: ['@cosmolabe/control', '@cosmolabe/core', '@cosmolabe/three'],
   },

@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "cube contour toggle",
+    "cube tint/hillshade controls preserved",
+    "density edit",
+    "fixed interval and labels",
+    "per-body isolation",
+    "selection persistence",
+    "automatic spacing retains labels and restores density",
+    "disabled control collapse"
+  ],
+  "scope": "UI only, no terrain geometry"
+}

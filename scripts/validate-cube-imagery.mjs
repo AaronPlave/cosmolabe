@@ -37,7 +37,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
   if (a.startsWith('--')) acc.push([a.slice(2), all[i + 1]?.startsWith('--') || all[i + 1] == null ? true : all[i + 1]]);
   return acc;
 }, []));
-const DATA = join(ROOT, 'apps/viewer/test-catalogs/data');
+const DATA = resolve(args.data ?? join(ROOT, 'apps/viewer/test-catalogs/data'));
 const OUT = resolve(args.out ?? join(ROOT, 'work/cube-imagery'));
 const DIST = join(ROOT, 'packages/three/dist/surface');
 if (!existsSync(join(DIST, 'CubeImagery.js'))) { console.error('validate-cube-imagery: run `npm run build` first.'); process.exit(1); }
@@ -77,9 +77,10 @@ function loadProduct(name) {
 }
 
 // --- grid fixture: markers ---------------------------------------------------
-const grid = loadProduct('moon-imagery-cube-grid');
+const grid = loadProduct(args.grid ?? 'moon-imagery-cube-grid');
 if (grid) {
   const { dir, manifest } = grid;
+  const metricRadiusKm = manifest.metricRadiusKm ?? 1737.4;
   const T = manifest.tileSize, G = manifest.gutter;
   const markers = JSON.parse(readFileSync(join(dir, 'markers.json'), 'utf8')).markers;
   const rows = [];
@@ -89,7 +90,7 @@ if (grid) {
     const { face, u, v } = sphere.faceCoordinate(m.latDeg, m.lonDeg);
     // Outer annuli (12 km ring) of markers closer than 26 km overlap (Shackleton is 10 km from
     // the pole); the builder protects only the inner features, so skip the outer annulus there.
-    const crowded = markers.some(o => o !== m && Math.acos(Math.min(1, o.direction.reduce((s, c, k) => s + c * m.direction[k], 0))) * 1737.4 < 26);
+    const crowded = markers.some(o => o !== m && Math.acos(Math.min(1, o.direction.reduce((s, c, k) => s + c * m.direction[k], 0))) * metricRadiusKm < 26);
     const usable = (k) => !(crowded && k === 0);
     const direction = cubeFaceToDirection(face, u, v);
     for (const l of m.levels) {
@@ -99,7 +100,7 @@ if (grid) {
       gate(id === l.tile, `${m.name} L${l.level}: builder tile ${l.tile}, viewer ${id}`);
       worstPos = Math.max(worstPos, id === l.tile ? dPos : Infinity);
       const img = await decode(dir, l.tile);
-      const texelKm = 1737.4 * 2 / 2 ** l.level / T; // face-centre texel; smaller toward corners
+      const texelKm = metricRadiusKm * 2 / 2 ** l.level / T; // face-centre texel; smaller toward corners
       const radiusPx = m.centreRadiusKm / texelKm;
       let colourOk = null, centroidPx = null, annulus = null;
       // Centroid of the smallest coloured annulus ≥ 3 face-centre texels wide that lies wholly in the
@@ -115,7 +116,7 @@ if (grid) {
         let sx = 0, sy = 0, n = 0;
         for (let rr = Math.floor(l.row - reach); rr <= l.row + reach; rr++) for (let cc = Math.floor(l.column - reach); cc <= l.column + reach; cc++) {
           const d3 = texelCenterDirection(a, cc, rr, T, G);
-          const km = Math.acos(Math.min(1, d3[0] * direction[0] + d3[1] * direction[1] + d3[2] * direction[2])) * 1737.4;
+          const km = Math.acos(Math.min(1, d3[0] * direction[0] + d3[1] * direction[1] + d3[2] * direction[2])) * metricRadiusKm;
           if (km < lo - texelKm || km > hi + texelKm) continue;
           const v = px(img, cc, rr);
           if (v.slice(0, 3).every((x, k) => Math.abs(x - m.centreColour[k]) <= 2)) { sx += cc + 0.5; sy += rr + 0.5; n++; }
@@ -145,7 +146,7 @@ if (grid) {
             const v = px(img, cc, rr);
             if (!v.slice(0, 3).every((x, k) => Math.abs(x - m.centreColour[k]) <= 2)) continue;
             const d3 = texelCenterDirection(a, cc, rr, T, G);
-            const km = Math.acos(Math.min(1, d3[0] * direction[0] + d3[1] * direction[1] + d3[2] * direction[2])) * 1737.4;
+            const km = Math.acos(Math.min(1, d3[0] * direction[0] + d3[1] * direction[1] + d3[2] * direction[2])) * metricRadiusKm;
             if (km < lo - 2 * localKm || km > hi + 2 * localKm) continue;
             const sector = sectors[Math.floor(((Math.atan2(rr + 0.5 - l.row, cc + 0.5 - l.column) + Math.PI) / (2 * Math.PI)) * 8) % 8];
             sector.min = Math.min(sector.min, km); sector.n++;
@@ -221,7 +222,7 @@ function bilinear(img, x, y) {
 }
 
 // --- registration fixture ------------------------------------------------------
-const reg = loadProduct('moon-imagery-cube-registration');
+const reg = loadProduct(args.registration ?? 'moon-imagery-cube-registration');
 if (reg) {
   const { dir, manifest } = reg;
   const T = manifest.tileSize, G = manifest.gutter;

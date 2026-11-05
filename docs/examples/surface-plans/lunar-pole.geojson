@@ -1,0 +1,73 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "polar-seam",
+      "properties": {
+        "note": "Synthetic planning fixture; no claim of real source coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              179,
+              -89.5
+            ],
+            [
+              -179,
+              -89.5
+            ],
+            [
+              -179,
+              -89
+            ],
+            [
+              179,
+              -89
+            ],
+            [
+              179,
+              -89.5
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "high-priority",
+      "properties": {
+        "note": "Synthetic planning fixture; no claim of real source coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              179.5,
+              -89.4
+            ],
+            [
+              -179.5,
+              -89.4
+            ],
+            [
+              -179.5,
+              -89.2
+            ],
+            [
+              179.5,
+              -89.2
+            ],
+            [
+              179.5,
+              -89.4
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

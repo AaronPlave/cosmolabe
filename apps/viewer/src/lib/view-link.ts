@@ -1,9 +1,11 @@
 import { applyViewState, validateViewState, ViewStateError } from '@cosmolabe/control';
+import { resolveCameraViewpoint } from '@cosmolabe/three';
 import { catalogLocation, allEntries, requestedCatalog } from './catalog-nav';
 import { catalogs } from './catalogs.svelte';
 import { getRenderer, vs } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { getUniverse } from './loader';
+import { validateEventLinkState } from './event-link-state';
 import { captureSharedEvents, restoreSharedEvents } from './event-finder.svelte';
 import { configuredProfiles, createConfiguredProfile, removeConfiguredItem, setConfiguredItemEnabled, setConfiguredItemVisible } from './analysis.svelte';
 import { sharedProfileOf, validateProfileLinkState, type ProfileLinkState } from './profile-link-state';
@@ -27,11 +29,20 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
   // Match only catalog-owned viewpoints, never session-only Saved views. A
   // remembered dropdown value becomes stale as soon as the camera is dragged.
   const matches = (a: readonly number[], b: readonly number[]) => a.every((x, i) => Math.abs(x - b[i]) <= 1e-9 * Math.max(1, Math.abs(x)));
+  // Catalog viewpoints are relationships, resolved where they are shown: at
+  // their own epoch, else now. That is also where restoring the link resolves
+  // them (`applyViewState` applies a named view after seeking to the link's
+  // time), so a match here reproduces the same pose there.
   const named = getUniverse()?.viewpoints.find(v => {
-    const vp = cc.getViewpoint(v.name);
-    return vp && (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) &&
-      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) &&
-      matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
+    const stored = cc.getViewpoint(v.name);
+    if (!stored) return false;
+    let vp;
+    try { vp = resolveCameraViewpoint(stored, stored.epoch ?? host.getTime()); } catch { return false; }
+    // A look-at view's orientation is the look-at body, not a stored target.
+    const aimed = vp.lookAtBody ? cc.lookAtBody?.body.name === vp.lookAtBody
+      : matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor));
+    return (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) && aimed &&
+      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
   });
   const state = validateViewState({ version: 1, catalog: ref,
     time: { kind: 'fixed', source: 'ET', et: host.getTime() },
@@ -74,7 +85,7 @@ export async function copyViewLink(): Promise<string> {
   return url;
 }
 
-export async function restoreView(state: ViewerViewState, signal?: AbortSignal): Promise<void> {
+export async function restoreView(state: ViewerViewState, signal?: AbortSignal, opts: { preserveAbsent?: boolean } = {}): Promise<void> {
   const r = getRenderer();
   if (signal?.aborted) return;
   // Validate every measurement/reference before changing any scene state.
@@ -84,12 +95,19 @@ export async function restoreView(state: ViewerViewState, signal?: AbortSignal):
     if (!universe) throw new ViewStateError('Measurement context: the catalog has no scene.');
     validateMeasurementReferences(shared, universe, state.time.kind === 'fixed' ? state.time.et : createViewerControl().getTime());
   }
+  // Validate every optional envelope and scene reference before navigation.
+  validateViewState(state);
+  const eventState = state.events ? validateEventLinkState(state.events) : undefined;
+  const profileState = state.profiles ? validateProfileLinkState(state.profiles) : undefined;
+  for (const bodies of [...(eventState?.queries.map(q => q.query.bodies) ?? []), ...(profileState?.profiles.map(p => p.profile.bodies ?? {}) ?? [])]) {
+    for (const body of Object.values(bodies)) if (!getUniverse()?.getBody(body!)) throw new ViewStateError(`Analysis context: body "${body}" is unavailable in this catalog.`);
+  }
   // Searches may take time; keep the encoded epoch paused while rebuilding.
   applyViewState(createViewerControl(), { ...state, playback: { ...state.playback, playing: false } }, { afterSeek: () => r?.renderFrame() });
   try {
-    restoreSharedMeasurements(state.measurements);
-    restoreSharedProfiles(state.profiles);
-    await restoreSharedEvents(state.events, signal);
+    if (state.measurements !== undefined || !opts.preserveAbsent) restoreSharedMeasurements(state.measurements);
+    if (state.profiles !== undefined || !opts.preserveAbsent) restoreSharedProfiles(profileState);
+    if (state.events !== undefined || !opts.preserveAbsent) await restoreSharedEvents(eventState, signal);
   } finally {
     if (!signal?.aborted && getRenderer() === r) {
       applyViewState(createViewerControl(), state, { afterSeek: () => r?.renderFrame() });

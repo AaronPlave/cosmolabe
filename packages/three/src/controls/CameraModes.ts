@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
-import { composeBodyToWorldQuat } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, StateUnavailableError } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 
 /** SPICE-like interface for frame transforms — matches SpiceFrames + SpiceState */
@@ -69,12 +69,19 @@ export interface CameraModeParams {
   centerBodyName?: string;
   /** Damping factor 0-1 for CHASE smoothing (default: 0.05) */
   damping?: number;
-  /** Geodetic latitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic latitude in degrees. With `lonDeg`,
+   *  an explicit destination — 0°, 0° included. Omitted, `CameraController`
+   *  infers the entry from the current view (see `surfaceEntryPose`). */
   latDeg?: number;
-  /** Geodetic longitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic longitude in degrees. */
   lonDeg?: number;
-  /** Altitude above surface in km for SURFACE */
+  /** SURFACE: height above the reference ellipsoid, km. SURFACE_EXPLORER:
+   *  clearance above sampled terrain, km. */
   altKm?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial heading, degrees clockwise from north (default 0). */
+  headingDeg?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial pitch, degrees up from the horizon (mode default when omitted). */
+  pitchDeg?: number;
   /** Body to look at from surface (SURFACE mode) */
   lookTarget?: string;
   /** Sensor name for INSTRUMENT mode */
@@ -110,7 +117,14 @@ export function bodyWorldOrientation(
 ): THREE.Quaternion | null {
   const rotation = bm.body.rotation;
   if (!rotation) return null;
-  const q = bm.body.rotationAt(et);
+  let q;
+  try {
+    q = bm.body.rotationAt(et);
+  } catch (err) {
+    // No attitude at this epoch: the mode has no body frame to lock to.
+    if (err instanceof StateUnavailableError) return null;
+    throw err;
+  }
   if (!q) return null;
   const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et, bm.frames);
   return out.set(bw[1], bw[2], bw[3], bw[0]);

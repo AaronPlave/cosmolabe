@@ -40,7 +40,7 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
   kind: 'closest-approach',
   label: 'Closest approach',
   description:
-    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter. Reports altitude above the target\'s surface where SPICE knows its shape, and centre-to-centre range.',
+    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter. Minimizes center-to-center range; reports reference-ellipsoid altitude at that encounter where SPICE knows the shape. To optimize height or physical terrain clearance itself, choose Altitude / terrain clearance.',
   temporality: 'instant',
   roles: [
     { role: 'observer', label: 'Observer' },

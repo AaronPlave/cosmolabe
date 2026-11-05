@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "surface-publication-plan-summary",
+  "buildId": "b331f1728569c447b613df60abf54997374a5624749565730d5d5df9715f6840",
+  "lockIdentity": "sha256:138be31ebea3f9d50350a9daa5f77b46292a8626233f106daa7b1751302b0982",
+  "products": [
+    {
+      "productId": "terrain-4c5bc4ed7ef62452bb979d09",
+      "kind": "cube-terrain",
+      "productIdentity": "4c5bc4ed7ef62452bb979d09b2d56ff62824fb4121096e692b65ee3df5f30b37",
+      "prefix": "cube-terrain/terrain-4c5bc4ed7ef62452bb979d09/4c5bc4ed7ef62452bb979d09b2d56ff6/",
+      "inventorySha256": "2685460980d0dd832e84629b5744207670b421d270532010763accea55eb53cd",
+      "objects": 4089,
+      "bytes": 364965554
+    }
+  ],
+  "productionUpload": false,
+  "missionAccepted": false,
+  "fullPlanIdentity": "fd509bbdfdb3d6a56ce87cacc6296711e7ad11597653e5443e57ac364812c062"
+}

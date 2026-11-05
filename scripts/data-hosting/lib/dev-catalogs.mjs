@@ -7,24 +7,31 @@ import { matchDataset, resolveLocalPath, rewriteCatalog } from './hosted-catalog
 import { validateCubeTerrain, validateCubeImagery } from './cube.mjs';
 import { validateTerrain } from './terrain.mjs';
 import { validateKernelHeader } from './kernels.mjs';
+import { directorySignature, invalidateTerrainValidation, checkTerrainValidation, saveTerrainValidation, terrainValidationSnapshot } from './dev-terrain-cache.mjs';
 
 export const DEFAULT_DEV_DATA_BASE_URL = 'https://data.aaronplave.com';
 
 // Bound both directory traversal and per-file metadata/header work. Never hash
 // tiles or read their bodies; quantized-mesh encoding needs only two bytes.
 const INVENTORY_CONCURRENCY = 32;
-async function inventory(dir, recursive = true, terrain = false) {
+const INLINE_TERRAIN_LIMIT = 4096;
+async function inventory(dir, recursive = true, terrain = false, limit = Infinity, captureDirectories = false) {
   const entries = [];
   const directories = [''];
+  const signatures = new Map();
   for (let offset = 0; offset < directories.length;) {
     const batch = directories.slice(offset, offset + INVENTORY_CONCURRENCY);
     offset += batch.length;
     await Promise.all(batch.map(async (rel) => {
+      if (captureDirectories) signatures.set(rel, await directorySignature(join(dir, rel)));
       for (const e of await readdir(join(dir, rel), { withFileTypes: true })) {
         if (e.name.startsWith('.')) continue;
         const p = rel ? `${rel}/${e.name}` : e.name;
         if (e.isDirectory() && recursive) directories.push(p);
-        else if (e.isFile()) entries.push({ path: p });
+        else if (e.isFile()) {
+          entries.push({ path: p });
+          if (entries.length > limit) throw new Error('large terrain needs validation; run node scripts/validate-dev-data.mjs <dataset-id>');
+        }
       }
     }));
   }
@@ -47,7 +54,20 @@ async function inventory(dir, recursive = true, terrain = false) {
       }
     }
   }));
-  return entries;
+  return { entries, directories, initialDirectories: directories.map(p => [p, signatures.get(p)]) };
+}
+
+/** Exhaustive encoding/completeness validation, deliberately outside Vite requests. */
+export async function validateDevTerrain(dir, cacheDir) {
+  // Revalidation must revoke an old receipt even if inventory itself fails.
+  await invalidateTerrainValidation(dir, cacheDir);
+  const { entries, directories, initialDirectories } = await inventory(dir, true, true, Infinity, true);
+  const before = await terrainValidationSnapshot(dir, directories, entries);
+  if (JSON.stringify(initialDirectories) !== JSON.stringify(before.dirs)) throw new Error('terrain changed during inventory; stop generation and retry');
+  const product = JSON.parse(await readFile(join(dir, 'terrain-product.json'), 'utf8'));
+  if (!Number.isInteger(product.tileCount) || product.tileCount <= 0) throw new Error('terrain-product.json needs a positive tileCount');
+  await saveTerrainValidation(dir, cacheDir, entries, directories, before);
+  return { tiles: product.tileCount, directories: directories.length };
 }
 
 function references(json, catalogRel, datasets, found = new Map()) {
@@ -67,6 +87,7 @@ function references(json, catalogRel, datasets, found = new Map()) {
 /** One resolver per dev server; product decisions last until server restart. */
 export function createDevCatalogResolver({
   datasets, root = ROOT, baseUrl = DEFAULT_DEV_DATA_BASE_URL, mode = 'auto', log = console.info,
+  cacheDir = join(root, '.data-hosting/dev-validation'), hostedBaseUrl = baseUrl,
 }) {
   if (!['auto', 'local'].includes(mode)) throw new Error('DEV_DATA_MODE must be auto or local');
   if (!/^https?:\/\//.test(baseUrl)) throw new Error('DATA_BASE_URL must be an absolute http(s) URL');
@@ -84,16 +105,23 @@ export function createDevCatalogResolver({
         // referenced by this catalog together; never fall back file by file.
         for (const p of paths) await validateKernelHeader(join(dir, p));
       } else {
-        const entries = await inventory(dir, ds.recursive !== false, ds.kind === 'terrain');
-        if (ds.kind === 'cube-terrain') validateCubeTerrain(entries, dir);
-        else if (ds.kind === 'cube-imagery') validateCubeImagery(entries, dir);
-        else if (ds.kind === 'terrain') {
+        if (ds.kind === 'terrain') {
           const product = JSON.parse(await readFile(join(dir, 'terrain-product.json'), 'utf8'));
           if (!Number.isInteger(product.tileCount) || product.tileCount <= 0) {
             throw new Error('terrain-product.json needs a positive tileCount to establish completeness');
           }
-          validateTerrain(entries, dir);
-        } else throw new Error(`unsupported product kind ${ds.kind}`);
+          if (product.tileCount > INLINE_TERRAIN_LIMIT) {
+            await checkTerrainValidation(dir, cacheDir);
+          } else {
+            const { entries } = await inventory(dir, true, true, INLINE_TERRAIN_LIMIT + 64);
+            validateTerrain(entries, dir);
+          }
+        } else {
+          const { entries } = await inventory(dir, ds.recursive !== false);
+          if (ds.kind === 'cube-terrain') validateCubeTerrain(entries, dir);
+          else if (ds.kind === 'cube-imagery') validateCubeImagery(entries, dir);
+          else throw new Error(`unsupported product kind ${ds.kind}`);
+        }
       }
       // Also check catalog entry points, beyond the publisher's product checks.
       for (const p of paths) {
@@ -108,9 +136,10 @@ export function createDevCatalogResolver({
     const selected = { ...datasets };
     for (const [id, paths] of references(json, catalogRel, datasets)) {
       const ds = datasets[id];
-      if (mode === 'local') {
+      if (mode === 'local' || ds.localOnly) {
         selected[id] = { ...ds, build: null };
-        report(`${id}: local ${ds.localDir} (DEV_DATA_MODE=local; completeness checks skipped)`);
+        const reason = mode === 'local' ? 'DEV_DATA_MODE=local' : 'local-only dataset';
+        report(`${id}: local ${ds.localDir} (${reason}; completeness checks skipped)`);
         continue;
       }
       // Kernel references differ between catalogs; generated products describe
@@ -133,6 +162,6 @@ export function createDevCatalogResolver({
         selected[id] = { ...ds, build: null };
       }
     }
-    return rewriteCatalog(json, catalogRel, selected, baseUrl).json;
+    return rewriteCatalog(json, catalogRel, selected, hostedBaseUrl).json;
   };
 }

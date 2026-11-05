@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cubeFaceToDirection, cubeTileId, directionToCubeFace, type CubeFace } from '../surface/CubeSphere.js';
 import {
-  CubeImageryAvailability, blockRectInTile, clipTrianglesToTileRect, directionToTexel, faceToTexel, imageryLevelFor,
+  CubeImageryAvailability, blockBoundingBox, boxBeyondHorizon, blockRectInTile, clipTrianglesToTileRect, directionToTexel, faceToTexel, imageryLevelFor,
   imageryTextureTransform, imageryTileRect, selectImageryBlocks, texelCenterDirection, texelCenterToFace,
   texelGroundSizeKm, tileProjectiveBasis, validateCubeImageryManifest, type CubeImageryManifest, type ImageryAddress, type Vec3,
 } from '../surface/CubeImagery.js';
@@ -23,6 +23,33 @@ function availability(global: number, deep = global, under?: ImageryAddress): Cu
   }
   return new CubeImageryAvailability(ids, 0, deep);
 }
+
+describe('imagery visibility bounds', () => {
+  it('contains patch interiors and edges on every face, including extrema away from corners', () => {
+    for (const face of faces) for (const [level, x, y] of [[0, 0, 0], [2, 1, 2], [5, 17, 7]]) {
+      const address = { face, level, x, y }, box = blockBoundingBox(address, [1700, 1740]);
+      const { u0, v0, size } = imageryTileRect(address);
+      for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) for (const radius of [1700, 1720, 1740]) {
+        const p = cubeFaceToDirection(face, u0 + size * i / 16, v0 + size * j / 16);
+        for (let axis = 0; axis < 3; axis++) {
+          expect(p[axis] * radius).toBeGreaterThanOrEqual(box.min[axis] - 1e-10);
+          expect(p[axis] * radius).toBeLessThanOrEqual(box.max[axis] + 1e-10);
+        }
+      }
+    }
+  });
+
+  it('culls only boxes wholly behind the validated inner sphere', () => {
+    const eye: Vec3 = [0, 0, 1800];
+    const near = blockBoundingBox({ face: 'pz', level: 0, x: 0, y: 0 }, [1730, 1740]);
+    const far = blockBoundingBox({ face: 'nz', level: 0, x: 0, y: 0 }, [1730, 1740]);
+    expect(boxBeyondHorizon(near, eye, 1700)).toBe(false);
+    expect(boxBeyondHorizon(far, eye, 1700)).toBe(true);
+    expect(boxBeyondHorizon(far, eye, 0)).toBe(false); // no guessed body radius
+    expect(boxBeyondHorizon(far, [0, 0, 1600], 1700)).toBe(false);
+    expect(boxBeyondHorizon({ min: [-100, -100, 1700], max: [100, 100, 1800] }, eye, 1700)).toBe(false);
+  });
+});
 
 describe('cube imagery registration', () => {
   it('puts pixel centres at half-integer corners on every face, with gutters outside the face rectangle', () => {

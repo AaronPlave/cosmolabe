@@ -53,6 +53,11 @@ https://github.com/NASA-AMMOS/3DTilesRendererJS
   Copyright 2020, California Institute of Technology.
   Licensed under the Apache License, Version 2.0.
 
+  packages/three/src/TerrainContours.ts adapts the example-directory
+  topolines/wrapTopoLineMaterial.js from v0.4.27: scalar elevation-only
+  bands, existing datum-aware kilometre heights, tile-local footprint,
+  ordered antialiasing edges, and plateau/skirt suppression.
+
 ================================================================================
 
 Three.js (MIT)

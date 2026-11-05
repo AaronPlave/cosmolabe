@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
+  "publicationIdentity": "6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99",
+  "localOnly": true,
+  "publicHttpVerified": false,
+  "deployed": false,
+  "catalogRel": "test-catalogs/experiments/mars-surface-build-pilot.json",
+  "originalIdentity": "10e4efa8a1d17fc4d61bba3d5c6634ad8fdfd4a4cbc149e34f310088d3d94b2a",
+  "plannedCatalogIdentity": "49510c3254af426f1e5fedb35eb68942cdbef6443c590fe04b28637289af422f",
+  "rehearsal": {
+    "receipt": "work/surface-build/review-real-publication.json",
+    "baseUrl": "http://127.0.0.1:5190",
+    "freshFullHttpVerification": "passed",
+    "localCandidateIdentity": "b670cb23bcf056ba73820cb5d0648f8308e8b122c32175c14a1d7d329029f8c2",
+    "apply": "passed",
+    "rollback": "passed-exact-original",
+    "catalogSchemaDiagnostics": []
+  }
+}

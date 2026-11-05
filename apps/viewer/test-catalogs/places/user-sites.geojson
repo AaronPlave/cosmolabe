@@ -1,0 +1,24 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "example-alpha",
+      "properties": {
+        "name": "Example mission site Alpha (synthetic)",
+        "aliases": [
+          "Alpha"
+        ],
+        "placeKind": "user-site",
+        "featureClass": "Synthetic site"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6,
+          18.4
+        ]
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 /**
  * The verb table — one vocabulary, three faces.
  *
@@ -24,9 +25,12 @@
  */
 import type {
   CircleDirection,
+  ScriptCancelSignal,
+  ScriptReadinessRequest,
   FlightPath,
   ScriptTime,
   ScriptVec3,
+  SurfaceView,
   VerbValue,
   ViewerControl,
 } from './contracts.js';
@@ -70,14 +74,28 @@ export const LAYERS = [
 /** The paths `flyTo` accepts. */
 export const FLIGHT_PATHS: readonly FlightPath[] = ['direct', 'overview'];
 
+/** The views `gotoCoordinates` accepts. */
+export const SURFACE_VIEWS: readonly SurfaceView[] = ['overhead', 'oblique', 'surface'];
+
 const FRAME_MODE_IDS = FRAME_MODES.map((m) => m.id);
 const LAYER_IDS = LAYERS.map((l) => l.id);
 
 export type ParamType =
   /** Names a scene object. Passed to the host verbatim. */
+  | 'activity'
   | 'object'
   /** Names a catalog viewpoint. Passed verbatim. */
   | 'viewpoint'
+  /** A place's stable `ref` (`ScriptPlace.ref`). Passed verbatim. */
+  | 'place'
+  /** An imagery layer ID on the body the verb names. Passed verbatim. */
+  | 'imagery'
+  | 'event-query'
+  | 'event-result'
+  | 'instrument'
+  | 'measurement'
+  | 'geographic-layer'
+  | 'geographic-feature'
   /** Free text — a note, a screenshot label. */
   | 'text'
   /** One of `values`. */
@@ -107,7 +125,9 @@ export interface VerbPreset {
 export interface VerbSpec {
   readonly name: string;
   readonly params: readonly VerbParam[];
-  readonly category: 'Scene' | 'Time' | 'Camera' | 'Display' | 'Capture' | 'Sequencing';
+  readonly category: 'Scene' | 'Time' | 'Camera' | 'Display' | 'Capture' | 'Sequencing' | 'Analysis' | 'Authoring';
+  /** Reversible local scene writes still require host authoring permission. */
+  readonly sceneEdit?: boolean;
   readonly help: string;
   /** The `ViewerControl` method this verb needs. Missing on a host → located error. */
   readonly method: keyof ViewerControl;
@@ -115,10 +135,10 @@ export interface VerbSpec {
    * What a `false` return means, so the error can suggest a real name.
    * Absent when `false` is not about a name (`setFov` out of range, say).
    */
-  readonly resolvesName?: 'object' | 'viewpoint';
+  readonly resolvesName?: 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery';
   readonly presets?: readonly VerbPreset[];
   /** Table-driven dispatch. `args` are already coerced to `params`' types. */
-  invoke(host: ViewerControl, args: readonly VerbValue[]): unknown;
+  invoke(host: ViewerControl, args: readonly VerbValue[], signal?: ScriptCancelSignal): unknown;
 }
 
 // Coerced-argument accessors. `parse` has already checked arity and type, so
@@ -154,7 +174,54 @@ const CIRCLE_DIRECTIONS: readonly (readonly [string, CircleDirection])[] = [
   ['Down', 'down'],
 ];
 
+/** JSON is a bounded data token, parsed without eval and validated by the shared domain action. */
+function data<T>(value: VerbValue): T {
+  if (typeof value !== 'string' || value.length > 32768) throw new Error('JSON data must be a string of at most 32768 characters');
+  return JSON.parse(value) as T;
+}
+const measurement = { name: 'id', type: 'measurement' } as const;
+const geoLayer = { name: 'layer', type: 'geographic-layer' } as const;
+const geoFeature = { name: 'feature', type: 'geographic-feature' } as const;
+const json = { name: 'json', type: 'text' } as const;
+const visible = { name: 'visible', type: 'boolean' } as const;
+const modernVerbs: readonly VerbSpec[] = [
+  { name: 'pinGroundPoint', category: 'Display', method: 'pinGroundPoint', params: [{ name: 'object', type: 'object' }, { name: 'policy', type: 'enum', values: ['reference','rendered','terrain'], optional: true }], help: 'Pin the entity’s current radial sub-point on its active parent through native Point Probe. Reversible display, no saved layer. rendered uses the drawn authoritative surface; reference is explicitly ellipsoid-only; terrain refuses without physical terrain evidence. Preserves camera/time. Inspect getProbePoint afterward.', invoke: (h,a) => { const r = h.pinGroundPoint!(str(a[0]), optStr(a[1]) as import('./contracts.js').ScriptSurfacePolicy | undefined); if (r.status !== 'available') throw new Error(`Ground projection ${r.status}: ${r.reason}`); return r; } },
+  { name: 'clearProbePoint', category: 'Display', method: 'clearProbePoint', params: [], help: 'Clear the transient Point Probe pin without changing saved annotations.', invoke: h => h.clearProbePoint!() },
+
+  { name: 'selectPlace', category: 'Scene', method: 'selectPlace', params: [{ name: 'place', type: 'place' }], help: 'Inspect a stable place without moving the camera; empty ref clears selection.', invoke: (h,a) => h.selectPlace!(str(a[0]) || null) },
+  { name: 'setPlaceSourceEnabled', category: 'Display', method: 'setPlaceSourceEnabled', params: [geoLayer, { name: 'enabled', type: 'boolean' }], help: 'Include or exclude an exact place source in shared search and navigation.', invoke: (h,a) => h.setPlaceSourceEnabled!(str(a[0]), bool(a[1])) },
+  { name: 'showPlaceLabels', category: 'Display', method: 'showPlaceLabels', params: [geoLayer, visible], help: 'Show or hide source labels independently of search inclusion.', invoke: (h,a) => h.showPlaceLabels!(str(a[0]), bool(a[1])) },
+  { name: 'upsertMeasurement', sceneEdit: true, category: 'Authoring', method: 'upsertMeasurement', params: [json], help: 'Upsert a validated semantic measurement by stable ID; preserve other definitions. JSON: {id,kind:distance|direction|angle|velocity|axes|vector-angle,source,target,vertex:null,visible:true}; entity endpoints are {kind:entity,bodyName:exact scene name}. Entity distances are centre distances, not terrain clearance.', invoke: (h,a) => h.upsertMeasurement!(data<MeasurementDefinition>(a[0])) },
+  { name: 'restoreMeasurements', sceneEdit: true, category: 'Authoring', method: 'restoreMeasurements', params: [json, { name: 'mode', type: 'enum', values: ['merge','replace'], optional: true }], help: 'Restore version 1 measurement definitions; merge by default. Explicit replace is destructive and requires confirmation.', invoke: (h,a) => h.restoreMeasurements!(data(a[0]), optStr(a[1]) as 'merge' | 'replace' | undefined) },
+  { name: 'removeMeasurement', category: 'Authoring', method: 'removeMeasurement', params: [measurement], help: 'Remove one saved measurement by ID.', invoke: (h,a) => h.removeMeasurement!(str(a[0])) },
+  { name: 'selectMeasurement', category: 'Analysis', method: 'selectMeasurement', params: [measurement], help: 'Select a measurement; an empty ID clears selection.', invoke: (h,a) => h.selectMeasurement!(str(a[0]) || null) },
+  { name: 'showMeasurement', category: 'Display', method: 'showMeasurement', params: [measurement, visible], help: 'Show or hide a saved measurement.', invoke: (h,a) => h.showMeasurement!(str(a[0]), bool(a[1])) },
+  { name: 'showGeographicLayer', category: 'Display', method: 'setGeographicLayerVisible', params: [geoLayer, visible], help: 'Show or hide one geographic layer.', invoke: (h,a) => h.setGeographicLayerVisible!(str(a[0]), bool(a[1])) },
+  { name: 'setGeographicLayerStyle', category: 'Display', method: 'setGeographicLayerStyle', params: [geoLayer, json], help: 'Apply a validated version 1 layer style; null restores catalog style. Does not save local preferences.', invoke: (h,a) => h.setGeographicLayerStyle!(str(a[0]), data<GeographicLayerStyle | null>(a[1])) },
+  { name: 'selectGeographicFeature', category: 'Scene', method: 'selectGeographicFeature', params: [geoLayer, geoFeature], help: 'Select a stable feature without moving the camera.', invoke: (h,a) => h.selectGeographicFeature!(str(a[0]), str(a[1])) },
+  { name: 'clearGeographicSelection', category: 'Scene', method: 'clearGeographicSelection', params: [], help: 'Clear geographic feature selection.', invoke: h => h.clearGeographicSelection!() },
+  { name: 'gotoGeographicFeature', category: 'Camera', method: 'gotoGeographicFeature', params: [geoLayer, geoFeature, { name: 'animate', type: 'boolean', optional: true }], help: 'Use the existing feature extent navigation; off cuts to the view.', invoke: (h,a) => h.gotoGeographicFeature!(str(a[0]), str(a[1]), { animate: a[2] as boolean | undefined }) },
+  { name: 'createAnnotationLayer', sceneEdit: true, category: 'Authoring', method: 'createAnnotationLayer', params: [{ name: 'body', type: 'object' }, { name: 'name', type: 'text' }, json], help: 'Create an annotation layer. Use explicit body/frame/coordinate conventions. JSON coordinates: {frame:body-fixed frame,latitude:planetocentric,longitudeDirection:east,longitudeDomain:-180..180,referenceShape:{kind:ellipsoid,radiiKm:[x,y,z]}}. Angles are degrees. Use body frame from layer/surface inventory; never invent a transform.', invoke: (h,a) => h.createAnnotationLayer!(str(a[0]), str(a[1]), data<GeographicCoordinates>(a[2])) },
+  { name: 'editAnnotation', sceneEdit: true, category: 'Authoring', method: 'editAnnotation', params: [geoLayer, json], help: 'Edit a saved annotation. Apply one bounded edit with normal validation and undo. Catalog layers remain read-only; delete requires confirmation. JSON operations: {type:add,geometry:{type:Point,coordinates:[longitude,latitude]},properties:{name:text}}, {type:delete,featureId:original sourceId}, {type:replace-geometry,featureId,geometry}, or {type:set-properties,featureId,properties}. Use the original typed sourceId, not its prefixed reference.', invoke: (h,a) => h.editAnnotation!(str(a[0]), data<GeographicEditOperation>(a[1])) },
+  { name: 'setSurfaceAppearance', category: 'Display', method: 'setSurfaceAppearance', params: [{ name: 'body', type: 'object' }, json], help: 'Patch supported physical terrain appearance. JSON may contain hillshade:boolean, contours:boolean, baseColor:imagery|elevation|neutral, palette:terrain|blue-gold|grayscale, minKm:number, maxKm:number, imageryAmount:number, azimuthDeg:number, elevationDeg:number, contrast:number. Read current settings first. A palette only appears when baseColor is elevation: select that mode for requested elevation coloring. Enabling an imagery layer is separate from choosing the base color; clarify genuinely conflicting final-style requests. Changes no terrain geometry or scientific data.', invoke: (h,a) => h.setSurfaceAppearance!(str(a[0]), data(a[1])) },
+  { name: 'waitUntilReady', category: 'Sequencing', method: 'waitUntilReady', params: [json, { name: 'timeoutSeconds', type: 'number', optional: true }], help: 'Wait for an explicit observed readiness predicate, failing transparently unless ready; no wall-clock fallback. JSON event predicate: {kind:event,reference:{scene,query,id,revision},et:number,policy:timeline|native-draw}. Others: {kind:assets}, {kind:terrain,body}, {kind:imagery,body,layer}, {kind:cube-base,body}.', invoke: async (h,a,signal) => {
+    const result = await h.waitUntilReady!(data<ScriptReadinessRequest>(a[0]), { timeoutMs: a[1] === undefined ? undefined : num(a[1]) * 1000, signal });
+    if (result.status !== 'ready') throw new Error(`${result.status}: ${result.missing.join('; ')}`);
+    return result;
+  } },
+];
+
 export const VERB_LIST: readonly VerbSpec[] = [
+  ...modernVerbs,
+  { name: 'selectActivity', params: [{ name: 'activity', type: 'activity' }], category: 'Time', method: 'selectActivity', resolvesName: 'activity',
+    help: 'Select an activity by stable ID without seeking or moving the camera.', invoke: (h, a) => h.selectActivity!(str(a[0])) },
+  { name: 'seekActivity', params: [{ name: 'activity', type: 'activity' }, { name: 'edge', type: 'enum', values: ['start', 'end'], optional: true }],
+    category: 'Time', method: 'seekActivity', resolvesName: 'activity', help: 'Seek an activity edge; both edges of a milestone mean its one epoch.',
+    invoke: (h, a) => h.seekActivity!(str(a[0]), optStr(a[1]) as 'start' | 'end' | undefined) },
+  { name: 'navigateActivity', params: [{ name: 'direction', type: 'enum', values: ['previous', 'next'] }, { name: 'vehicle', type: 'object', optional: true }, { name: 'kind', type: 'enum', values: ['flight', 'drive', 'hop', 'descent', 'landing', 'phase', 'other'], optional: true }],
+    category: 'Time', method: 'navigateActivity', help: 'Select previous/next in start/end/ID order, optionally within a vehicle and kind. Does not seek.',
+    invoke: (h, a) => h.navigateActivity!(str(a[0]) as 'previous' | 'next', { vehicle: optStr(a[1]), kind: optStr(a[2]) }) },
+
   // ── Scene ──
   {
     name: 'gotoObject',
@@ -239,6 +306,27 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.jumpTo(str(a[0])),
   },
   {
+    name: 'gotoCoordinates',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'latitude', type: 'number' },
+      { name: 'longitude', type: 'number' },
+      { name: 'view', type: 'enum', values: SURFACE_VIEWS, optional: true },
+      { name: 'seconds', type: 'number', optional: true },
+      { name: 'rangeKm', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'gotoCoordinates',
+    resolvesName: 'object',
+    help: `Go to a place on a body by planetocentric latitude and east longitude, in degrees (${SURFACE_VIEWS.join(', ')}). Cuts; give seconds to fly.`,
+    invoke: (host, a) =>
+      host.gotoCoordinates(str(a[0]), num(a[1]), num(a[2]), {
+        ...(a[3] === undefined ? {} : { view: str(a[3]) as SurfaceView }),
+        ...(a[4] === undefined ? {} : { seconds: num(a[4]) }),
+        ...(a[5] === undefined ? {} : { rangeKm: num(a[5]) }),
+      }),
+  },
+  {
     name: 'stopFlight',
     params: [],
     category: 'Camera',
@@ -263,6 +351,18 @@ export const VERB_LIST: readonly VerbSpec[] = [
     resolvesName: 'viewpoint',
     help: 'Apply a named catalog viewpoint, seeking the clock if it declares an epoch.',
     invoke: (host, a) => host.viewpoint(str(a[0])),
+  },
+  {
+    name: 'gotoPlace',
+    params: [
+      { name: 'place', type: 'place' },
+      { name: 'how', type: 'enum', values: ['fly', 'jump'], optional: true },
+    ],
+    category: 'Camera',
+    method: 'gotoPlace',
+    resolvesName: 'place',
+    help: 'Fly (or jump) to a named place by its stable ref, and select it.',
+    invoke: (host, a) => host.gotoPlace!(str(a[0]), { animate: optStr(a[1]) !== 'jump' }),
   },
   {
     name: 'setFrame',
@@ -396,6 +496,134 @@ export const VERB_LIST: readonly VerbSpec[] = [
     presets: LAYER_PRESETS,
     help: `Show or hide a whole layer (${LAYER_IDS.join(', ')}).`,
     invoke: (host, a) => host.setLayer(str(a[0]), bool(a[1])),
+  },
+
+  {
+    name: 'restoreViewState', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'restoreViewState',
+    help: 'Restore existing ViewState v1 in the same catalog. Explicit analysis envelopes replace; absent ones preserve.',
+    invoke: (host, a, signal) => host.restoreViewState!(data(a[0]), { signal }),
+  },
+  {
+    name: 'selectInstrument', params: [{ name: 'name', type: 'instrument' }], category: 'Display', method: 'selectInstrument',
+    help: 'Open an existing synthetic instrument feed; empty name closes it. Does not manufacture pointing or observations.',
+    invoke: (host, a) => host.selectInstrument!(str(a[0]) || null),
+  },
+  {
+    name: 'saveBookmark', sceneEdit: true, params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'saveBookmark',
+    help: 'Save the current camera using the session viewpoint model; catalog/default names are protected.', invoke: (host, a) => host.saveBookmark!(str(a[0])),
+  },
+  {
+    name: 'upsertBookmark', sceneEdit: true, params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertBookmark',
+    help: 'Merge one portable session viewpoint definition by name, preserving unrelated views.', invoke: (host, a) => host.upsertBookmark!(data(a[0])),
+  },
+  {
+    name: 'removeBookmark', params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'removeBookmark',
+    help: 'Remove one session viewpoint; catalog/default views are protected.', invoke: (host, a) => host.removeBookmark!(str(a[0])),
+  },
+  {
+    name: 'upsertEventQuery', sceneEdit: true, params: [{ name: 'definition', type: 'text' }], category: 'Analysis', method: 'upsertEventQuery',
+    help: 'Set up an Event Finder search. Create or replace a validated definition by stable ID; cached results are invalidated.',
+    invoke: (host, a) => host.upsertEventQuery!(data(a[0])),
+  },
+  {
+    name: 'openEventQuery', params: [{ name: 'id', type: 'event-query' }], category: 'Analysis', method: 'openEventQuery',
+    help: 'Open an existing configured search for inspection/editing without seeking time.', invoke: (host, a) => host.openEventQuery!(str(a[0])),
+  },
+  {
+    name: 'removeEventQuery', params: [{ name: 'id', type: 'event-query' }], category: 'Authoring', method: 'removeEventQuery',
+    help: 'Remove one configured event query and its computed results.', invoke: (host, a) => host.removeEventQuery!(str(a[0])),
+  },
+  {
+    name: 'runEventQuery', params: [{ name: 'id', type: 'event-query' }, { name: 'timeoutMs', type: 'number', optional: true }], category: 'Analysis', method: 'runEventQuery',
+    help: 'Run an existing Event Finder search; refuse failure, cancellation, timeout or scene replacement.',
+    invoke: async (host, a, signal) => { const result = await host.runEventQuery!(str(a[0]), { timeoutMs: optNum(a[1]), signal }); if (result.status !== 'complete') throw new Error(result.error?.message ?? `Event search ${result.status}`); },
+  },
+  {
+    name: 'cancelEventQuery', params: [], category: 'Analysis', method: 'cancelEventQuery',
+    help: 'Cancel the existing Event Finder search.', invoke: host => host.cancelEventQuery!(),
+  },
+  {
+    name: 'focusEventResult', params: [{ name: 'reference', type: 'text' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'focusEventResult',
+    help: 'reference is JSON text of the entire {scene,query,id,revision} reference from getEventResultPage, never a bare ID. anchor middle seeks; inspect preserves time. Refuse stale references; camera framing stays separate. Use waitUntilReady with an event predicate before deterministic capture.',
+    invoke: (host, a, signal) => { const result = host.focusEventResult!(data(a[0]), optStr(a[1]) as 'inspect' | 'start' | 'middle' | 'end' | undefined, { signal }); if (!['observed', 'partial'].includes(result.status)) throw new Error(`Event focus ${result.status}`); },
+  },
+  {
+    name: 'presentEventResult', params: [{ name: 'reference', type: 'text' }, { name: 'framing', type: 'enum', values: ['pair','target'], optional: true }], category: 'Camera', method: 'presentEventResult',
+    help: 'Show a computed encounter: JSON reference is the exact {scene,query,id,revision} from a ranked result page. Pauses, seeks its middle epoch, fits observer and target together (pair, default), and observes native draw state. target frames only the target. Respects cancellation/manual takeover. No solver or new query. Partial draw is not visible-pixels proof.',
+    invoke: async (host, a, signal) => { const result = await host.presentEventResult!(data(a[0]), optStr(a[1]) as 'pair' | 'target' | undefined, { signal }); if (!['observed','partial'].includes(result.status)) throw new Error(`Event presentation ${result.status}`); },
+  },
+  {
+    name: 'selectEventResult', params: [{ name: 'query', type: 'event-query' }, { name: 'id', type: 'event-result' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'selectEventResult',
+    help: 'Inspect or seek an exact query/result pair through Event Finder selection.', invoke: (host, a) => host.selectEventResult!(str(a[0]), str(a[1]), optStr(a[2]) as 'inspect' | 'start' | 'middle' | 'end' | undefined),
+  },
+  {
+    name: 'showImagery',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'layer', type: 'imagery' },
+      { name: 'visible', type: 'boolean' },
+    ],
+    category: 'Display',
+    method: 'setImageryVisible',
+    resolvesName: 'imagery',
+    help: "Show or hide one layer of a body's imagery stack, by layer ID.",
+    invoke: (host, a) => host.setImageryVisible!(str(a[0]), str(a[1]), bool(a[2])),
+  },
+  {
+    name: 'moveImageryLayer',
+    params: [{ name: 'object', type: 'object' }, { name: 'layer', type: 'imagery' }, { name: 'index', type: 'number' }],
+    category: 'Display', method: 'moveImageryLayer', resolvesName: 'imagery',
+    help: 'Move an imagery overlay to a bottom-to-top index. The mandatory base stays at zero.',
+    invoke: (host, a) => host.moveImageryLayer!(str(a[0]), str(a[1]), num(a[2])),
+  },
+  {
+    name: 'setImageryOpacity',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'layer', type: 'imagery' },
+      { name: 'opacity', type: 'number' },
+    ],
+    category: 'Display',
+    method: 'setImageryOpacity',
+    resolvesName: 'imagery',
+    help: "Set one imagery layer's opacity, 0 to 1.",
+    invoke: (host, a) => host.setImageryOpacity!(str(a[0]), str(a[1]), num(a[2])),
+  },
+  {
+    name: 'showBodyGrid', params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    category: 'Display', method: 'showBodyGrid', resolvesName: 'object', help: 'Show or hide a body surface grid using shared viewer state.',
+    invoke: (host, a) => host.showBodyGrid?.(str(a[0]), bool(a[1])),
+  },
+  {
+    name: 'showBodyGridLabels', params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    category: 'Display', method: 'showBodyGridLabels', resolvesName: 'object', help: 'Show or hide one body’s coordinate labels independently of lines.',
+    invoke: (host, a) => host.showBodyGridLabels?.(str(a[0]), bool(a[1])),
+  },
+  {
+    name: 'setGridScope', params: [{ name: 'scope', type: 'enum', values: ['tracked', 'bodies', 'all'] }, { name: 'bodies', type: 'text', optional: true }],
+    category: 'Display', method: 'setGridScope', help: 'Grid target: tracked body, comma-separated pinned bodies, or all eligible bodies.',
+    invoke: (host, a) => host.setGridScope?.(str(a[0]) as 'tracked' | 'bodies' | 'all', optStr(a[1])),
+  },
+  {
+    name: 'setGridDensity', params: [{ name: 'density', type: 'enum', values: ['auto', 'manual'] }, { name: 'degrees', type: 'number', optional: true }],
+    category: 'Display', method: 'setGridDensity', help: 'Auto density or manual angular spacing in degrees.',
+    invoke: (host, a) => host.setGridDensity?.(str(a[0]) as 'auto' | 'manual', optNum(a[1])),
+  },
+  {
+    name: 'setGridLabels', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridLabels',
+    help: 'Show coordinate labels independently of grid lines.', invoke: (host, a) => host.setGridLabels?.(bool(a[0])),
+  },
+  {
+    name: 'setGridOpacity', params: [{ name: 'opacity', type: 'number' }], category: 'Display', method: 'setGridOpacity',
+    help: 'Grid lines and coordinate-caption opacity, from 0 to 1.', invoke: (host, a) => host.setGridOpacity?.(num(a[0])),
+  },
+  {
+    name: 'setGridCoordinateFrame', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridCoordinateFrame',
+    help: 'Place coordinate labels at viewport-border crossings in close overhead views; zoomed-out views retain surface labels.', invoke: (host, a) => host.setGridCoordinateFrame?.(bool(a[0])),
+  },
+  {
+    name: 'setGridMinorLines', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
+    help: 'Show fainter intermediate surface grid lines.', invoke: (host, a) => host.setGridMinorLines?.(bool(a[0])),
   },
 
   // ── Time ──

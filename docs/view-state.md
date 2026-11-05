@@ -41,13 +41,27 @@ Links are capped at 8 KiB, including URL overhead when copied.
 
 ## Camera and navigation scope
 
-The semantic-viewpoint (#114) and unified-navigation (#115) issues are still open
-at the time of this implementation. V1 composes existing catalog viewpoints and
-the `ViewerControl` navigation methods instead of defining replacement camera
-or navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
+V1 composes catalog viewpoints (semantic viewpoints, #114) and the
+`ViewerControl` navigation methods instead of defining replacement camera or
+navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
 orbit cameras. Named-view detection excludes session-only saved viewpoints and
-compares actual eye/target/up and coordinate origin, so moving away from a preset
+compares actual eye/up and coordinate origin, plus the target or, for a
+viewpoint with `lookAt`, the look-at body, so moving away from a preset
 produces an explicit pose link.
+
+A catalog viewpoint is a relationship resolved where it is shown: at its own
+`time` when it has one, and at the current time otherwise. Copy resolves it at
+the link's time to compare, and restore applies a named view after seeking to
+the link's time, so a timeless view such as "over Jezero" reproduces the pose
+the sender saw. A viewpoint's own epoch still yields to the link's explicit
+time. (Before #114, named views resolved once at catalog load; a link to a
+timeless body-relative view may restore differently from what that older
+viewer showed.)
+
+#114 also provides a portable semantic form (`viewpointToJson` /
+`validateViewpoint` in `@cosmolabe/core`) for views that are not in the
+catalog, such as a Top / Sun / Velocity preset. V1 does not encode it yet;
+adding it is an additive `view` kind beside `named` and `pose`.
 
 Surface, surface-explorer, instrument, LVLH, and chase modes have additional
 private parameters that the current port cannot capture faithfully. Copy rejects

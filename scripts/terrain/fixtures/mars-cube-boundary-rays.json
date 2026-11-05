@@ -1,0 +1,196 @@
+{
+  "note": "Former CPU boundary ownership gaps in #245. Every recorded ray must hit an actual CPU lattice triangle, independently of renderer residency and skirts. Replay requires the original bounded product.",
+  "revision": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+  "rays": [
+    {
+      "tile": "py/10/626/336",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 699.5728645787057,
+          "yKm": 3140.3525226521565,
+          "zKm": 1079.9393248897368
+        },
+        "direction": [
+          0.627602120361189,
+          -1.6153280153548621,
+          -0.9984142333360069
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/10/626/336",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 699.7984538945649,
+          "yKm": 3140.363571577998,
+          "zKm": 1080.2385542084487
+        },
+        "direction": [
+          -0.15329568913978164,
+          -1.5392911733738401,
+          -1.2677078193594298
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/10/626/336",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 698.3369746140238,
+          "yKm": 3139.9856929080815,
+          "zKm": 1079.940267189362
+        },
+        "direction": [
+          1.3081835914013027,
+          -1.1614125034575409,
+          -0.9694208002727009
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/10/626/336",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 699.6209371169679,
+          "yKm": 3140.0555611717173,
+          "zKm": 1080.5467147247887
+        },
+        "direction": [
+          0.024221088457238693,
+          -1.231280767093267,
+          -1.575868335699397
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/11/1252/672",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 698.4311067282541,
+          "yKm": 3140.313897621704,
+          "zKm": 1079.6414302567898
+        },
+        "direction": [
+          1.1683453954636889,
+          -1.4797979174554712,
+          -0.6672084834540328
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/11/1252/672",
+      "edge": "S",
+      "ray": {
+        "origin": {
+          "xKm": 699.82232983768,
+          "yKm": 3140.5728335933636,
+          "zKm": 1079.937097667448
+        },
+        "direction": [
+          -0.2228777139621343,
+          -1.738733889114883,
+          -0.9628758941121305
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/9/313/167",
+      "edge": "N",
+      "ray": {
+        "origin": {
+          "xKm": 706.6153460377068,
+          "yKm": 3139.57965893148,
+          "zKm": 1079.5452240098164
+        },
+        "direction": [
+          0.4759017451821137,
+          -1.7186070152147295,
+          -0.9054874135999853
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/9/313/167",
+      "edge": "N",
+      "ray": {
+        "origin": {
+          "xKm": 707.218279465926,
+          "yKm": 3138.9504412491333,
+          "zKm": 1080.3121880403362
+        },
+        "direction": [
+          -0.127031683037103,
+          -1.089389332867995,
+          -1.6724514441198153
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/9/313/167",
+      "edge": "N",
+      "ray": {
+        "origin": {
+          "xKm": 706.3234775419342,
+          "yKm": 3139.5293707833293,
+          "zKm": 1079.4317220852895
+        },
+        "direction": [
+          0.7677702409547464,
+          -1.6683188670640448,
+          -0.7919854890731131
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    },
+    {
+      "tile": "py/9/313/167",
+      "edge": "N",
+      "ray": {
+        "origin": {
+          "xKm": 706.6391554739433,
+          "yKm": 3138.834706571282,
+          "zKm": 1080.3272226426643
+        },
+        "direction": [
+          0.4520923089455664,
+          -0.9736546550166167,
+          -1.6874860464479298
+        ],
+        "nearKm": 0,
+        "farKm": 10
+      },
+      "reason": "partial-coverage"
+    }
+  ]
+}

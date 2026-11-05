@@ -67,10 +67,16 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `trajectory` | object | How position evolves over time. See [Trajectories](#trajectories). |
 | `rotationModel` | object | How orientation evolves over time. See [Rotation models](#rotation-models). |
 | `geometry` | object | What gets drawn at the body's position. See [Geometry](#geometry). |
-| `trajectoryFrame` | string | Frame the trajectory is expressed in, by name (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`, `"TEME"`, `"IAU_MARS"`, `"BodyFixed"`). See [Frames](#frames). Defaults to `EclipticJ2000`. Also accepted on each `arcs[]` entry. |
-| `bodyFrame` | string | Reference frame of the body's orientation. |
-| `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
-| `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
+| `trajectoryFrame` | string | Frame the trajectory is expressed in, by name (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`, `"TEME"`, `"IAU_MARS"`, `"BodyFixed"`). See [Frames](#frames). Defaults to `EclipticJ2000`. Also accepted on each `arcs[]` entry. A `Spice` trajectory is queried in this frame too; there is no `frame` inside the trajectory. |
+| `bodyFrame` | string | The inertial frame a `Uniform`, `Fixed` or `FixedEuler` rotation is stated in, when the rotation model does not name one with `inertialFrame`. Other rotation types are oriented by their own frame and do not read it. |
+| `label` | object | `{ "color": [r, g, b], "visible": false }` for the on-screen label |
+| `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "lead", "opacity", "visible", "sampleCount", "lineWidth" }`. `visible` belongs here, not inside `trajectory`. |
+| `naifId` | number | NAIF ID, for SPICE radius lookup |
+| `mass` | number or string | kg, or with a unit suffix (see [Values and units](#values-and-units)) |
+| `radii` | array | `[a, b, c]` triaxial radii in km (overrides SPICE and `geometry`) |
+| `arcs` | array | Mission phases, each `{ "startTime", "endTime", "center", "trajectoryFrame", "trajectory", "showLine", "numKeySamples" }`; the same as a `Composite` trajectory |
+| `startTime` / `endTime` | string | Bounds of the first and last `arcs` entry when they leave them out. On an item without `arcs` they are accepted (Cosmographia writes them) but do not yet limit when the body is shown. |
+| `spiceKernels` | array | Kernels this item needs, added to the catalog's list |
 | `items` | array | Children — bodies whose `center` is implicitly this one |
 | `startTime` / `endTime` | UTC string or JD | The body's existence window. Outside it the body — model, label and any sensors on it — is not in the scene, as in Cosmographia. Either may be omitted. See [Existence](#existence). |
 
@@ -130,22 +136,37 @@ on an arc hides that arc's trail only.
 
 ## Trajectories
 
-Ten types, picked by `trajectory.type`:
+Picked by `trajectory.type`:
 
 | Type | When to use | Key fields |
 |---|---|---|
 | `FixedPoint` | A body that doesn't move | `position: [x, y, z]` (km) |
 | `FixedSpherical` | Surface point given as lat/lon | `latitude`, `longitude`, `radius` |
-| `Keplerian` | Closed-form analytic orbit | `semiMajorAxis`, `eccentricity`, `inclination`, `ascendingNode`, `argOfPeriapsis`, `meanAnomaly`, `epoch`, optional `period` |
+| `Keplerian` | Closed-form analytic orbit | `semiMajorAxis`, `eccentricity`, `inclination`, `ascendingNode`, `argOfPeriapsis` (or `argumentOfPeriapsis`), `meanAnomaly`, `epoch`, optional `period` |
 | `Builtin` | JPL DE ephemeris for solar-system bodies | `name` (e.g. `"Earth"`, `"Mars"`) |
-| `Spice` | High-precision SPK kernel ephemeris | `target`, `center`, `frame` |
-| `InterpolatedStates` | Tabulated state vectors (e.g. sim output) | `source` (`.xyzv` URL) **or** inline `samples` array |
-| `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `coefficients`, `interval` |
-| `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2` |
-| `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
-| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectory, rotationModel }]` — see [Arcs](#arcs) |
+| `Spice` | High-precision SPK kernel ephemeris | `target`, `center`; the frame is the item's `trajectoryFrame` |
+| `InterpolatedStates` | Tabulated state vectors (e.g. sim output) | `source` (`.xyzv` URL) **or** inline `samples: [{ et, position, velocity }]` |
+| `OEM` | A CCSDS Orbit Ephemeris Message (needs an LSK) | `source` (the OEM file) |
+| `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `source` (a `.cheb` file), optional `period` |
+| `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2`, optional `windowDays` |
+| `LinearCombination` | Weighted sum of two trajectories | `trajectories: [a, b]`, `weights: [wa, wb]`, optional `period` |
+| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectoryFrame, trajectory, rotationModel }]` (`segments` is accepted for `arcs`) — see [Arcs](#arcs) |
+| `Waypoints` | A surface track through timed lat/lon/alt points | `referenceRadius`, `epoch`, `waypoints: [{ t, lat, lon, alt }]`, optional `useAbsoluteAlt` |
+| `TASS17`, `L1`, `Gust86`, `MarsSat` | Analytic theories for the moons of Saturn, Jupiter, Uranus and Mars | `satellite` (defaults to `name`, then the item's name) |
+
+A Keplerian orbit propagates with the center's GM, from a built-in table of the Sun and planets. A `period` (days, or with a unit suffix such as `"11.97h"`) overrides it, and is required for a center the table does not list.
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
+
+Absolute surface inputs may add an item-level `surfaceTrajectory` with `frame`,
+`positionUnits: "km"`, a physical `datum` (`referenceShape`, `verticalDatum`,
+`heightConvention`), `purpose: "supplied" | "synthetic-demo"`, and optional
+`terrainRevision` used in planning. This records provenance and prevents terrain
+adjustment; it never requests snapping or adds a datum offset. Frame declaration
+conflicts withhold placement. Frame/datum/revision comparisons are available via
+`Universe.surfaceTrajectoryStatus` and the body inspector. See the
+[lunar audit and migration guide](validation/lunar-frames/README.md) for the
+complete schema, numerical comparisons, uncertainty and legacy behavior.
 
 ## Rotation models
 
@@ -155,11 +176,14 @@ Picked by `rotationModel.type`:
 |---|---|
 | `Builtin` | A solar-system body's IAU body-fixed frame. Optional `name` (default `IAU_<BODY>`). See [Planets and moons](#planets-and-moons). |
 | `Uniform` | Constant rotation rate. Fields: `period`, `inclination`, `ascendingNode`, `meridianAngle` |
-| `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
-| `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
-| `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
+| `Fixed` | A constant orientation. Fields: `quaternion: [w, x, y, z]`, or `inclination`, `ascendingNode`, `meridianAngle`; optional `inertialFrame` |
+| `FixedEuler` | A constant orientation given as Euler angles. Fields: `sequence: "XYZ"`, `angles: [a, b, c]` (degrees); optional `inertialFrame` |
+| `Interpolated` | Tabulated quaternions, SLERP-interpolated. Fields: `source` (a `.q` file) or inline `records: [{ "et": …, "q": [w, x, y, z] }, …]`; optional `inertialFrame` |
 | `Spice` | Any SPICE frame (CK, PCK or frame kernel). Fields: `bodyFrame` (default `IAU_<BODY>`), `inertialFrame` (default: the item's `trajectoryFrame`), `fallbackFrame` (fixed fallback during CK gaps) |
-| `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
+| `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center`, optional `inertialFrame` |
+| `SurfaceUp` | A surface vehicle whose +X axis follows local up on its parent. No fields |
+
+`Uniform` also takes `epoch`, and `ascension`/`declination` (the pole's RA/Dec directly) in place of `inclination`/`ascendingNode`.
 
 ### Planets and moons
 
@@ -173,15 +197,20 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 | Type | What it draws | Key fields |
 |---|---|---|
-| `Globe` | Textured sphere; optionally with streamed imagery and terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `imagery`, `terrain` |
+| `Globe` | Textured sphere; optionally with streamed imagery and terrain | `radius`, `baseMap`, `normalMap`, `atmosphere`, `imagery`, `terrain` |
 | `Mesh` | A 3D model (GLTF/GLB, OBJ, CMOD, 3DS) | `source`, `size`, `meshRotation` |
-| `Dsk` | A SPICE DSK plate model in body-fixed km | `source`, `color` |
+| `Dsk` | A SPICE DSK plate model in body-fixed km | `source` (or Cosmographia's `kernel`), `color`; `"DSK"` is accepted for the type |
 | `Sensor` | Instrument FOV cone, terminated at the first solid body surface each boundary ray hits | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `range` (maximum visualization range; defaults to the target-center distance), `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
-| `Axes` | Reference frame axes | `length` |
-| `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
-| `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
+| `Axes` | Reference frame axes (no renderer yet) | `length` |
+| `KeplerianSwarm` | Many bodies sharing a parent (no renderer yet) | `bodies: []` |
+| `ParticleSystem` | Plumes, exhaust, dust (no renderer yet) | (renderer-specific) |
 | `TimeSwitched` | Different geometry at different times (Cosmographia) | `sequence: [{ startTime, endTime, geometry }]` — see [TimeSwitched](#timeswitched) |
+
+
+Any geometry also takes `emissive: true` (self-lit, e.g. the Sun), `castShadow: true`, and `surfaceLock` (keep a surface body on the terrain: `true`, `"aboveTerrain"` or `{ "mode": "aboveTerrain" }`).
+
+`Axes`, `KeplerianSwarm` and `ParticleSystem` load for Cosmographia compatibility, but nothing draws them yet: the body gets the default placeholder, and their fields are not checked. Sensor fields sit directly on the geometry, not in a nested `sensor` object. `Mesh` also takes `scale` (for `size`), `meshOffset` and `bumpMapType`; `Sensor` takes `spiceId` and `orientation`; a Globe's `displacementMap` takes `displacementScale` and `displacementBias`, and `bumpMap` takes `bumpScale`.
 
 ### Model formats
 
@@ -205,6 +234,37 @@ its own geometry type, [`Dsk`](#dsk).
 ### Asset paths
 
 Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `imagery[].url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
+#### Fixed mission-site meshes (`Globe.surfaceTiles`)
+
+Each entry uses the existing 3D Tiles loader and requires `name`, `url`,
+`sourceVersion`, `registration`, source-local metre `coverage: {min:[x,y,z],
+max:[x,y,z]}`, `physicalQueryPolicy: "visual-only"` and `overlapPolicy:
+"composite"`. Optional `priority` orders coincident sites; `errorTarget` and
+`maxCacheBytes` control streaming. Multiple entries are independent.
+
+`registration` requires `version`, `bodyFixedFrame`, `provenance`, `status`
+(`estimated` or `controlled`), `uncertaintyKm` (absolute accuracy, `null` if
+unknown), and `bodyFixedKmFromLocalMeters`: a column-major affine 4×4 matrix
+mapping original local metres to declared body-fixed kilometres. Its basis must
+be rigid, right-handed and scaled by 0.001. Source axes must be established
+offline; glTF's up-axis alone does not establish planetary orientation. The
+body needs a rotation with an explicit matching destination frame. `Spice`
+rotation uses `bodyFrame`; synthetic/non-SPICE bodies may use `Fixed` rotation
+with `bodyFixedFrame` and an explicit `inertialFrame`. A frame label declares
+the axes represented by that orientation; it does not certify registration.
+An absent or mismatched destination frame is rejected. The matrix remains fixed across
+camera changes, time, terrain LOD, eviction, retries and reloads. Legacy
+`lat`/`lon`/`altitudeOffset` placement is replaced by this explicit contract.
+
+The coverage box is a display envelope, not a trusted physical mask. Loaded
+local pixels composite over near-side globe pixels and local triangles visually
+occlude models. Cube terrain remains active beneath gaps and failures and owns
+picking, measurements and clearance/navigation; local rocks and overhangs do
+not become query ground truth. No authoritative local-mesh query policy is
+implemented. See the [Dingo Gap source audit](validation/curiosity-gale/source-registration.md)
+and the [small ENU fixture](../apps/viewer/test-catalogs/fixtures/site-mesh/tileset.json)
+for two source-axis conventions and explicit uncertainty.
 
 ### `Globe.imagery`
 
@@ -364,6 +424,8 @@ Policy:
 
 To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
+The other tuning keys (`errorTarget`, `referenceRadiusOffsetKm`, `skirtScale`, `fadeDurationMs`, …) are listed with the rest of the accepted keys in `packages/core/src/catalog/CatalogSchema.ts`.
+
 ## Frames
 
 Frames are named, and every name resolves through one registry (`Universe.frames`, a `FrameRegistry`). Each frame knows its rotation to ICRF at any epoch, and a conversion between two frames is composed from those rotations. `Universe.absolutePositionOf` applies the right rotation on every leg of the parent chain, so a J2000 moon of an ecliptic planet, a TEME satellite and a surface point all land in the ecliptic scene frame without any rotation done in the app. Names are case-insensitive.
@@ -377,8 +439,8 @@ Frames are named, and every name resolves through one registry (`Universe.frames
 | `B1950`, `FK4`, `ECLIPB1950`, `GALACTIC` | `EquatorB1950` | inertial | SPICE's fixed matrices | same |
 | `MOD`, `TOD`, `TEME` | `TETE` (TOD) | inertial, time-dependent | IAU-1976 precession, IAU-1980 nutation | same (SPICE has no TEME) |
 | `ITRF` | `ITRF93`, `ITRF2000`…`ITRF2020`, `ECEF`, `TDR` | Earth-fixed | SPICE `ITRF93` when a binary Earth PCK is loaded | TEME + GMST, with UT1 ≈ UTC (≤ 0.4 km at the surface) |
-| `IAU_<BODY>` | | body-fixed | the body's own `rotationModel`, else SPICE's PCK frame | the body's own `rotationModel` |
-| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to `IAU_<CENTER>` | same |
+| `IAU_<BODY>` | | body-fixed | the body's rotation if its declared target is this frame, else SPICE's PCK frame | the matching body's `rotationModel` |
+| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to the centre's declared target frame (default `IAU_<CENTER>`) | same |
 | any SPICE frame | | per SPICE | `pxform` (CK, TK and dynamic frames, `MOON_ME`, …) | not resolvable |
 
 The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. What "EME2000" means depends on who wrote the file. From JPL and SPICE tools it is SPICE's J2000, which is ICRF-aligned; from Orekit, STK or GMAT it is FK5 J2000, which carries the bias. For the second kind, set `"trajectoryFrame": "EME2000_IERS"`: on an OEM whose `REF_FRAME` is EME2000 or ICRF, that declaration refines the file's label rather than being reported as a mismatch.
@@ -410,7 +472,9 @@ LVLH, RIC/RSW, RTN, VNC and similar frames are **not** registry frames, and nami
 
 ## Viewpoints
 
-Named camera presets. Each is an item with `"type": "Viewpoint"`:
+Named views. Each is an item with `"type": "Viewpoint"`. A viewpoint
+describes the camera by what it is relative to and what it looks at, not as a
+stored world-space pose, and is resolved again every time it is applied:
 
 ```json
 {
@@ -424,28 +488,122 @@ Named camera presets. Each is an item with `"type": "Viewpoint"`:
 }
 ```
 
-`distance` is in kilometers from `center`, and `latitude`/`longitude` place the
-camera over that point on the centre body's surface.
+| Field | Meaning |
+|-------|---------|
+| `center` | Body the camera is placed relative to, and tracks. |
+| `distance`, `latitude`, `longitude` | The camera `distance` km from `center`, over that point of the centre body's surface (body-fixed; a body without a rotation model uses its parent's). |
+| `eye`, `target` | Explicit positions in km relative to `center`. `eye` overrides every other placement. |
+| `lookAt` | A body to look at. Overrides `target`, and the camera keeps facing it as time runs. Needs `center`. |
+| `from` | A direction from `center` to the camera, used with `distance`. Overrides `latitude`/`longitude`. Needs `center`. |
+| `up` | Up, as an `[x, y, z]` vector or a direction. |
+| `frame` | The frame `eye`, `target`, a vector `up`, the lat/lon offset and `axis`/`vector` directions are stated in. |
+| `fov` | Vertical field of view, degrees. |
+| `time` | The moment the viewpoint depicts (below). |
+
+### Directions
+
+`from` and `up` take a direction, resolved at the viewpoint's epoch:
+
+| Direction | Points |
+|-----------|--------|
+| `{"kind": "toward", "body": "Sun"}` | From `center` (or `"from": "<body>"`) toward the body. |
+| `{"kind": "velocity"}` | Along the velocity of `center` (or `"body"`) relative to its active parent (or `"relativeTo"`). |
+| `{"kind": "orbitNormal"}` | Along `r × v` for the same pair: the orbit's pole. |
+| `{"kind": "axis", "axis": "+Z", "frame": "IAU_SATURN"}` | Along an axis of a frame. |
+| `{"kind": "vector", "vector": [0, 0, 1], "frame": "J2000"}` | Along an explicit vector. |
+
+Add `"negate": true` to the first three to reverse them: `velocity` negated is
+"behind", `toward` the Sun negated is "anti-Sun". `axis` and `vector` use the
+viewpoint's `frame` when they name none.
+
+Put together, "Saturn beyond Cassini at orbit insertion" is a camera 30 m
+behind Cassini on the side away from Saturn, looking at Saturn, with Saturn's
+pole up so the rings lie level:
+
+```json
+{
+  "name": "SOI: Saturn beyond Cassini (2004-07-01)",
+  "type": "Viewpoint",
+  "center": "Cassini",
+  "lookAt": "Saturn",
+  "from": { "kind": "toward", "body": "Saturn", "negate": true },
+  "distance": 0.03,
+  "up": { "kind": "axis", "axis": "+Z", "frame": "IAU_SATURN" },
+  "time": "2004-07-01T02:48:00Z"
+}
+```
+
+The vector-derived presets are ordinary viewpoints too. `presetViewpoint` in
+`@cosmolabe/core` builds them:
+
+| Preset | `from` | `up` |
+|--------|--------|------|
+| `top` | `orbitNormal` | `velocity` |
+| `sun` | `toward` the Sun | ecliptic north |
+| `velocity` | `velocity`, negated | `orbitNormal` |
+
+### Frames and defaults
+
+Without `frame`, the fields keep their original meaning: the lat/lon offset is
+body-fixed, and `eye`, `target` and a vector `up` are in the scene frame
+(EclipticJ2000). A `frame` applies to all of them: `BodyFixed` is the
+centre's body-fixed frame, and any other name goes through the frame registry,
+so inertial, SPICE and catalog-declared frames all work. A frame that cannot
+be resolved at the epoch is an error, never silently treated as the scene
+frame.
+
+Without `up`, a viewpoint that uses `from` or `lookAt` is upright to ecliptic
+north. Others use +Y of the scene frame, as they always have. An `up` parallel
+to the line of sight is replaced by the scene axis furthest from it.
+
+### Time
 
 `time` is optional. When it is set, going to the viewpoint **also seeks the
-clock to that moment** — from the Viewpoint menu, from `defaultViewpoint` on
-load, and from the visual-regression capture hook alike. It is read like every
-other catalog date (see *Values and units* below), so it is UTC whether or not
-it carries a `Z`. The camera's `latitude`/`longitude` offset is oriented using
-the centre body's attitude *at that same epoch*, so a viewpoint named for a
-flyby months away from `defaultTime` still looks at the face it names.
+clock to that moment**. That happens from the Viewpoint menu, from
+`defaultViewpoint` on load, from the `viewpoint` script verb, and from the
+visual-regression capture hook alike. It is read like every other catalog date
+(see *Values and units* below), so it is UTC whether or not it carries a `Z`.
+Everything the viewpoint refers to is resolved at that same epoch, so a
+viewpoint named for a flyby months away from `defaultTime` still looks at the
+face it names.
 
-A viewpoint with no `time` leaves the clock exactly where it was — it is a
-camera preset and nothing more. This is the difference between "show me the
-rings from the side" and "show me the Huygens landing".
+A viewpoint with no `time` leaves the clock exactly where it was, and is
+resolved at the **current** time when it is applied. "Over Jezero" stays over
+Jezero after the clock has moved, and "Cassini from the Sun side" is on the Sun
+side whenever it is chosen. This is the difference between "show me the rings
+from the side" and "show me the Huygens landing".
+
+Resolution happens once, when the viewpoint is chosen. Afterwards the camera
+travels with `center`, and a `lookAt` body stays in view, but directions are
+not re-derived as time plays: "behind Cassini, along its velocity" is where the
+camera starts, not a chase camera that keeps following the velocity. Live
+relationships like that belong to the camera frames (chase, LVLH, body- or
+SC-fixed).
+
+Choosing a viewpoint establishes the whole view, whatever navigation came
+before. Any flight or look-at in progress ends, the camera returns to free
+orbit, and the scene origin moves to `center`, or to the universe origin for a
+viewpoint with none. A viewpoint whose bodies are missing from the scene is
+refused, and nothing changes.
 
 An unparseable `time` is reported on the console and then ignored, rather than
 being silently rounded to J2000: a viewpoint that quietly jumps to the year 2000
-looks like a working scene aimed at empty space.
+looks like a working scene aimed at empty space. Malformed fields are reported
+the same way and left out. A viewpoint that names a body the scene does not
+have is reported at load, and refused (the view does not change) when chosen.
 
 Reference one in `defaultViewpoint` to open on it. If that viewpoint declares a
-`time`, it wins over the catalog's `defaultTime` — the scene opens at the moment
-the viewpoint names.
+`time`, it wins over the catalog's `defaultTime`, and the scene opens at the
+moment the viewpoint names.
+
+### Portable form
+
+A viewpoint is also the camera part of a shareable view. `viewpointToJson`
+writes it as a `Viewpoint` item carrying the resolved `epoch` (ET seconds)
+instead of `time`, and `validateViewpoint` reads that back strictly from
+untrusted input. Neither includes catalog identity, selection, playback or UI
+state; those belong to the view state that composes it (see
+[view-state.md](view-state.md)).
 
 ## Values and units
 
@@ -489,6 +647,16 @@ Two things to know:
 Epochs before 1972 use the SPICE-free table's clamp and are off by about a
 second; furnish an LSK if a pre-1972 epoch has to be exact.
 
+## Unknown keys
+
+JSON accepts any key, so a misspelled or misplaced one used to be dropped without a word, and the scene still rendered, just without what the key asked for. The loader now checks every node against the keys the code actually reads for that node type, and prints a console warning for each key that isn't one. The warning names the key, the node that owns it, its JSON path, and the most likely fix:
+
+```
+[Cosmolabe] catalog "MoonFall": unknown key "visible" on Builtin trajectory of "Earth" ($.items[4].trajectory) is not read and has no effect. Did you mean "visible" in trajectoryPlot?
+```
+
+An unknown trajectory or rotation `type` is reported the same way, unless a custom factory handles it. A geometry type that no renderer here knows may be a renderer plugin's, so its fields are not checked; it is reported only when it is a letter or two from a built-in type (`"Globee"`), and naming a plugin's types in the loader's `geometryTypes` option silences even that. `validateCatalog(json)` returns the same diagnostics without printing them, for an editor or a CI check. The shipped catalogs are tested to produce none.
+
 ## More examples
 
 The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. They are listed on the viewer's home screen and catalog browser by `test-catalogs/index.json`; see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
@@ -508,3 +676,5 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 Catalogs **do not** embed kernel paths. SPICE kernels are loaded separately, either via drag-drop in the demo viewer or by calling `Spice.loadKernel(...)` before invoking `CatalogLoader.load(...)`. A catalog that uses `"trajectory": { "type": "Spice", … }` will fail to evaluate at render time if the required kernel hasn't been loaded — but the catalog itself parses fine.
 
 This separation lets the same catalog be reused with different kernel sets (e.g. development predicts vs. reconstructed ephemerides).
+
+The optional catalog-level `displayNote` supplies a visible plain-text scene caption. A scene load resets it; scripts can replace or clear it with `displayNote`. Use it to explain source-solution limits that affect interpretation of the displayed geometry.

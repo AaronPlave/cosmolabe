@@ -5,7 +5,7 @@ import {
   watchLayout, isToolId, isMinimized, minimizePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
   raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
-  FLOAT_Z_BASE, type PanelKey,
+  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, enableTool, type PanelKey,
 } from '../shell.svelte';
 
 /**
@@ -29,6 +29,7 @@ beforeEach(() => {
   for (const key of PANEL_KEYS) {
     shell.panels[key].minimized = false;
     shell.panels[key].float = null;
+    shell.panels[key].expanded = false;
     shell.mounted[key] = false;
   }
 });
@@ -206,6 +207,7 @@ describe('dock layout', () => {
   });
 
   it('sends each panel to exactly one dock, so two can never share a slot', () => {
+    enableTool('ask');
     for (const tool of TOOLS) openTool(tool.id);
     const left = openToolsWith('panel', 'left').map((t) => t.id);
     const right = openToolsWith('panel', 'right').map((t) => t.id);
@@ -317,6 +319,44 @@ describe('minimizing', () => {
     openTool('events');
     toggleTool('events');
     expect(isToolOpen('events')).toBe(false);
+  });
+});
+
+describe('expanding', () => {
+  it('is a presentation over the window: collapsing keeps the float rect', () => {
+    openTool('instrument');
+    setFloat('instrument', { x: 300, y: 200, w: 440, h: 360 }, viewport);
+    toggleExpanded('instrument');
+    expect(isExpanded('instrument')).toBe(true);
+    toggleExpanded('instrument');
+    expect(isExpanded('instrument')).toBe(false);
+    expect(floatOf('instrument')).toEqual({ x: 300, y: 200, w: 440, h: 360 });
+  });
+
+  it('outranks the focus order for Escape: a panel opened behind it is not what Escape reaches first', () => {
+    openTool('instrument');
+    mount('instrument', 'display');
+    toggleExpanded('instrument');
+    openTool('display'); // touched after, so the top of the focus order
+    expect(topVisiblePanel()).toBe('display');
+    expect(expandedPanel()).toBe('instrument');
+  });
+
+  it('is not reported while its panel is off screen', () => {
+    openTool('instrument');
+    toggleExpanded('instrument');
+    expect(expandedPanel()).toBeNull(); // never mounted
+  });
+
+  it('does not survive minimizing or closing', () => {
+    openTool('instrument');
+    toggleExpanded('instrument');
+    minimizePanel('instrument');
+    expect(isExpanded('instrument')).toBe(false);
+    toggleExpanded('instrument');
+    expect(isMinimized('instrument')).toBe(false);
+    closeTool('instrument');
+    expect(isExpanded('instrument')).toBe(false);
   });
 });
 

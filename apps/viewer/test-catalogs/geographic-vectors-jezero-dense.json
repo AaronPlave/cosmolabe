@@ -1,0 +1,173 @@
+{
+  "name": "Geographic vectors \u00b7 dense Jezero on measured terrain",
+  "description": "Synthetic 160-vertex polygon and 1,600 targets concentrated around Jezero, draped on the local measured terrain pyramid. Cyan marks should all draw; click a target to highlight it in gold. Requires data/mars-terrain-fused/.",
+  "defaultViewpoint": "Jezero detail",
+  "geographicLayers": [
+    {
+      "id": "registration",
+      "name": "Dense synthetic Jezero targets and polygon",
+      "body": "Mars",
+      "source": "geographic/jezero-dense.json",
+      "coordinates": {
+        "latitude": "planetographic",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "color": "#59c5dd"
+      },
+      "provenance": {
+        "kind": "synthetic-validation",
+        "scientificTerrain": false
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Jezero detail",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "eye": [
+        703.535766279125,
+        3160.390451579093,
+        1067.5724594800815
+      ],
+      "target": [
+        700.443924743204,
+        3146.5014256954482,
+        1062.8253049723576
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Jezero close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "eye": [
+        701.0622930503882,
+        3149.2792308721773,
+        1063.7747358739025
+      ],
+      "target": [
+        700.443924743204,
+        3146.5014256954482,
+        1062.8253049723576
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Jezero regional",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "eye": [
+        721.0562016493444,
+        3239.0949315864127,
+        1094.4730016905162
+      ],
+      "target": [
+        700.443924743204,
+        3146.5014256954482,
+        1062.8253049723576
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Jezero orbit",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "eye": [
+        906.5666938046077,
+        4072.4364846050917,
+        1379.3022721539437
+      ],
+      "target": [
+        700.443924743204,
+        3146.5014256954482,
+        1062.8253049723576
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          20000000,
+          100000000,
+          -20000000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
+        "terrain": {
+          "type": "quantized-mesh",
+          "url": "data/mars-terrain-fused/",
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "areoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "sourceMetadata": {
+            "id": "MOLA/HRSC + Jezero HiRISE 1m residual"
+          }
+        }
+      }
+    }
+  ]
+}

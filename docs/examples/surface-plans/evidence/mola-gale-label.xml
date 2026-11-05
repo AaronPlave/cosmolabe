@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-model href="https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1N00.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1N00_1970.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1N00_1510.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1N00_1980.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/msn/v1/PDS4_MSN_1N00_1310.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+
+<Product_Observational xmlns="http://pds.nasa.gov/pds4/pds/v1"
+  xmlns:pds="http://pds.nasa.gov/pds4/pds/v1"
+  xmlns:cart="http://pds.nasa.gov/pds4/cart/v1"
+  xmlns:disp="http://pds.nasa.gov/pds4/disp/v1"
+  xmlns:geom="http://pds.nasa.gov/pds4/geom/v1"
+  xmlns:msn="http://pds.nasa.gov/pds4/msn/v1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1N00.xsd http://pds.nasa.gov/pds4/cart/v1 https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1N00_1970.xsd
+  http://pds.nasa.gov/pds4/disp/v1 https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1N00_1510.xsd
+  http://pds.nasa.gov/pds4/geom/v1 https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1N00_1980.xsd
+  http://pds.nasa.gov/pds4/msn/v1 https://pds.nasa.gov/pds4/msn/v1/PDS4_MSN_1N00_1310.xsd">
+
+  <Identification_Area>
+    <logical_identifier>urn:nasa:pds:mgs_mola_topography_derived:data_meg128:megt00n090hb</logical_identifier>
+    <version_id>1.1</version_id>
+    <title>MGS MOLA MEGDR product: megt00n090hb</title>
+    <information_model_version>1.23.0.0</information_model_version>
+    <product_class>Product_Observational</product_class>
+    <Citation_Information>
+      <publication_year>2026</publication_year>
+      <description>This data product is a topographic map of Mars at a resolution of 0.00781 (1/128) by 0.00781 degrees, based on altimetry data acquired by the Mars Global Surveyor MOLA instrument</description>
+      <List_Author>
+        <Person>
+          <contributor_type>Producer</contributor_type>
+          <given_name>David E.</given_name>
+          <family_name>Smith</family_name>
+          <Affiliation>
+            <organization_name>Goddard Space Flight Center, MOLA Team</organization_name>
+          </Affiliation>
+        </Person>
+        <Person>
+          <contributor_type>DataCurator</contributor_type>
+          <given_name>Madison N.</given_name>
+          <family_name>Hughes</family_name>
+          <Affiliation>
+            <organization_name>Washington University in St. Louis</organization_name>
+          </Affiliation>
+        </Person>
+      </List_Author>
+    </Citation_Information>
+    <Modification_History>
+      <Modification_Detail>
+        <modification_date>2026-08-25</modification_date>
+        <version_id>1.0</version_id>
+        <description>Initial PDS4 version</description>
+      </Modification_Detail>
+      <Modification_Detail>
+        <modification_date>2026-09-15</modification_date>
+        <version_id>1.1</version_id>
+        <description>Corrected cart:pixel_resolution and cart:pixel_scale, whose values had been swapped. pixel_resolution now carries the precise map scale from the product ENVI header (2*pi*R / samples per 360 degrees, see mola_envi.pdf) rather than the three-decimal PDS3 MAP_SCALE, and the cart:Geo_Transformation upper-left corner coordinates were recomputed from that scale.</description>
+      </Modification_Detail>
+    </Modification_History>
+  </Identification_Area>
+  <Observation_Area>
+    <Time_Coordinates>
+      <start_date_time>1997-09-15T19:10:00.000Z</start_date_time>
+      <stop_date_time>2001-06-30T11:10:40.000Z</stop_date_time>
+    </Time_Coordinates>
+    <Investigation_Area>
+      <name>Mars Global Surveyor</name>
+      <type>Mission</type>
+      <Internal_Reference>
+        <lid_reference>urn:nasa:pds:context:investigation:mission.mars_global_surveyor</lid_reference>
+        <reference_type>data_to_investigation</reference_type>
+      </Internal_Reference>
+    </Investigation_Area>
+    <Observing_System>
+      <name>MOLA</name>
+      <Observing_System_Component>
+        <name>The Mars Global Surveyor Spacecraft</name>
+        <type>Host</type>
+        <Internal_Reference>
+          <lid_reference>urn:nasa:pds:context:instrument_host:spacecraft.mgs</lid_reference>
+          <reference_type>is_instrument_host</reference_type>
+        </Internal_Reference>
+      </Observing_System_Component>
+      <Observing_System_Component>
+        <name>Mars Global Surveyor Spacecraft Mars Orbiter Laser Altimeter</name>
+        <type>Instrument</type>
+        <Internal_Reference>
+          <lid_reference>urn:nasa:pds:context:instrument:mgs.mola</lid_reference>
+          <reference_type>is_instrument</reference_type>
+        </Internal_Reference>
+      </Observing_System_Component>
+    </Observing_System>
+    <Target_Identification>
+      <name>Mars</name>
+      <type>Planet</type>
+      <Internal_Reference>
+        <lid_reference>urn:nasa:pds:context:target:planet.mars</lid_reference>
+        <reference_type>data_to_target</reference_type>
+      </Internal_Reference>
+    </Target_Identification>
+    <Mission_Area>
+      <msn:Mission_Information>
+        <msn:Orbital_Mission>
+          <msn:start_orbit_number>3</msn:start_orbit_number>
+          <msn:stop_orbit_number>20333</msn:stop_orbit_number>
+        </msn:Orbital_Mission>
+      </msn:Mission_Information>
+    </Mission_Area>
+    <Discipline_Area>
+      <cart:Cartography>
+        <Local_Internal_Reference>
+          <local_identifier_reference>gridded_image</local_identifier_reference>
+          <local_reference_type>cartography_parameters_to_image_object</local_reference_type>
+        </Local_Internal_Reference>
+        <cart:Spatial_Domain>
+          <cart:Bounding_Coordinates>
+            <cart:west_bounding_coordinate unit="deg">90</cart:west_bounding_coordinate>
+            <cart:east_bounding_coordinate unit="deg">180</cart:east_bounding_coordinate>
+            <cart:north_bounding_coordinate unit="deg">0</cart:north_bounding_coordinate>
+            <cart:south_bounding_coordinate unit="deg">-44</cart:south_bounding_coordinate>
+          </cart:Bounding_Coordinates>
+        </cart:Spatial_Domain>
+        <cart:Spatial_Reference_Information>
+          <cart:Horizontal_Coordinate_System_Definition>
+            <cart:Planar>
+              <cart:Map_Projection>
+                <cart:map_projection_name>Equirectangular</cart:map_projection_name>
+                <cart:Equirectangular>
+                  <cart:standard_parallel_1 unit="deg">0.</cart:standard_parallel_1>
+                  <cart:longitude_of_central_meridian unit="deg">180.</cart:longitude_of_central_meridian>
+                </cart:Equirectangular>
+              </cart:Map_Projection>
+              <cart:Planar_Coordinate_Information>
+                <cart:planar_coordinate_encoding_method>Coordinate Pair</cart:planar_coordinate_encoding_method>
+                <cart:Coordinate_Representation>
+                  <cart:pixel_resolution_x unit="km/pixel">0.4630576672</cart:pixel_resolution_x>
+                  <cart:pixel_resolution_y unit="km/pixel">0.4630576672</cart:pixel_resolution_y>
+                  <cart:pixel_scale_x unit="pixel/deg">128</cart:pixel_scale_x>
+                  <cart:pixel_scale_y unit="pixel/deg">128</cart:pixel_scale_y>
+                </cart:Coordinate_Representation>
+              </cart:Planar_Coordinate_Information>
+              <cart:Geo_Transformation>
+                <cart:upperleft_corner_x unit="m">-5334424.326</cart:upperleft_corner_x>
+                <cart:upperleft_corner_y unit="m">0</cart:upperleft_corner_y>
+              </cart:Geo_Transformation>
+            </cart:Planar>
+            <cart:Geodetic_Model>
+              <cart:latitude_type>Planetocentric</cart:latitude_type>
+              <cart:a_axis_radius unit="km">3396.0</cart:a_axis_radius>
+              <cart:b_axis_radius unit="km">3396.0</cart:b_axis_radius>
+              <cart:c_axis_radius unit="km">3396.0</cart:c_axis_radius>
+              <cart:longitude_direction>Positive East</cart:longitude_direction>
+              <cart:coordinate_system_type>Body-fixed Rotating</cart:coordinate_system_type>
+              <cart:coordinate_system_name>PLANETOCENTRIC</cart:coordinate_system_name>
+            </cart:Geodetic_Model>
+          </cart:Horizontal_Coordinate_System_Definition>
+        </cart:Spatial_Reference_Information>
+      </cart:Cartography>
+      <disp:Display_Settings>
+        <Local_Internal_Reference>
+          <local_identifier_reference>gridded_image</local_identifier_reference>
+          <local_reference_type>display_settings_to_array</local_reference_type>
+        </Local_Internal_Reference>
+        <disp:Display_Direction>
+          <disp:horizontal_display_axis>Sample</disp:horizontal_display_axis>
+          <disp:horizontal_display_direction>Left to Right</disp:horizontal_display_direction>
+          <disp:vertical_display_axis>Line</disp:vertical_display_axis>
+          <disp:vertical_display_direction>Top to Bottom</disp:vertical_display_direction>
+        </disp:Display_Direction>
+      </disp:Display_Settings>
+      <geom:Geometry>
+        <geom:Geometry_Orbiter>
+          <geom:geometry_reference_time_utc>1999-08-08T03:10:20.000Z</geom:geometry_reference_time_utc>
+          <geom:geometry_start_time_utc>1997-09-15T19:10:00.000Z</geom:geometry_start_time_utc>
+          <geom:geometry_stop_time_utc>2001-06-30T11:10:40.000Z</geom:geometry_stop_time_utc>
+          <geom:Orbiter_Identification>
+            <geom:Central_Body_Identification><geom:name>Mars</geom:name></geom:Central_Body_Identification>
+            <geom:Coordinate_System_Identification>
+              <geom:coordinate_system_type>Planetocentric</geom:coordinate_system_type>
+              <geom:Coordinate_System_Origin_Identification>
+                <geom:name>Mars</geom:name>
+              </geom:Coordinate_System_Origin_Identification>
+              <geom:Reference_Frame_Identification>
+                <geom:name>IAU2000_MARS</geom:name>
+              </geom:Reference_Frame_Identification>
+            </geom:Coordinate_System_Identification>
+          </geom:Orbiter_Identification>
+        </geom:Geometry_Orbiter>
+      </geom:Geometry>
+    </Discipline_Area>
+  </Observation_Area>
+  <Reference_List>
+    <Internal_Reference>
+      <lid_reference>urn:nasa:pds:mgs_mola_topography_derived:document:egdrsis</lid_reference>
+      <reference_type>data_to_document</reference_type>
+    </Internal_Reference>
+    <Internal_Reference>
+      <lid_reference>urn:nasa:pds:mgs_mola_topography_derived:document:mola_envi</lid_reference>
+      <reference_type>data_to_document</reference_type>
+    </Internal_Reference>
+  </Reference_List>
+  <File_Area_Observational>
+    <File>
+      <file_name>megt00n090hb.img</file_name>
+      <creation_date_time>2003-03-21T01:00:00</creation_date_time>
+      <comment>This data product is a topographic
+ map of Mars at a resolution of 0.00781 (1/128) by 0.00781 degrees,
+ based on altimetry data acquired by the Mars Global Surveyor MOLA
+ instrument and accumulated over the course of the primary and extended
+ mission. The MOLA Precision Experiment Data Records (PEDRs) are the
+ source for this data set. The map is in the form of a binary table
+ with one row for each 0.00781-degree latitude. Map coordinates use
+ the IAU2000 reference system, and areoid defined by the Goddard Mars
+ potential model GMM3 (mgm1025) evaluated to degree and order 50. The
+ binned data include all MOLA nadir observations from the Mapping Phase
+ through the Primary and Extended missions, from the end of aerobraking
+ in February 1999 through June 2001. Additionally, off-nadir
+ observations of the north pole are included from 87 N latitude and
+ northward, taken during the spring of 1998, and of both poles taken
+ during Mapping from 87 N and S to the poles. Data are adjusted using a
+ first-order crossover solution for radial, along-track, and
+ across-track position. Parts of orbits are excluded where solutions
+ for these orbits are deemed to be poor. (Note: subtract 10000 from a
+ MOLA mapping phase orbit number to determine the equivalent MGS
+ Project orbit number.) Also excluded are shots more than 1.2 degree
+ off-nadir (except as noted above), channel 4 returns, and any returns
+ not classified as ground returns, e.g. clouds or noise, according to
+ the SHOT_CLASSIFICATION_CODE. A total of nearly 600,000,000
+ observations are represented.</comment>
+    </File>
+    <Array_2D_Image>
+      <local_identifier>gridded_image</local_identifier>
+      <offset unit="byte">0</offset>
+      <axes>2</axes>
+      <axis_index_order>Last Index Fastest</axis_index_order>
+      <description>Each sample represents median observed topography within a 0.00781 by 0.00781 degree area. Where no observations lie within the area, an interpolated value is supplied.  Owing to the polar MGS orbit, density is lowest near the equator, where about 55% of bins contain at least one MOLA shot. There are gaps, however, of up to 12 km between profiles.  The minimum and maximum topography observations for the entire data set are -8208 and 21249 meters. Topography is the planetary radius minus the areoid radius at a given longitude and latitude.</description>
+      <Element_Array>
+        <data_type>SignedMSB2</data_type>
+        <unit>meter</unit>
+      </Element_Array>
+      <Axis_Array>
+        <axis_name>Line</axis_name>
+        <elements>5632</elements>
+        <sequence_number>1</sequence_number>
+      </Axis_Array>
+      <Axis_Array>
+        <axis_name>Sample</axis_name>
+        <elements>11520</elements>
+        <sequence_number>2</sequence_number>
+      </Axis_Array>
+    </Array_2D_Image>
+  </File_Area_Observational>
+  <File_Area_Observational_Supplemental>
+    <File>
+      <file_name>megt00n090hb.lbl</file_name>
+    </File>
+    <Stream_Text>
+      <offset unit="byte">0</offset>
+      <parsing_standard_id>PDS3</parsing_standard_id>
+      <description>Original PDS3 label.</description>
+      <record_delimiter>Carriage-Return Line-Feed</record_delimiter>
+    </Stream_Text>
+  </File_Area_Observational_Supplemental>
+  <File_Area_Observational_Supplemental>
+    <File>
+      <file_name>megt00n090hb.hdr</file_name>
+    </File>
+    <Stream_Text>
+      <offset unit="byte">0</offset>
+      <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
+      <description> The ENVI header is a separate ASCII file that includes basic image data file characteristics.
+        ENVI will read both files and use the map projection information in the header file to correctly display
+        the image. The header files are provided because ENVI is not able to import the map projection information
+        directly from the MEGDR image labels.
+      </description>
+      <record_delimiter>Carriage-Return Line-Feed</record_delimiter>
+    </Stream_Text>
+  </File_Area_Observational_Supplemental>
+</Product_Observational>

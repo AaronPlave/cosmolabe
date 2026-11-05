@@ -73,7 +73,9 @@ export function formForKind(
   // across a kind switch for the same reason roles do.
   for (const spec of kind.params ?? []) {
     const carried = previous?.params[spec.key];
-    if (carried !== undefined) params[spec.key] = carried;
+    // A shared key need not share its vocabulary: closest approach's
+    // local/global scope is unrelated to flight/activity/window scope.
+    if (carried !== undefined && (spec.kind !== 'choice' || spec.options.some(option => option.value === carried))) params[spec.key] = carried;
   }
 
   return {
@@ -82,7 +84,7 @@ export function formForKind(
     params,
     startEt: window.start,
     endEt: window.end,
-    step: previous?.step ?? kind.defaultStep,
+    step: kind.engine === 'trajectory-analysis' && previous?.kind !== kind.kind ? kind.defaultStep : previous?.step ?? kind.defaultStep,
   };
 }
 
@@ -109,6 +111,7 @@ export function buildQuery(
   const params: Record<string, unknown> = {};
   for (const spec of kind.params ?? []) {
     const raw = form.params[spec.key];
+    if (spec.when && !spec.when.values.includes(form.params[spec.when.key] ?? '')) continue;
     const value = parseParam(spec, raw);
     if (value !== undefined) params[spec.key] = value;
   }
@@ -132,7 +135,10 @@ function parseParam(spec: EventParamSpec, raw: string | undefined): unknown {
     }
     case 'boolean':
       return raw === 'true';
+    case 'activities':
+      try { return JSON.parse(raw); } catch { return []; }
     case 'choice':
+    case 'text':
       return raw;
   }
 }
@@ -271,7 +277,7 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 
   if (options.boundary && isIntervalEvent(event)) {
     const et = options.boundary === 'start' ? eventStart(event) : eventEnd(event);
-    return [`${title} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
+    return [`${title}${event.kind === 'mission-activity' && event.state === 'bounded' ? ' window' : ''} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
   }
 
   const headline = headlineMetric(event);
@@ -279,10 +285,10 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
   // observer again is noise; hover stays two lines, and selection adds a
   // third only when it says something the scene does not.
   if (!isIntervalEvent(event)) {
-    return [title, headline ? `${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
+    return [title, headline ? `${headline.label} ${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
   }
 
-  const duration = `Duration ${formatSeconds(eventDuration(event))}`;
+  const duration = event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`;
   const lines = [title, headline ? `${headline.label} ${formatMetric(headline)} · ${duration}` : duration];
   if (options.selected) {
     if (event.kind === 'occultation' && front && back) lines.push(`${front} occults ${back}`);
@@ -301,8 +307,11 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
   const title = eventCalloutTitle(event);
   const headline = headlineMetric(event);
-  if (headline) return [title, formatMetric(headline)];
-  if (isIntervalEvent(event)) return [title, formatSeconds(eventDuration(event))];
+  // The persistent inspector owns measurements. Keep the scene anchor brief
+  // for encounters, especially when a participant is only a few pixels wide.
+  if (event.kind === 'closest-approach') return [title];
+  if (headline) return [title, `${headline.label} ${formatMetric(headline)}`];
+  if (isIntervalEvent(event)) return [title, event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : formatSeconds(eventDuration(event))];
   return [title];
 }
 
@@ -351,7 +360,8 @@ export function sortEvents(
     // it sorts last rather than as if it were zero.
     if (va === undefined) return 1;
     if (vb === undefined) return -1;
-    return va - vb || compareEvents(a, b);
+    const direction = a.trajectoryAnalysis?.extremum === 'maximum' && b.trajectoryAnalysis?.extremum === 'maximum' ? -1 : 1;
+    return direction * (va - vb) || compareEvents(a, b);
   });
 }
 
@@ -432,4 +442,11 @@ export function activeEventAtTime(
     || a.id.localeCompare(b.id)
     || a.queryId.localeCompare(b.queryId)
   )[0];
+}
+
+/** Display precision is a readability choice, not an accuracy claim. Raw result coordinates stay untouched. */
+export function formatCoordinates(latitudeDeg: number, longitudeDeg: number): string {
+  const axis = (value: number, positive: string, negative: string) =>
+    `${Math.abs(value).toFixed(3)}° ${value < 0 ? negative : positive}`;
+  return `${axis(latitudeDeg, 'N', 'S')}, ${axis(longitudeDeg, 'E', 'W')}`;
 }

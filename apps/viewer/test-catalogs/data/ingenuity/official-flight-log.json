@@ -1,0 +1,585 @@
+{
+  "kind": "official-flight-summary",
+  "sourceUrl": "https://science.nasa.gov/wp-content/uploads/2024/06/ingenuity-helicopter-flight-log.pdf",
+  "sourceSha256": "dcf0b9e59eb8cb805e484c17f9cab8d56b5a03ca92f2facf708be59c45bf4e11",
+  "sourceBytes": 548273,
+  "interpretation": "Published rounded summary statistics; not a 3D telemetry series. Dates are Pacific time.",
+  "flights": [
+    {
+      "flight": 1,
+      "sol": 58,
+      "distanceM": 0.0,
+      "maxAltitudeM": 3.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 39.1
+    },
+    {
+      "flight": 2,
+      "sol": 61,
+      "distanceM": 4.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 0.5,
+      "durationS": 51.9
+    },
+    {
+      "flight": 3,
+      "sol": 64,
+      "distanceM": 100.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 2.0,
+      "durationS": 80.3
+    },
+    {
+      "flight": 4,
+      "sol": 69,
+      "distanceM": 266.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 3.5,
+      "durationS": 116.9
+    },
+    {
+      "flight": 5,
+      "sol": 76,
+      "distanceM": 129.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 2.0,
+      "durationS": 108.2
+    },
+    {
+      "flight": 6,
+      "sol": 91,
+      "distanceM": 215.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 139.9
+    },
+    {
+      "flight": 7,
+      "sol": 107,
+      "distanceM": 106.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 62.8
+    },
+    {
+      "flight": 8,
+      "sol": 120,
+      "distanceM": 160.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 77.4
+    },
+    {
+      "flight": 9,
+      "sol": 133,
+      "distanceM": 625.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 5.0,
+      "durationS": 166.4
+    },
+    {
+      "flight": 10,
+      "sol": 152,
+      "distanceM": 233.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.0,
+      "durationS": 165.4
+    },
+    {
+      "flight": 11,
+      "sol": 163,
+      "distanceM": 383.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.0,
+      "durationS": 130.9
+    },
+    {
+      "flight": 12,
+      "sol": 174,
+      "distanceM": 450.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.3,
+      "durationS": 169.5
+    },
+    {
+      "flight": 13,
+      "sol": 193,
+      "distanceM": 210.0,
+      "maxAltitudeM": 8.0,
+      "maxGroundspeedMS": 3.3,
+      "durationS": 160.5
+    },
+    {
+      "flight": 14,
+      "sol": 241,
+      "distanceM": 2.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 0.5,
+      "durationS": 23.0
+    },
+    {
+      "flight": 15,
+      "sol": 254,
+      "distanceM": 407.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.0,
+      "durationS": 128.8
+    },
+    {
+      "flight": 16,
+      "sol": 268,
+      "distanceM": 116.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 1.5,
+      "durationS": 107.9
+    },
+    {
+      "flight": 17,
+      "sol": 282,
+      "distanceM": 187.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 2.5,
+      "durationS": 116.8
+    },
+    {
+      "flight": 18,
+      "sol": 292,
+      "distanceM": 230.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 2.5,
+      "durationS": 124.3
+    },
+    {
+      "flight": 19,
+      "sol": 345,
+      "distanceM": 63.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 1.0,
+      "durationS": 99.8
+    },
+    {
+      "flight": 20,
+      "sol": 362,
+      "distanceM": 391.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.4,
+      "durationS": 130.3
+    },
+    {
+      "flight": 21,
+      "sol": 375,
+      "distanceM": 370.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.85,
+      "durationS": 129.2
+    },
+    {
+      "flight": 22,
+      "sol": 384,
+      "distanceM": 68.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 1.0,
+      "durationS": 101.4
+    },
+    {
+      "flight": 23,
+      "sol": 388,
+      "distanceM": 358.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 129.1
+    },
+    {
+      "flight": 24,
+      "sol": 398,
+      "distanceM": 47.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 1.45,
+      "durationS": 69.5
+    },
+    {
+      "flight": 25,
+      "sol": 403,
+      "distanceM": 704.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 5.5,
+      "durationS": 161.3
+    },
+    {
+      "flight": 26,
+      "sol": 414,
+      "distanceM": 360.0,
+      "maxAltitudeM": 8.0,
+      "maxGroundspeedMS": 3.8,
+      "durationS": 159.0
+    },
+    {
+      "flight": 27,
+      "sol": 418,
+      "distanceM": 307.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 152.9
+    },
+    {
+      "flight": 28,
+      "sol": 423,
+      "distanceM": 418.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.6,
+      "durationS": 152.4
+    },
+    {
+      "flight": 29,
+      "sol": 465,
+      "distanceM": 179.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 5.5,
+      "durationS": 66.6
+    },
+    {
+      "flight": 30,
+      "sol": 533,
+      "distanceM": 2.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 0.5,
+      "durationS": 33.3
+    },
+    {
+      "flight": 31,
+      "sol": 550,
+      "distanceM": 97.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.75,
+      "durationS": 55.6
+    },
+    {
+      "flight": 32,
+      "sol": 561,
+      "distanceM": 94.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.75,
+      "durationS": 55.3
+    },
+    {
+      "flight": 33,
+      "sol": 567,
+      "distanceM": 111.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.75,
+      "durationS": 55.2
+    },
+    {
+      "flight": 34,
+      "sol": 625,
+      "distanceM": 0.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 18.3
+    },
+    {
+      "flight": 35,
+      "sol": 635,
+      "distanceM": 15.0,
+      "maxAltitudeM": 14.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 52.0
+    },
+    {
+      "flight": 36,
+      "sol": 642,
+      "distanceM": 110.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 5.5,
+      "durationS": 60.5
+    },
+    {
+      "flight": 37,
+      "sol": 649,
+      "distanceM": 62.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 55.2
+    },
+    {
+      "flight": 38,
+      "sol": 667,
+      "distanceM": 111.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.5,
+      "durationS": 74.3
+    },
+    {
+      "flight": 39,
+      "sol": 673,
+      "distanceM": 140.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 78.7
+    },
+    {
+      "flight": 40,
+      "sol": 681,
+      "distanceM": 178.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.2,
+      "durationS": 91.6
+    },
+    {
+      "flight": 41,
+      "sol": 689,
+      "distanceM": 183.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 109.1
+    },
+    {
+      "flight": 42,
+      "sol": 697,
+      "distanceM": 248.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 137.2
+    },
+    {
+      "flight": 43,
+      "sol": 708,
+      "distanceM": 390.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 146.0
+    },
+    {
+      "flight": 44,
+      "sol": 711,
+      "distanceM": 334.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 3.5,
+      "durationS": 141.3
+    },
+    {
+      "flight": 45,
+      "sol": 714,
+      "distanceM": 496.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 6.0,
+      "durationS": 144.5
+    },
+    {
+      "flight": 46,
+      "sol": 717,
+      "distanceM": 445.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.3,
+      "durationS": 135.9
+    },
+    {
+      "flight": 47,
+      "sol": 729,
+      "distanceM": 440.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.3,
+      "durationS": 146.1
+    },
+    {
+      "flight": 48,
+      "sol": 741,
+      "distanceM": 398.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 4.65,
+      "durationS": 149.9
+    },
+    {
+      "flight": 49,
+      "sol": 752,
+      "distanceM": 282.0,
+      "maxAltitudeM": 16.0,
+      "maxGroundspeedMS": 6.5,
+      "durationS": 142.7
+    },
+    {
+      "flight": 50,
+      "sol": 763,
+      "distanceM": 322.0,
+      "maxAltitudeM": 18.0,
+      "maxGroundspeedMS": 4.6,
+      "durationS": 145.7
+    },
+    {
+      "flight": 51,
+      "sol": 772,
+      "distanceM": 188.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 4.0,
+      "durationS": 136.9
+    },
+    {
+      "flight": 52,
+      "sol": 776,
+      "distanceM": 363.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 3.7,
+      "durationS": 145.0
+    },
+    {
+      "flight": 53,
+      "sol": 860,
+      "distanceM": 143.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 2.5,
+      "durationS": 74.9
+    },
+    {
+      "flight": 54,
+      "sol": 872,
+      "distanceM": 0.0,
+      "maxAltitudeM": 5.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 24.4
+    },
+    {
+      "flight": 55,
+      "sol": 881,
+      "distanceM": 264.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 4.7,
+      "durationS": 142.9
+    },
+    {
+      "flight": 56,
+      "sol": 894,
+      "distanceM": 410.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.3,
+      "durationS": 140.9
+    },
+    {
+      "flight": 57,
+      "sol": 902,
+      "distanceM": 217.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 128.6
+    },
+    {
+      "flight": 58,
+      "sol": 910,
+      "distanceM": 174.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 106.8
+    },
+    {
+      "flight": 59,
+      "sol": 915,
+      "distanceM": 0.0,
+      "maxAltitudeM": 20.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 142.6
+    },
+    {
+      "flight": 60,
+      "sol": 924,
+      "distanceM": 340.0,
+      "maxAltitudeM": 16.0,
+      "maxGroundspeedMS": 8.0,
+      "durationS": 132.8
+    },
+    {
+      "flight": 61,
+      "sol": 933,
+      "distanceM": 0.0,
+      "maxAltitudeM": 24.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 129.5
+    },
+    {
+      "flight": 62,
+      "sol": 940,
+      "distanceM": 268.0,
+      "maxAltitudeM": 18.0,
+      "maxGroundspeedMS": 10.0,
+      "durationS": 121.1
+    },
+    {
+      "flight": 63,
+      "sol": 947,
+      "distanceM": 579.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 6.3,
+      "durationS": 142.6
+    },
+    {
+      "flight": 64,
+      "sol": 954,
+      "distanceM": 411.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.8,
+      "durationS": 139.1
+    },
+    {
+      "flight": 65,
+      "sol": 960,
+      "distanceM": 7.0,
+      "maxAltitudeM": 10.0,
+      "maxGroundspeedMS": 1.0,
+      "durationS": 48.0
+    },
+    {
+      "flight": 66,
+      "sol": 961,
+      "distanceM": 1.0,
+      "maxAltitudeM": 3.0,
+      "maxGroundspeedMS": 1.0,
+      "durationS": 23.0
+    },
+    {
+      "flight": 67,
+      "sol": 990,
+      "distanceM": 393.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 5.3,
+      "durationS": 135.9
+    },
+    {
+      "flight": 68,
+      "sol": 1003,
+      "distanceM": 702.0,
+      "maxAltitudeM": 16.0,
+      "maxGroundspeedMS": 10.0,
+      "durationS": 131.1
+    },
+    {
+      "flight": 69,
+      "sol": 1007,
+      "distanceM": 705.0,
+      "maxAltitudeM": 16.0,
+      "maxGroundspeedMS": 10.0,
+      "durationS": 135.4
+    },
+    {
+      "flight": 70,
+      "sol": 1009,
+      "distanceM": 260.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 3.0,
+      "durationS": 132.9
+    },
+    {
+      "flight": 71,
+      "sol": 1024,
+      "distanceM": 0.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 7.0,
+      "durationS": 35.0
+    },
+    {
+      "flight": 72,
+      "sol": 1035,
+      "distanceM": 0.0,
+      "maxAltitudeM": 12.0,
+      "maxGroundspeedMS": 0.0,
+      "durationS": 32.0
+    }
+  ]
+}

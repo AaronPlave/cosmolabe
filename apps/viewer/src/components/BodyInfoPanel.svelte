@@ -1,11 +1,33 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
+  import { getUniverse } from '../lib/loader';
   import type { InfoRow } from '@cosmolabe/three';
+  import type { StateAvailability } from '@cosmolabe/core';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
+  let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
+
+  let surfaceProvenance = $derived.by(() => {
+    void vs.frameTick;
+    const et = vs.et, name = vs.selectedBodyName, u = getUniverse(), r = getRenderer();
+    if (!name || !u || !r) return null;
+    const body = u.getBody(name), provenance = body?.surfaceTrajectory;
+    if (!body || !provenance) return null;
+    const parent = body.activeParentAt(et), bm = parent ? r.getBodyMesh(parent) : undefined;
+    if (!bm?.terrainDatum) return { provenance, messages: ['Current terrain datum is unavailable; no terrain adjustment is applied.'] };
+    const status = u.surfaceTrajectoryStatus(name, et, { frame: u.frames.bodyFixedFrameFor(parent!),
+      datum: bm.terrainDatum, terrainRevision: bm.terrainSourceRevision });
+    return { provenance, messages: status?.diagnostics.map(d => d.message) ?? [] };
+  });
+
+  let terrainFrameStatus = $derived.by(() => {
+    void vs.frameTick;
+    return vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.terrainFrameAvailability : null;
+  });
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
@@ -13,7 +35,8 @@
     const r = getRenderer();
     if (!r || !vs.selectedBodyName) return null;
     const bm = r.getBodyMesh(vs.selectedBodyName);
-    if (!bm) return null;
+    // A body with no position now keeps its last mesh position; that is not a range.
+    if (!bm || !bm.present) return null;
     return r.camera.position.distanceTo(bm.position) / r.scaleFactor;
   });
 
@@ -38,14 +61,16 @@
     // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
     // intersects the ellipsoid along the camera's radial direction.
     const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
     const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
     const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
+    const sampled = terrainSample != null && terrainPosition?.heightKm != null;
     return {
-      value: terrainSample
-        ? distance - (bm.terrainReferenceRadiusAt(terrainLatDeg) + terrainSample.elevationKm)
+      // Both public heights use the terrain datum's normal coordinate. Adding
+      // that height to a directional radius mixes geodetic and radial values.
+      value: sampled
+        ? terrainPosition!.heightKm! - terrainSample!.elevationKm
         : referenceAltitude,
-      sampled: terrainSample != null,
+      sampled,
     };
   });
 
@@ -80,15 +105,14 @@
       : 0;
     const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
     const terrainPosition = parentBm.terrainBodyFixedToGeodetic(bodyFixedPoint);
-    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
     const refRadius = parentBm.surfaceRadiusAtLat(radialLatDeg);
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
       const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
-      if (sample) {
-        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(terrainLatDeg) + sample.elevationKm);
+      if (sample && terrainPosition?.heightKm != null) {
+        aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
       }
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
@@ -105,10 +129,35 @@
     if (!state) return null;
     const [x, y, z] = state.position;
     const [vx, vy, vz] = state.velocity;
+    // No state at this epoch: say nothing rather than NaN km.
+    if (![x, y, z, vx, vy, vz].every(Number.isFinite)) return null;
     const range = Math.sqrt(x * x + y * y + z * z);
     const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
     return { range, speed };
   });
+
+  /**
+   * Position and attitude availability for bodies whose state can be missing
+   * (host mission-state sources, #43's structured reasons): the same answer
+   * the scene draws from, so the panel says why the model or marker is absent.
+   */
+  let stateStatus = $derived.by(() => {
+    void vs.et;
+    const u = getUniverse();
+    const name = vs.selectedBodyName;
+    const body = name ? u?.getBody(name) : undefined;
+    if (!u || !name || !body) return null;
+    const s = u.stateAvailability(name, vs.et);
+    const aware = !!body.trajectory.availabilityAt || !!body.rotation?.availabilityAt;
+    if (!aware && s.position.available && s.attitude?.available !== false) return null;
+    return s;
+  });
+
+  function availabilityText(a: StateAvailability): string {
+    if (!a.available) return a.message ?? 'Unavailable';
+    const kind = a.classification === 'planned' ? 'Predicted' : a.classification ? a.classification[0].toUpperCase() + a.classification.slice(1) : 'Available';
+    return a.authority === 'exploratory' ? `${kind} · exploratory` : kind;
+  }
 
   // SPE angle (Sun-Probe-Earth) — comm geometry, independent of target body
   let speAngle = $derived.by(() => {
@@ -206,6 +255,18 @@
     {#if bodyEntry?.classification}
       <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
     {/if}
+    {#if terrainFrameStatus?.kind === 'unavailable'}
+      <p class="text-xs text-text-muted mb-2">Terrain unavailable: {terrainFrameStatus.reason}</p>
+    {/if}
+    {#if surfaceProvenance}
+      <p class="text-xs text-text-muted mb-2">Absolute positions · {surfaceProvenance.provenance.frame} · km{surfaceProvenance.provenance.purpose === 'synthetic-demo' ? ' · Synthetic demo' : ''}</p>
+      {#each surfaceProvenance.messages as message}
+        <p class="text-xs text-text-muted mb-2">{message}</p>
+      {/each}
+    {/if}
+    {#if description}
+      <p class="text-xs text-text-muted mb-3">{description}</p>
+    {/if}
 
     <!-- CAMERA: camera-relative -->
     <div class="ui-section-label mb-1">Camera</div>
@@ -240,6 +301,20 @@
       </div>
     {/if}
 
+    {#if stateStatus}
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">State</div>
+      <div class="flex flex-col gap-0.5" data-state-status>
+        {#each [['Position', stateStatus.position], ['Attitude', stateStatus.attitude]] as const as [label, a] (label)}
+          {#if a}
+            <div class="ui-data-row" data-availability={a.available ? 'available' : a.reason ?? 'unavailable'}>
+              <span class="ui-label">{label}</span>
+              <span class="ui-readout {a.available ? '' : 'text-warning'}" title={a.sourceId ? `Source ${a.sourceId}` : undefined}>{availabilityText(a)}</span>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
     <!-- ORBIT: this body's motion relative to its parent -->
     {#if stateInfo && bodyAltitudes.parentBmName}
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
@@ -265,6 +340,9 @@
     <ImageryLayersSection />
 
     <!-- Plugin-contributed info sections -->
+    {#key vs.selectedBodyName}
+      <SurfaceAppearanceControls bodyName={vs.selectedBodyName} />
+    {/key}
     {#each pluginSections as section (section.id)}
       <div class="mt-2 pt-2 border-t border-border">
         <div class="ui-section-label mb-1">{section.label}</div>

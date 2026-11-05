@@ -1,0 +1,332 @@
+[
+  {
+    "body": "Mars",
+    "pose": {
+      "latDeg": 18,
+      "lonDeg": -133
+    },
+    "pickChecks": [
+      {
+        "bound": "minimum",
+        "expected": 3.187081918369219,
+        "minKm": 3.187081918369219,
+        "maxKm": 100
+      },
+      {
+        "bound": "maximum",
+        "expected": 3.187081918369219,
+        "minKm": -100,
+        "maxKm": 3.187081918369219
+      }
+    ],
+    "normal": {
+      "medianFrameMs": 173.69999998807907,
+      "p95FrameMs": 219.69999998807907,
+      "meshes": 35,
+      "mapped": 35,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 48,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "hillshade": {
+      "medianFrameMs": 142.7000000178814,
+      "p95FrameMs": 264.7999999821186,
+      "meshes": 35,
+      "mapped": 35,
+      "heightBytes": 0,
+      "groundBytes": 36548,
+      "reliefNormalBytes": 109644,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 48,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "combined": {
+      "medianFrameMs": 137.59999999403954,
+      "p95FrameMs": 159.19999998807907,
+      "meshes": 35,
+      "mapped": 35,
+      "heightBytes": 36548,
+      "groundBytes": 36548,
+      "reliefNormalBytes": 109644,
+      "minHeight": -26.258642196655273,
+      "maxHeight": 20.279783248901367,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 48,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "restored": {
+      "medianFrameMs": 144.59999999403954,
+      "p95FrameMs": 182.19999998807907,
+      "meshes": 35,
+      "mapped": 35,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 39,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "mobileCombined": {
+      "medianFrameMs": 44.30000001192093,
+      "p95FrameMs": 49.599999994039536,
+      "meshes": 32,
+      "mapped": 32,
+      "heightBytes": 33732,
+      "groundBytes": 33732,
+      "reliefNormalBytes": 101196,
+      "minHeight": -26.258642196655273,
+      "maxHeight": 20.279783248901367,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 48,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "mobileRestored": {
+      "medianFrameMs": 42.5,
+      "p95FrameMs": 45.900000005960464,
+      "meshes": 32,
+      "mapped": 32,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 46,
+      "memory": {
+        "geometries": 35,
+        "textures": 94
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "scrolling": {
+      "panelScrollTop": 193,
+      "dockScrollTop": 0
+    },
+    "physicalUnchanged": true,
+    "restoredChangedFraction": 0,
+    "terrain": {
+      "diagnostics": {
+        "tileCount": 46,
+        "sampleCount": 32,
+        "lastSampleMicros": 0,
+        "meanSampleMicros": 21.87499962747097,
+        "state": "ready"
+      },
+      "sample": {
+        "position": {
+          "latDeg": 18,
+          "lonDeg": -133
+        },
+        "elevationKm": 19.700977279244935,
+        "datum": {
+          "referenceShape": {
+            "kind": "ellipsoid",
+            "radiiKm": [
+              3396.19,
+              3396.19,
+              3376.2
+            ]
+          },
+          "verticalDatum": "ellipsoid",
+          "heightConvention": "radial"
+        },
+        "source": {
+          "id": "https://marshub.s3.amazonaws.com/mars_v14/",
+          "kind": "quantized-mesh",
+          "url": "https://marshub.s3.amazonaws.com/mars_v14/"
+        },
+        "tileId": "decoded:3/2/4.terrain?v=1"
+      }
+    },
+    "sourceImages": 92,
+    "tileWarnings": [],
+    "requestFailures": [],
+    "errors": []
+  },
+  {
+    "body": "Moon",
+    "pose": {
+      "latDeg": -85,
+      "lonDeg": 0
+    },
+    "pickChecks": [
+      {
+        "bound": "minimum",
+        "expected": -0.7832200940747653,
+        "minKm": -0.7832200940747653,
+        "maxKm": 100
+      },
+      {
+        "bound": "maximum",
+        "expected": -0.7832200940747653,
+        "minKm": -100,
+        "maxKm": -0.7832200940747653
+      }
+    ],
+    "normal": {
+      "medianFrameMs": 13.300000011920929,
+      "p95FrameMs": 14.099999994039536,
+      "meshes": 92,
+      "mapped": 92,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 113,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "hillshade": {
+      "medianFrameMs": 11.099999994039536,
+      "p95FrameMs": 12.100000023841858,
+      "meshes": 92,
+      "mapped": 92,
+      "heightBytes": 0,
+      "groundBytes": 99440,
+      "reliefNormalBytes": 298320,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 113,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "combined": {
+      "medianFrameMs": 21.19999998807907,
+      "p95FrameMs": 42.599999994039536,
+      "meshes": 92,
+      "mapped": 92,
+      "heightBytes": 99440,
+      "groundBytes": 99440,
+      "reliefNormalBytes": 298320,
+      "minHeight": -14.48360824584961,
+      "maxHeight": 7.802995204925537,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 113,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "restored": {
+      "medianFrameMs": 23.30000001192093,
+      "p95FrameMs": 26.899999976158142,
+      "meshes": 92,
+      "mapped": 92,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 96,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "mobileCombined": {
+      "medianFrameMs": 11,
+      "p95FrameMs": 16.100000023841858,
+      "meshes": 86,
+      "mapped": 86,
+      "heightBytes": 94040,
+      "groundBytes": 94040,
+      "reliefNormalBytes": 282120,
+      "minHeight": -14.48360824584961,
+      "maxHeight": 7.802995204925537,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 113,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "mobileRestored": {
+      "medianFrameMs": 14.400000005960464,
+      "p95FrameMs": 20.599999994039536,
+      "meshes": 86,
+      "mapped": 86,
+      "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
+      "minHeight": null,
+      "maxHeight": null,
+      "terrainRequests": 122,
+      "memory": {
+        "geometries": 88,
+        "textures": 113
+      },
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "scrolling": {
+      "panelScrollTop": 193,
+      "dockScrollTop": 0
+    },
+    "physicalUnchanged": true,
+    "restoredChangedFraction": 0,
+    "terrain": {
+      "diagnostics": {
+        "tileCount": 122,
+        "sampleCount": 202,
+        "lastSampleMicros": 99.99999403953552,
+        "meanSampleMicros": 13.86138649270086,
+        "state": "ready"
+      },
+      "sample": {
+        "position": {
+          "latDeg": -85,
+          "lonDeg": 0
+        },
+        "elevationKm": -1.1077589556372376,
+        "datum": {
+          "referenceShape": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "verticalDatum": "ellipsoid",
+          "heightConvention": "radial"
+        },
+        "source": {
+          "id": "https://marshub.s3.amazonaws.com/moon_v14/",
+          "kind": "quantized-mesh",
+          "url": "https://marshub.s3.amazonaws.com/moon_v14/"
+        },
+        "tileId": "decoded:4/15/0.terrain?v=1"
+      }
+    },
+    "sourceImages": 122,
+    "tileWarnings": [],
+    "requestFailures": [],
+    "errors": []
+  }
+]

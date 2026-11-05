@@ -1,0 +1,465 @@
+{
+  "results": [
+    {
+      "backend": "vector",
+      "records": [
+        {
+          "view": "Earth orbit",
+          "samples": [
+            {
+              "lon": 2,
+              "lat": 47,
+              "label": "France",
+              "off": [
+                43,
+                46,
+                22,
+                255
+              ],
+              "on": [
+                49,
+                67,
+                50,
+                255
+              ],
+              "rgbDifference": 55,
+              "hit": {
+                "kind": "geographic-feature",
+                "featureId": "string:1159320637"
+              }
+            },
+            {
+              "lon": -0.9,
+              "lat": -16.2,
+              "label": "ocean / seam artifact probe",
+              "off": [
+                1,
+                2,
+                8,
+                255
+              ],
+              "on": [
+                1,
+                2,
+                8,
+                255
+              ],
+              "rgbDifference": 0,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              }
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 8.5
+          }
+        },
+        {
+          "view": "Antarctica",
+          "samples": [
+            {
+              "lon": 0,
+              "lat": -89,
+              "label": "Antarctic interior",
+              "off": [
+                144,
+                144,
+                144,
+                255
+              ],
+              "on": [
+                136,
+                151,
+                155,
+                255
+              ],
+              "rgbDifference": 26,
+              "hit": {
+                "kind": "geographic-feature",
+                "featureId": "string:1159320335"
+              }
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 7.899999976158142
+          }
+        },
+        {
+          "view": "Southern Africa holes",
+          "samples": [
+            {
+              "lon": 28.5,
+              "lat": -29.5,
+              "label": "Lesotho hole",
+              "off": [
+                46,
+                35,
+                18,
+                255
+              ],
+              "on": [
+                52,
+                58,
+                46,
+                255
+              ],
+              "rgbDifference": 57,
+              "hit": {
+                "kind": "geographic-feature",
+                "featureId": "string:1159321027"
+              },
+              "highlighted": [
+                52,
+                58,
+                46,
+                255
+              ],
+              "highlightDifference": 0
+            },
+            {
+              "lon": 27,
+              "lat": -29,
+              "label": "South African fill",
+              "off": [
+                66,
+                50,
+                31,
+                255
+              ],
+              "on": [
+                69,
+                71,
+                58,
+                255
+              ],
+              "rgbDifference": 51,
+              "hit": {
+                "kind": "geographic-feature",
+                "featureId": "string:1159321431"
+              },
+              "highlighted": [
+                92,
+                75,
+                47,
+                255
+              ],
+              "highlightDifference": 38
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 9
+          }
+        }
+      ],
+      "metrics": {
+        "backend": "vector",
+        "coordinateRepresentation": "source-cuts",
+        "imported": 177,
+        "rasterFeatures": 0,
+        "overlayResolution": 256,
+        "split": true,
+        "rasters": 0,
+        "rasterCpuMs": 0,
+        "rasterTextures": 0,
+        "rasterTextureBytes": 0,
+        "pendingRasters": 0,
+        "pendingRedraws": false,
+        "vector": {
+          "drawCalls": 14,
+          "drawPages": 6,
+          "batches": 1,
+          "surfaceMeshes": 2,
+          "offsetVertices": 0,
+          "textureBytes": 12910592
+        },
+        "terrain": {
+          "update": {
+            "count": 986,
+            "lastMs": 0,
+            "meanMs": 0.040833333134651185,
+            "maxMs": 0.19999998807907104
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 992,
+            "lastMicros": 0,
+            "meanMicros": 1.7137096353596257
+          },
+          "tiles": {
+            "active": 2,
+            "visible": 2,
+            "drawn": 2,
+            "inCache": 2,
+            "cpu": 0
+          },
+          "network": {
+            "requests": 2,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 2281176,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 184024,
+            "textureBytes": 2097152
+          },
+          "imagery": {
+            "layers": 1,
+            "activeOverlays": 0,
+            "overlayResolution": 256,
+            "requests": 0,
+            "failed": 0
+          }
+        }
+      }
+    },
+    {
+      "backend": "raster",
+      "records": [
+        {
+          "view": "Earth orbit",
+          "samples": [
+            {
+              "lon": 2,
+              "lat": 47,
+              "label": "France",
+              "off": [
+                43,
+                46,
+                22,
+                255
+              ],
+              "on": [
+                45,
+                63,
+                56,
+                255
+              ],
+              "rgbDifference": 53,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              }
+            },
+            {
+              "lon": -0.9,
+              "lat": -16.2,
+              "label": "ocean / seam artifact probe",
+              "off": [
+                1,
+                2,
+                8,
+                255
+              ],
+              "on": [
+                1,
+                2,
+                8,
+                255
+              ],
+              "rgbDifference": 0,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              }
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 1.4000000059604645
+          }
+        },
+        {
+          "view": "Antarctica",
+          "samples": [
+            {
+              "lon": 0,
+              "lat": -89,
+              "label": "Antarctic interior",
+              "off": [
+                144,
+                144,
+                144,
+                255
+              ],
+              "on": [
+                136,
+                141,
+                142,
+                255
+              ],
+              "rgbDifference": 13,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              }
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 1.7000000178813934
+          }
+        },
+        {
+          "view": "Southern Africa holes",
+          "samples": [
+            {
+              "lon": 28.5,
+              "lat": -29.5,
+              "label": "Lesotho hole",
+              "off": [
+                46,
+                35,
+                18,
+                255
+              ],
+              "on": [
+                47,
+                56,
+                54,
+                255
+              ],
+              "rgbDifference": 58,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              },
+              "highlighted": [
+                47,
+                56,
+                54,
+                255
+              ],
+              "highlightDifference": 0
+            },
+            {
+              "lon": 27,
+              "lat": -29,
+              "label": "South African fill",
+              "off": [
+                66,
+                50,
+                31,
+                255
+              ],
+              "on": [
+                64,
+                65,
+                59,
+                255
+              ],
+              "rgbDifference": 45,
+              "hit": {
+                "kind": "entity",
+                "featureId": null
+              },
+              "highlighted": [
+                86,
+                65,
+                32,
+                255
+              ],
+              "highlightDifference": 49
+            }
+          ],
+          "style": {
+            "featureId": "string:1159321431",
+            "cpuMs": 2.800000011920929
+          }
+        }
+      ],
+      "metrics": {
+        "backend": "raster",
+        "coordinateRepresentation": "source-cuts",
+        "imported": 177,
+        "rasterFeatures": 177,
+        "overlayResolution": 256,
+        "split": true,
+        "rasters": 266,
+        "rasterCpuMs": 13.499999910593033,
+        "rasterTextures": 258,
+        "rasterTextureBytes": 67633152,
+        "pendingRasters": 0,
+        "pendingRedraws": true,
+        "vector": {
+          "drawCalls": 0,
+          "drawPages": 0,
+          "batches": 0,
+          "surfaceMeshes": 0,
+          "offsetVertices": 0,
+          "textureBytes": 0
+        },
+        "terrain": {
+          "update": {
+            "count": 1002,
+            "lastMs": 0.5,
+            "meanMs": 0.6533333313961823,
+            "maxMs": 1.5
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 1003,
+            "lastMicros": 0,
+            "meanMicros": 0.8973080817153185
+          },
+          "tiles": {
+            "active": 194,
+            "visible": 194,
+            "drawn": 194,
+            "inCache": 258,
+            "cpu": 0
+          },
+          "network": {
+            "requests": 266,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 339638788,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 1473028,
+            "textureBytes": 78118912
+          },
+          "imagery": {
+            "layers": 1,
+            "activeOverlays": 0,
+            "overlayResolution": 256,
+            "requests": 0,
+            "failed": 0
+          }
+        }
+      }
+    }
+  ],
+  "errors": []
+}

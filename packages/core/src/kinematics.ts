@@ -1,6 +1,6 @@
 import type { Body } from './Body.js';
 import type { InertialFrameName, Quaternion, RotationModel } from './rotations/RotationModel.js';
-import { DEFAULT_FRAMES, type FrameRegistry } from './frames/FrameRegistry.js';
+import { BODY_FIXED, DEFAULT_FRAMES, type FrameRegistry } from './frames/FrameRegistry.js';
 import { mat3ToQuat, mat3Vec } from './frames/mat3.js';
 
 /**
@@ -235,6 +235,17 @@ function activeParentPair(
   return { body, parent, parentRotation: parent.rotation };
 }
 
+/** Lunar surface queries follow the same declared realization as placement.
+ * A named IAU_MOON input cannot be treated as the selected ME body frame. */
+function lunarSurfacePosition(body: Body, rotation: RotationModel, position: Vec3, et: number, frames: FrameRegistry): Vec3 | undefined {
+  const target = rotation.bodyFixedFrame;
+  if (!target || !/^(MOON_ME|MOON_PA)(_|$)/i.test(target)) return undefined;
+  rotation.rotationAt(et); // Same-frame local coordinates still require orientation availability.
+  const source = body.frameAt(et);
+  if (frames.canonicalName(source) === BODY_FIXED || frames.sameFrame(source, target)) return position;
+  return frames.transformRequired(position, source, target, et);
+}
+
 /** Planetocentric sub-point — the lat/lon on the body's active parent
  *  (per `body.activeParentAt(et)`) directly below the body, plus altitude
  *  above the parent's equatorial radius. Returns null when the body has
@@ -261,7 +272,10 @@ export function subPointOf(
     return null;
   }
   if (!state) return null;
-  const q = parent.rotationAt(et);
+  let lunarPosition: Vec3 | undefined;
+  let q: Quaternion | undefined;
+  try { lunarPosition = lunarSurfacePosition(body, parentRotation, state.position, et, frames); q = parent.rotationAt(et); }
+  catch { return null; }
   if (!q) return null;
   // For body-fixed bodies, state.position is already in the parent's
   // body-fixed frame — no inertial-frame alignment is meaningful. Pass
@@ -275,7 +289,7 @@ export function subPointOf(
     et,
     frames,
   );
-  const bf = rotateVecByQuat(aligned, q);
+  const bf = lunarPosition ?? rotateVecByQuat(aligned, q);
   const r = Math.sqrt(bf[0] * bf[0] + bf[1] * bf[1] + bf[2] * bf[2]);
   if (r <= 0) return null;
   const lat = (Math.asin(bf[2] / r) * 180) / Math.PI;
@@ -317,8 +331,8 @@ export function bodyFixedVelocityMagnitudeOf(
     if (!sA || !sB || !qA || !qB) return null;
     const pA = alignPositionToFrame(sA.position, scFrame, parentFrame, et - dt, frames);
     const pB = alignPositionToFrame(sB.position, scFrame, parentFrame, et + dt, frames);
-    const bfA = rotateVecByQuat(pA, qA);
-    const bfB = rotateVecByQuat(pB, qB);
+    const bfA = lunarSurfacePosition(body, parentRotation, sA.position, et - dt, frames) ?? rotateVecByQuat(pA, qA);
+    const bfB = lunarSurfacePosition(body, parentRotation, sB.position, et + dt, frames) ?? rotateVecByQuat(pB, qB);
     const dvx = (bfB[0] - bfA[0]) / (2 * dt);
     const dvy = (bfB[1] - bfA[1]) / (2 * dt);
     const dvz = (bfB[2] - bfA[2]) / (2 * dt);

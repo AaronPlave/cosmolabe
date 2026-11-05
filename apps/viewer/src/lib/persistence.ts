@@ -1,3 +1,4 @@
+import { normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 /**
  * Layout & display settings persistence via localStorage.
  */
@@ -8,6 +9,7 @@ export interface ViewerPrefs {
   showTrajectories: boolean;
   showLabels: boolean;
   showGrid: boolean;
+  grid: GridSettings;
   showAxes: boolean;
   showSensors: boolean;
   showSensorLabels: boolean;
@@ -19,6 +21,7 @@ const DEFAULTS: ViewerPrefs = {
   showTrajectories: true,
   showLabels: true,
   showGrid: false,
+  grid: normalizeGridSettings(),
   showAxes: false,
   showSensors: true,
   showSensorLabels: true,
@@ -29,10 +32,11 @@ const DEFAULTS: ViewerPrefs = {
 export function loadPrefs(): ViewerPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    if (!raw) return { ...DEFAULTS, grid: normalizeGridSettings() };
+    const saved = JSON.parse(raw);
+    return { ...DEFAULTS, ...saved, grid: normalizeGridSettings(saved.grid) };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, grid: normalizeGridSettings() };
   }
 }
 

@@ -1,0 +1,780 @@
+{
+  "kind": "distant-imagery-depth-plane-regression",
+  "date": "2026-10-26",
+  "passed": true,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "method": "Actual MoonFall catalog. Camera at (-89.7,129), 2/5/10/5/2km above reference sphere, looking toward (-86,0). Before removes only the depth-plane repair in the browser response; all other recovery, sampler and cache settings are identical. Physical pixel-centre rays hit currently rendered triangles. Native-demand assertions apply to every distant ray. Pure debug hues must agree with committed cover; mixed multisample hues are retained and at least95% must decode unambiguously.",
+  "cause": "Imagery inherited terrain traversal depth planes, omitting physically drawn distant terrain from demand. Side planes and conservative physical horizon now determine visibility; traversal depth slab does not.",
+  "before": [
+    {
+      "view": "0-h2",
+      "heightAboveReferenceSphereKm": 2,
+      "samples": 382,
+      "distantSamples": 40,
+      "distantRootFallbacks": 6,
+      "omittedDistantDemand": 6,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 39,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.039999999999999605,
+          "lat": -88.5657501617255,
+          "lon": -18.006224373988484,
+          "distanceKm": 51.454519948810386,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 127
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 127
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 1,
+            "error": 0.3286523015308884
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        51.454519948810386,
+        135.89912703690837
+      ],
+      "displayedDistantLevels": [
+        0,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 19.5,
+      "imageryCpuMs": 1.4000000357627869,
+      "residentBytes": 80289792,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "1-h5",
+      "heightAboveReferenceSphereKm": 5,
+      "samples": 380,
+      "distantSamples": 86,
+      "distantRootFallbacks": 9,
+      "omittedDistantDemand": 9,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 84,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.05999999999999961,
+          "lat": -87.70238315282884,
+          "lon": -20.151003255630663,
+          "distanceKm": 77.9514886036572,
+          "wanted": {
+            "face": "nz",
+            "level": 7,
+            "x": 61,
+            "y": 63
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 7,
+              "address": {
+                "face": "nz",
+                "level": 7,
+                "x": 61,
+                "y": 63
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.05845466137220123
+          }
+        },
+        {
+          "x": -5.551115123125783e-17,
+          "y": -0.05999999999999961,
+          "lat": -88.3727912988853,
+          "lon": 4.710984222771786,
+          "distanceKm": 55.30122649358091,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 128
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 128
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.14367764857142412
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        50.045488931634054,
+        197.97345587481317
+      ],
+      "displayedDistantLevels": [
+        0,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18,
+      "imageryCpuMs": 1.199999988079071,
+      "residentBytes": 80661504,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "2-h10",
+      "heightAboveReferenceSphereKm": 10,
+      "samples": 383,
+      "distantSamples": 146,
+      "distantRootFallbacks": 19,
+      "omittedDistantDemand": 19,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 146,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [],
+      "distanceRangeKm": [
+        50.627380248206336,
+        199.92397303840576
+      ],
+      "displayedDistantLevels": [
+        0,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18.5,
+      "imageryCpuMs": 1.199999988079071,
+      "residentBytes": 82891776,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "3-h5",
+      "heightAboveReferenceSphereKm": 5,
+      "samples": 380,
+      "distantSamples": 86,
+      "distantRootFallbacks": 9,
+      "omittedDistantDemand": 9,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 84,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.05999999999999961,
+          "lat": -87.70238315282884,
+          "lon": -20.151003255630663,
+          "distanceKm": 77.9514886036572,
+          "wanted": {
+            "face": "nz",
+            "level": 7,
+            "x": 61,
+            "y": 63
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 7,
+              "address": {
+                "face": "nz",
+                "level": 7,
+                "x": 61,
+                "y": 63
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.05845466137220123
+          }
+        },
+        {
+          "x": -5.551115123125783e-17,
+          "y": -0.05999999999999961,
+          "lat": -88.3727912988853,
+          "lon": 4.710984222771786,
+          "distanceKm": 55.30122649358091,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 128
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 128
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.14367764857142412
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        50.045488931634054,
+        197.97345587481317
+      ],
+      "displayedDistantLevels": [
+        0,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18.299999952316284,
+      "imageryCpuMs": 1.0999999642372131,
+      "residentBytes": 82891776,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "4-h2",
+      "heightAboveReferenceSphereKm": 2,
+      "samples": 382,
+      "distantSamples": 40,
+      "distantRootFallbacks": 6,
+      "omittedDistantDemand": 6,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 39,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.039999999999999605,
+          "lat": -88.5657501617255,
+          "lon": -18.006224373988484,
+          "distanceKm": 51.454519948810386,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 127
+          },
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 127
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 1,
+            "error": 0.3286523015308884
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        51.454519948810386,
+        135.89912703690837
+      ],
+      "displayedDistantLevels": [
+        0,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 19.100000023841858,
+      "imageryCpuMs": 1.5,
+      "residentBytes": 82891776,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    }
+  ],
+  "after": [
+    {
+      "view": "0-h2",
+      "heightAboveReferenceSphereKm": 2,
+      "samples": 382,
+      "distantSamples": 40,
+      "distantRootFallbacks": 0,
+      "omittedDistantDemand": 0,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 39,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.039999999999999605,
+          "lat": -88.56575026499887,
+          "lon": -18.006223975122357,
+          "distanceKm": 51.4545166496056,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 127
+          },
+          "pixel": [
+            68,
+            67,
+            32,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 127
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 1,
+            "error": 0.3286523015308884
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        51.4545166496056,
+        135.8991159438875
+      ],
+      "displayedDistantLevels": [
+        6,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 19.200000047683716,
+      "imageryCpuMs": 2,
+      "residentBytes": 105566208,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "1-h5",
+      "heightAboveReferenceSphereKm": 5,
+      "samples": 380,
+      "distantSamples": 86,
+      "distantRootFallbacks": 0,
+      "omittedDistantDemand": 0,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 84,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.05999999999999961,
+          "lat": -87.70238257892764,
+          "lon": -20.15100414877008,
+          "distanceKm": 77.95150575120026,
+          "wanted": {
+            "face": "nz",
+            "level": 7,
+            "x": 61,
+            "y": 63
+          },
+          "pixel": [
+            108,
+            34,
+            28,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 7,
+              "address": {
+                "face": "nz",
+                "level": 7,
+                "x": 61,
+                "y": 63
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.05845466137220123
+          }
+        },
+        {
+          "x": -5.551115123125783e-17,
+          "y": -0.05999999999999961,
+          "lat": -88.37279074391617,
+          "lon": 4.710981512410085,
+          "distanceKm": 55.301243160842894,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 128
+          },
+          "pixel": [
+            103,
+            41,
+            20,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 128
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.14367764857142412
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        50.04548691242977,
+        197.97345127487168
+      ],
+      "displayedDistantLevels": [
+        6,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18.69999998807907,
+      "imageryCpuMs": 1.7000000476837158,
+      "residentBytes": 107424768,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "2-h10",
+      "heightAboveReferenceSphereKm": 10,
+      "samples": 383,
+      "distantSamples": 146,
+      "distantRootFallbacks": 0,
+      "omittedDistantDemand": 0,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 146,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [],
+      "distanceRangeKm": [
+        50.627382341612,
+        199.92397049865488
+      ],
+      "displayedDistantLevels": [
+        6,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18.5,
+      "imageryCpuMs": 1.7000000476837158,
+      "residentBytes": 112628736,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "3-h5",
+      "heightAboveReferenceSphereKm": 5,
+      "samples": 380,
+      "distantSamples": 86,
+      "distantRootFallbacks": 0,
+      "omittedDistantDemand": 0,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 84,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.05999999999999961,
+          "lat": -87.70238257892764,
+          "lon": -20.15100414877008,
+          "distanceKm": 77.95150575120026,
+          "wanted": {
+            "face": "nz",
+            "level": 7,
+            "x": 61,
+            "y": 63
+          },
+          "pixel": [
+            108,
+            34,
+            28,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 7,
+              "address": {
+                "face": "nz",
+                "level": 7,
+                "x": 61,
+                "y": 63
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.05845466137220123
+          }
+        },
+        {
+          "x": -5.551115123125783e-17,
+          "y": -0.05999999999999961,
+          "lat": -88.37279074391617,
+          "lon": 4.710981512410085,
+          "distanceKm": 55.301243160842894,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 128
+          },
+          "pixel": [
+            103,
+            41,
+            20,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 128
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 0,
+            "error": 0.14367764857142412
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        50.04548691242977,
+        197.97345127487168
+      ],
+      "displayedDistantLevels": [
+        6,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 18.19999998807907,
+      "imageryCpuMs": 1.699999988079071,
+      "residentBytes": 112628736,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    },
+    {
+      "view": "4-h2",
+      "heightAboveReferenceSphereKm": 2,
+      "samples": 382,
+      "distantSamples": 40,
+      "distantRootFallbacks": 0,
+      "omittedDistantDemand": 0,
+      "belowNativeDemand": 0,
+      "unambiguousGpuSamples": 39,
+      "gpuDisagreements": 0,
+      "ambiguousMultisamplePixels": [
+        {
+          "x": -0.4000000000000001,
+          "y": -0.039999999999999605,
+          "lat": -88.56575026499887,
+          "lon": -18.006223975122357,
+          "distanceKm": 51.4545166496056,
+          "wanted": {
+            "face": "nz",
+            "level": 8,
+            "x": 124,
+            "y": 127
+          },
+          "pixel": [
+            68,
+            67,
+            32,
+            255
+          ],
+          "images": [
+            {
+              "id": "layer-0",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "nz",
+                "level": 8,
+                "x": 124,
+                "y": 127
+              },
+              "opacity": 1,
+              "coveredByOpaqueUpper": false
+            }
+          ],
+          "gpuLevel": {
+            "level": 1,
+            "error": 0.3286523015308884
+          }
+        }
+      ],
+      "distanceRangeKm": [
+        51.4545166496056,
+        135.8991159438875
+      ],
+      "displayedDistantLevels": [
+        6,
+        7,
+        8
+      ],
+      "churn": {
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      "frameIntervalP95Ms": 19.200000047683716,
+      "imageryCpuMs": 1.800000011920929,
+      "residentBytes": 112628736,
+      "gpuAllocatedBytes": 538255360,
+      "queued": 0,
+      "budgetLimited": false
+    }
+  ],
+  "inputSha256": {
+    "before": "2bc0273dd2228accf4b234b593b20f793b321a003ec918193ffd397a5c59ff0d",
+    "after": "f8850c7019bd0bee6cb7d94129e4c2f04e21ebadf8b760946c69a74779a555c2"
+  },
+  "sourceSha256": {
+    "packages/three/src/CubeImageryLayer.ts": "b13e71d854a495193d4ff8ef331e0cbcd0b1361fd4218ecf95854630241bae1a",
+    "packages/three/src/CubeImageryPages.ts": "82cc65488975031d67bbb9612169063d1636135e9dec4c6045069820e7eb0010",
+    "packages/three/src/surface/ImageryRefinement.ts": "495a524ff12491337483c453f7d905974c71dec893f7aaa370d5c4b5430d5a07",
+    "packages/three/src/__tests__/CubeImageryLayer.test.ts": "3f0679d809d03bca0699e8125a8472e0f393e68c51e937c47ccdc43a5bb8d4f3",
+    "packages/three/src/__tests__/ImageryRefinement.test.ts": "8a6e6705246fbc08ceda26802c2d82dd86992db663e63323f8e2f1d8cf909ebe",
+    "apps/viewer/test-catalogs/moonfall-shackleton.json": "4639beeae08826a54a16058b802ad2f2f8f73d33c3b34bfac418ffe224e38476",
+    "scripts/test-imagery-horizon.mjs": "b905dc963d834484cf471310a0c04a7872bf22c84da0324c7a8be5bd4210a6bb",
+    "scripts/test-imagery-filtering.mjs": "078be8d86de9cdf75a5f632a09e769c76ecb382585a23bd1fceacaf4113e5e6a"
+  },
+  "limits": [
+    "Reconstructed camera poses reproduce the observed gray-horizon symptom, not an assertion of the original recording camera coordinates.",
+    "Ambiguous multisampled boundary pixels remain explicit; they are not evidence of exact GPU level equality.",
+    "Physical terrain, native source pixels and scientific products unchanged.",
+    "Hardware acceptance covers Apple M4 Max/Chrome Metal; other devices not tested in this run."
+  ]
+}

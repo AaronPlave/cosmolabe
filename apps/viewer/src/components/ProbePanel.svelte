@@ -5,10 +5,12 @@
    * numbers are measured from.
    */
   import {
-    coordinateDecimals, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
+    coordinateDecimals, surfaceNavigable, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
   } from '@cosmolabe/three';
-  import { Copy, Check } from 'lucide-svelte';
-  import { vs, getRenderer, clearProbePin } from '../lib/viewer-state.svelte';
+  import { Copy, Check, Ruler, Navigation, Maximize } from 'lucide-svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { vs, getRenderer, clearProbePin, navigateToSurfacePoint } from '../lib/viewer-state.svelte';
+  import { measureFromHere } from '../lib/spatial-measurements.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -87,6 +89,22 @@
       <div class="row"><span class="k">Radial distance</span><span class="v">{fmtRange(Math.hypot(...point.bodyFixedPositionKm))}</span></div>
       <div class="row"><span class="k">Altitude</span><span class="v">Unavailable (no defined datum)</span></div>
     {/if}
+
+    <!-- Camera navigation to the pinned point (#190): the same surface point,
+         not re-entered coordinates. Separate from measuring. -->
+    {#if surfaceNavigable(point)}
+    <div class="mt-3 flex gap-1.5">
+      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: true, from: 'pin', verb: 'frame' })} title="Fly to a local view of this point and orbit about it">
+        <Navigation size={13} /> Fly to here
+      </Button>
+      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: false, from: 'pin', verb: 'frame' })} title="Cut to a local view of this point and orbit about it">
+        <Maximize size={13} /> Frame here
+      </Button>
+    </div>
+    {/if}
+    <Button variant="secondary" size="sm" class="ui-control w-full {surfaceNavigable(point) ? 'mt-1.5' : 'mt-3'}" onclick={() => measureFromHere(point)}>
+      <Ruler size={13} /> Measure from here
+    </Button>
 
     <details class="mt-1.5">
       <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Details</summary>

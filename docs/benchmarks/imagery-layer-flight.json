@@ -1,0 +1,86 @@
+{
+  "baselineHead": "9293cc417d8e2408a3736988c03baa4630ee3a21",
+  "environment": {
+    "renderer": "Apple M4 Max / ANGLE Metal",
+    "viewport": [
+      1280,
+      900
+    ],
+    "headless": true
+  },
+  "measurement": "requestAnimationFrame intervals across 2.2-second layer-flight observations; projection cost measured around the shared imagery surface resolver",
+  "before": [
+    {
+      "name": "near-hover",
+      "frames": 185,
+      "maxDt": 91.60000000000036,
+      "slow": 9,
+      "maxClampKm": 0,
+      "projectionMs": 756.9000001549721,
+      "projectionCalls": 1162
+    },
+    {
+      "name": "near-nohover",
+      "frames": 265,
+      "maxDt": 9.399999999999636,
+      "slow": 0,
+      "maxClampKm": 0,
+      "projectionMs": 0.7999999523162842,
+      "projectionCalls": 1
+    },
+    {
+      "name": "far-hover",
+      "frames": 183,
+      "maxDt": 92.60000000000036,
+      "slow": 9,
+      "maxClampKm": 0,
+      "projectionMs": 789.9999999403954,
+      "projectionCalls": 1162
+    }
+  ],
+  "after": [
+    {
+      "name": "near-hover",
+      "frames": 265,
+      "maxDt": 9.399999999999636,
+      "slow": 0,
+      "maxClampKm": 0,
+      "projectionMs": 233.1999996304512,
+      "projectionCalls": 375
+    },
+    {
+      "name": "near-nohover",
+      "frames": 265,
+      "maxDt": 9.5,
+      "slow": 0,
+      "maxClampKm": 0,
+      "projectionMs": 0.8999999761581421,
+      "projectionCalls": 1
+    },
+    {
+      "name": "far-hover",
+      "frames": 265,
+      "maxDt": 9.700000000000728,
+      "slow": 0,
+      "maxClampKm": 0,
+      "projectionMs": 433.1999998688698,
+      "projectionCalls": 540
+    }
+  ],
+  "limits": [
+    "Single local desktop profiling session with warm terrain; timings are observations, not CI thresholds.",
+    "Terrain geometry, CPU grids, picking and camera path were not changed."
+  ],
+  "actualHoveredButton": {
+    "frames": 266,
+    "maxFrameMs": 9.400000000001455,
+    "framesOver40ms": 0,
+    "surfacePivot": true,
+    "physicalPick": "hit",
+    "outlineCenterNdc": [
+      -0.00007164246977065219,
+      -0.000010503172347761863,
+      0.9999973037171814
+    ]
+  }
+}

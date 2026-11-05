@@ -31,7 +31,7 @@ it.each(['auto', 'local'])('serves the unchanged catalog route in Vite with %s s
   await server.listen();
   const url = `http://127.0.0.1:${server.httpServer.address().port}/development/test-catalogs/moonfall-shackleton.json`;
   const original = readFileSync(join(ROOT, 'apps/viewer/test-catalogs/moonfall-shackleton.json'), 'utf8');
-  const resolver = createDevCatalogResolver({ datasets: loadDatasets().datasets, mode, baseUrl, log: () => {} });
+  const resolver = createDevCatalogResolver({ datasets: loadDatasets().datasets, mode, baseUrl, hostedBaseUrl: '/development/test-catalogs/__hosted/', log: () => {} });
   const expected = await resolver(JSON.parse(original), 'moonfall-shackleton.json');
   const response = await fetch(`${url}?unchanged=1`);
   expect(response.status).toBe(200);

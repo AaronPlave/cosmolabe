@@ -2103,8 +2103,11 @@ Steps 1–4 are done (*First migration*).
      globe (`hasStreamFailed`).
    - Rollback is one catalog block back to `moon_v14`, or `datasets.json`
      pointed at a previous immutable build.
-   - Keep `moon_v14` in `lro-moon.json`, and keep the geographic and polar
-     experiment products, until step 3 has been verified on the hosted build.
+   - Historical rollout gate: keep `moon_v14` in `lro-moon.json` until the
+     first hosted migration is verified. The #240 working catalog now uses
+     the pinned cube products; see [LRO migration status](../validation/lro-cube/README.md)
+     for pending deployed acceptance and rollback. Geographic and polar
+     experiment products remain comparison fixtures.
 5. **Then:**
    - `lro-moon.json`, whose LRO ground tracks are global and so depend on
      step 2;

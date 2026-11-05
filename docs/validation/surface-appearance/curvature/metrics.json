@@ -1,0 +1,60 @@
+{
+  "fixture": [
+    {
+      "segments": 4,
+      "version": "before",
+      "spread": 98
+    },
+    {
+      "segments": 4,
+      "version": "current",
+      "spread": 0
+    },
+    {
+      "segments": 16,
+      "version": "before",
+      "spread": 8
+    },
+    {
+      "segments": 16,
+      "version": "current",
+      "spread": 0
+    }
+  ],
+  "live": [
+    {
+      "rangeKm": 5599.999999999998,
+      "meshes": 54,
+      "source": {
+        "tileCount": 54,
+        "sampleCount": 141,
+        "lastSampleMicros": 0,
+        "meanSampleMicros": 9.929077845093206,
+        "state": "ready"
+      }
+    },
+    {
+      "rangeKm": 8999.999999999998,
+      "meshes": 54,
+      "source": {
+        "tileCount": 54,
+        "sampleCount": 315,
+        "lastSampleMicros": 0,
+        "meanSampleMicros": 10.15873012088594,
+        "state": "ready"
+      }
+    },
+    {
+      "rangeKm": 3799.9999999999995,
+      "meshes": 118,
+      "source": {
+        "tileCount": 118,
+        "sampleCount": 440,
+        "lastSampleMicros": 0,
+        "meanSampleMicros": 10.227272727272727,
+        "state": "ready"
+      }
+    }
+  ],
+  "errors": []
+}

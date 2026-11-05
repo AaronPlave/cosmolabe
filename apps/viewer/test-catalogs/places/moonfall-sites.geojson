@@ -1,0 +1,46 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "base",
+      "properties": {
+        "name": "MoonFall base (synthetic)",
+        "placeRef": "moon:mission:moonfall-sites/base",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "sourceFields": {
+          "origin": "Fictional MoonFall mission base copied from Polaris-A waypoints; not an observed landing site.",
+          "sceneObject": "Polaris-A"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -45,
+          -89.55
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "psr-landing",
+      "properties": {
+        "name": "MoonFall PSR landing (synthetic)",
+        "placeRef": "moon:mission:moonfall-sites/psr-landing",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "sourceFields": {
+          "origin": "Fictional planned landing waypoint from the MoonFall catalog; not an observed landing site."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2,
+          -89.71
+        ]
+      }
+    }
+  ]
+}

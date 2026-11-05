@@ -1,0 +1,413 @@
+{
+  "kind": "moonfall-surface-flight-pacing-followup",
+  "date": "2026-10-26",
+  "passed": true,
+  "baselineCommit": "8229a0301e63df7469b53bf09760eca9276f9e5b",
+  "sourceSha256": {
+    "packages/three/src/CubeImageryLayer.ts": "7c794dad2b8db2c59aed1dc478855750b5a737a25bcfc34e8c245c06babba220",
+    "packages/three/src/controls/modes/SurfaceMode.ts": "366ea9abd5eebdc7d42e02b5ee0e23ef106e21c19557f7e501854e0234353fa1",
+    "scripts/test-surface-flight-pacing.mjs": "221bac95a538af2a9019daa1c9374e4c4479ec58cbeabc9e66d146cc53ea6055"
+  },
+  "suppliedTrace": {
+    "sampledMs": 4722.753,
+    "inclusiveMs": {
+      "coarseWanted": 1624.861,
+      "updateTerrain": 2410.235,
+      "renderLoop": 3658.985,
+      "clampCameraAboveSurfaces": 139.025,
+      "_castSurfaces": 679.426
+    },
+    "note": "CPU sample weights; inclusive categories overlap. Trace covers about 4.44s; RAF events include callbacks other than renderer.",
+    "sha256": "277b3475df953d59e6d488fea9ac10a186b2de9dfe741c6f9ed791588dc8abe7"
+  },
+  "method": "Actual MoonFall catalog, physical Chrome Metal GPU, 1440x900; frozen mission time, Surface Flight at -89.67/129.78, ellipsoid altitude 5km, heading 180, pitch -5. Native D held for about five seconds. Stress phase inserts 35ms CPU work every fifth frame. Reported speed is measured position change divided by elapsed controller dt. Baseline imagery is injected only into the test browser, with current fixed-speed camera in both matched timing runs.",
+  "historicalSpeedDiagnosis": [
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": false,
+      "frameMs": {
+        "min": 9.899999976158142,
+        "p50": 16.599999964237213,
+        "p95": 23.600000023841858,
+        "max": 41
+      },
+      "imageryMs": {
+        "min": 4.099999964237213,
+        "p50": 4.800000011920929,
+        "p95": 17.5,
+        "max": 29.899999976158142
+      },
+      "speed": {
+        "min": 8.008227708712951,
+        "p50": 12.460373646252219,
+        "p95": 17.929426194150732,
+        "max": 18.18080482872848
+      },
+      "commandedSpeed": {
+        "min": 8.008227708712884,
+        "p50": 12.460373646252274,
+        "p95": 17.929426194150587,
+        "max": 18.180804828728583
+      },
+      "elapsedSeconds": 4.998899999976156,
+      "distanceKm": 69.0990215944202,
+      "speedRelativeSpread": 0.8163942277184598,
+      "movingSamples": 298,
+      "maximumBaseUncovered": 0
+    },
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": true,
+      "frameMs": {
+        "min": 8.5,
+        "p50": 16.19999998807907,
+        "p95": 45.39999997615814,
+        "max": 46.5
+      },
+      "imageryMs": {
+        "min": 4,
+        "p50": 4.800000011920929,
+        "p95": 5.5,
+        "max": 8.800000011920929
+      },
+      "speed": {
+        "min": 8.013752646092984,
+        "p50": 12.583623502984558,
+        "p95": 17.922037222331735,
+        "max": 18.1854396225572
+      },
+      "commandedSpeed": {
+        "min": 8.013752646093106,
+        "p50": 12.58362350298422,
+        "p95": 17.92203722233181,
+        "max": 18.185439622557123
+      },
+      "elapsedSeconds": 4.983399999976158,
+      "distanceKm": 68.82464889287148,
+      "speedRelativeSpread": 0.808327344985466,
+      "movingSamples": 250,
+      "maximumBaseUncovered": 0
+    }
+  ],
+  "matchedRendererBefore": [
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": false,
+      "frameMs": {
+        "min": 10.200000047683716,
+        "p50": 16.69999998807907,
+        "p95": 24.700000047683716,
+        "max": 56.89999997615814
+      },
+      "imageryMs": {
+        "min": 4.099999964237213,
+        "p50": 4.800000011920929,
+        "p95": 17.899999976158142,
+        "max": 44.59999996423721
+      },
+      "speed": {
+        "min": 15.578081683794773,
+        "p50": 15.578081683795226,
+        "p95": 15.578081683795476,
+        "max": 15.578081683795736
+      },
+      "commandedSpeed": {
+        "min": 15.578081683795226,
+        "p50": 15.578081683795226,
+        "p95": 15.578081683795226,
+        "max": 15.578081683795226
+      },
+      "elapsedSeconds": 5.016399999976147,
+      "distanceKm": 78.14588895821893,
+      "speedRelativeSpread": 6.18038489268196e-14,
+      "movingSamples": 294,
+      "maximumBaseUncovered": 0
+    },
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": true,
+      "frameMs": {
+        "min": 8.5,
+        "p50": 16.599999964237213,
+        "p95": 45.69999998807907,
+        "max": 46.39999997615814
+      },
+      "imageryMs": {
+        "min": 4.099999964237213,
+        "p50": 4.800000011920929,
+        "p95": 5.599999964237213,
+        "max": 9.099999964237213
+      },
+      "speed": {
+        "min": 15.578081683794549,
+        "p50": 15.578081683795231,
+        "p95": 15.578081683795533,
+        "max": 15.578081683795894
+      },
+      "commandedSpeed": {
+        "min": 15.578081683795226,
+        "p50": 15.578081683795226,
+        "p95": 15.578081683795226,
+        "max": 15.578081683795226
+      },
+      "elapsedSeconds": 4.983400000035759,
+      "distanceKm": 77.63181226358225,
+      "speedRelativeSpread": 8.63201358627351e-14,
+      "movingSamples": 250,
+      "maximumBaseUncovered": 0
+    }
+  ],
+  "after": [
+    {
+      "mode": "surface",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": false,
+      "frameMs": {
+        "min": 14.300000011920929,
+        "p50": 16.69999998807907,
+        "p95": 17.5,
+        "max": 18.799999952316284
+      },
+      "imageryMs": {
+        "min": 1,
+        "p50": 1.699999988079071,
+        "p95": 4.600000023841858,
+        "max": 7.5
+      },
+      "speed": {
+        "min": 15.578081683794338,
+        "p50": 15.57808168379478,
+        "p95": 15.578081683795041,
+        "max": 15.578081683795247
+      },
+      "commandedSpeed": {
+        "min": 15.578081683794771,
+        "p50": 15.578081683794771,
+        "p95": 15.578081683794771,
+        "max": 15.578081683794771
+      },
+      "elapsedSeconds": 5.017099999964229,
+      "distanceKm": 78.15679361520965,
+      "speedRelativeSpread": 5.838297167994934e-14,
+      "movingSamples": 301,
+      "maximumBaseUncovered": 0
+    },
+    {
+      "mode": "surface",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "stressed": true,
+      "frameMs": {
+        "min": 7.299999952316284,
+        "p50": 16.600000023841858,
+        "p95": 42.69999998807907,
+        "max": 44.30000001192093
+      },
+      "imageryMs": {
+        "min": 1,
+        "p50": 1.600000023841858,
+        "p95": 2.5,
+        "max": 5.300000011920929
+      },
+      "speed": {
+        "min": 15.578081683793979,
+        "p50": 15.57808168379478,
+        "p95": 15.578081683795045,
+        "max": 15.578081683795524
+      },
+      "commandedSpeed": {
+        "min": 15.578081683794771,
+        "p50": 15.578081683794771,
+        "p95": 15.578081683794771,
+        "max": 15.578081683794771
+      },
+      "elapsedSeconds": 4.98290000003576,
+      "distanceKm": 77.62402322273815,
+      "speedRelativeSpread": 9.920544015928893e-14,
+      "movingSamples": 250,
+      "maximumBaseUncovered": 0
+    }
+  ],
+  "profileBefore": {
+    "profileSampledMs": 16413.969,
+    "inclusiveCoarseWantedMs": 3642.439
+  },
+  "profileAfter": {
+    "profileSampledMs": 16610.316,
+    "inclusiveCoarseWantedMs": 0.0
+  },
+  "nativeWheel": {
+    "beforeKm": 6.8041211971566575,
+    "afterKm": 7.824739376730033
+  },
+  "navigationRegression": {
+    "passed": true,
+    "scenarios": [
+      {
+        "body": "Mars",
+        "scenario": "stationary-ground",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1,
+          "p99": 1.100000023841858,
+          "max": 1.399999976158142
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.699999999999818,
+          "p95": 16.799999999999272,
+          "p99": 16.800000000000182,
+          "max": 16.800000000000182
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "moving-ground",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1.2999999523162842,
+          "p99": 1.3000000715255737,
+          "max": 1.4000000357627869
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "flight-follow",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1.100000023841858,
+          "p99": 1.300000011920929,
+          "max": 1.699999988079071
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 33.30000000000109,
+          "max": 33.399999999999636
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "orbit-to-surface",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.7999999523162842,
+          "p95": 1.100000023841858,
+          "p99": 1.2999999523162842,
+          "max": 1.5000000596046448
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999709,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000291,
+          "max": 33.400000000001455
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "stationary-ground",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5,
+          "p95": 0.699999988079071,
+          "p99": 0.7000000476837158,
+          "max": 0.9000000357627869
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "moving-ground",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5999999046325684,
+          "p95": 0.699999988079071,
+          "p99": 0.7000000476837158,
+          "max": 0.7999999523162842
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "flight-follow",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.6000000238418579,
+          "p95": 0.800000011920929,
+          "p99": 0.8000000715255737,
+          "max": 0.9000000357627869
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.700000000000728,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000291,
+          "max": 33.29999999999927
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "orbit-to-surface",
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.6999999284744263,
+          "p95": 1.199999988079071,
+          "p99": 1.300000011920929,
+          "max": 1.5
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999709,
+          "p95": 16.799999999999272,
+          "p99": 16.799999999999272,
+          "max": 16.80000000000291
+        }
+      }
+    ]
+  },
+  "tests": {
+    "rendererTests": 904,
+    "rendererTestFiles": 77,
+    "typeScriptBuild": "passed",
+    "testTypecheck": "passed",
+    "changedFileLint": "passed"
+  },
+  "inputSha256": {
+    "before-v2": "104a500d51e60313d49c8d0715b206fcf54a409d2a6868091b5f1cd0a8ce291d",
+    "renderer-before-v3": "d4433d631ced3761dfd44914acf1700e493b3df1ff1a8a61c4bfb2064a3d1080",
+    "after-final": "aecd002895bc993b24932a56d01c148d5ee01f55fd3e8c0de7855e136e5ecbae",
+    "navigation": "05cb6010d0800eec4e609f7d68ded0d60ab2f01f4ac508596ecfd83d8d03da66"
+  },
+  "limits": [
+    "The supplied trace and recording are separate sessions; the trace alone does not identify a camera-speed fault.",
+    "Sampled CPU times are estimates and inclusive categories overlap.",
+    "Comparisons use native timed input, so exact travel durations and final positions differ slightly.",
+    "Cruise speed now changes only on entry, explicit altitude input or Shift boost. Collision constraints can still alter actual travel.",
+    "The existing 100ms frame-delta cap remains for long pauses; this does not promise zero visual stutter or instantaneous catch-up after a stall.",
+    "Raycast/label work remains visible in the supplied trace; no claim that all frame cost is eliminated.",
+    "Performance applies to this recorded Apple M4 Max Chrome/Metal setup."
+  ]
+}

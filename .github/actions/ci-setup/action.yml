@@ -1,0 +1,48 @@
+name: Prepare Node and SPICE test data
+description: Checkout, restore sparse LFS test kernels when needed, and install Node dependencies
+inputs:
+  test-kernels:
+    description: Fetch the sparse LFS kernel set used by Vitest and viewer smoke
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Use reachable Ubuntu package mirrors
+      if: runner.os == 'Linux'
+      shell: bash
+      # Some hosted images select the Azure HTTP mirror through a mirror list.
+      # Preserve the surface pilot's workaround before Playwright invokes apt.
+      run: |
+        for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+          if [[ -f "$apt_source" ]]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+          fi
+        done
+
+    - name: Cache LFS test kernels
+      if: inputs.test-kernels == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .git/lfs
+        key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
+
+    - name: Smudge sparse test-kernel LFS files
+      if: inputs.test-kernels == 'true'
+      shell: bash
+      # These sparse paths include the place smoke Mars base texture. In particular, do not
+      # fetch all viewer kernels: the other mission catalogs are much larger.
+      run: |
+        git lfs install --local
+        git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc,apps/viewer/test-catalogs/textures/mars.dds"
+        git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc" "apps/viewer/test-catalogs/textures/mars.dds"
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci

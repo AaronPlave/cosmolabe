@@ -39,7 +39,8 @@ export type {
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
+export { fitImageRect } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary, FovOutline, Rect as InstrumentImageRect } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
 export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
@@ -58,7 +59,7 @@ export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
 export type { BloomConfig } from './BloomEffect.js';
 export { StarField } from './StarField.js';
-export type { StarFieldOptions } from './StarField.js';
+export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
@@ -73,9 +74,18 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 // Controls
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
-export { CameraController } from './controls/CameraController.js';
-export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions } from './controls/CameraController.js';
+export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
+export type {
+  CameraFlight, CameraFlightOutcome, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
+} from './controls/CameraController.js';
+export {
+  bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint, surfacePointCoordinatePair, surfaceNavigable, SurfaceTerrainAnchor, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+} from './SurfaceNavigation.js';
+export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
+export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
@@ -87,10 +97,12 @@ export { bodyRotationFrame, spiceFrame, lvlhFrame, frameToWorldQuat } from './co
 export type { FrameOrientationSource } from './controls/frameOrientation.js';
 
 // Terrain
+export { DEFAULT_SURFACE_APPEARANCE, normalizeSurfaceAppearance, ELEVATION_PALETTES } from './SurfaceAppearance.js';
+export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
-export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
-export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLayerSource, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
@@ -107,6 +119,7 @@ export type {
 export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, TerrainMeshTile, TerrainTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
+export type { SiteMeshConfig, SiteMeshRegistration } from './SiteMeshPlacement.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -176,3 +189,11 @@ export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surfac
 export { CubeImageryLayer } from './CubeImageryLayer.js';
 export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
 export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
+export { placeAnchor } from './geographic/PlaceSurface.js';
+export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
+export { geographicSurfaceNote } from './geographic/GeographicStatus.js';
+export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
+export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';

@@ -1,3 +1,5 @@
+import type { GridSettings } from '@cosmolabe/control';
+import { setGridSettings, setDisplayOption, vs } from './viewer-state.svelte';
 /**
  * Camera view import/export — JSON download/upload of the current camera state.
  *
@@ -40,6 +42,8 @@ interface ExportedView extends ViewpointDefinition {
   mode?: string;
   /** Cosmolabe extension: simulation time at export, ISO 8601 UTC. */
   time?: string;
+  grid?: GridSettings;
+  showGrid?: boolean;
 }
 
 export function exportCameraView(renderer: UniverseRenderer): void {
@@ -59,6 +63,8 @@ export function exportCameraView(renderer: UniverseRenderer): void {
     center: cc.trackedBody?.body.name,
     mode: cc.mode,
     time: etToIso(renderer.timeController.et),
+    grid: vs.grid,
+    showGrid: vs.showGrid,
   };
 
   const blob = new Blob([JSON.stringify(view, null, 2)], { type: 'application/json' });
@@ -102,6 +108,8 @@ export function applyCameraView(renderer: UniverseRenderer, view: ExportedView):
     return;
   }
 
+  if (view.grid) setGridSettings(view.grid, { persist: false });
+  if (view.showGrid !== undefined) setDisplayOption('grid', view.showGrid, { persist: false });
   const cc = renderer.cameraController;
   const scale = renderer.scaleFactor;
 
@@ -122,10 +130,11 @@ export function applyCameraView(renderer: UniverseRenderer, view: ExportedView):
     const target = view.target
       ? new THREE.Vector3(view.target[0] * scale, view.target[1] * scale, view.target[2] * scale)
       : new THREE.Vector3(0, 0, 0);
-    const up = view.up
+    // A semantic `up` direction needs the catalog resolver; v1 takes a vector.
+    const up = Array.isArray(view.up)
       ? new THREE.Vector3(view.up[0], view.up[1], view.up[2]).normalize()
       : new THREE.Vector3(0, 1, 0);
-    cc.applyViewpoint({ name: view.name ?? 'Imported', position, target, up, trackBody: view.center });
+    cc.applyViewpoint({ position, target, up });
   }
 
   if (view.fov != null && Number.isFinite(view.fov)) {

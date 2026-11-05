@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "kind": "desired-surface-plan",
+  "body": "Mars",
+  "frame": "IAU_MARS",
+  "coordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "0..360",
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "gale",
+      "name": "Synthetic Gale region",
+      "body": "Mars",
+      "source": "gale.geojson"
+    }
+  ],
+  "regions": [
+    {
+      "id": "gale-context",
+      "feature": {
+        "layerId": "gale",
+        "featureId": "string:gale-context"
+      },
+      "imagery": {
+        "gsdM": 20
+      },
+      "elevation": {
+        "gsdM": 200
+      },
+      "fallback": "allow-coarser"
+    },
+    {
+      "id": "gale-local",
+      "feature": {
+        "layerId": "gale",
+        "featureId": "string:gale-local"
+      },
+      "imagery": {
+        "gsdM": 1
+      },
+      "elevation": {
+        "gsdM": 2
+      },
+      "fallback": "require-target",
+      "priority": 10
+    }
+  ]
+}

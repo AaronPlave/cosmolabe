@@ -7,13 +7,13 @@
  * initializes the scene. There is no per-mission code path.
  */
 import { configureMeasurementInput, resetMeasurementsForScene } from './spatial-measurements.svelte';
-import * as THREE from 'three';
 import {
   Universe,
   loadCatalogFromUrl,
-  bodyFixedOffsetToWorld,
   etFromCalendarString,
+  type CatalogFetcher,
   type ResolvedCatalogGraph,
+  type UniverseOptions,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm, and HeritageSpice — the adapter's own type — is what the
@@ -40,6 +40,7 @@ import {
 } from './kernel-set';
 import {
   bindRenderer,
+  displayNote,
   unbindRenderer,
   selectAndFlyTo,
   syncBodies,
@@ -57,6 +58,24 @@ import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
 import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
 import { categorizeFiles, resolveCatalogOrder, rememberLocalFilePath } from './local-files';
+import { workspace } from './workspace.svelte';
+
+/**
+ * What an embedding host adds to every scene (`embed.ts`): asset locations
+ * when the viewer is not served from its own page, and the mission-state
+ * factories and binding. Empty for the standalone app.
+ */
+export interface SceneHooks {
+  cspiceWasmUrl?: string;
+  starsUrl?: string;
+  universeOptions?: Pick<UniverseOptions, 'trajectoryFactories' | 'rotationFactories'>;
+  /** Called with each scene's universe once its catalogs are loaded, and with null when it goes. */
+  bindUniverse?(universe: Universe | null): void;
+}
+let hooks: SceneHooks = {};
+export function setSceneHooks(next: SceneHooks): void {
+  hooks = next;
+}
 
 let geographicImport: AbortController | null = null;
 function beginGeographicImport(): AbortController {
@@ -265,10 +284,15 @@ async function fetchWithProgress(
 
 // ── Kernel pipeline ──
 
-async function ensureSpice(): Promise<HeritageSpice> {
+async function ensureSpice(signal?: AbortSignal): Promise<HeritageSpice> {
   if (!spice) {
-    setLoadingState({ label: 'Initializing SPICE...' });
-    spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
+    setLoadingState({ label: 'Loading kernels', detail: 'Initializing SPICE', count: '', figures: '' });
+    const wasmUrl = hooks.cspiceWasmUrl ?? cspiceWasmUrl;
+    const created = await createHeritageSpice({ locateFile: () => wasmUrl });
+    // A load abandoned meanwhile must not install its instance into whatever
+    // session or scene came after it.
+    signal?.throwIfAborted();
+    spice ??= created;
   }
   return spice;
 }
@@ -348,9 +372,9 @@ async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKer
  * fetch but not the CSPICE load, so this is a real second or two on a large
  * catalog -- paid for answers that belong to the scene on screen.
  */
-async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promise<void> {
+async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?: AbortSignal): Promise<void> {
   teardownScene();
-  const s = await ensureSpice();
+  const s = await ensureSpice(signal);
 
   const plan = furnishOrder(
     userKernelSources.map((source): PlannedKernel => ({ source })),
@@ -367,22 +391,30 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
   let sizedLoaded = 0;
 
   for (let i = 0; i < plan.length; i++) {
+    signal?.throwIfAborted();
     const k = plan[i];
     const name = kernelName(k.source);
+    // One stable stage label; the file, its position and the measured bytes
+    // share one detail format so per-file and per-chunk updates never swap units.
+    // Real transferred bytes of the sized set — the nominal weights above
+    // spread the bar but are never shown as if they were measured.
+    const figuresFor = (loaded: number) =>
+      sizedTotal > 0 ? `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}` : '';
     setPhaseProgress('kernels', doneBytes / totalBytes, {
-      label: `Loading ${k.label ?? name}...`,
-      detail: `${i + 1} / ${plan.length} kernels`,
+      label: 'Loading kernels',
+      detail: k.label ?? name,
+      count: `${i + 1} / ${plan.length}`,
+      figures: figuresFor(0),
     });
     try {
-      await furnishPlanned(s, k, (loaded) => {
-        setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
-          // Real transferred bytes of the sized set — the nominal weights above
-          // spread the bar but are never shown as if they were measured.
-          detail: `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}`,
-        });
+      await furnishPlanned(s, k, signal, (loaded) => {
+        if (signal?.aborted) return;
+        setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, { figures: figuresFor(loaded) });
       });
+      signal?.throwIfAborted();
       furnished.push({ source: k.source, name, coverage: measureCoverage(s, name) });
     } catch (err) {
+      signal?.throwIfAborted();
       console.warn(`[Cosmolabe] Failed to load ${name}:`, err);
       dropUserKernel(k.source);
     }
@@ -390,7 +422,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
     sizedLoaded += k.size ?? 0;
   }
 
-  setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
+  setPhaseProgress('kernels', 1, { label: 'Building scene', detail: '', count: '', figures: '' });
   setKernelCount(s.totalLoaded());
 }
 
@@ -415,6 +447,7 @@ function teardownScene(): void {
   geometryWorker = null;
 
   unbindRenderer();
+  hooks.bindUniverse?.(null);
   renderer?.dispose();
   renderer = null;
   universe?.dispose();
@@ -429,27 +462,23 @@ function teardownScene(): void {
 async function furnishPlanned(
   s: HeritageSpice,
   k: PlannedKernel,
+  signal: AbortSignal | undefined,
   onProgress: (loaded: number) => void,
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
     const buffer = await source.file.arrayBuffer();
     await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    signal?.throwIfAborted();
     rememberKernelFrames(buffer);
     return;
   }
-  if (k.size && k.size > 0) {
-    // Fetched here rather than inside `furnish` only to report byte progress,
-    // which is worth it for the files big enough to be declared.
-    const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
-    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
-    rememberKernelFrames(buffer);
-    return;
-  }
-  const response = await fetch(source.url);
-  if (!response.ok) throw new Error(`Failed to fetch kernel: ${source.url} (${response.status})`);
-  const buffer = await response.arrayBuffer();
+  // Fetched here rather than inside `furnish` to undo `.gz` transport
+  // compression, and to report byte progress for the files big enough to be
+  // declared.
+  const buffer = await fetchWithProgress(source.url, k.size ? onProgress : undefined);
   await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  signal?.throwIfAborted();
   rememberKernelFrames(buffer);
 }
 
@@ -576,7 +605,7 @@ function initScene(
 
   universe = new Universe(
     spice ?? undefined,
-    (resolveFile || resolveFileBinary) ? { resolveFile, resolveFileBinary } : undefined,
+    (resolveFile || resolveFileBinary || hooks.universeOptions) ? { resolveFile, resolveFileBinary, ...hooks.universeOptions } : undefined,
   );
 
   // Inject Cesium Ion token from VITE_CESIUM_ION_TOKEN into any `terrain` block
@@ -615,6 +644,7 @@ function initScene(
     }
   }
 
+  hooks.bindUniverse?.(universe);
   startSceneWorkers();
 
   // Visual-regression test mode (`?test=1`): strip GPU-variant noise so
@@ -625,7 +655,7 @@ function initScene(
     showTrajectories: true,
     showLabels: true,
     showStars: !TEST_MODE,
-    starFieldOptions: { catalogUrl: `${import.meta.env.BASE_URL}stars.bin` },
+    starFieldOptions: { catalogUrl: hooks.starsUrl ?? `${import.meta.env.BASE_URL}stars.bin` },
     trajectoryOptions: { trailDuration: 86400 * 30 },
     minBodyPixels: 0,
     antialias: !TEST_MODE,
@@ -639,6 +669,16 @@ function initScene(
   });
   // DPR is pinned to 1 for capture via the browser context (Playwright
   // deviceScaleFactor: 1) — the renderer already follows window.devicePixelRatio.
+
+  // Entry catalogs load after their requirements, so the last declaration
+  // owns the initial setting; reusable data catalogs need not opt users in.
+  let defaultNames: unknown;
+  for (const json of catalogs) {
+    if (Array.isArray(json.defaultGeographicNames)) defaultNames = json.defaultGeographicNames;
+  }
+  if (Array.isArray(defaultNames)) {
+    for (const body of defaultNames) if (typeof body === 'string' && renderer.getBodyMesh(body)) renderer.placeNames.setBodyVisible(body, true);
+  }
 
   renderer.camera.position.set(0, 300, 500);
   renderer.camera.lookAt(0, 0, 0);
@@ -659,91 +699,14 @@ function initScene(
   // Bind reactive state
   configureMeasurementInput(renderer);
   bindRenderer(renderer, universe);
+  const caption = catalogs.at(-1)?.displayNote;
+  displayNote(typeof caption === 'string' ? caption : '');
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);
 
-  // Load catalog viewpoints
-  const scaleFactor = 1e-6;
-  for (const vpDef of universe.viewpoints) {
-    let pos: { x: number; y: number; z: number };
-    if (vpDef.eye) {
-      pos = { x: vpDef.eye[0] * scaleFactor, y: vpDef.eye[1] * scaleFactor, z: vpDef.eye[2] * scaleFactor };
-    } else if (vpDef.distance != null) {
-      const dist = vpDef.distance * scaleFactor;
-      // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
-      // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
-      // inertial coords Mars no longer faces), so it is mapped to world coords
-      // through the tracked body's (or its parent's) orientation at the epoch
-      // the viewpoint is for. The convention and the composition both live in
-      // core's `bodyFixedOffsetToWorld` so they are tested against SPICE.
-      //
-      // That epoch is the viewpoint's own `time` when it names one, and
-      // `defaultTime` otherwise: "Titan T-A Flyby (2004-10-26)" is a lat/lon on
-      // Titan four months after defaultTime, and orienting it with Titan's
-      // defaultTime attitude would aim the camera at the wrong hemisphere even
-      // though the clock it seeks to is right.
-      const layoutEt = vpDef.epoch ?? universe.time;
-      const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
-      // For a body that itself spins (planet, moon), use the body's own rotation.
-      // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
-      const spinBody = refBody?.rotation
-        ? refBody
-        : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      // An attitude from a CK can have gaps (a lander between touchdowns); a
-      // viewpoint inside one falls back to the world-frame offset below rather
-      // than taking the whole scene down with the SPICE error.
-      let q: ReturnType<NonNullable<typeof spinBody>['rotationAt']> | undefined;
-      try {
-        q = spinBody?.rotationAt(layoutEt);
-      } catch (err) {
-        console.warn(`[Cosmolabe] Viewpoint "${vpDef.name}": no orientation for ${spinBody?.name} at its epoch; laying it out in the world frame`, err);
-      }
-      const sourceFrame = spinBody?.rotation?.sourceFrame;
-      if (q && sourceFrame) {
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          q,
-          sourceFrame,
-          undefined,
-          layoutEt,
-          universe.frames,
-        );
-        pos = { x, y, z };
-      } else {
-        // No rotation model to orient against: fall back to treating the
-        // offset as world-frame, which is what it degenerates to anyway.
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          [1, 0, 0, 0],
-          'EclipticJ2000',
-        );
-        pos = { x, y, z };
-      }
-    } else {
-      pos = { x: 0, y: 300, z: 500 };
-    }
-
-    const tgt = vpDef.target
-      ? new THREE.Vector3(vpDef.target[0] * scaleFactor, vpDef.target[1] * scaleFactor, vpDef.target[2] * scaleFactor)
-      : new THREE.Vector3(0, 0, 0);
-    const up = vpDef.up ? new THREE.Vector3(vpDef.up[0], vpDef.up[1], vpDef.up[2]).normalize() : new THREE.Vector3(0, 1, 0);
-
-    renderer.cameraController.addViewpoint({
-      name: vpDef.name,
-      position: new THREE.Vector3(pos.x, pos.y, pos.z),
-      target: tgt,
-      up,
-      trackBody: vpDef.center,
-      // Resolved by CatalogLoader (SPICE str2et, else core's calendar parse),
-      // and undefined when the catalog named no time — which is what keeps a
-      // timeless viewpoint from moving the clock.
-      epoch: vpDef.epoch,
-    });
-  }
+  // Catalog viewpoints. Each is re-resolved whenever it is applied, at its
+  // own `time` or at the current time, through core's `resolveViewpoint`.
+  renderer.addCatalogViewpoints();
   renderer.cameraController.saveViewpoint('Default');
 
   // Apply default viewpoint. Also seeks the clock if that viewpoint declares a
@@ -774,15 +737,23 @@ function initScene(
     renderer.timeController.setTime(catalogEt);
   }
 
-  // Expose for console-based tuning during development.
-  (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
+  // Expose for console-based tuning during development — on our own page
+  // only: an embedding host's window is not ours to write globals into.
+  if (!workspace.embedded) (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
+
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('geographic-comparison')) {
+    const sceneUniverse = universe;
+    void import('./geographic-overlay-comparison.js').then(({attachGeographicComparison}) => {
+      if (r === renderer && sceneUniverse) return attachGeographicComparison(r, sceneUniverse);
+    }).catch(error => console.error('Geographic comparison setup failed', error));
+  }
 
   // The script host, beside it. `cosmo` is a *binding* of the ViewerControl
   // contract, not the contract itself — an embedded app or a test holds an
   // instance from `createViewerControl()` directly, and nothing in the port
   // reaches for this global. Exposed unconditionally because driving the viewer
   // from the browser console is the point; only `runScript` below is gated.
-  (window as unknown as { cosmo: ViewerControl }).cosmo = getCosmo();
+  if (!workspace.embedded) (window as unknown as { cosmo: ViewerControl }).cosmo = getCosmo();
 
   // Visual-regression capture hook (`?test=1` only). Lets the offscreen driver
   // (scripts/visual-regression.mjs) seek to a fixed epoch, apply a named
@@ -870,19 +841,19 @@ export function demoCatalogUrl(name: string): string {
 }
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
-export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
+export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string, fetcher?: CatalogFetcher) {
   const geographicController = beginGeographicImport();
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
   // that follow it are one continuous run rather than two 0→100 passes. The
   // catalog graph is what knows the kernel byte total, so the bar sits at zero
   // for the moment it takes to fetch and then gets its phase weights.
-  beginLoad('Fetching catalog...', { catalog: name });
+  beginLoad('Fetching catalog', { catalog: name });
 
   try {
-    const graph = await loadCatalogFromUrl(entryUrl);
+    const graph = await loadCatalogFromUrl(entryUrl, fetcher);
     geographicController.signal.throwIfAborted();
-    beginLoad('Preparing scene...', {
+    beginLoad('Preparing mission data', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
@@ -903,7 +874,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
     // A DSK surface is the exception: it is read by SPICE even with no kernels.
     if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
-      await buildSceneSpice(catalogKernels);
+      await buildSceneSpice(catalogKernels, geographicController.signal);
       geographicController.signal.throwIfAborted();
     } else {
       teardownScene();
@@ -920,8 +891,34 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
     if (geographicImport === geographicController) endLoad();
+    // A session disposed mid-load: `disposeSession` already released what it
+    // had built, and every step above stops at its next await without
+    // touching the module's scene state — which may be a later session's by
+    // now. Nothing to clean up here; say why it stopped.
+    if (geographicController.signal.reason === SESSION_DISPOSED) throw SESSION_DISPOSED;
     throw err;
   }
+}
+
+const SESSION_DISPOSED = new Error('The viewer was disposed');
+/** True for the rejection of a load whose session was disposed under it. */
+export const isSessionDisposed = (err: unknown): boolean => err === SESSION_DISPOSED;
+
+/**
+ * Release everything the viewer session holds — scene, workers, SPICE, the
+ * user's dropped kernels — and stop any load in flight from building another
+ * scene. An embedding host's dispose; the standalone page never calls it.
+ */
+export function disposeSession(): void {
+  geographicImport?.abort(SESSION_DISPOSED);
+  geographicImport = null;
+  // The canvas goes with the session, so its WebGL context is released now
+  // rather than whenever the collector gets to it. (A scene switch keeps it:
+  // the next scene draws on the same canvas.)
+  renderer?.renderer.forceContextLoss();
+  teardownScene();
+  userKernelSources.length = 0;
+  endLoad();
 }
 
 /**
@@ -1020,8 +1017,10 @@ async function furnishUserKernels(files: File[]): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     setPhaseProgress('kernels', (i + 1) / files.length, {
-      label: `Furnishing ${file.name}...`,
-      detail: `${i + 1} / ${files.length} kernels`,
+      label: 'Loading kernels',
+      detail: file.name,
+      count: `${i + 1} / ${files.length}`,
+      figures: '',
     });
     const source: KernelSourceRef = { file };
     if (furnished.some((k) => k.name === file.name)) {
@@ -1121,7 +1120,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   const geographicController = beginGeographicImport();
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
-  beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
+  beginLoad('Processing files', { catalog: 'Local files' });
   try {
     const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files, geographicController.signal);
     geographicController.signal.throwIfAborted();

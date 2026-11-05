@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-23",
+  "authorization": "User: catalog and deployment authorized",
+  "previousState": "Preview prefix absent; main GitHub Pages site unchanged",
+  "publish": {
+    "action": "publish",
+    "identity": "48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e",
+    "prefix": "previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/",
+    "viewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "objectCount": 24,
+    "bytes": 5082847
+  },
+  "rollback": {
+    "action": "rollback",
+    "identity": "48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e",
+    "prefix": "previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/",
+    "viewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "objectCount": 24,
+    "bytes": 5082847
+  },
+  "rollbackChecks": {
+    "hashCheckedEveryExistingObjectBeforeDelete": true,
+    "prefixEmptyAfterRemoval": true,
+    "publicEntryPointStatus": 404,
+    "immutableProductPrefixesOutsideRollbackScope": true
+  },
+  "restored": {
+    "action": "publish",
+    "identity": "48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e",
+    "prefix": "previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/",
+    "viewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "objectCount": 24,
+    "bytes": 5082847
+  },
+  "currentState": "Deployed and publicly hash/type/cache verified; all 24 files restored",
+  "supersedes": "preview-rollback-initial.json",
+  "initialPreviewRetained": true
+}

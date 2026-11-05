@@ -1,0 +1,76 @@
+{
+  "results": [
+    {
+      "logarithmicDepthBuffer": false,
+      "orthographic": false,
+      "labels": 1,
+      "sloped": 83,
+      "unrestricted": 83,
+      "occluded": 0,
+      "flat": 48,
+      "missingDepth": 83,
+      "fadingOccluded": 0,
+      "lowOpacity": 83,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": false,
+      "orthographic": true,
+      "labels": 1,
+      "sloped": 83,
+      "unrestricted": 83,
+      "occluded": 0,
+      "flat": 48,
+      "missingDepth": 83,
+      "fadingOccluded": 0,
+      "lowOpacity": 83,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": true,
+      "orthographic": false,
+      "labels": 1,
+      "sloped": 83,
+      "unrestricted": 83,
+      "occluded": 0,
+      "flat": 48,
+      "missingDepth": 83,
+      "fadingOccluded": 0,
+      "lowOpacity": 83,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": true,
+      "orthographic": true,
+      "labels": 1,
+      "sloped": 83,
+      "unrestricted": 83,
+      "occluded": 0,
+      "flat": 48,
+      "missingDepth": 83,
+      "fadingOccluded": 0,
+      "lowOpacity": 83,
+      "disabled": 0
+    }
+  ],
+  "coverage": {
+    "retained": {
+      "pixels": 57344,
+      "rows": 112,
+      "luminance": 12042240
+    },
+    "singleBand": {
+      "pixels": 0,
+      "rows": 0,
+      "luminance": 0
+    },
+    "disabled": {
+      "pixels": 0,
+      "rows": 0,
+      "luminance": 0
+    },
+    "smoothTransition": 0.00138811771238201,
+    "abruptTransition": 0.14005702066999287
+  },
+  "errors": []
+}

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "kind": "desired-surface-plan",
+  "body": "Moon",
+  "frame": "IAU_MOON",
+  "coordinates": {
+    "latitude": "planetographic",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "sphere",
+      "radiusKm": 1737.4
+    }
+  },
+  "layers": [
+    {
+      "id": "pole",
+      "name": "Synthetic south-pole seam regions",
+      "body": "Moon",
+      "source": "embedded:pole-enclosing",
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "polar-seam",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -135,
+                    -89
+                  ],
+                  [
+                    -45,
+                    -89
+                  ],
+                  [
+                    45,
+                    -89
+                  ],
+                  [
+                    135,
+                    -89
+                  ],
+                  [
+                    -135,
+                    -89
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "polar-seam",
+      "feature": {
+        "layerId": "pole",
+        "featureId": "string:polar-seam"
+      },
+      "imagery": {
+        "gsdM": 10
+      },
+      "elevation": {
+        "gsdM": 20
+      },
+      "fallback": "leave-unavailable"
+    }
+  ]
+}

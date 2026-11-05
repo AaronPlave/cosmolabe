@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "kind": "desired-surface-plan",
+  "body": "Mars",
+  "frame": "IAU_MARS",
+  "coordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "0..360",
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "jezero",
+      "name": "Synthetic Jezero approach / landing / touchdown",
+      "body": "Mars",
+      "source": "jezero.geojson"
+    }
+  ],
+  "regions": [
+    {
+      "id": "approach",
+      "feature": {
+        "layerId": "jezero",
+        "featureId": "string:approach"
+      },
+      "imagery": {
+        "gsdM": 20
+      },
+      "elevation": {
+        "gsdM": 100
+      },
+      "priority": 0,
+      "fallback": "allow-coarser"
+    },
+    {
+      "id": "landing",
+      "feature": {
+        "layerId": "jezero",
+        "featureId": "string:landing"
+      },
+      "imagery": {
+        "gsdM": 2
+      },
+      "elevation": {
+        "gsdM": 20
+      },
+      "priority": 10,
+      "fallback": "allow-coarser"
+    },
+    {
+      "id": "touchdown",
+      "feature": {
+        "layerId": "jezero",
+        "featureId": "string:touchdown"
+      },
+      "imagery": {
+        "gsdM": 0.25
+      },
+      "elevation": {
+        "gsdM": 1,
+        "accuracyM": 0.5
+      },
+      "priority": 100,
+      "fallback": "require-target"
+    }
+  ],
+  "budget": {
+    "publishedBytes": 100000000
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "results": [
+    {
+      "cpuRate": 1,
+      "mode": "elevation",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.20000001788139343,
+      "eventLoopResponsiveMs": 164.10000002384186,
+      "readyMs": 165.5,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 2.2999999821186066,
+      "maxBatchMs": 2.2999999821186066,
+      "maxTileMs": 0.19999998807907104,
+      "batches": 1
+    },
+    {
+      "cpuRate": 1,
+      "mode": "hillshade",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0,
+      "eventLoopResponsiveMs": 19.400000005960464,
+      "readyMs": 337.60000002384186,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 42.10000002384186,
+      "maxBatchMs": 4.4000000059604645,
+      "maxTileMs": 2.5999999940395355,
+      "batches": 11
+    },
+    {
+      "cpuRate": 4,
+      "mode": "elevation",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.20000001788139343,
+      "eventLoopResponsiveMs": 27,
+      "readyMs": 33.900000005960464,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 5.299999982118607,
+      "maxBatchMs": 4.199999988079071,
+      "maxTileMs": 0.800000011920929,
+      "batches": 2
+    },
+    {
+      "cpuRate": 4,
+      "mode": "hillshade",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.30000001192092896,
+      "eventLoopResponsiveMs": 26.5,
+      "readyMs": 690.4000000059605,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 134.59999999403954,
+      "maxBatchMs": 7.0999999940395355,
+      "maxTileMs": 6.0999999940395355,
+      "batches": 29
+    }
+  ],
+  "errors": []
+}

@@ -153,13 +153,12 @@ describe('development managed datasets', () => {
     expect(f.logs.join('\n')).toContain('mixed tile encodings');
   });
 
-  it('keeps the real Ingenuity catalog usable without unpublished Mars terrain', async () => {
+  it('keeps the real Ingenuity catalog usable when its managed products are unpublished and absent', async () => {
     const f = fixture();
-    const datasets = loadDatasets().datasets;
+    const datasets = Object.fromEntries(Object.entries(loadDatasets().datasets).map(([id, ds]) => [id, { ...ds, build: null }]));
     const catalog = JSON.parse(readFileSync(join(ROOT, 'apps/viewer/test-catalogs/ingenuity-jezero.json'), 'utf8'));
     const resolver = createDevCatalogResolver({ root: f.root, datasets, log: (m) => f.logs.push(m) });
-    const body = JSON.stringify(await resolver(catalog, 'ingenuity-jezero.json'));
-    expect(body).toContain('data/mars-terrain-fused/');
+    expect(await resolver(catalog, 'ingenuity-jezero.json')).toEqual(catalog);
     expect(f.logs.join('\n')).toContain('no pinned hosted build');
     expect(f.logs.join('\n')).toContain('Local URLs retained');
   });

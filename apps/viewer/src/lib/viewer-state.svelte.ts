@@ -1,3 +1,4 @@
+import { normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 /**
  * Reactive viewer state — bridges UniverseRenderer ↔ Svelte reactivity.
  *
@@ -5,13 +6,29 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
-import { etToDate, type Universe } from '@cosmolabe/core';
-import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
-import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import {
+  etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
+  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
+  type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type ViewpointDefinition,
+} from '@cosmolabe/core';
+import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
+import {
+  CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
+  surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
+} from '@cosmolabe/three';
 import * as THREE from 'three';
+import { surfaceNavDebugEnabled, surfaceNavLog, surfaceNavSnapshot, describeTargetHeight } from './surface-nav-debug';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
+import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
+import { workspaceNode } from './workspace.svelte';
+import { navigateToPlace, selectPlace, viewportPlace } from './places';
+import { setCatalogActivities } from './analysis.svelte';
+import { activityEvent } from './mission-activities';
+import type { MissionActivity } from '@cosmolabe/core';
+import { resettable } from './session.svelte';
 
 // ── Exported types ──
 
@@ -48,12 +65,51 @@ export function isDisplayOption(value: string): value is DisplayOption {
 
 /** Events the app publishes, independent of which renderer is mounted. */
 export interface ViewerEventMap {
+  probe: Record<string, never>;
+  places: Record<string, never>;
+  measurements: Record<string, never>;
+  geographic: Record<string, never>;
+  instrument: string | null;
+  events: Record<string, never>;
+  bookmarks: Record<string, never>;
+  surface: { body: string };
+  unload: Record<string, never>;
   /** The selection changed; null when it cleared. */
   select: string | null;
   /** Scene time moved. */
   time: number;
   /** A scene finished loading; the payload is its object list. */
   load: readonly string[];
+  /** The scene's initial models, textures and trails settled; its object list. */
+  ready: readonly string[];
+  /** Playback started, stopped or changed rate. */
+  playback: { playing: boolean; rate: number };
+  /** The scene's mission activities changed (catalog load or host update). */
+  activities: number;
+  /** The selected activity changed; null when none is selected. */
+  activitySelect: string | null;
+  /** The person navigated the camera, including between flights. */
+  cameraInput: Record<string, never>;
+  /** A camera flight ended, and how. */
+  flightEnd: { id: number; target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
+}
+
+/** Why the clock last moved: a host's `setTime`, the viewer (scrubber, keys, scripts), or playback. */
+export type TimeChangeCause = 'host' | 'viewer' | 'playback';
+let _hostTimeChange = false;
+let _timeCause: TimeChangeCause = 'viewer';
+/** The cause of the time change being notified right now. */
+export function timeChangeCause(): TimeChangeCause { return _timeCause; }
+/** Run a time change on a host's behalf, so its notification says so. */
+export function asHostTimeChange<T>(fn: () => T): T {
+  _hostTimeChange = true;
+  try { return fn(); } finally { _hostTimeChange = false; }
+}
+let _lastPlayback: { playing: boolean; rate: number } | null = null;
+function notifyPlayback(playing: boolean, rate: number) {
+  if (_lastPlayback && _lastPlayback.playing === playing && _lastPlayback.rate === rate) return;
+  _lastPlayback = { playing, rate };
+  emit('playback', { playing, rate });
 }
 
 // ── Single reactive state object ──
@@ -79,12 +135,16 @@ export const vs = $state({
 
   // Scene
   bodies: [] as BodyEntry[],
+  activities: [] as MissionActivity[],
+  activityMetadataAvailable: false,
   kernelCount: 0,
+  kernelRevision: 0,
 
   // Display
   showTrajectories: true,
   showLabels: true,
   showGrid: false,
+  grid: normalizeGridSettings(),
   showAxes: false,
   showSensors: true,
   showSensorLabels: true,
@@ -112,6 +172,10 @@ export const vs = $state({
   loadingProgress: 0,
   loadingLabel: '',
   loadingDetail: '',
+  /** Stage count beside the status (`9 / 21`); never truncated. */
+  loadingCount: '',
+  /** Measured figures beside the detail (`135.7 MB / 263.2 MB`); never truncated. */
+  loadingFigures: '',
   showLoading: false,
   /** The catalog the load in flight is for — what the loading screen names. */
   loadingCatalog: '',
@@ -121,6 +185,13 @@ export const vs = $state({
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+  navigateMode: 'places' as 'places' | 'coordinates',
+  places: null as PlaceIndex | null,
+  selectedPlaceRef: null as string | null,
+  placeBodies: [] as string[],
+  hiddenPlaceLayers: [] as string[],
+  excludedPlaceLayers: [] as string[],
+  placeFailures: [] as string[],
 
   /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
   probeActive: false,
@@ -130,9 +201,46 @@ export const vs = $state({
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
 
+  /**
+   * The sensor the Instrument view window shows (#192). The one source of
+   * truth: the Display selector, the window's own selector and the commands
+   * all write here, and the window pushes it to the renderer while it is on
+   * screen. Kept across closing the window; a new scene starts from its own
+   * first instrument.
+   */
+  instrumentSensor: null as string | null,
+
   /** Bodies currently identified in the 3D view by `highlightBodies`. */
   highlightedBodies: [] as string[],
+
+  /**
+   * The surface point the camera was last navigated to (#190) and pivots
+   * about, for the view context: the target on the body, never the camera's
+   * own position. Null once other navigation takes the camera.
+   */
+  surfaceTarget: null as SurfaceTargetInfo | null,
 });
+resettable(vs);
+
+/** What the view context shows about a surface navigation target. */
+export interface SurfaceTargetInfo {
+  place?: { ref: string; name: string };
+  bodyName: string;
+  /** "18.4447° N, 77.4508° E", in the convention and precision it was named in. */
+  coordinates: string;
+  /**
+   * The same place for the compact readout: at most 4 places (`wide`) or 2
+   * (`narrow`), longitude as E/W of the prime meridian (`compactTargetLabel`).
+   */
+  label: { wide: { lat: string; lon: string }; narrow: { lat: string; lon: string } };
+  /** How the coordinates were stated ("planetocentric, east-positive"), or the pick's source. */
+  convention: string;
+  /** Where the target's height came from. */
+  surface: string;
+  notes: string[];
+  /** The semantic viewpoint the camera was placed by, when it was a preset. */
+  viewpoint?: ViewpointDefinition;
+}
 
 // ── Renderer reference (not reactive — internal only) ──
 
@@ -174,10 +282,13 @@ export function formatBytes(bytes: number): string {
 
 export function setSceneLoaded(v: boolean) { vs.sceneLoaded = v; }
 export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null = null) {
+  const became = v && !vs.assetsReady;
   vs.assetsReady = v;
   vs.assetSummary = summary;
+  if (became) emit('ready', vs.bodies.map((b) => b.name));
 }
-export function setKernelCount(v: number) { vs.kernelCount = v; }
+/** Changes even when a replacement kernel set has the same file count. */
+export function setKernelCount(v: number) { vs.kernelCount = v; vs.kernelRevision++; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
@@ -238,10 +349,12 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+export function setLoadingState(opts: { label?: string; detail?: string; count?: string; figures?: string; progress?: number; show?: boolean; catalog?: string }) {
   if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
+  if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
   if (opts.show !== undefined) vs.showLoading = opts.show;
 }
@@ -269,7 +382,7 @@ export function onViewerEvent<K extends keyof ViewerEventMap>(
   return () => void set.delete(cb as (data: never) => void);
 }
 
-function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
+export function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
   for (const cb of _eventListeners.get(event) ?? []) {
     try {
       (cb as (d: ViewerEventMap[K]) => void)(data);
@@ -300,6 +413,8 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
+  vs.loadingFigures = '';
   vs.showLoading = true;
 }
 
@@ -307,11 +422,13 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
 export function setPhaseProgress(
   phase: LoadPhase,
   fraction: number,
-  opts: { label?: string; detail?: string } = {},
+  opts: { label?: string; detail?: string; count?: string; figures?: string } = {},
 ) {
   vs.loadingProgress = loadProgress.set(phase, fraction);
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
+  if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   vs.showLoading = true;
 }
 
@@ -320,6 +437,8 @@ export function endLoad() {
   loadProgress.finish();
   vs.loadingProgress = loadProgress.value;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
+  vs.loadingFigures = '';
   vs.showLoading = false;
 }
 
@@ -356,11 +475,22 @@ function syncTimeState() {
   vs.playing = tc.playing;
   vs.rateText = rateLabel(tc.rate);
   vs.timeText = etToUtcString(tc.et);
+  notifyPlayback(tc.playing, tc.rate);
+}
+
+function syncPlaceSelection(tracked: string | null | undefined) {
+  const selected = vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : null;
+  if (selected && tracked && selected.layer.body !== tracked) {
+    vs.selectedPlaceRef = null;
+    if (_renderer) _renderer.placeNames.selectedRef = null;
+  }
 }
 
 function syncCameraState() {
+  syncPlaceSelection(_renderer?.cameraController.focusBody?.body.name);
   if (!_renderer) return;
   const cc = _renderer.cameraController;
+  if (vs.surfaceTarget && (!cc.surfaceNavigating || (cc.focusBody && cc.focusBody.body.name !== vs.surfaceTarget.bodyName))) clearSurfaceTargetPresentation();
   vs.cameraMode = cc.mode;
   vs.trackedBodyName = cc.focusBody?.body.name ?? null;
   vs.lookAtBodyName = cc.lookAtBody?.body.name ?? null;
@@ -370,7 +500,7 @@ function syncCameraState() {
 /** Mirror the controller's flight into `vs.flight`, writing only on a change. */
 function syncFlightState() {
   const flight = _renderer?.cameraController.flight ?? null;
-  const target = flight ? flight.destination?.body.name ?? null : undefined;
+  const target = flight ? vs.surfaceTarget?.place?.name ?? flight.destination?.body.name ?? null : undefined;
   const current = vs.flight;
   if (!flight) {
     if (current !== null) vs.flight = null;
@@ -395,7 +525,7 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
     if (now - cachedAt < 250) return cached;
     cachedAt = now;
     const origin = canvas().getBoundingClientRect();
-    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+    cached = [...workspaceNode().querySelectorAll<HTMLElement>('[data-scene-occluder]')]
       .map((element) => element.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => ({
@@ -408,29 +538,79 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
   };
 }
 
+/** Counts scenes bound; see `sceneId`. */
+let _sceneId = 0;
+/**
+ * Which scene is bound: changes with every `bindRenderer`, a reload of the
+ * same catalog included, so IDs read from one scene are not taken for
+ * another's.
+ */
+export function sceneId(): number { return _sceneId; }
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
+  _sceneId++;
   _renderer = renderer;
   _universe = universe;
+  renderer.cameraController.onCameraInput = () => emit('cameraInput', {});
+  renderer.cameraController.onFlightEnd = (flight, outcome) =>
+    emit('flightEnd', { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path, outcome });
+  if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
   vs.catalogName = vs.loadingCatalog || null;
+  const syncPlaces = () => {
+    vs.places = renderer.placeNames?.index ?? null;
+    vs.placeBodies = [...(renderer.placeNames?.bodies ?? [])];
+    if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) selectPlace(null);
+    if (vs.surfaceTarget?.place && !vs.places?.byRef.has(vs.surfaceTarget.place.ref)) releaseSurfaceTarget();
+    vs.placeFailures = universe.geographicLayers?.loads.flatMap(load => load.status === 'error' ? load.diagnostics.map(d => `${load.id}: ${d.message}`) : []) ?? [];
+  };
+  syncPlaces();
+  _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  // Other features are Surface layers' (geographic-layers.svelte.ts).
+  _unsubscribers.push(renderer.events.on('geographic:click', ref => {
+    const place = viewportPlace(ref);
+    if (place) selectPlace(place);
+  }));
+  _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
+    const place = viewportPlace(ref);
+    if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
+  }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // A pinned point belongs to the scene it was probed in; the mode carries over.
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
-  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; emit('probe', {}); }));
+  // An instrument belongs to the scene it was chosen in.
+  vs.instrumentSensor = null;
+
+  // The Instrument view window is the viewer's presentation of the renderer's
+  // instrument view, so a sensor chosen anywhere else — a script, the console —
+  // shows in the window, and clearing it closes the window.
+  _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    emit('instrument', sensor);
+
+    if (sensor == null) {
+      closeTool('instrument');
+    } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
+      vs.instrumentSensor = sensor;
+      openTool('instrument');
+    }
+  }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
   vs.showTrajectories = prefs.showTrajectories;
   vs.showLabels = prefs.showLabels;
   vs.showGrid = prefs.showGrid;
+  vs.grid = prefs.grid;
   vs.showAxes = prefs.showAxes;
   vs.showSensors = prefs.showSensors;
   vs.showSensorLabels = prefs.showSensorLabels;
   vs.lightingMode = prefs.lightingMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
   renderer.setLabelsVisible(prefs.showLabels);
+  renderer.setGridSettings(prefs.grid);
   renderer.showBodyGrid(prefs.showGrid);
   renderer.showBodyAxes(prefs.showAxes);
   renderer.setSensorLabelsVisible(prefs.showSensorLabels);
@@ -448,13 +628,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // scene, so no `assets:ready` can be missed.
   vs.assetsReady = false;
   vs.assetSummary = null;
-  setPhaseProgress('assets', 0, { label: 'Loading models, textures & trajectories...', detail: '' });
+  setPhaseProgress('assets', 0, { label: 'Loading models and textures', detail: '', count: '', figures: '' });
   _unsubscribers.push(renderer.events.on('assets:progress', (p) => {
     // `total` still grows as nested assets are discovered, so this is a floor on
     // real progress, not a countdown — which is why setPhaseProgress clamps the
     // bar monotonic and nothing here claims 100% before 'assets:ready'.
     setPhaseProgress('assets', p.total > 0 ? p.settled / p.total : 0, {
-      detail: p.total > 0 ? `${p.settled} / ${p.total} assets` : '',
+      count: p.total > 0 ? `${p.settled} / ${p.total}` : '',
     });
   }));
   _unsubscribers.push(renderer.events.on('assets:ready', (summary) => {
@@ -475,13 +655,17 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     endLoad();
   }
 
+  _lastPlayback = null;
   const unsub = renderer.timeController.onTimeChange((newEt: number) => {
     vs.et = newEt;
     vs.timeText = etToUtcString(newEt);
     vs.playing = renderer.timeController.playing;
     vs.rate = renderer.timeController.rate;
     vs.rateText = rateLabel(renderer.timeController.rate);
+    _timeCause = _hostTimeChange ? 'host' : renderer.timeController.playing ? 'playback' : 'viewer';
+    notifyPlayback(vs.playing, vs.rate);
     emit('time', newEt);
+    _timeCause = 'viewer';
   });
   _unsubscribers.push(unsub);
 
@@ -498,7 +682,16 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // for the length of the flight.
     const cc = renderer.cameraController;
     const focus = cc.focusBody?.body.name ?? null;
-    if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
+    if (vs.trackedBodyName !== focus) {
+      vs.trackedBodyName = focus;
+      syncPlaceSelection(focus);
+    }
+    if (vs.surfaceTarget && !cc.surfaceNavigating) clearSurfaceTargetPresentation();
+    if (_terrainAnchor && vs.frameTick % 15 === 0) refineAnchoredTerrain();
+    if (vs.frameTick % 30 === 0 && surfaceNavDebugEnabled()) logSurfaceNavTick();
+    // A right-drag free look ends a look-at from inside the controller.
+    const aim = cc.lookAtBody?.body.name ?? null;
+    if (vs.lookAtBodyName !== aim) vs.lookAtBodyName = aim;
     syncFlightState();
     rafId = requestAnimationFrame(tick);
   };
@@ -511,10 +704,29 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
 }
 
 export function unbindRenderer() {
+  vs.activities = [];
+  vs.activityMetadataAvailable = false;
+  setCatalogActivities([]);
   for (const unsub of _unsubscribers) unsub();
   _unsubscribers = [];
+  if (_renderer) {
+    _renderer.cameraController.onFlightEnd = null;
+    _renderer.cameraController.onCameraInput = null;
+  }
   _renderer = null;
   _universe = null;
+  if (vs.selectedBodyName !== null) selectBody(null);
+  vs.probePin = null;
+  vs.instrumentSensor = null;
+  vs.note = null;
+  vs.surfaceTarget = null;
+  _terrainAnchor = null;
+  vs.places = null;
+  vs.selectedPlaceRef = null;
+  vs.placeBodies = [];
+  vs.hiddenPlaceLayers = [];
+  vs.excludedPlaceLayers = [];
+  vs.placeFailures = [];
   // The pins went with the renderer; keeping the names would unpin bodies in
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
@@ -526,10 +738,33 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+  emit('unload', {});
+}
+
+/**
+ * Palette command: open the Instrument view window, or step to the next sensor
+ * once it is on screen. Wraps around. The `I` shortcut only opens/raises.
+ */
+export function showNextInstrument() {
+  if (!isPanelVisible('instrument')) {
+    openTool('instrument');
+    return;
+  }
+  const sensors = _renderer?.getSensorNames() ?? [];
+  if (sensors.length === 0) return;
+  const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
+  vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  _renderer?.setInstrumentView(vs.instrumentSensor);
+  openTool('instrument'); // raise it, so the change is seen
 }
 
 export function getRenderer(): UniverseRenderer | null {
   return _renderer;
+}
+
+/** The scene's universe, or null with no scene. */
+export function getSceneUniverse(): Universe | null {
+  return _universe;
 }
 
 // ── Commands ──
@@ -582,6 +817,10 @@ export function setTime(newEt: number) {
   );
   if (!next) {
     initScrubberRange();
+    // A seek outside everything the scene's data spans (a host following a
+    // live feed, an activity beyond the trajectories) extends the timeline to
+    // it rather than leaving the playhead off the end.
+    extendTimelineBase(newEt, newEt);
     return;
   }
   vs.scrubMin = next.min;
@@ -804,6 +1043,35 @@ export function frameBody(name?: string): boolean {
   return true;
 }
 
+/** Fit a pair using the existing frame/orbit-target ownership. No animation can
+ * reassert the pose after a person takes over. World positions are refreshed
+ * after changing floating origin; no scientific/body coordinates are altered. */
+export function frameBodyPair(target: string, observer: string): boolean {
+  if (!_renderer?.getBodyMesh(target) || !_renderer.getBodyMesh(observer)) return false;
+  if (!frameBody(target)) return false;
+  const r = _renderer, a = navigableMesh(target)!, b = navigableMesh(observer)!;
+  const cc = r.cameraController;
+  if (cc.mode !== CameraModeName.FREE_ORBIT) cc.setMode(CameraModeName.FREE_ORBIT);
+  r.refreshBodyPose(target); r.refreshBodyPose(observer);
+  const pa = a.position.clone(), pb = b.position.clone();
+  const axis = pb.clone().sub(pa), separation = axis.length();
+  if (!Number.isFinite(separation)) return false;
+  if (separation === 0) return true;
+  axis.normalize();
+  const center = pa.clone().add(pb).multiplyScalar(.5);
+  const direction = cc.camera.position.clone().sub(cc.controls.target);
+  direction.addScaledVector(axis, -direction.dot(axis));
+  if (direction.lengthSq() < 1e-20) direction.crossVectors(axis, Math.abs(axis.y) < .9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0));
+  direction.normalize();
+  // Leave margin around the pair for the ordinary docked inspection panels.
+  const radius = separation / 2 + Math.max(a.displayRadius, b.displayRadius) * r.scaleFactor;
+  const halfFov = Math.min(cc.camera.fov * Math.PI / 360, Math.atan(Math.tan(cc.camera.fov * Math.PI / 360) * cc.camera.aspect));
+  cc.camera.position.copy(center).addScaledVector(direction, 2 * radius / Math.sin(halfFov));
+  cc.controls.target.copy(center); cc.camera.lookAt(center); cc.camera.updateMatrixWorld(true);
+  cc.syncOrbitTargetFromCamera(); syncCameraState();
+  return true;
+}
+
 /**
  * Fly: animate to the view `frameBody` would cut to, then track the body.
  * `path` defaults to `DEFAULT_FLIGHT_PATH`; `seconds` to the path's own
@@ -881,18 +1149,58 @@ export function gotoObject(
  * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
  * looking straight down with north up, close enough that the box fills the view.
  */
-export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number], latitudeConvention: 'planetocentric' | 'geodetic'): boolean {
   if (!_renderer) return false;
   const bm = _renderer.getBodyMesh(bodyName);
   if (!bm) return false;
-  const [w, s, e0, n] = bounds;
-  const e = e0 < w ? e0 + 360 : e0;
+  const view = bm.imageryRegionView(bounds, _renderer.camera.aspect, _renderer.camera.fov, latitudeConvention);
+  if (!view) return false;
+  // Preserve the imagery coordinate convention and rendered surface height;
+  // land with the regional image as the orbit pivot, rather than the body centre.
+  _renderer.cameraController.flyToSurface(bm, {
+    position: view.position.multiplyScalar(_renderer.scaleFactor),
+    target: view.target.multiplyScalar(_renderer.scaleFactor),
+    up: view.up,
+  }, { path: 'arc', duration: 1.5 });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
+}
+
+/**
+ * Look straight down at a surface area: `northSpanDeg` of latitude by
+ * `eastSpanDeg` of longitude around a centre, fitted to the view with north up.
+ * Over a pole there is no north; the 0° meridian runs down the screen over the
+ * north pole and up it over the south, as polar stereographic maps draw them.
+ *
+ * `datum` places the camera for bodies without streamed terrain (a reference
+ * globe); `minSpanKm` keeps a point from putting the camera on the ground.
+ * `seconds: 0` cuts rather than flies.
+ */
+export function flyOverSurface(
+  bodyName: string,
+  area: { latDeg: number; lonDeg: number; northSpanDeg: number; eastSpanDeg: number },
+  opts: { datum?: TerrainDatum; minSpanKm?: number; seconds?: number } = {},
+): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
   const rad = Math.PI / 180;
   const cam = _renderer.camera;
-  const heightKm = (n - s) * rad * bm.displayRadius;
-  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
-  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
-  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  const pole = Math.abs(area.latDeg) >= 90 - 1e-9;
+  const minSpan = opts.minSpanKm ?? 0;
+  const heightKm = Math.max(minSpan, area.northSpanDeg * rad * bm.displayRadius);
+  const widthKm = Math.max(minSpan, pole ? heightKm : area.eastSpanDeg * rad * bm.displayRadius * Math.cos(area.latDeg * rad));
+  // Measured from the ground where it is resident, so a high plateau does not swallow the camera.
+  const groundKm = bm.sampleTerrain(area.latDeg, area.lonDeg)?.elevationKm ?? 0;
+  const altitudeKm = groundKm + 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  let position = bm.geodeticOffsetKm(area.latDeg, area.lonDeg, altitudeKm, new THREE.Vector3());
+  if (!position && opts.datum) {
+    const p = geodeticToBodyFixed({ latDeg: area.latDeg, lonDeg: area.lonDeg, heightKm: altitudeKm }, opts.datum);
+    // Body-fixed is Z-up; the mesh frame is Y-up with -Z toward +90° lon.
+    position = new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+  }
   if (!position) return false;
   const cc = _renderer.cameraController;
   // Modes that frame something else (a spacecraft's LVLH, a surface camera)
@@ -904,14 +1212,300 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
   // One flight from wherever the camera is, switching origin on landing —
   // tracking first would cut to a default framing of the body.
   cc.flyTo(bm, {
-    duration: 1.5,
+    duration: opts.seconds ?? 1.5,
     offset: position.multiplyScalar(_renderer.scaleFactor),
-    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+    // North in the mesh frame; over a pole, toward the 180° meridian (north)
+    // or the 0° meridian (south).
+    up: pole ? new THREE.Vector3(area.latDeg > 0 ? -1 : 1, 0, 0) : new THREE.Vector3(0, 1, 0),
   });
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.
   vs.trackedBodyName = bodyName;
   return true;
+}
+
+// ── Surface navigation (#190) ──
+//
+// Navigation to a place on a body: by coordinates, from a pinned probe point,
+// or from a point right-clicked in the scene. The target is resolved by core
+// against the body's physical reference shape (and terrain, when decoded);
+// these only choose the camera verb. None of them changes the selection, the
+// simulation time or a measurement.
+
+export type SurfaceNavigationResult = { ok: true; target: SurfaceNavigationTarget } | { ok: false; error: string };
+
+/**
+ * Resolve entered coordinates on `input.bodyName` without moving the camera,
+ * for validation as the person types. Fails with a reason a person can act
+ * on: no such body, no physical shape, no rotation model, bad input.
+ */
+export function resolveCoordinateTarget(input: GeographicCoordinateInput): SurfaceNavigationResult {
+  const bm = _renderer?.getBodyMesh(input.bodyName);
+  const body = _universe?.getBody(input.bodyName);
+  if (!bm || !body) return { ok: false, error: `No body named "${input.bodyName}"` };
+  const reference = navigationReference(navigationShapeOf(bm));
+  if (!reference.ok) return { ok: false, error: reference.reason };
+  if (!body.rotation) return { ok: false, error: `${input.bodyName} has no rotation model, so it has no body-fixed coordinates` };
+  let target: SurfaceNavigationTarget;
+  try {
+    target = resolveGeographicTarget(input, reference.reference);
+  } catch (e) {
+    if (e instanceof GeographicNavigationError) return { ok: false, error: e.message };
+    throw e;
+  }
+  if (reference.reference.datum.origin === 'terrain') {
+    const sample = bm.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
+    target = sample
+      ? withTerrainElevation(target, sample.elevationKm, sample.source.id, sample.tileId)
+      : withoutTerrainCoverage(target);
+  }
+  return { ok: true, target };
+}
+
+/** Bodies the coordinate dialog can offer: globes with a physical reference and a rotation model. */
+export function coordinateBodies(): string[] {
+  if (!_renderer || !_universe) return [];
+  const out: string[] = [];
+  for (const body of _universe.getAllBodies()) {
+    const bm = _renderer.getBodyMesh(body.name);
+    if (bm && body.rotation && navigationReference(navigationShapeOf(bm)).ok) out.push(body.name);
+  }
+  return out;
+}
+
+function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint, place?: SurfaceTargetInfo['place']): SurfaceTargetInfo {
+  const { origin } = target;
+  const input = origin.kind === 'coordinates' ? origin.input : null;
+  const shape = target.datum?.origin === 'terrain' ? 'terrain datum' : 'reference shape';
+  return {
+    bodyName: target.bodyName,
+    ...(place ? { place } : {}),
+    // Entered coordinates keep the precision typed; a pick, its pointer's.
+    coordinates: describeNavigationTarget(target, input
+      ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
+      : picked ? coordinateDecimals(picked) : 4),
+    label: (() => {
+      // A pick shows no more places than it resolves.
+      const places = picked ? Math.max(coordinateDecimals(picked).lat, coordinateDecimals(picked).lon) : 4;
+      return { wide: compactTargetLabel(target, Math.min(4, places)), narrow: compactTargetLabel(target, Math.min(2, places)) };
+    })(),
+    convention: input
+      ? `${input.latitude}, ${input.longitudeDirection}-positive`
+      : origin.kind === 'surface-point' ? `${origin.latitudeKind}, east-positive; picked on ${origin.source}` : '',
+    surface: target.height.from === 'terrain-sample' ? `on terrain (${target.height.sourceId})`
+      : target.height.from === 'surface-point' ? 'the picked point'
+      : `on the ${shape}`,
+    notes: target.notes,
+    ...(viewpoint ? { viewpoint } : {}),
+  };
+}
+
+/** Decimal places the person typed, so the readout does not drop entered precision. */
+function decimalsOf(v: number): number {
+  const text = String(v);
+  const dot = text.indexOf('.');
+  return dot < 0 || text.includes('e') ? 0 : Math.min(10, text.length - dot - 1);
+}
+
+/**
+ * Fly or jump to `target` at a preset view (overhead, oblique, surface). An
+ * arc that rises around the body, never through it; manual input stops it.
+ * The target becomes the orbit pivot on landing.
+ */
+export function navigateToSurfaceTarget(
+  target: SurfaceNavigationTarget,
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
+): SurfaceNavigationResult {
+  if (!_renderer) return { ok: false, error: 'No scene' };
+  if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) {
+    return { ok: false, error: 'Seconds must be zero or more' };
+  }
+  const bm = navigableMesh(target.bodyName);
+  if (!bm) return { ok: false, error: `No body named "${target.bodyName}"` };
+  let placement;
+  try {
+    placement = surfaceViewPlacement(target, opts.preset ?? 'overhead', {
+      rangeKm: opts.rangeKm, groundRadiusAt: terrainGroundRadius(bm),
+    });
+  } catch (e) {
+    if (e instanceof GeographicNavigationError || e instanceof ViewpointError) return { ok: false, error: e.message };
+    throw e;
+  }
+  const pose = surfacePoseFromBodyFixed(placement, _renderer.scaleFactor);
+  const cc = _renderer.cameraController;
+  const before = surfaceNavDebugEnabled() ? surfaceNavSnapshot(_renderer, bm, target) : null;
+  let plan: ReturnType<typeof cc.flyToSurface> | { kind: 'jump' };
+  if (opts.animate === false || opts.seconds === 0) { cc.jumpToSurface(bm, pose); plan = { kind: 'jump' }; }
+  else plan = cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
+  syncCameraState();
+  if (before) {
+    const sf = _renderer.scaleFactor;
+    surfaceNavLog('navigate', {
+      body: target.bodyName, preset: placement.preset, rangeKm: placement.rangeKm, eyeLiftedKm: placement.liftedKm,
+      target: describeTargetHeight(target), from: before,
+      plan: plan.kind === 'flight' ? { kind: 'flight', riseKm: plan.rise / sf, chordKm: plan.chord / sf, seconds: plan.duration } : plan,
+    });
+  }
+  _surfaceNavDebugUntil = performance.now() + 8000;
+  clearSurfaceTargetPresentation();
+  vs.surfaceTarget = describeTarget(target, placement.viewpoint, undefined, opts.place);
+  syncFlightState();
+  // A coordinate target on a terrain body stays anchored while tiles refine.
+  _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
+    ? { anchor: new SurfaceTerrainAnchor(target, bm), viewpoint: placement.viewpoint }
+    : null;
+  return { ok: true, target };
+}
+
+/**
+ * The coordinate target the camera is navigating to or pivoting about, kept
+ * as its geographic anchor while terrain streams (#190). The frame loop
+ * re-samples the terrain there whenever the body's sampler has decoded
+ * something new: the first sample after a cold cache, and every finer tile
+ * after a coarse parent that moves the ground by more than
+ * `TERRAIN_REFINE_MIN_KM`, moves the target, its pivot and the camera onto
+ * it together — so the camera never orbits a point inside a hill or above a
+ * basin as LOD refines. The handoff is final when other navigation takes
+ * the camera (the anchor is dropped then), never on the first sample.
+ */
+let _terrainAnchor: { anchor: SurfaceTerrainAnchor; viewpoint: ViewpointDefinition } | null = null;
+
+function refineAnchoredTerrain() {
+  const held = _terrainAnchor;
+  const cc = _renderer?.cameraController;
+  if (!held || !cc) return;
+  if (!cc.surfaceNavigating) { _terrainAnchor = null; return; }
+  const bm = _renderer!.getBodyMesh(held.anchor.target.bodyName);
+  if (!bm) return;
+  let shiftKm: readonly [number, number, number] = [0, 0, 0];
+  const result = held.anchor.update(bm, (shift) => {
+    shiftKm = shift;
+    return cc.retargetSurface(bm, bodyFixedToMeshLocal(shift, _renderer!.scaleFactor));
+  });
+  if (result === 'released') { _terrainAnchor = null; return; }
+  if (!result) return;
+  surfaceNavLog('terrain-refine', {
+    revision: bm.terrainRevision, target: describeTargetHeight(result),
+    shiftKm: Math.hypot(shiftKm[0], shiftKm[1], shiftKm[2]), during: cc.flight ? 'flight' : 'pivot',
+  });
+  const shift = (v: readonly number[] | undefined) => v && [v[0] + shiftKm[0], v[1] + shiftKm[1], v[2] + shiftKm[2]] as [number, number, number];
+  held.viewpoint = { ...held.viewpoint, eye: shift(held.viewpoint.eye), target: shift(held.viewpoint.target) };
+  vs.surfaceTarget = describeTarget(result, held.viewpoint, undefined, vs.surfaceTarget?.place);
+}
+
+/** Until when (performance.now ms) the diagnostics keep logging after a navigation. */
+let _surfaceNavDebugUntil = 0;
+
+/** One diagnostics line: the camera against the ground while on (or just after) a surface target. */
+function logSurfaceNavTick() {
+  const cc = _renderer?.cameraController;
+  if (!_renderer || !cc) return;
+  const name = vs.surfaceTarget?.bodyName ?? cc.focusBody?.body.name;
+  const bm = name ? _renderer.getBodyMesh(name) : undefined;
+  if (!bm || !(cc.surfaceNavigating || performance.now() < _surfaceNavDebugUntil)) return;
+  surfaceNavLog('tick', {
+    flight: cc.flight ? { phase: cc.flight.phase } : null, pivot: !!cc.surfacePivot,
+    ...surfaceNavSnapshot(_renderer, bm, _terrainAnchor?.anchor.target ?? null),
+  });
+}
+
+/** Resolve coordinates and fly (or jump) there. */
+export function goToCoordinates(
+  input: GeographicCoordinateInput,
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
+): SurfaceNavigationResult {
+  const resolved = resolveCoordinateTarget(input);
+  return resolved.ok ? navigateToSurfaceTarget(resolved.target, opts) : resolved;
+}
+
+/**
+ * How a picked surface point is navigated to (#190):
+ * - `zoom` ("Zoom to here"): a quarter of the way in along the line of
+ *   sight, incremental, so each use comes closer.
+ * - `frame` ("Frame here", "Fly to here"): a fixed range from the point for
+ *   its body (`pointFrameRangeKm`), idempotent, so using it twice does not
+ *   move again.
+ */
+export type SurfacePointVerb = 'zoom' | 'frame';
+
+/**
+ * Navigate to a picked surface point (#127's `SurfacePoint`, from the scene
+ * hit or the pinned probe), keeping the view direction, with the point as
+ * the orbit pivot: `zoom` incrementally or `frame` at a fixed range
+ * (`SurfacePointVerb`); `animate` flies, otherwise it cuts.
+ *
+ * A point just clicked in the scene (`from: 'click'`) was seen along that
+ * line, so the line is clear. A pinned probe point may since have turned
+ * away; it gets the line only while it faces the camera, and otherwise an
+ * overhead view at the same range by an arc around the body.
+ */
+export function navigateToSurfacePoint(
+  point: SurfacePoint,
+  opts: { animate?: boolean; from?: 'click' | 'pin'; verb?: SurfacePointVerb } = {},
+): boolean {
+  if (!_renderer || !surfaceNavigable(point)) return false;
+  const bm = navigableMesh(point.bodyName);
+  if (!bm) return false;
+  _terrainAnchor = null;
+  const target = surfacePointTarget(point);
+  const sf = _renderer.scaleFactor;
+  const verb = opts.verb ?? 'frame';
+  const rangeKm = pointFrameRangeKm(target.scaleKm);
+  let clear = opts.from === 'click';
+  if (!clear) {
+    const inv = bm.mesh.quaternion.clone().invert();
+    const eye = _renderer.camera.position.clone().sub(bm.position).applyQuaternion(inv).divideScalar(sf);
+    // Body-fixed Z-up from the mesh's Y-up frame.
+    const toEye: [number, number, number] = [eye.x - target.positionKm[0], -eye.z - target.positionKm[1], eye.y - target.positionKm[2]];
+    const facing = toEye[0] * target.up[0] + toEye[1] * target.up[1] + toEye[2] * target.up[2];
+    clear = facing > 0.2 * Math.hypot(...toEye);
+  }
+  const pose = !clear ? null
+    : verb === 'zoom' ? zoomTowardSurfacePoint(bm, _renderer.camera, point, sf)
+    : frameSurfacePoint(bm, _renderer.camera, point, sf, rangeKm);
+  if (!pose) return navigateToSurfaceTarget(target, { preset: 'overhead', animate: opts.animate, rangeKm }).ok;
+  const cc = _renderer.cameraController;
+  if (opts.animate) cc.flyToSurface(bm, pose, { path: 'line' });
+  else cc.jumpToSurface(bm, pose);
+  syncCameraState();
+  clearSurfaceTargetPresentation();
+  vs.surfaceTarget = describeTarget(target, undefined, point);
+  return true;
+}
+
+/** Clear the presentation of an active target, preserving independent inspection. */
+function clearSurfaceTargetPresentation(): void {
+  const ref = vs.surfaceTarget?.place?.ref;
+  vs.surfaceTarget = null;
+  if (ref && vs.selectedPlaceRef === ref) vs.selectedPlaceRef = null;
+  if (_renderer && ref && _renderer.placeNames.selectedRef === ref) {
+    _renderer.placeNames.selectedRef = vs.selectedPlaceRef;
+  }
+}
+
+/** Next geographic Escape layer, after flight/tool and panel dismissal. */
+export function dismissGeographicContext(): boolean {
+  if (vs.surfaceTarget) return releaseSurfaceTarget();
+  if (!vs.selectedPlaceRef) return false;
+  vs.selectedPlaceRef = null;
+  if (_renderer) _renderer.placeNames.selectedRef = null;
+  return true;
+}
+
+/**
+ * Clear the surface target (#190): no pivot on the ground, no terrain
+ * following, no Target readout. The camera keeps its position and resumes
+ * tracking the body's centre; a flight still on its way stops
+ * where it is. Its active place highlight clears; independent inspection, time and panels are untouched. False when there
+ * was no target.
+ */
+export function releaseSurfaceTarget(): boolean {
+  const cc = _renderer?.cameraController;
+  _terrainAnchor = null;
+  const had = vs.surfaceTarget !== null || !!cc?.surfaceNavigating;
+  clearSurfaceTargetPresentation();
+  if (cc?.releaseSurface()) syncCameraState();
+  return had;
 }
 
 /** Release the tracked object. The camera stays where it is. */
@@ -1019,6 +1613,7 @@ export function setCameraPose(
   // frame otherwise turns the camera on the next frame by the rotation since
   // the last one drawn — after a seek in the same script, hours of it.
   if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
+  cc.syncOrbitTargetFromCamera();
   return true;
 }
 
@@ -1184,6 +1779,17 @@ export function lookAtBody(name: string) {
  * or an embed host driving the view should not silently rewrite what the person
  * chose in the Display panel and will see again on their next visit.
  */
+/** UI and scripts use the same state operation. Scripts opt out of local preferences. */
+export function setGridSettings(settings: Partial<GridSettings>, opts: { persist?: boolean } = {}): void {
+  vs.grid = normalizeGridSettings({ ...vs.grid, ...settings });
+  _renderer?.setGridSettings(vs.grid);
+  if (opts.persist !== false) savePrefs({ grid: vs.grid });
+}
+export function setBodyGridOption(name: string, key: 'visible' | 'labels', value: boolean, opts: { persist?: boolean } = {}): void {
+  setGridSettings({ perBody: { ...vs.grid.perBody, [name]: { ...vs.grid.perBody[name], [key]: value } } }, opts);
+  if (key === 'visible' && value) setDisplayOption('grid', true, opts);
+}
+
 export function setDisplayOption(
   option: DisplayOption,
   value: boolean,
@@ -1238,11 +1844,17 @@ export function setLighting(mode: 'natural' | 'shadow' | 'flood') {
   savePrefs({ lightingMode: mode });
 }
 
-export function setCameraMode(mode: CameraModeName) {
-  if (!_renderer) return;
+/**
+ * Switch camera mode on the controller's `modeSubject` — the same body the `M`
+ * cycle uses, so the two agree after a free look lets go of the tracked body.
+ * False, changing nothing, when the mode needs a body and there is none.
+ */
+export function setCameraMode(mode: CameraModeName): boolean {
+  if (!_renderer) return false;
   const cc = _renderer.cameraController;
-  cc.setModeForBody(mode, cc.trackedBody);
+  const ok = cc.setModeForBody(mode, cc.modeSubject);
   syncCameraState();
+  return ok;
 }
 
 /**
@@ -1284,4 +1896,32 @@ export function syncBodies(universe: Universe) {
     parentName: b.parentName,
   }));
   emit('load', vs.bodies.map(b => b.name));
+  // Scene listeners first invalidate the old catalog's searches/selection.
+  // Publish this catalog's activities afterwards so that reset cannot erase them.
+  syncActivities(universe);
+}
+
+function syncActivities(universe: Universe) {
+  vs.activities = [...universe.activities.list()];
+  vs.activityMetadataAvailable = universe.activities.available;
+  setCatalogActivities(vs.activities.map(activityEvent));
+  emit('activities', vs.activities.length);
+}
+
+/**
+ * Grow the timeline's full range to include [min, max], padded a little, and
+ * the visible window with it when it was showing the whole range. Never
+ * shrinks: data that arrives later only ever extends what can be navigated.
+ */
+export function extendTimelineBase(min: number, max: number) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+  if (min >= vs.scrubBaseMin && max <= vs.scrubBaseMax) return;
+  const pad = Math.max(5, Math.min((max - min) * 0.05, 3600));
+  const whole = vs.scrubMin === vs.scrubBaseMin && vs.scrubMax === vs.scrubBaseMax;
+  vs.scrubBaseMin = Math.min(vs.scrubBaseMin, min - pad);
+  vs.scrubBaseMax = Math.max(vs.scrubBaseMax, max + pad);
+  if (whole) {
+    vs.scrubMin = vs.scrubBaseMin;
+    vs.scrubMax = vs.scrubBaseMax;
+  }
 }

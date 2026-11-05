@@ -1,0 +1,336 @@
+{
+  "version": 1,
+  "date": "2026-10-22",
+  "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
+  "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
+  "products": [
+    {
+      "id": "terrain-4cfdc5d9806de0ee40605ecd",
+      "productIdentity": "4cfdc5d9806de0ee40605ecd27c138f92e4e9ae3b8b800b9369472fbd934af4a",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "maximumLevel": 11,
+      "tiles": 78,
+      "objects": 161,
+      "bytes": 13966554,
+      "nativeFidelity": [
+        {
+          "sourceId": "base",
+          "nativeGsdM": 200,
+          "accuracyM": null
+        },
+        {
+          "sourceId": "detail",
+          "nativeGsdM": 1,
+          "accuracyM": null
+        }
+      ]
+    },
+    {
+      "id": "imagery-7b4f6169271a5140b1b1c5cd",
+      "productIdentity": "7b4f6169271a5140b1b1c5cd43e4070ae4d784bfc4653c98d0ba3eadd5e7ecce",
+      "sourceIds": [
+        "hirise-context"
+      ],
+      "maximumLevel": 13,
+      "tiles": 24,
+      "objects": 25,
+      "bytes": 55090,
+      "nativeFidelity": [
+        {
+          "sourceId": "hirise-context",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ]
+    },
+    {
+      "id": "imagery-19a3928769be6186f9ea2fdd",
+      "productIdentity": "19a3928769be6186f9ea2fdd2725eb8bf82ddc32ba6bf632b7b89a5e964d9038",
+      "sourceIds": [
+        "hirise-ortho"
+      ],
+      "maximumLevel": 16,
+      "tiles": 32,
+      "objects": 33,
+      "bytes": 413856,
+      "nativeFidelity": [
+        {
+          "sourceId": "hirise-ortho",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ]
+    }
+  ],
+  "resources": {
+    "outputBytes": 14435500,
+    "publishedBytes": null,
+    "objects": 219,
+    "workDiskBytesAtCompletion": 16218643999,
+    "peakDiskBytes": null,
+    "sampledPeakScratchBytes": 16218479724,
+    "peakConcurrentWorkerRssBytes": 11276959744,
+    "elapsedSeconds": 123.90132325
+  },
+  "coverage": {
+    "hirise-context": {
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "features": [
+          {
+            "featureId": "valid-pilot",
+            "kernelSupportCells": 230400,
+            "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+            "nativeCells": 226576,
+            "window": [
+              785,
+              785,
+              480,
+              480
+            ]
+          }
+        ],
+        "method": "all touched native cells plus two-cell interpolation halo"
+      },
+      "registration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 0,
+        "checkedPixels": 180,
+        "continuousRequestedCoverage": [
+          {
+            "face": "py",
+            "finestTiles": [
+              "py/13/5007/2696"
+            ],
+            "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+            "uBounds": [
+              0.22259155842684852,
+              0.22259992225556025
+            ],
+            "vBounds": [
+              -0.34168961906424455,
+              -0.341681140307978
+            ]
+          }
+        ],
+        "maximumAlphaErrorDn": 5.684341886080802e-14,
+        "maximumErrorDn": 0.49638990735776645,
+        "maximumGutterErrorDn": null,
+        "maximumOutputSpacingM": 3.238859176635742,
+        "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+        "nativeValueStdDevDn": 9.437843504867773,
+        "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+        "requestedNativeCellsWithFinestCoverage": 8836,
+        "rmsErrorDn": 0.2657846102087784,
+        "sourcePixelSizeM": 0.25,
+        "tiles": [
+          {
+            "checkedPixels": 180,
+            "tile": "py/13/5007/2696"
+          }
+        ]
+      }
+    },
+    "hirise-ortho": {
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "features": [
+          {
+            "featureId": "valid-pilot",
+            "kernelSupportCells": 230400,
+            "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+            "nativeCells": 226576,
+            "window": [
+              785,
+              785,
+              480,
+              480
+            ]
+          }
+        ],
+        "method": "all touched native cells plus two-cell interpolation halo"
+      },
+      "registration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 640,
+        "checkedPixels": 9224,
+        "continuousRequestedCoverage": [
+          {
+            "face": "py",
+            "finestTiles": [
+              "py/16/40061/21571",
+              "py/16/40062/21571"
+            ],
+            "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+            "uBounds": [
+              0.22259155842684852,
+              0.22259992225556025
+            ],
+            "vBounds": [
+              -0.34168961906424455,
+              -0.341681140307978
+            ]
+          }
+        ],
+        "maximumAlphaErrorDn": 1.1368683772161603e-13,
+        "maximumErrorDn": 0.49996122585152136,
+        "maximumGutterErrorDn": 0.49900616090836536,
+        "maximumOutputSpacingM": 0.4048573970794678,
+        "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+        "nativeValueStdDevDn": 12.191124802665758,
+        "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+        "requestedNativeCellsWithFinestCoverage": 8836,
+        "rmsErrorDn": 0.28808855071593614,
+        "sourcePixelSizeM": 0.25,
+        "tiles": [
+          {
+            "checkedPixels": 4351,
+            "tile": "py/16/40061/21571"
+          },
+          {
+            "checkedPixels": 4873,
+            "tile": "py/16/40062/21571"
+          }
+        ]
+      }
+    }
+  },
+  "terrainValidation": {
+    "boundaryRays": 96,
+    "maximumRenderedCpuSeparationM": 291.042,
+    "minimumRenderedClearanceM": 30.24,
+    "nominalClearanceM": 50
+  },
+  "browser": {
+    "physicalGpu": true,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "testMode": false,
+    "hostedHttpWithoutInterception": true,
+    "nearImageryLevel": 16,
+    "fallbackSphereVisible": false,
+    "baseUncoveredBlocks": 0,
+    "errors": [],
+    "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
+    "layerFlight": {
+      "projected": [
+        -7.164247009017516e-05,
+        -1.0503177105631775e-05,
+        0.9999973037171814
+      ],
+      "surfacePivot": true,
+      "pick": "hit",
+      "maxFrameMs": 9.399999999997817
+    }
+  },
+  "productionUpload": true,
+  "productionReady": false,
+  "publication": {
+    "localOnly": true,
+    "publicationIdentity": "6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99",
+    "receiptIdentity": "c7c051b0ff54d8fe43a4b6b60243b13b65551babeefc2589f139b2b7d22bd20b",
+    "dataObjects": 219,
+    "dataBytes": 14435500,
+    "storageObjects": 225,
+    "storageBytes": 14449636,
+    "allProductsReused": true,
+    "verifiedProductPrefixes": [
+      "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/",
+      "cube-imagery/imagery-7b4f6169271a5140b1b1c5cd/7b4f6169271a5140b1b1c5cd43e4070a/",
+      "cube-imagery/imagery-19a3928769be6186f9ea2fdd/19a3928769be6186f9ea2fdd2725eb8b/"
+    ],
+    "scope": "Historical local-store rehearsal; productionPublication below is the actual R2 receipt."
+  },
+  "skyfall": {
+    "version": 1,
+    "kind": "surface-acceptance-receipt",
+    "buildId": "9035fa44ccb06b028402c099496fb5202b8d4e5b5c703db11db36282aeb006bc",
+    "publicationIdentity": "d017d819cb80a2f951ef27f97b8970ca807222ba3b6f208a5cc61c02946816a8",
+    "hostedHttp": true,
+    "immutableRepublish": true,
+    "catalogRewriteAndRollback": true,
+    "browser": "browser/browser.json",
+    "plannerFeedback": "published-planner-feedback.json",
+    "productionUpload": false
+  },
+  "incrementalReview": {
+    "buildId": "f8d67517aa97431474f68945afed180f500c62eb73eaf20b803692a66ef8db55",
+    "change": "Native imagery final region radius 20 m to 25 m; terrain and context unchanged",
+    "reusedProducts": [
+      "terrain-4cfdc5d9806de0ee40605ecd",
+      "imagery-7b4f6169271a5140b1b1c5cd"
+    ],
+    "elapsedSeconds": 32.697453459,
+    "sampledPeakScratchBytes": 8755429,
+    "executionWork": {
+      "auditedSources": [
+        "hirise-ortho"
+      ],
+      "fusion": false,
+      "stagedSources": [
+        "hirise-ortho"
+      ],
+      "terrainStaging": false
+    },
+    "sourceIdentity": "All current source and dependency bytes verified; complete prior inventory/audits verified before reuse",
+    "limits": "Sampled worker scratch excludes the retained prior cache; full current-source checksum and physical terrain validation remain intentional."
+  },
+  "productionPublication": {
+    "receipt": "../releases/surface-build-jezero/production-publication-receipt.json",
+    "receiptIdentity": "665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e",
+    "localOnly": false,
+    "objects": 219,
+    "bytes": 14435500,
+    "storageObjects": 225,
+    "storageBytes": 14449636,
+    "publicHttpVerified": true,
+    "viewerOrigin": "http://127.0.0.1:5174",
+    "dataOrigin": "https://data.aaronplave.com",
+    "deployedViewerOriginAccepted": true,
+    "catalogDeployed": true,
+    "deployedViewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "deployedViewerOrigin": "https://data.aaronplave.com",
+    "mainSiteChanged": false,
+    "liveRollback": "passed"
+  },
+  "productionReadinessScope": "Experimental deployed preview accepted; this does not certify mission placement, global native imagery, unknown absolute registration or the disclosed mixed-LOD CPU/rendered gap.",
+  "surfaceAppearanceReview": {
+    "feedback": "https://github.com/AaronPlave/cosmolabe/pull/287#issuecomment-6369592156",
+    "implemented": true,
+    "browser": "mars-appearance.json",
+    "positiveKnownOblateProduct": true,
+    "malformedMetadataAndMeshRejected": true,
+    "publicHeights": "ellipsoid / geodetic-normal",
+    "payloadRangeValidation": "radial offsets from geometry.referenceRadiusKm, separate from displayed normal height",
+    "capabilityStates": [
+      "loading",
+      "ready",
+      "unsupported-product",
+      "unsupported-reference",
+      "validation-failed"
+    ],
+    "focusedTestsPassed": 72,
+    "newOblateTests": 15,
+    "fullTypecheck": "passed",
+    "changedFileLint": "passed",
+    "physicalGpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "checkedVertices": 297,
+    "maxNormalHeightErrorKm": 3.0419414542848244e-07,
+    "renderedTintPickKm": -2.235144019134629,
+    "coloredTerrainPixels": 635947,
+    "unchangedPhysicalBuffers": true,
+    "unchangedCpuGrids": true,
+    "styleOnlyDataRequests": 0,
+    "compactWidthPx": 390,
+    "errors": [],
+    "scientificProductRebuilt": false,
+    "limits": [
+      "Physical desktop GPU; compact emulation is not real mobile hardware.",
+      "Existing coarse contour/relief quality, source uncertainty and CPU/rendered mixed-LOD gap remain unchanged."
+    ]
+  }
+}

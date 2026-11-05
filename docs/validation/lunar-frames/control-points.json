@@ -1,0 +1,303 @@
+{
+  "frame": "MOON_ME_DE421",
+  "comparisonFrame": "IAU_MOON",
+  "referenceRadiusKm": 1737.4,
+  "kernels": [
+    {
+      "name": "naif0012.tls",
+      "bytes": 5257,
+      "sha256": "678e32bdb5a744117a467cd9601cd6b373f0e9bc9bbde1371d5eee39600a039b"
+    },
+    {
+      "name": "pck00011.tpc",
+      "bytes": 131226,
+      "sha256": "3dff7b1dbeceaa01f25467767d3fa25816051c85d162d1edf04acb310ee28bb1"
+    },
+    {
+      "name": "de440s.bsp",
+      "bytes": 32726016,
+      "sha256": "c1c7feeab882263fc493a9d5a5b2ddd71b54826cdf65d8d17a76126b260a49f2"
+    },
+    {
+      "name": "lro/moon_080317.tf.gz",
+      "bytes": 22940,
+      "sha256": "93d7de9f32b7775bae705c9820b645b1d4dc35f82a452b3f008bf997b4fd2df9"
+    },
+    {
+      "name": "lro/moon_pa_de421_1900_2050.bpc.gz",
+      "bytes": 1772544,
+      "sha256": "35157dd052a40449498d046cb246aaaa9f2205d3e8c2c4eb970add85f94dad9e"
+    },
+    {
+      "name": "lro/lrorg_2024350_2025074_v01.bsp.gz",
+      "bytes": 7574528,
+      "sha256": "69f6ac330a26aa52f0b4bebadff1c865f6b8bab522aee58b157d35d74feb027f"
+    }
+  ],
+  "comparisons": [
+    {
+      "utc": "2000-01-01T12:00:00",
+      "et": 64.18392728473108,
+      "meToIau": [
+        0.999999999507446,
+        0.000020666006155120598,
+        0.00002362253304200035,
+        -0.00002066668903023816,
+        0.9999999993686106,
+        0.000028907900066044157,
+        -0.0000236219356163081,
+        -0.000028908388251480677,
+        0.9999999993031546
+      ],
+      "rotationArcsec": 8.801463761806163,
+      "maximumSurfaceDisplacementM": 74.1360749651259,
+      "sites": [
+        {
+          "name": "Shackleton",
+          "lat": -89.67,
+          "lon": 129.78,
+          "displacementM": 64.65685886426374,
+          "centralAngleArcsec": 7.676087525585819
+        },
+        {
+          "name": "south-pole",
+          "lat": -90,
+          "lon": 0,
+          "displacementM": 64.86090836799549,
+          "centralAngleArcsec": 7.70031236233001
+        },
+        {
+          "name": "equator-prime",
+          "lat": 0,
+          "lon": 0,
+          "displacementM": 54.53078043279788,
+          "centralAngleArcsec": 6.4739155410013165
+        },
+        {
+          "name": "equator-east",
+          "lat": 0,
+          "lon": 90,
+          "displacementM": 61.739547888999105,
+          "centralAngleArcsec": 7.329743227683765
+        },
+        {
+          "name": "mid-latitude",
+          "lat": 45,
+          "lon": 45,
+          "displacementM": 67.80335316133124,
+          "centralAngleArcsec": 8.049640556931585
+        }
+      ]
+    },
+    {
+      "utc": "2010-06-01T00:00:00",
+      "et": 328622466.1849076,
+      "meToIau": [
+        0.9999999991724774,
+        -0.00002930899412006277,
+        0.000028213960072021038,
+        0.000029307472003310686,
+        0.999999998115344,
+        0.000053947972757123486,
+        -0.000028215541179599235,
+        -0.0000539471458326779,
+        0.9999999981467942
+      ],
+      "rotationArcsec": 13.936822912459924,
+      "maximumSurfaceDisplacementM": 117.3919902481797,
+      "sites": [
+        {
+          "name": "Shackleton",
+          "lat": -89.67,
+          "lon": 129.78,
+          "displacementM": 106.0427391965445,
+          "centralAngleArcsec": 12.589435396386415
+        },
+        {
+          "name": "south-pole",
+          "lat": -90,
+          "lon": 0,
+          "displacementM": 105.77343868349816,
+          "centralAngleArcsec": 12.55746393433303
+        },
+        {
+          "name": "equator-prime",
+          "lat": 0,
+          "lon": 0,
+          "displacementM": 70.68132438563012,
+          "centralAngleArcsec": 8.391314424252068
+        },
+        {
+          "name": "equator-east",
+          "lat": 0,
+          "lon": 90,
+          "displacementM": 106.6671870868403,
+          "centralAngleArcsec": 12.663570093729343
+        },
+        {
+          "name": "mid-latitude",
+          "lat": 45,
+          "lon": 45,
+          "displacementM": 116.59547892507977,
+          "centralAngleArcsec": 13.842260777185405
+        }
+      ]
+    },
+    {
+      "utc": "2025-01-15T00:03:00",
+      "et": 790171449.184331,
+      "meToIau": [
+        0.9999999979461519,
+        -0.00005340323666044866,
+        -0.00003543713177323049,
+        0.000053402155415646635,
+        0.9999999981086173,
+        -0.000030511883794936967,
+        0.00003543876113948352,
+        0.000030509991313126816,
+        0.9999999989066173
+      ],
+      "rotationArcsec": 14.641334004052895,
+      "maximumSurfaceDisplacementM": 123.32619488575074,
+      "sites": [
+        {
+          "name": "Shackleton",
+          "lat": -89.67,
+          "lon": 129.78,
+          "displacementM": 80.71014252046125,
+          "centralAngleArcsec": 9.581939628557265
+        },
+        {
+          "name": "south-pole",
+          "lat": -90,
+          "lon": 0,
+          "displacementM": 81.24579829263429,
+          "centralAngleArcsec": 9.64553289095649
+        },
+        {
+          "name": "equator-prime",
+          "lat": 0,
+          "lon": 0,
+          "displacementM": 111.35224173430939,
+          "centralAngleArcsec": 13.219781610704638
+        },
+        {
+          "name": "equator-east",
+          "lat": 0,
+          "lon": 90,
+          "displacementM": 106.85737789471,
+          "centralAngleArcsec": 12.686149620697075
+        },
+        {
+          "name": "mid-latitude",
+          "lat": 45,
+          "lon": 45,
+          "displacementM": 106.99720141181291,
+          "centralAngleArcsec": 12.702749523239769
+        }
+      ]
+    },
+    {
+      "utc": "2028-12-15T10:04:00",
+      "et": 913759509.1834563,
+      "meToIau": [
+        0.9999999998881064,
+        0.000013466683137237923,
+        0.000006514243849731205,
+        -0.000013466720434306134,
+        0.9999999998929332,
+        0.000005725454820165732,
+        -0.000006514166746074412,
+        -0.000005725542544993134,
+        0.999999999962392
+      ],
+      "rotationArcsec": 3.303897763999122,
+      "maximumSurfaceDisplacementM": 27.829236017288412,
+      "sites": [
+        {
+          "name": "Shackleton",
+          "lat": -89.67,
+          "lon": 129.78,
+          "displacementM": 14.933039465007765,
+          "centralAngleArcsec": 1.7728562748587264
+        },
+        {
+          "name": "south-pole",
+          "lat": -90,
+          "lon": 0,
+          "displacementM": 15.067997113450968,
+          "centralAngleArcsec": 1.788878499566888
+        },
+        {
+          "name": "equator-prime",
+          "lat": 0,
+          "lon": 0,
+          "displacementM": 25.99065199015741,
+          "centralAngleArcsec": 3.085620350544213
+        },
+        {
+          "name": "equator-east",
+          "lat": 0,
+          "lon": 90,
+          "displacementM": 25.423890865236295,
+          "centralAngleArcsec": 3.01833424853924
+        },
+        {
+          "name": "mid-latitude",
+          "lat": 45,
+          "lon": 45,
+          "displacementM": 22.868243072028235,
+          "centralAngleArcsec": 2.7149267448471606
+        }
+      ]
+    }
+  ],
+  "lro": [
+    {
+      "utc": "2025-01-15T00:03:00",
+      "et": 790171449.184331,
+      "meKm": [
+        915.4176925401537,
+        -663.4642062023999,
+        1418.2033123603824
+      ],
+      "worldKm": [
+        -62.8541276734321,
+        -1090.0264242344208,
+        1448.2288123851195
+      ],
+      "roundTripResidualM": 6.883468704889625e-10
+    },
+    {
+      "utc": "2025-01-16T12:00:00",
+      "et": 790300869.1843735,
+      "meKm": [
+        -440.2502132994267,
+        756.4111988468337,
+        -1616.9925406565
+      ],
+      "worldKm": [
+        111.36548553029019,
+        823.8528766601999,
+        -1639.9717055001813
+      ],
+      "roundTripResidualM": 5.362597410144532e-10
+    },
+    {
+      "utc": "2025-02-01T00:00:00",
+      "et": 791640069.1847917,
+      "meKm": [
+        165.00813092254086,
+        -1189.4932799155797,
+        -1388.475185349036
+      ],
+      "worldKm": [
+        112.83386176336008,
+        1158.0801073380019,
+        -1419.8958663199505
+      ],
+      "roundTripResidualM": 4.582862941503293e-10
+    }
+  ],
+  "limits": "Transform closure only; not an independent orbit reconstruction or a source geolocation accuracy bound."
+}

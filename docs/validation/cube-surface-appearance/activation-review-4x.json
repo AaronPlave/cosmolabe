@@ -1,0 +1,2904 @@
+[
+  {
+    "name": "nac",
+    "catalog": "test-catalogs/experiments/moon-terrain-cube-imagery-nac",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 4,
+      "settled": 4,
+      "loaded": 4,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 2490.2000000178814
+    },
+    "views": {},
+    "errors": [],
+    "cpuThrottleRate": 4,
+    "activationProfile": {
+      "normal": [
+        {
+          "cpuMs": 6.700000017881393,
+          "gpuMs": 0.292999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2999999821186066,
+          "renderMs": 3
+        },
+        {
+          "cpuMs": 6.699999988079071,
+          "gpuMs": 0.404624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.699999988079071,
+          "renderMs": 2.9000000059604645
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.740083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 3.0999999940395355
+        },
+        {
+          "cpuMs": 6.699999988079071,
+          "gpuMs": 0.236249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 3.4000000059604645
+        },
+        {
+          "cpuMs": 6.899999976158142,
+          "gpuMs": 0.237791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.0999999940395355
+        },
+        {
+          "cpuMs": 8,
+          "gpuMs": 0.244374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2999999821186066,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.230375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 3.199999988079071
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 0.205624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 2.600000023841858
+        },
+        {
+          "cpuMs": 5.9000000059604645,
+          "gpuMs": 0.27975,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 3
+        },
+        {
+          "cpuMs": 6.300000011920929,
+          "gpuMs": 0.198166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 2.5999999940395355
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.192125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.899999976158142,
+          "renderMs": 3.0999999940395355
+        },
+        {
+          "cpuMs": 6.800000011920929,
+          "gpuMs": 0.199875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 0.190166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.258875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 3
+        },
+        {
+          "cpuMs": 6.0999999940395355,
+          "gpuMs": 0.7095,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.899999976158142,
+          "renderMs": 2.600000023841858
+        },
+        {
+          "cpuMs": 6.300000011920929,
+          "gpuMs": 0.196999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.7000000178813934
+        },
+        {
+          "cpuMs": 7.5,
+          "gpuMs": 0.300999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 0.189499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.300000011920929,
+          "renderMs": 3
+        },
+        {
+          "cpuMs": 6.200000017881393,
+          "gpuMs": 0.308083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 2.5999999940395355
+        },
+        {
+          "cpuMs": 7.299999982118607,
+          "gpuMs": 0.289749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 0.282708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 2.9000000059604645
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.263333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 2.5999999940395355
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 0.223249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 2.9000000059604645
+        },
+        {
+          "cpuMs": 6.700000017881393,
+          "gpuMs": 4.55075,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 6.0999999940395355,
+          "gpuMs": 2.484958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 3.1999999582767487
+        },
+        {
+          "cpuMs": 6.800000011920929,
+          "gpuMs": 0.441625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 2.7999999821186066
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 1.147791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.300000011920929,
+          "renderMs": 3.5000000298023224
+        },
+        {
+          "cpuMs": 6.699999988079071,
+          "gpuMs": 0.28425,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.399999976158142
+        },
+        {
+          "cpuMs": 6.700000017881393,
+          "gpuMs": 0.269416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 6.799999982118607,
+          "gpuMs": 2.328541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7000000178813934,
+          "renderMs": 3.199999988079071
+        }
+      ],
+      "activation": [
+        {
+          "cpuMs": 241.40000000596046,
+          "gpuMs": 2.415125,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 26.399999976158142,
+            "maxTileMs": 26.299999982118607
+          },
+          "imageryMs": 174.30000001192093,
+          "renderMs": 39.400000005960464
+        },
+        {
+          "cpuMs": 129.40000000596046,
+          "gpuMs": 2.03175,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 21.30000001192093,
+            "maxTileMs": 21.200000017881393
+          },
+          "imageryMs": 78.19999998807907,
+          "renderMs": 28.099999964237213
+        },
+        {
+          "cpuMs": 185.30000001192093,
+          "gpuMs": 0.172291,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 12.699999988079071,
+            "maxTileMs": 12.699999988079071
+          },
+          "imageryMs": 136.80000001192093,
+          "renderMs": 33.900000005960464
+        },
+        {
+          "cpuMs": 225.7999999821186,
+          "gpuMs": 0.333625,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 15.5,
+            "maxTileMs": 15.400000005960464
+          },
+          "imageryMs": 172.69999998807907,
+          "renderMs": 36
+        },
+        {
+          "cpuMs": 119.5,
+          "gpuMs": 0.18075,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 21.5,
+            "maxTileMs": 21.5
+          },
+          "imageryMs": 76.7999999821186,
+          "renderMs": 19.400000035762787
+        },
+        {
+          "cpuMs": 111.30000001192093,
+          "gpuMs": 0.382875,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 14.800000011920929,
+            "maxTileMs": 14.800000011920929
+          },
+          "imageryMs": 80.39999997615814,
+          "renderMs": 15.200000017881393
+        },
+        {
+          "cpuMs": 112.90000000596046,
+          "gpuMs": 0.337583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 15.800000011920929,
+            "maxTileMs": 15.700000017881393
+          },
+          "imageryMs": 78.59999999403954,
+          "renderMs": 16.5
+        },
+        {
+          "cpuMs": 8.900000005960464,
+          "gpuMs": 0.217666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.10000002384185791,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.699999988079071,
+          "renderMs": 4.0999999940395355
+        }
+      ],
+      "active": [
+        {
+          "cpuMs": 8.400000005960464,
+          "gpuMs": 0.316333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 8.599999994039536,
+          "gpuMs": 0.435875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 6.800000011920929,
+          "gpuMs": 0.208375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 8.400000005960464,
+          "gpuMs": 0.235041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.8999999761581421,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 4.399999976158142
+        },
+        {
+          "cpuMs": 9,
+          "gpuMs": 0.38225,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 5.5
+        },
+        {
+          "cpuMs": 8.700000017881393,
+          "gpuMs": 0.364291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.100000023841858
+        },
+        {
+          "cpuMs": 7.200000017881393,
+          "gpuMs": 1.256624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 4.200000017881393
+        },
+        {
+          "cpuMs": 7.5,
+          "gpuMs": 0.300499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.600000023841858,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 7.299999982118607,
+          "gpuMs": 0.175249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 8.5,
+          "gpuMs": 0.165875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.399999976158142
+        },
+        {
+          "cpuMs": 8.099999994039536,
+          "gpuMs": 0.529333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 8.100000023841858,
+          "gpuMs": 0.279833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 5.0999999940395355
+        },
+        {
+          "cpuMs": 7.9000000059604645,
+          "gpuMs": 0.173499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 7.800000011920929,
+          "gpuMs": 0.259624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 1.816499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.9999999701976776
+        },
+        {
+          "cpuMs": 6.5999999940395355,
+          "gpuMs": 0.172499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 7.5,
+          "gpuMs": 0.273999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 3.7000000178813934
+        },
+        {
+          "cpuMs": 8.200000017881393,
+          "gpuMs": 0.317875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 4.700000017881393
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 0.289499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 7.5999999940395355,
+          "gpuMs": 0.172958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 7.600000023841858,
+          "gpuMs": 0.171208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 4.100000023841858
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 2.036958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 0.172458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 6.5999999940395355,
+          "gpuMs": 0.284333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.300000011920929
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 0.704791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.0999999940395355
+        },
+        {
+          "cpuMs": 7.799999982118607,
+          "gpuMs": 0.266249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 6.5,
+          "gpuMs": 0.264,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 2.800000011920929
+        },
+        {
+          "cpuMs": 7.100000023841858,
+          "gpuMs": 1.095999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 4.199999958276749
+        },
+        {
+          "cpuMs": 6.600000023841858,
+          "gpuMs": 0.312708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.5999999940395355,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 6.9000000059604645,
+          "gpuMs": 0.6455,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 3.5
+        }
+      ],
+      "disabled": [
+        {
+          "cpuMs": 189.09999999403954,
+          "gpuMs": 0.234291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 162.59999999403954,
+          "renderMs": 24.099999964237213
+        },
+        {
+          "cpuMs": 7.300000011920929,
+          "gpuMs": 0.605791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 3.199999988079071
+        },
+        {
+          "cpuMs": 7.5999999940395355,
+          "gpuMs": 0.266375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 8.699999988079071,
+          "gpuMs": 0.298833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 4.399999976158142
+        },
+        {
+          "cpuMs": 7.699999988079071,
+          "gpuMs": 0.27325,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 7,
+          "gpuMs": 0.552208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 2.7999999821186066
+        },
+        {
+          "cpuMs": 7.299999982118607,
+          "gpuMs": 0.185458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7000000178813934,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 8.200000017881393,
+          "gpuMs": 0.313041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 7.800000011920929,
+          "gpuMs": 0.408499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 7.9000000059604645,
+          "gpuMs": 0.197041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.7000000178813934
+        },
+        {
+          "cpuMs": 7.800000011920929,
+          "gpuMs": 0.186291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 4.300000011920929
+        },
+        {
+          "cpuMs": 8,
+          "gpuMs": 0.189541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 3.100000023841858,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 7.0999999940395355,
+          "gpuMs": 0.694458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.600000023841858
+        },
+        {
+          "cpuMs": 6.699999988079071,
+          "gpuMs": 0.208625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 7.5,
+          "gpuMs": 0.184583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 2.5999999940395355
+        },
+        {
+          "cpuMs": 7.5,
+          "gpuMs": 0.271166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.4000000059604645
+        },
+        {
+          "cpuMs": 6.4000000059604645,
+          "gpuMs": 0.190833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 7.700000017881393,
+          "gpuMs": 0.547,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 3.7000000178813934
+        },
+        {
+          "cpuMs": 7.4000000059604645,
+          "gpuMs": 0.263875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 3.899999976158142
+        },
+        {
+          "cpuMs": 6.199999988079071,
+          "gpuMs": 0.212791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.300000011920929
+        },
+        {
+          "cpuMs": 7.300000011920929,
+          "gpuMs": 0.268708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 8,
+          "gpuMs": 0.273124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 4.699999988079071
+        },
+        {
+          "cpuMs": 8.300000011920929,
+          "gpuMs": 0.351499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2999999821186066,
+          "renderMs": 4.300000011920929
+        },
+        {
+          "cpuMs": 7.200000017881393,
+          "gpuMs": 0.293249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 3.2999999821186066
+        },
+        {
+          "cpuMs": 8.599999994039536,
+          "gpuMs": 0.194708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 7.200000017881393,
+          "gpuMs": 0.191958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.4000000059604645,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 7.100000023841858,
+          "gpuMs": 0.467749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 3.7999999821186066
+        },
+        {
+          "cpuMs": 16.5,
+          "gpuMs": 0.318416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 10.299999982118607,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 8.799999982118607,
+          "gpuMs": 0.30975,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 5
+        },
+        {
+          "cpuMs": 8,
+          "gpuMs": 0.300916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 3.7000000178813934
+        }
+      ],
+      "gpuTimerAvailable": true
+    }
+  },
+  {
+    "name": "moonfall",
+    "catalog": "test-catalogs/moonfall-shackleton",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 8,
+      "settled": 8,
+      "loaded": 8,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 2922.800000011921
+    },
+    "views": {},
+    "errors": [],
+    "cpuThrottleRate": 4,
+    "activationProfile": {
+      "normal": [
+        {
+          "cpuMs": 12.100000023841858,
+          "gpuMs": 1.470916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.9000000059604645,
+          "renderMs": 4.999999970197678
+        },
+        {
+          "cpuMs": 10.700000017881393,
+          "gpuMs": 3.770749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4
+        },
+        {
+          "cpuMs": 10.400000005960464,
+          "gpuMs": 6.542333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 3.0999999940395355,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 10.900000005960464,
+          "gpuMs": 1.141374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.800000011920929,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 10.199999988079071,
+          "gpuMs": 0.687249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 3,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 11.299999982118607,
+          "gpuMs": 0.807708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 3,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 11,
+          "gpuMs": 0.735875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 4.9000000059604645
+        },
+        {
+          "cpuMs": 10.800000011920929,
+          "gpuMs": 2.162666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 4.200000017881393
+        },
+        {
+          "cpuMs": 12.5,
+          "gpuMs": 2.775749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 5.399999976158142
+        },
+        {
+          "cpuMs": 11,
+          "gpuMs": 3.619249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 5.0999999940395355
+        },
+        {
+          "cpuMs": 11,
+          "gpuMs": 6.877749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 4.299999982118607
+        },
+        {
+          "cpuMs": 14.100000023841858,
+          "gpuMs": 3.35075,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 7
+        },
+        {
+          "cpuMs": 12.300000011920929,
+          "gpuMs": 9.536249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 4.800000011920929
+        },
+        {
+          "cpuMs": 10.399999976158142,
+          "gpuMs": 3.079,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 10.699999988079071,
+          "gpuMs": 4.094249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 10.599999994039536,
+          "gpuMs": 8.337458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 4.800000011920929
+        },
+        {
+          "cpuMs": 11.299999982118607,
+          "gpuMs": 2.038958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 10.400000005960464,
+          "gpuMs": 5.068375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 5
+        },
+        {
+          "cpuMs": 10.5,
+          "gpuMs": 1.396208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.899999976158142,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 11.199999988079071,
+          "gpuMs": 5.064124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 4.5
+        },
+        {
+          "cpuMs": 9.300000011920929,
+          "gpuMs": 4.86275,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5999999940395355,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 10.900000005960464,
+          "gpuMs": 9.178,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 9.5,
+          "gpuMs": 4.580541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.2999999821186066
+        },
+        {
+          "cpuMs": 10.300000011920929,
+          "gpuMs": 8.249708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 4
+        },
+        {
+          "cpuMs": 9.800000011920929,
+          "gpuMs": 5.7295,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.399999976158142,
+          "renderMs": 4.700000017881393
+        },
+        {
+          "cpuMs": 11.300000011920929,
+          "gpuMs": 7.811333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 9.899999976158142,
+          "gpuMs": 6.510499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 4.399999976158142
+        },
+        {
+          "cpuMs": 9.5,
+          "gpuMs": 4.822541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 9.099999994039536,
+          "gpuMs": 9.627666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 9,
+          "gpuMs": 4.734333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.2999999821186066,
+          "renderMs": 3.5999999940395355
+        }
+      ],
+      "activation": [
+        {
+          "cpuMs": 240.5,
+          "gpuMs": 5.496958,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 27.900000005960464,
+            "maxTileMs": 27.799999982118607
+          },
+          "imageryMs": 177.59999999403954,
+          "renderMs": 30.80000001192093
+        },
+        {
+          "cpuMs": 72.7000000178814,
+          "gpuMs": 5.087166,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 23.299999982118607,
+            "maxTileMs": 22.69999998807907
+          },
+          "imageryMs": 25.899999976158142,
+          "renderMs": 19.100000023841858
+        },
+        {
+          "cpuMs": 68.09999999403954,
+          "gpuMs": 6.152874,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 22.19999998807907,
+            "maxTileMs": 22.099999994039536
+          },
+          "imageryMs": 21.400000005960464,
+          "renderMs": 18.600000023841858
+        },
+        {
+          "cpuMs": 38.69999998807907,
+          "gpuMs": 2.102291,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 16.19999998807907,
+            "maxTileMs": 16.099999994039536
+          },
+          "imageryMs": 10.599999994039536,
+          "renderMs": 7.9000000059604645
+        },
+        {
+          "cpuMs": 30.5,
+          "gpuMs": 6.706083,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.600000023841858,
+            "maxTileMs": 9.300000011920929
+          },
+          "imageryMs": 10.899999976158142,
+          "renderMs": 4.9000000059604645
+        },
+        {
+          "cpuMs": 31.799999982118607,
+          "gpuMs": 6.233583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.900000005960464,
+            "maxTileMs": 8.900000005960464
+          },
+          "imageryMs": 13.400000005960464,
+          "renderMs": 5.799999982118607
+        },
+        {
+          "cpuMs": 38.5,
+          "gpuMs": 0.710791,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.599999994039536,
+            "maxTileMs": 9.5
+          },
+          "imageryMs": 17.80000001192093,
+          "renderMs": 6.899999976158142
+        },
+        {
+          "cpuMs": 40.20000001788139,
+          "gpuMs": 1.19675,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.599999994039536,
+            "maxTileMs": 9.5
+          },
+          "imageryMs": 17.900000005960464,
+          "renderMs": 7.800000011920929
+        },
+        {
+          "cpuMs": 28.5,
+          "gpuMs": 0.781874,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.599999994039536,
+            "maxTileMs": 8.599999994039536
+          },
+          "imageryMs": 9.900000005960464,
+          "renderMs": 5.800000011920929
+        },
+        {
+          "cpuMs": 45.099999994039536,
+          "gpuMs": 1.151583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.800000011920929,
+            "maxTileMs": 9.700000017881393
+          },
+          "imageryMs": 24.599999994039536,
+          "renderMs": 7.699999988079071
+        },
+        {
+          "cpuMs": 41.5,
+          "gpuMs": 0.76475,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.800000011920929,
+            "maxTileMs": 8.800000011920929
+          },
+          "imageryMs": 21.799999982118607,
+          "renderMs": 6.5
+        },
+        {
+          "cpuMs": 55.70000001788139,
+          "gpuMs": 0.668374,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.5
+          },
+          "imageryMs": 34.79999998211861,
+          "renderMs": 9.100000023841858
+        },
+        {
+          "cpuMs": 27.700000017881393,
+          "gpuMs": 0.669583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.699999988079071,
+            "maxTileMs": 9.599999994039536
+          },
+          "imageryMs": 9,
+          "renderMs": 5.800000011920929
+        },
+        {
+          "cpuMs": 27.69999998807907,
+          "gpuMs": 0.696458,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.5,
+            "maxTileMs": 9.5
+          },
+          "imageryMs": 9.300000011920929,
+          "renderMs": 5
+        },
+        {
+          "cpuMs": 19.400000005960464,
+          "gpuMs": 0.745708,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.699999988079071,
+            "maxTileMs": 9.699999988079071
+          },
+          "imageryMs": 1.4000000059604645,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 34.599999994039536,
+          "gpuMs": 0.815125,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.900000005960464,
+            "maxTileMs": 8.900000005960464
+          },
+          "imageryMs": 16.599999994039536,
+          "renderMs": 5.4000000059604645
+        },
+        {
+          "cpuMs": 27.099999994039536,
+          "gpuMs": 0.667374,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9,
+            "maxTileMs": 9
+          },
+          "imageryMs": 9,
+          "renderMs": 5.9000000059604645
+        },
+        {
+          "cpuMs": 53,
+          "gpuMs": 0.703208,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.300000011920929,
+            "maxTileMs": 8.300000011920929
+          },
+          "imageryMs": 34,
+          "renderMs": 7.0999999940395355
+        },
+        {
+          "cpuMs": 55.900000005960464,
+          "gpuMs": 0.907249,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9,
+            "maxTileMs": 8.900000005960464
+          },
+          "imageryMs": 34.89999997615814,
+          "renderMs": 7.600000023841858
+        },
+        {
+          "cpuMs": 52.19999998807907,
+          "gpuMs": 1.147875,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8,
+            "maxTileMs": 8
+          },
+          "imageryMs": 33.599999994039536,
+          "renderMs": 6.800000011920929
+        },
+        {
+          "cpuMs": 54.599999994039536,
+          "gpuMs": 3.243374,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.400000005960464,
+            "maxTileMs": 7.700000017881393
+          },
+          "imageryMs": 36.099999994039536,
+          "renderMs": 6.0999999940395355
+        },
+        {
+          "cpuMs": 47.5,
+          "gpuMs": 1.045291,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.699999988079071,
+            "maxTileMs": 8.699999988079071
+          },
+          "imageryMs": 28.80000001192093,
+          "renderMs": 7.199999988079071
+        },
+        {
+          "cpuMs": 60.900000005960464,
+          "gpuMs": 1.259583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.5
+          },
+          "imageryMs": 40.19999998807907,
+          "renderMs": 8.800000011920929
+        },
+        {
+          "cpuMs": 68.90000000596046,
+          "gpuMs": 2.780083,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.200000017881393
+          },
+          "imageryMs": 47.79999998211861,
+          "renderMs": 8.599999994039536
+        },
+        {
+          "cpuMs": 32.69999998807907,
+          "gpuMs": 4.985416,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.200000017881393,
+            "maxTileMs": 8.200000017881393
+          },
+          "imageryMs": 15.299999982118607,
+          "renderMs": 5.4000000059604645
+        },
+        {
+          "cpuMs": 48.900000005960464,
+          "gpuMs": 1.230208,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.599999994039536,
+            "maxTileMs": 8.599999994039536
+          },
+          "imageryMs": 30.5,
+          "renderMs": 6
+        },
+        {
+          "cpuMs": 32.80000001192093,
+          "gpuMs": 1.453499,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.399999976158142,
+            "maxTileMs": 8.399999976158142
+          },
+          "imageryMs": 15.400000005960464,
+          "renderMs": 5.700000017881393
+        },
+        {
+          "cpuMs": 56.20000001788139,
+          "gpuMs": 1.579,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.200000017881393,
+            "maxTileMs": 8.200000017881393
+          },
+          "imageryMs": 36.80000001192093,
+          "renderMs": 6.9000000059604645
+        },
+        {
+          "cpuMs": 56.30000001192093,
+          "gpuMs": 3.725833,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.5
+          },
+          "imageryMs": 37.39999997615814,
+          "renderMs": 7.100000023841858
+        },
+        {
+          "cpuMs": 76.19999998807907,
+          "gpuMs": 6.433749,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.800000011920929,
+            "maxTileMs": 9.700000017881393
+          },
+          "imageryMs": 52.19999998807907,
+          "renderMs": 8.599999994039536
+        },
+        {
+          "cpuMs": 51.099999994039536,
+          "gpuMs": 3.072166,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.200000017881393,
+            "maxTileMs": 9.200000017881393
+          },
+          "imageryMs": 30.599999994039536,
+          "renderMs": 7.300000011920929
+        },
+        {
+          "cpuMs": 69.39999997615814,
+          "gpuMs": 3.186249,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.5,
+            "maxTileMs": 9.400000005960464
+          },
+          "imageryMs": 45.69999998807907,
+          "renderMs": 9.200000017881393
+        },
+        {
+          "cpuMs": 65.30000001192093,
+          "gpuMs": 1.809291,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.900000005960464,
+            "maxTileMs": 8.900000005960464
+          },
+          "imageryMs": 41.599999994039536,
+          "renderMs": 10.5
+        },
+        {
+          "cpuMs": 43.30000001192093,
+          "gpuMs": 1.254416,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.799999982118607,
+            "maxTileMs": 8.799999982118607
+          },
+          "imageryMs": 24.700000017881393,
+          "renderMs": 6.299999982118607
+        },
+        {
+          "cpuMs": 63.30000001192093,
+          "gpuMs": 3.901416,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9,
+            "maxTileMs": 8.900000005960464
+          },
+          "imageryMs": 41.69999998807907,
+          "renderMs": 8.700000017881393
+        },
+        {
+          "cpuMs": 51.400000005960464,
+          "gpuMs": 1.106,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.400000005960464,
+            "maxTileMs": 8.299999982118607
+          },
+          "imageryMs": 31.700000017881393,
+          "renderMs": 7.5
+        },
+        {
+          "cpuMs": 61.70000001788139,
+          "gpuMs": 1.858125,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.100000023841858,
+            "maxTileMs": 8.100000023841858
+          },
+          "imageryMs": 41.39999997615814,
+          "renderMs": 8.200000017881393
+        },
+        {
+          "cpuMs": 52.5,
+          "gpuMs": 0.884,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.300000011920929,
+            "maxTileMs": 8.300000011920929
+          },
+          "imageryMs": 31.5,
+          "renderMs": 8.600000023841858
+        },
+        {
+          "cpuMs": 20,
+          "gpuMs": 0.967583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.200000017881393,
+            "maxTileMs": 9
+          },
+          "imageryMs": 2,
+          "renderMs": 5.299999982118607
+        },
+        {
+          "cpuMs": 20.799999982118607,
+          "gpuMs": 0.972333,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.5
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 5.4000000059604645
+        },
+        {
+          "cpuMs": 20.599999994039536,
+          "gpuMs": 1.182791,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.5,
+            "maxTileMs": 8.5
+          },
+          "imageryMs": 2.5,
+          "renderMs": 5.4000000059604645
+        },
+        {
+          "cpuMs": 29.80000001192093,
+          "gpuMs": 2.005749,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.199999988079071,
+            "maxTileMs": 9.199999988079071
+          },
+          "imageryMs": 10,
+          "renderMs": 6.900000035762787
+        },
+        {
+          "cpuMs": 41,
+          "gpuMs": 1.240249,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.899999976158142,
+            "maxTileMs": 8.899999976158142
+          },
+          "imageryMs": 20.200000017881393,
+          "renderMs": 7.299999982118607
+        },
+        {
+          "cpuMs": 39.79999998211861,
+          "gpuMs": 3.950041,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.800000011920929,
+            "maxTileMs": 8.700000017881393
+          },
+          "imageryMs": 20.599999994039536,
+          "renderMs": 7.0999999940395355
+        },
+        {
+          "cpuMs": 63.69999998807907,
+          "gpuMs": 1.229666,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9,
+            "maxTileMs": 9
+          },
+          "imageryMs": 43.19999998807907,
+          "renderMs": 8.400000005960464
+        },
+        {
+          "cpuMs": 49.60000002384186,
+          "gpuMs": 3.616874,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.900000005960464,
+            "maxTileMs": 8.599999994039536
+          },
+          "imageryMs": 30.19999998807907,
+          "renderMs": 6.200000017881393
+        },
+        {
+          "cpuMs": 37.599999994039536,
+          "gpuMs": 2.353541,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 8.900000005960464,
+            "maxTileMs": 8.300000011920929
+          },
+          "imageryMs": 17.19999998807907,
+          "renderMs": 8.200000017881393
+        },
+        {
+          "cpuMs": 21.69999998807907,
+          "gpuMs": 1.353999,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 9.400000005960464,
+            "maxTileMs": 8.800000011920929
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 6
+        },
+        {
+          "cpuMs": 11.400000005960464,
+          "gpuMs": 1.498916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 4.399999976158142
+        }
+      ],
+      "active": [
+        {
+          "cpuMs": 11.900000005960464,
+          "gpuMs": 1.845541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 5.5
+        },
+        {
+          "cpuMs": 12.200000017881393,
+          "gpuMs": 1.106125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.800000011920929,
+          "renderMs": 5
+        },
+        {
+          "cpuMs": 10.300000011920929,
+          "gpuMs": 0.958916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.5
+        },
+        {
+          "cpuMs": 11.100000023841858,
+          "gpuMs": 1.021541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 4.800000011920929
+        },
+        {
+          "cpuMs": 10.300000011920929,
+          "gpuMs": 0.92625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.7999999821186066,
+          "renderMs": 4.199999988079071
+        },
+        {
+          "cpuMs": 10.799999982118607,
+          "gpuMs": 0.994833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.5,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 4.9000000059604645
+        },
+        {
+          "cpuMs": 10.200000017881393,
+          "gpuMs": 1.610666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.800000011920929,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4
+        },
+        {
+          "cpuMs": 10.5,
+          "gpuMs": 0.90025,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5999999940395355,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 11.300000011920929,
+          "gpuMs": 0.985874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 5.300000011920929
+        },
+        {
+          "cpuMs": 10.399999976158142,
+          "gpuMs": 1.102999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 9.5,
+          "gpuMs": 1.356875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.7999999821186066
+        },
+        {
+          "cpuMs": 9.799999982118607,
+          "gpuMs": 2.08875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 9.5,
+          "gpuMs": 1.292625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.9000000059604645
+        },
+        {
+          "cpuMs": 10.300000011920929,
+          "gpuMs": 1.357208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.899999976158142
+        },
+        {
+          "cpuMs": 10.099999994039536,
+          "gpuMs": 2.355749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.5,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.200000017881393
+        },
+        {
+          "cpuMs": 9.800000011920929,
+          "gpuMs": 5.362208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 3.7999999821186066
+        },
+        {
+          "cpuMs": 9.899999976158142,
+          "gpuMs": 2.585416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 10.200000017881393,
+          "gpuMs": 2.352166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.399999976158142,
+          "renderMs": 4.100000023841858
+        },
+        {
+          "cpuMs": 11.200000017881393,
+          "gpuMs": 2.383,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.6000000238418579,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.899999976158142,
+          "renderMs": 5.300000011920929
+        },
+        {
+          "cpuMs": 10.900000005960464,
+          "gpuMs": 1.458958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 5.199999988079071
+        },
+        {
+          "cpuMs": 10.099999994039536,
+          "gpuMs": 2.090916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 5
+        },
+        {
+          "cpuMs": 10.900000005960464,
+          "gpuMs": 2.05475,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.19999998807907104,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.5
+        },
+        {
+          "cpuMs": 10,
+          "gpuMs": 1.05975,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.4000000059604645,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.7999999821186066,
+          "renderMs": 4.700000017881393
+        },
+        {
+          "cpuMs": 10.199999988079071,
+          "gpuMs": 1.04375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.100000023841858,
+          "renderMs": 4.299999982118607
+        },
+        {
+          "cpuMs": 9.599999994039536,
+          "gpuMs": 1.61075,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 4
+        },
+        {
+          "cpuMs": 11.200000017881393,
+          "gpuMs": 2.593083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.5,
+          "renderMs": 5.5
+        },
+        {
+          "cpuMs": 12.5,
+          "gpuMs": 1.161833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.800000011920929,
+          "renderMs": 5.699999988079071
+        },
+        {
+          "cpuMs": 11.800000011920929,
+          "gpuMs": 1.170541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 5.299999982118607
+        },
+        {
+          "cpuMs": 10.400000005960464,
+          "gpuMs": 1.082499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2999999821186066,
+          "renderMs": 4.600000023841858
+        },
+        {
+          "cpuMs": 10.200000017881393,
+          "gpuMs": 1.2785,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2999999821186066,
+          "renderMs": 4.4000000059604645
+        }
+      ],
+      "disabled": [
+        {
+          "cpuMs": 188.40000000596046,
+          "gpuMs": 1.562999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.30000001192092896,
+            "maxTileMs": 0
+          },
+          "imageryMs": 166.80000001192093,
+          "renderMs": 17.099999994039536
+        },
+        {
+          "cpuMs": 10.599999994039536,
+          "gpuMs": 2.467124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 4.5
+        },
+        {
+          "cpuMs": 9.699999988079071,
+          "gpuMs": 2.905749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 9,
+          "gpuMs": 3.865125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 8.800000011920929,
+          "gpuMs": 1.864166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.899999976158142,
+          "renderMs": 4.200000017881393
+        },
+        {
+          "cpuMs": 9.299999982118607,
+          "gpuMs": 1.128833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 9.400000005960464,
+          "gpuMs": 1.166624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.5,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 8.699999988079071,
+          "gpuMs": 1.072374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 8.399999976158142,
+          "gpuMs": 1.304374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 8.5,
+          "gpuMs": 1.29625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 9.300000011920929,
+          "gpuMs": 1.741625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.899999976158142
+        },
+        {
+          "cpuMs": 8.699999988079071,
+          "gpuMs": 1.664874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.300000011920929,
+          "renderMs": 3.2999999821186066
+        },
+        {
+          "cpuMs": 9.099999994039536,
+          "gpuMs": 2.221208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 4
+        },
+        {
+          "cpuMs": 8.199999988079071,
+          "gpuMs": 1.488374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 8.5,
+          "gpuMs": 2.329124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 7.9000000059604645,
+          "gpuMs": 1.426166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.10000002384185791,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 3.199999988079071
+        },
+        {
+          "cpuMs": 8.900000005960464,
+          "gpuMs": 2.956749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 8.900000005960464,
+          "gpuMs": 1.254,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.199999988079071,
+          "renderMs": 3.800000011920929
+        },
+        {
+          "cpuMs": 8.899999976158142,
+          "gpuMs": 1.085249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 4.0999999940395355
+        },
+        {
+          "cpuMs": 9,
+          "gpuMs": 0.949875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 3.5999999940395355
+        },
+        {
+          "cpuMs": 10.299999982118607,
+          "gpuMs": 0.945624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 4.299999982118607
+        },
+        {
+          "cpuMs": 10.800000011920929,
+          "gpuMs": 1.034291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 4.5
+        },
+        {
+          "cpuMs": 10.700000017881393,
+          "gpuMs": 1.058208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.399999976158142,
+          "renderMs": 4.300000011920929
+        },
+        {
+          "cpuMs": 10.5,
+          "gpuMs": 1.017791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.4000000059604645,
+          "renderMs": 3.5
+        },
+        {
+          "cpuMs": 10.5,
+          "gpuMs": 1.430291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 9.299999982118607,
+          "gpuMs": 1.006499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.9000000059604645,
+          "renderMs": 3.699999988079071
+        },
+        {
+          "cpuMs": 9.900000005960464,
+          "gpuMs": 1.070124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.699999988079071,
+          "renderMs": 4.4000000059604645
+        },
+        {
+          "cpuMs": 11.399999976158142,
+          "gpuMs": 1.14775,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 1.800000011920929,
+          "renderMs": 5.300000011920929
+        },
+        {
+          "cpuMs": 10.900000005960464,
+          "gpuMs": 1.232291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.2000000178813934,
+          "renderMs": 4.799999982118607
+        },
+        {
+          "cpuMs": 12.200000017881393,
+          "gpuMs": 1.306708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          },
+          "imageryMs": 2.0999999940395355,
+          "renderMs": 6
+        }
+      ],
+      "gpuTimerAvailable": true
+    }
+  }
+]

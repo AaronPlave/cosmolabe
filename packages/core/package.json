@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@cosmolabe/interop": "*",
+    "polygon-clipping": "^0.15.7",
     "satellite.js": "^6.0.2"
   },
   "devDependencies": {

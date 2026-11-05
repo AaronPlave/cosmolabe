@@ -1,0 +1,9 @@
+{
+  "surface": "on terrain (moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh))",
+  "places": 0,
+  "camera": [
+    -0.00003299853994617127,
+    -0.000005229428609419032,
+    -0.0017561529387873833
+  ]
+}

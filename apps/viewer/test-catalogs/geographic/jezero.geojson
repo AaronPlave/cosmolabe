@@ -1,0 +1,242 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "science",
+      "properties": {
+        "name": "Jezero science target",
+        "sol": 123,
+        "measurement": 0.1234567890123456,
+        "nested": {
+          "active": true,
+          "tags": [
+            "rock",
+            null
+          ]
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.45,
+          18.45
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sites",
+      "properties": {
+        "name": "sites"
+      },
+      "geometry": {
+        "type": "MultiPoint",
+        "coordinates": [
+          [
+            77.4,
+            18.4
+          ],
+          [
+            77.5,
+            18.5
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "traverse",
+      "properties": {
+        "name": "traverse"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            77.4,
+            18.4
+          ],
+          [
+            77.45,
+            18.46
+          ],
+          [
+            77.5,
+            18.5
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "traverses",
+      "properties": {
+        "name": "traverses"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              77.4,
+              18.4
+            ],
+            [
+              77.5,
+              18.5
+            ]
+          ],
+          [
+            [
+              77.42,
+              18.42
+            ],
+            [
+              77.48,
+              18.48
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "region",
+      "properties": {
+        "name": "region"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.4,
+              18.4
+            ],
+            [
+              77.5,
+              18.4
+            ],
+            [
+              77.5,
+              18.5
+            ],
+            [
+              77.4,
+              18.5
+            ],
+            [
+              77.4,
+              18.4
+            ]
+          ],
+          [
+            [
+              77.42,
+              18.42
+            ],
+            [
+              77.42,
+              18.44
+            ],
+            [
+              77.44,
+              18.44
+            ],
+            [
+              77.44,
+              18.42
+            ],
+            [
+              77.42,
+              18.42
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "regions",
+      "properties": {
+        "name": "regions"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                77.4,
+                18.4
+              ],
+              [
+                77.5,
+                18.4
+              ],
+              [
+                77.5,
+                18.5
+              ],
+              [
+                77.4,
+                18.5
+              ],
+              [
+                77.4,
+                18.4
+              ]
+            ],
+            [
+              [
+                77.42,
+                18.42
+              ],
+              [
+                77.42,
+                18.44
+              ],
+              [
+                77.44,
+                18.44
+              ],
+              [
+                77.44,
+                18.42
+              ],
+              [
+                77.42,
+                18.42
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                77.4,
+                18.4
+              ],
+              [
+                77.5,
+                18.4
+              ],
+              [
+                77.5,
+                18.5
+              ],
+              [
+                77.4,
+                18.5
+              ],
+              [
+                77.4,
+                18.4
+              ]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

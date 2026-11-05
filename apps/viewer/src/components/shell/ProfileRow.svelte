@@ -163,7 +163,7 @@
         <span class="tl-secondary">{pair}</span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side={wide ? 'right' : 'top'} align="start" sideOffset={6} class="w-80 max-w-[calc(100vw-16px)] p-3">
+        <Popover.Content side={wide ? 'right' : 'top'} align="start" sideOffset={6} class="w-80 max-w-[calc(100cqw-16px)] p-3">
           {#if configOpen}
           <ProfileConfig
             initial={item.profile}

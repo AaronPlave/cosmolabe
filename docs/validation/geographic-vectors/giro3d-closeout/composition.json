@@ -1,0 +1,71 @@
+{
+  "results": [
+    {
+      "hillshade": false,
+      "features": 15,
+      "cyan": 16962,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 13,
+        "drawPages": 1,
+        "batches": 1,
+        "surfaceMeshes": 13,
+        "offsetVertices": 0,
+        "textureBytes": 706432
+      },
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      }
+    },
+    {
+      "hillshade": true,
+      "features": 15,
+      "cyan": 16957,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 13,
+        "drawPages": 1,
+        "batches": 1,
+        "surfaceMeshes": 13,
+        "offsetVertices": 0,
+        "textureBytes": 706432
+      },
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      }
+    },
+    {
+      "hillshade": false,
+      "features": 15,
+      "cyan": 16962,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 13,
+        "drawPages": 1,
+        "batches": 1,
+        "surfaceMeshes": 13,
+        "offsetVertices": 0,
+        "textureBytes": 706432
+      },
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      }
+    }
+  ],
+  "errors": []
+}

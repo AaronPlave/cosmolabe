@@ -2,6 +2,8 @@ import { EventKindRegistry } from '../registry.js';
 import { closestApproachKind } from './closest-approach.js';
 import { distanceRangeKind } from './distance-range.js';
 import { occultationKind } from './occultation.js';
+import { trajectoryExtremumKind } from './trajectory-extremum.js';
+export { trajectoryExtremumKind } from './trajectory-extremum.js';
 
 export type { ClosestApproachParams } from './closest-approach.js';
 export { closestApproachKind } from './closest-approach.js';
@@ -18,7 +20,7 @@ export { altitudeAt, rangeAt, rangeExtremum, rangeMetric } from './range-metrics
  * phase-angle and latitude-crossing capabilities are further entries in this
  * list, not further subsystems.
  */
-export const BUILTIN_EVENT_KINDS = [closestApproachKind, distanceRangeKind, occultationKind] as const;
+export const BUILTIN_EVENT_KINDS = [closestApproachKind, distanceRangeKind, occultationKind, trajectoryExtremumKind] as const;
 
 /** A registry holding the built-in kinds — the usual starting point. */
 export function builtinEventKinds(): EventKindRegistry {
@@ -32,5 +34,6 @@ export function registerBuiltinEventKinds(registry: EventKindRegistry): EventKin
   registry.register(closestApproachKind);
   registry.register(distanceRangeKind);
   registry.register(occultationKind);
+  registry.register(trajectoryExtremumKind);
   return registry;
 }

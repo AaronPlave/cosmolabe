@@ -7,12 +7,14 @@ import { posix, relative, sep } from 'node:path';
 
 /** Returns (absolutePath) => boolean: true to copy, false to skip. */
 export function publicDirCopyFilter(datasets, publicDir, alsoSkip = []) {
-  // Pinned datasets, plus any named in `alsoSkip` (e.g. one still being uploaded).
-  const hosted = Object.entries(datasets).filter(([id, d]) => d.build || alsoSkip.includes(id)).map(([, d]) => d);
+  // Local-only products/catalogs never ship; pinned datasets and `alsoSkip`
+  // are additionally omitted in hosted builds.
+  const hosted = Object.entries(datasets).filter(([id, d]) => d.localOnly || d.build || alsoSkip.includes(id)).map(([, d]) => d);
   return (abs) => {
     const rel = relative(publicDir, abs).split(sep).join('/');
     if (!rel || rel.startsWith('..')) return true;
     for (const d of hosted) {
+      if (d.localOnly && (d.catalogs ?? []).includes(rel)) return false;
       const dir = d.catalogPrefix.replace(/\/$/, '');
       if (d.recursive === false) {
         // Only the files directly inside the directory (e.g. kernels/*.bsp), not

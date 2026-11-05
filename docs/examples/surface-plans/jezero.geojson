@@ -1,0 +1,107 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "approach",
+      "properties": {
+        "note": "Synthetic planning fixture; no claim of real source coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.3,
+              18.3
+            ],
+            [
+              77.6,
+              18.3
+            ],
+            [
+              77.6,
+              18.6
+            ],
+            [
+              77.3,
+              18.6
+            ],
+            [
+              77.3,
+              18.3
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "landing",
+      "properties": {
+        "note": "Synthetic planning fixture; no claim of real source coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.42,
+              18.42
+            ],
+            [
+              77.48,
+              18.42
+            ],
+            [
+              77.48,
+              18.48
+            ],
+            [
+              77.42,
+              18.48
+            ],
+            [
+              77.42,
+              18.42
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "touchdown",
+      "properties": {
+        "note": "Synthetic planning fixture; no claim of real source coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.449,
+              18.449
+            ],
+            [
+              77.451,
+              18.449
+            ],
+            [
+              77.451,
+              18.451
+            ],
+            [
+              77.449,
+              18.451
+            ],
+            [
+              77.449,
+              18.449
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

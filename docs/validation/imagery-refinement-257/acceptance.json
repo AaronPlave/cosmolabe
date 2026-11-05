@@ -1,0 +1,437 @@
+{
+  "kind": "imagery-refinement-local-acceptance",
+  "version": 1,
+  "passed": true,
+  "date": "2026-10-26",
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "rendererSourceSha256": {
+    "packages/three/src/CubeImageryLayer.ts": "2a4e50570e117190c9c3a31c915be19f550c04319da144733e14dabb6fe18405",
+    "packages/three/src/CubeImageryPages.ts": "93058b5e6345852ae4c99f507aabde458fecd053566b090ae014994b8300ca80",
+    "packages/three/src/surface/ImageryRefinement.ts": "2e24d03c454dc651c122a870d74227ac5353acc53c4a99769458ac44fa0e2d41",
+    "packages/three/src/surface/CubeImagerySelection.ts": "27eaa5c59c9ab8d9cc9c163e4cd2a5f4e71a2dc2d74fd21b4d6090da332417ea",
+    "packages/three/src/UniverseRenderer.ts": "2a9cc86a62c0ff01423d2d71852762216dcc10d1f4c4101afb2dacfe069030c8",
+    "packages/three/src/TerrainManager.ts": "f58ec0bdfd2d8308cce61ff31db40ce677a1ec5ad4ea2b18026b6f420325c5af"
+  },
+  "tests": {
+    "rendererPackage": {
+      "files": 76,
+      "passed": 899
+    },
+    "focusedRendererSubset": 108,
+    "catalogAndPlaces": 89,
+    "typecheck": "passed; TypeScript and Svelte, zero errors/warnings",
+    "changedFileLint": "passed",
+    "scriptSyntax": "passed"
+  },
+  "mission": {
+    "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+    "loadedProducts": 4,
+    "sites": 3,
+    "pickRays": 75,
+    "estimatedFlightPhases": 15,
+    "viewportSamples": 196,
+    "surfaceExplorerMouseSteps": 16,
+    "renderedFrameClearance": {
+      "passed": true,
+      "corridors": 15,
+      "frames": 1303,
+      "clearanceM": {
+        "count": 1303,
+        "minimum": 49.17984917756257,
+        "p95": 50.0000000001819,
+        "maximum": 50.0000000001819
+      },
+      "discrepancyM": {
+        "count": 1303,
+        "minimum": 4.547473508864641e-10,
+        "p95": 4.7566572902724147e-07,
+        "maximum": 0.8201508226193255
+      },
+      "requiredMinimumM": 1.9,
+      "settledToleranceM": 0.5
+    },
+    "physicalBufferComparison": {
+      "coarse": {
+        "physicalBufferHash": {
+          "bytes": 18064632,
+          "fnv1a32": "27da55d"
+        },
+        "nav": {
+          "radiusKm": 3391.936496222438,
+          "physicalRadiusKm": 3391.9364962223426,
+          "renderedRadiusKm": 3391.936496222438,
+          "discrepancyM": 9.549694368615746e-08,
+          "settled": true
+        },
+        "geometryTiles": 113,
+        "imageryLevels": {
+          "0": 6,
+          "1": 6,
+          "2": 14,
+          "3": 16,
+          "4": 14,
+          "5": 2,
+          "6": 9,
+          "7": 8,
+          "8": 3
+        }
+      },
+      "fine": {
+        "physicalBufferHash": {
+          "bytes": 18064632,
+          "fnv1a32": "27da55d"
+        },
+        "nav": {
+          "radiusKm": 3391.936496222438,
+          "physicalRadiusKm": 3391.9364962223426,
+          "renderedRadiusKm": 3391.936496222438,
+          "discrepancyM": 9.549694368615746e-08,
+          "settled": true
+        },
+        "geometryTiles": 113,
+        "imageryLevels": {
+          "0": 6,
+          "1": 6,
+          "2": 14,
+          "3": 16,
+          "4": 14,
+          "5": 2,
+          "6": 9,
+          "7": 8,
+          "8": 1,
+          "9": 4,
+          "10": 3,
+          "11": 2,
+          "13": 2,
+          "14": 4
+        }
+      }
+    },
+    "outages": {
+      "outage": {
+        "baseUncoveredBlocks": 0,
+        "readyToShow": true,
+        "staticVisible": false,
+        "failedTiles": 76
+      },
+      "recovery": {
+        "baseUncoveredBlocks": 0,
+        "readyToShow": true,
+        "staticVisible": false,
+        "failedTiles": 0
+      },
+      "baseOutage": {
+        "baseUncoveredBlocks": 4,
+        "readyToShow": false,
+        "staticVisible": true,
+        "failedTiles": 20
+      },
+      "baseRecovery": {
+        "baseUncoveredBlocks": 0,
+        "readyToShow": true,
+        "staticVisible": false,
+        "failedTiles": 0
+      }
+    },
+    "coldConstrained": {
+      "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+      "ready": true,
+      "textures": 16,
+      "pinnedTextures": 6,
+      "textureBytes": 67634172,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "maxTextureBytes": 50331648,
+      "requests": 16,
+      "bytes": 17268198,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 0,
+      "count": 8,
+      "budgetLimited": true,
+      "queued": 8,
+      "tiles": 7,
+      "splitTiles": 0,
+      "blocks": 22,
+      "extraDraws": 0,
+      "displayedLevels": {
+        "0": 6,
+        "1": 1
+      },
+      "wantedLevels": {
+        "0": 2,
+        "2": 6,
+        "4": 2,
+        "5": 1,
+        "7": 6,
+        "8": 3,
+        "11": 6,
+        "12": 2,
+        "13": 6,
+        "14": 49
+      },
+      "fallbackBlocks": 81,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 1,
+      "committedGroups": 0,
+      "waitingGroups": 4,
+      "updateMs": 0.3999999761581421,
+      "blockGeometryBytes": 0,
+      "transitionTextureBytes": 22544724,
+      "protectedOverBudgetBytes": 0,
+      "gpuAllocatedBytes": 67650556,
+      "uploadMs": 20.69999998807907,
+      "gpuError": null,
+      "inheritedGlErrors": []
+    }
+  },
+  "registration": [
+    {
+      "view": "shackleton",
+      "measured": 1160,
+      "faceMismatch": 0,
+      "tileMismatch": 0,
+      "errorTexels": {
+        "n": 1160,
+        "median": 0.549361931660309,
+        "rms": 0.711437191201004,
+        "p95": 1.1527498857956155,
+        "max": 5.541633311269317
+      },
+      "errorMetres": {
+        "n": 1160,
+        "median": 12.245193689975112,
+        "rms": 469.20870404830134,
+        "p95": 79.67680373162887,
+        "max": 8949.281248007437
+      },
+      "errors": []
+    },
+    {
+      "view": "pole",
+      "measured": 1419,
+      "faceMismatch": 0,
+      "tileMismatch": 0,
+      "errorTexels": {
+        "n": 1419,
+        "median": 0.5851627155824785,
+        "rms": 0.6866819522496919,
+        "p95": 1.1516702741488813,
+        "max": 1.7094677685447006
+      },
+      "errorMetres": {
+        "n": 1419,
+        "median": 13.99001977148202,
+        "rms": 23.188232595038702,
+        "p95": 50.64771460910064,
+        "max": 76.1637326771114
+      },
+      "errors": []
+    },
+    {
+      "view": "face-edge",
+      "measured": 1428,
+      "faceMismatch": 0,
+      "tileMismatch": 0,
+      "errorTexels": {
+        "n": 1428,
+        "median": 0.5261651940898471,
+        "rms": 0.6312512005984567,
+        "p95": 1.0657627949528785,
+        "max": 1.661801367763681
+      },
+      "errorMetres": {
+        "n": 1428,
+        "median": 38.47019121289619,
+        "rms": 51.540856516037636,
+        "p95": 89.66045486810407,
+        "max": 202.13141272623164
+      },
+      "errors": []
+    },
+    {
+      "view": "face-corner",
+      "measured": 1418,
+      "faceMismatch": 0,
+      "tileMismatch": 0,
+      "errorTexels": {
+        "n": 1418,
+        "median": 0.4985035081465154,
+        "rms": 0.58045618605019,
+        "p95": 0.9785524679842164,
+        "max": 1.354864576951145
+      },
+      "errorMetres": {
+        "n": 1418,
+        "median": 51.968966006137954,
+        "rms": 60.69124861316049,
+        "p95": 103.62237790651784,
+        "max": 148.48689301155002
+      },
+      "errors": []
+    }
+  ],
+  "registrationLimits": "Color-ramp inverse-pixel diagnostic; worst samples and low-incidence/discontinuity effects remain in the raw report, not asserted as absolute map accuracy. Source registration/native-grid gates remain independently required.",
+  "instrument": {
+    "fixture": "Synthetic body-fixed nadir sensor at -89.98 degrees, 120 degrees, 25km reference altitude; original MoonFall products",
+    "targetBytes": 50331648,
+    "switches": [
+      {
+        "mode": "instrument",
+        "fullScreen": true,
+        "meshes": 150,
+        "withoutBase": 0,
+        "baseUncoveredBlocks": 0,
+        "textureBytes": 48322560,
+        "gpuAllocatedBytes": 51684352,
+        "gpuError": null
+      },
+      {
+        "mode": "instrument",
+        "fullScreen": true,
+        "meshes": 150,
+        "withoutBase": 0,
+        "baseUncoveredBlocks": 0,
+        "textureBytes": 48322560,
+        "gpuAllocatedBytes": 51684352,
+        "gpuError": null
+      },
+      {
+        "mode": "instrument",
+        "fullScreen": true,
+        "meshes": 150,
+        "withoutBase": 0,
+        "baseUncoveredBlocks": 0,
+        "textureBytes": 48322560,
+        "gpuAllocatedBytes": 51684352,
+        "gpuError": null
+      }
+    ],
+    "scope": "Constrained complete fallback coverage in the actual full-screen feed, not a promise of native detail under a 48MiB target."
+  },
+  "navigation": {
+    "passed": true,
+    "scenarios": [
+      {
+        "body": "Mars",
+        "scenario": "stationary-ground",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1,
+          "p99": 1.100000023841858,
+          "max": 1.699999988079071
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "moving-ground",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1.2000000476837158,
+          "p99": 1.300000011920929,
+          "max": 1.5
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "flight-follow",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.800000011920929,
+          "p95": 1,
+          "p99": 1.2999999523162842,
+          "max": 1.399999976158142
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "orbit-to-surface",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.7000000476837158,
+          "p95": 1.100000023841858,
+          "p99": 1.5,
+          "max": 2.300000011920929
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "stationary-ground",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5,
+          "p95": 0.6000000238418579,
+          "p99": 0.699999988079071,
+          "max": 0.9000000357627869
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "moving-ground",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.4999999403953552,
+          "p95": 0.6000000238418579,
+          "p99": 0.6000000238418579,
+          "max": 0.7000000476837158
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "flight-follow",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5,
+          "p95": 0.699999988079071,
+          "p99": 0.8999999761581421,
+          "max": 0.9000000357627869
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "orbit-to-surface",
+        "frames": 360,
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5,
+          "p95": 0.9000000357627869,
+          "p99": 1.100000023841858,
+          "max": 1.300000011920929
+        }
+      }
+    ]
+  },
+  "publication": {
+    "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+    "confirmationIdentity": "63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1",
+    "products": 5,
+    "objects": 5103,
+    "bytes": 1243309388,
+    "status": "read-only preflight matched; no upload, deployment or production cold-load verification"
+  },
+  "localSuiteLimits": [
+    "Earlier full-suite sandbox socket failures passed on an elevated targeted rerun (data hosting and surface build).",
+    "The unchanged GF first-half progress timing assertion still fails in isolated local execution; no assertion was weakened. Exact-head CI is tracked on the PR."
+  ],
+  "commands": [
+    "npx vitest run packages/three",
+    "npm run typecheck",
+    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ OUTPUT",
+    "node scripts/test-imagery-refinement.mjs http://localhost:5173/ OUTPUT",
+    "node scripts/test-imagery-instrument.mjs http://localhost:5173/ OUTPUT",
+    "node scripts/test-near-surface-performance.mjs http://localhost:5173/ OUTPUT",
+    "CUBE_STYLE_URL=http://localhost:5173 CUBE_STYLE_CATALOGS=test-catalogs/moonfall-shackleton node scripts/test-cube-surface-appearance.mjs"
+  ]
+}

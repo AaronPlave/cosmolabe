@@ -9,6 +9,7 @@
  * have typed.
  */
 import { openTool } from './shell.svelte';
+import { resettable } from './session.svelte';
 
 /**
  * A script waiting for the console to pick it up.
@@ -18,6 +19,7 @@ import { openTool } from './shell.svelte';
  * finished loading, which is also the earliest moment the script should run.
  */
 export const pendingScript = $state({ source: null as string | null, autorun: false });
+resettable(pendingScript);
 
 /** Queue a script to run, and open the console that will run it. */
 export function queueScript(source: string): void {

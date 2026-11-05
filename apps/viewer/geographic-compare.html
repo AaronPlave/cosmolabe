@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Geographic backend comparison</title>
+<style>body{margin:0;background:#0b1015;color:#dee5eb;font:14px system-ui}header{padding:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}button,select{background:#17222d;color:inherit;padding:7px;border:1px solid #4b6275;border-radius:4px}main{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 100px)}iframe{border:0;width:100%;height:100%}h2{font-size:14px;margin:5px 12px}section{min-height:0;display:flex;flex-direction:column}p{margin:0 12px 10px;color:#9faebc}#status{color:#9ecde0}</style></head>
+<body><header><strong>Natural Earth · same imported layer and camera</strong><select id="view"></select><button id="sync">Sync camera from left</button><button id="lighting">Flood light both</button><button id="highlight">Highlight France</button><span id="status">Loading both normal viewers…</span></header>
+<p>Left: interactive #262 vectors. Right: upstream GeoJSONOverlay (<span id="resolution">256</span> px per region). Use viewpoint controls above; the right raster has no native country picking. Development comparison only.</p>
+<main><section><h2>#262 vectors</h2><iframe id="vector" title="Vector viewer"></iframe></section><section><h2>3d-tiles-renderer 0.4.27 · raster</h2><iframe id="raster" title="Upstream raster viewer"></iframe></section></main>
+<script type="module">
+const params=new URLSearchParams(location.search);
+document.getElementById('resolution').textContent=params.get('overlayResolution')??256;
+const catalog=params.get('catalog')??'geographic-vectors-earth-overlay-comparison';
+const frames=['vector','raster'].map(backend=>{const f=document.getElementById(backend);f.src=`./?catalog=test-catalogs/${catalog}&geographic-comparison=${backend}&overlayResolution=${params.get('overlayResolution')??256}&overlaySplit=${params.get('overlaySplit')??1}`;return f;});
+const wait=()=>new Promise(requestAnimationFrame);
+while(frames.some(f=>!f.contentWindow?.geographicComparison))await wait();
+const rs=frames.map(f=>f.contentWindow.renderer);
+const views=catalog.includes('earth')?['Earth orbit','Europe and Africa','Pacific dateline','Antarctica','Rhine close','Southern Africa holes']:catalog.includes('shackleton')?['Shackleton detail','Shackleton close','Shackleton regional','Shackleton orbit']:['Jezero detail','Jezero close','Jezero regional','Jezero orbit'];
+const select=document.getElementById('view');for(const name of views)select.add(new Option(name,name));
+select.onchange=()=>rs.forEach(r=>r.applyNamedViewpoint(select.value));
+document.getElementById('lighting').onclick=()=>rs.forEach(r=>r.setLightingMode('flood'));
+document.getElementById('highlight').onclick=()=>frames.forEach(f=>f.contentWindow.geographicComparison.highlight('France'));
+document.getElementById('sync').onclick=()=>{const [a,b]=rs;b.camera.position.copy(a.camera.position);b.camera.up.copy(a.camera.up);b.cameraController.controls.target.copy(a.cameraController.controls.target);b.camera.lookAt(b.cameraController.controls.target);b.camera.updateMatrixWorld(true);};
+document.getElementById('status').textContent='Ready · compare views, hover, selection, and zoom';
+window.comparisonViewers=rs;
+</script></body></html>

@@ -1,3 +1,5 @@
+import { parseMissionActivities, type MissionActivity, type MissionActivitySpec } from '../MissionActivity.js';
+import { validateSurfaceTrajectoryProvenance, type SurfaceTrajectoryProvenance } from '../geometry/surface-trajectory.js';
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 import type { GeographicCoordinates, GeographicLayerDefinition } from '../geographic/model.js';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
@@ -11,6 +13,7 @@ import { parseOem } from '@cosmolabe/interop';
 import { oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
+import { parseViewpoint as parseViewpointItem, type ViewpointDefinition } from '../viewpoint.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { ChebyshevPolyTrajectory } from '../trajectories/ChebyshevPolyTrajectory.js';
 import { LinearCombinationTrajectory } from '../trajectories/LinearCombinationTrajectory.js';
@@ -36,6 +39,7 @@ import {
   normalizeFrameKey,
   type FixedFrameSpec,
 } from '../frames/FrameRegistry.js';
+import { validateCatalog } from './CatalogSchema.js';
 
 /**
  * A SPICE kernel reference inside a catalog. Bare strings are Cosmographia-native;
@@ -70,10 +74,15 @@ export interface SpkImportSpec {
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
+  activities?: MissionActivitySpec[];
   /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
   geographicCoordinates?: GeographicCoordinates;
   geographicLayers?: GeographicLayerDefinition[];
+  /** Viewer: geographic names initially enabled on these bodies (otherwise opt-in). */
+  defaultGeographicNames?: string[];
   name?: string;
+  /** Viewer caption shown until a script replaces or clears it. */
+  displayNote?: string;
   version?: string;
   require?: string[];
   items?: CatalogItem[];
@@ -101,6 +110,9 @@ export interface CatalogJson {
 }
 
 export interface TrajectoryPlotSpec {
+  frame?: string;
+  sampleInterval?: string;
+  timelineLabel?: string;
   duration?: string;
   lead?: string;
   fade?: number;
@@ -108,7 +120,6 @@ export interface TrajectoryPlotSpec {
   opacity?: number;
   visible?: string | boolean;
   sampleCount?: number;
-  lineWidth?: number;
 }
 
 export interface CatalogItem {
@@ -121,6 +132,7 @@ export interface CatalogItem {
    *  the catalog loads. */
   trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory?: TrajectorySpec;
+  surfaceTrajectory?: SurfaceTrajectoryProvenance;
   trajectoryPlot?: TrajectoryPlotSpec;
   rotationModel?: RotationModelSpec;
   bodyFrame?: string | BodyFrameSpec;
@@ -128,6 +140,7 @@ export interface CatalogItem {
   label?: LabelSpec;
   naifId?: number;
   mass?: number | string;
+  description?: string;
   radii?: number[];
   startTime?: string;
   endTime?: string | number;
@@ -274,6 +287,8 @@ export interface RotationModelSpec {
   ascension?: number;
   declination?: number;
   bodyFrame?: string;
+  /** Fixed rotation: explicit destination axes for registered local geometry. */
+  bodyFixedFrame?: string;
   inertialFrame?: string;
   /** Spice rotation: frame to use where `bodyFrame` has no data (a CK gap), e.g. an articulated part's zero frame. */
   fallbackFrame?: string;
@@ -303,66 +318,24 @@ export interface GeometrySpec {
   radii?: number[];
   size?: number;
   source?: string;
-  meshFile?: string;
   meshRotation?: number[];
-  sensor?: {
-    horizontalFov?: number;
-    verticalFov?: number;
-    frustumColor?: number[];
-    target?: string;
-  };
+  // Everything else is read by the renderers from `Body.geometryData`; the
+  // keys each geometry type accepts are listed in CatalogSchema.ts.
   [key: string]: unknown;
 }
 
 export interface LabelSpec {
   color?: number[] | string;
-  fadeSize?: number;
   /** If false, no label is created for this body. Defaults to true. */
   visible?: boolean;
 }
 
-/** A viewpoint definition parsed from a Cosmographia catalog Viewpoint item */
-export interface ViewpointDefinition {
-  name: string;
-  /** Body to center the view on */
-  center?: string;
-  /** Reference frame (default: EclipticJ2000) */
-  frame?: string;
-  /** Distance from center body in km */
-  distance?: number;
-  /** Longitude offset in degrees (azimuth around center) */
-  longitude?: number;
-  /** Latitude offset in degrees (elevation from equatorial plane) */
-  latitude?: number;
-  /** Explicit eye position [x, y, z] in km (overrides spherical coords) */
-  eye?: [number, number, number];
-  /** Explicit target position [x, y, z] in km */
-  target?: [number, number, number];
-  /** Up direction */
-  up?: [number, number, number];
-  /** Field of view in degrees */
-  fov?: number;
-  /**
-   * The moment this viewpoint depicts, verbatim from the catalog (UTC, or a
-   * Julian day number). Kept as authored so a consumer can round-trip it; use
-   * `epoch` for the resolved value.
-   */
-  time?: string | number;
-  /**
-   * `time` resolved to ephemeris seconds past J2000, via SPICE `str2et` when a
-   * leapseconds kernel is furnished and core's calendar parse otherwise —
-   * the same path every other catalog epoch takes.
-   *
-   * Undefined when the catalog declared no `time`, and also when it declared
-   * one that could not be parsed (which warns). Deliberately NOT zero on
-   * failure: a viewpoint that says nothing about time must leave the clock
-   * alone, and 0 is a legitimate epoch, so the two cases have to be
-   * distinguishable at the point of use.
-   */
-  epoch?: number;
-}
+/** A catalog `Viewpoint` item, parsed. Defined with the resolver in
+ *  `viewpoint.ts`; re-exported here where it has always been importable. */
+export type { ViewpointDefinition } from '../viewpoint.js';
 
 export interface LoadedCatalog {
+  activities: MissionActivity[];
   bodies: Body[];
   viewpoints: ViewpointDefinition[];
   name?: string;
@@ -408,6 +381,8 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
     case 'au': return num * 149597870.7;
     case 'km': return num;
     case 'm': return num * 0.001;
+    case 'cm': return num * 1e-5;
+    case 'mm': return num * 1e-6;
     case 'y': case 'yr': case 'yrs': case 'year': case 'years':
       return num * 365.25 * 86400; // years → seconds
     case 'd': case 'day': case 'days':
@@ -419,7 +394,11 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
     case 's': case 'sec': case 'secs': case 'second': case 'seconds':
       return num;                   // seconds
     case '': return num;
-    default: return num;
+    default:
+      // Read as the bare number, which is what an unsuffixed value means, but
+      // say so: "2000ft" as 2000 km is off by a factor of 3280.
+      console.warn(`[Cosmolabe] Unrecognized unit "${match[2]}" in ${JSON.stringify(val)}; reading the number without it.`);
+      return num;
   }
 }
 
@@ -430,6 +409,21 @@ const BODY_GM: Record<string, number> = {
   Uranus: 5793939, Neptune: 6836529, Venus: 324859, Mercury: 22032,
   Pluto: 871,
 };
+
+/** The gravitational parameter a Keplerian orbit propagates with. A catalog
+ *  `period` wins, as in Cosmographia, and is the only way to orbit a center
+ *  with no GM in BODY_GM; otherwise the center's GM. Bare numbers are days. */
+function keplerianMu(semiMajorAxisKm: number, period: number | string | undefined, center: string | undefined): number {
+  if (period != null) {
+    const seconds = typeof period === 'number' || !/[a-zA-Z]/.test(period)
+      ? Number(period) * 86400
+      : parseValueWithUnit(period, 0);
+    if (seconds > 0 && semiMajorAxisKm > 0) {
+      return 4 * Math.PI * Math.PI * semiMajorAxisKm ** 3 / (seconds * seconds);
+    }
+  }
+  return BODY_GM[center ?? 'Sun'] ?? 0;
+}
 
 // Well-known Builtin body names → SPICE targets
 const BUILTIN_BODIES: Record<string, { target: string; center: string }> = {
@@ -612,6 +606,9 @@ export interface CatalogLoaderOptions {
    *  are resolved against. `Universe` passes its own; a standalone loader
    *  makes one. */
   frames?: FrameRegistry;
+  /** Geometry types a renderer plugin draws, so the unknown-key check neither
+   *  checks their fields nor reports one as a misspelled built-in type. */
+  geometryTypes?: readonly string[];
 }
 
 export class CatalogLoader {
@@ -620,6 +617,7 @@ export class CatalogLoader {
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
   private readonly trajectoryFactories?: Record<string, TrajectoryFactory>;
   private readonly rotationFactories?: Record<string, RotationFactory>;
+  private readonly geometryTypes?: readonly string[];
   private frames: FrameRegistry;
   /** Epoch (ET) used to probe whether SPICE kernels have coverage. Set from catalog's defaultTime. */
   private probeEpoch = 0;
@@ -636,9 +634,15 @@ export class CatalogLoader {
       this.resolveFileBinary = opts.resolveFileBinary;
       this.trajectoryFactories = opts.trajectoryFactories;
       this.rotationFactories = opts.rotationFactories;
+      this.geometryTypes = opts.geometryTypes;
       frames = opts.frames;
     }
     this.frames = frames ?? new FrameRegistry({ spice: this.spice });
+  }
+
+  private catalogBodyFrames = new Map<string, string>();
+  private frameForBody(name: string): string {
+    return this.catalogBodyFrames.get(normalizeFrameKey(name)) ?? this.frames.bodyFixedFrameFor(name);
   }
 
   /** The frame to ask SPICE for when a catalog names `frame`: its SPICE
@@ -650,7 +654,7 @@ export class CatalogLoader {
     if (frame === undefined) return fallback;
     const canonical = this.frames.canonicalName(frame);
     const name = canonical === BODY_FIXED
-      ? (center ? bodyFixedFrameName(center) : undefined)
+      ? (center ? this.frameForBody(center) : undefined)
       : this.frames.spiceName(canonical);
     if (!name) return 'J2000';
     // A body-fixed frame of a body SPICE has no PCK or CK frame for
@@ -684,7 +688,7 @@ export class CatalogLoader {
     }
     const type = typeof frame.type === 'string' ? frame.type : '';
     if (/^body[-_ ]?fixed$/i.test(type)) {
-      const name = typeof frame.body === 'string' && frame.body ? bodyFixedFrameName(frame.body) : BODY_FIXED;
+      const name = typeof frame.body === 'string' && frame.body ? this.frameForBody(frame.body) : BODY_FIXED;
       this.checkFrameName(owner, name);
       return name;
     }
@@ -709,6 +713,7 @@ export class CatalogLoader {
       return;
     }
     const canonical = this.frames.canonicalName(frame);
+    const missingBehavior = /^(MOON_ME|MOON_PA)(_|$)/i.test(canonical) ? 'placement is unavailable' : 'states are used unrotated';
     if (canonical === BODY_FIXED) return;
     if (canonical.startsWith('IAU_')) {
       // Its body may be further down this catalog; checked once it has loaded.
@@ -719,7 +724,7 @@ export class CatalogLoader {
       if (!this.frames.get(canonical)) {
         console.warn(
           `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
-            `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+            `${missingBehavior}. Declare it in the catalog's "frames" or use a registered frame.`,
         );
       }
       return;
@@ -732,7 +737,7 @@ export class CatalogLoader {
     if (!this.frames.isResolvable(canonical, this.probeEpoch) && spiceName && this.frames.spiceRejects(spiceName)) {
       console.warn(
         `[Cosmolabe] "${owner}": frame "${frame}" is not a registry frame and SPICE does not recognize it ` +
-          `(missing frame kernel?); states are used unrotated.`,
+          `(missing frame kernel?); ${missingBehavior}.`,
       );
     }
   }
@@ -756,6 +761,18 @@ export class CatalogLoader {
   }
 
   load(json: CatalogJson): LoadedCatalog {
+    // Unknown keys first, before anything is built from what remains: a key
+    // the loader does not read leaves a plausible scene missing what it asked
+    // for, and this is the only place that mistake can surface.
+    const label = json.name ? `catalog "${json.name}"` : 'catalog';
+    for (const d of validateCatalog(json, {
+      trajectoryTypes: Object.keys(this.trajectoryFactories ?? {}),
+      rotationTypes: Object.keys(this.rotationFactories ?? {}),
+      geometryTypes: this.geometryTypes,
+    })) {
+      console.warn(`[Cosmolabe] ${label}: ${d.message}`);
+    }
+
     // If catalog specifies a defaultTime, use it as the probe epoch for SPICE coverage checks.
     // This ensures Builtin bodies use SPICE data when the loaded kernels cover the mission epoch
     // (e.g. a Cassini SCPSE kernel covering 2004 would fail the default J2000 probe at ET=0).
@@ -772,6 +789,19 @@ export class CatalogLoader {
         console.warn(`[Cosmolabe] catalog frame ${JSON.stringify(spec?.name)}:`, err instanceof Error ? err.message : err);
       }
     }
+
+    // Normalize structured references against this catalog's target attitudes,
+    // including parents not installed into Universe until this load completes.
+    this.catalogBodyFrames.clear();
+    const indexFrames = (items: CatalogItem[]) => {
+      for (const item of items) {
+        if (item.rotationModel?.type === 'Spice' && item.rotationModel.bodyFrame) {
+          this.catalogBodyFrames.set(normalizeFrameKey(item.name), item.rotationModel.bodyFrame);
+        }
+        if (item.items) indexFrames(item.items);
+      }
+    };
+    indexFrames(json.items ?? []);
 
     const bodies: Body[] = [];
     const viewpoints: ViewpointDefinition[] = [];
@@ -802,6 +832,7 @@ export class CatalogLoader {
 
     const kernels = collectKernelRefs(json);
     return {
+      activities: parseMissionActivities(json.activities === undefined ? [] : json.activities, t => this.parseEpoch(t) ?? NaN),
       bodies,
       viewpoints,
       name: json.name,
@@ -858,26 +889,17 @@ export class CatalogLoader {
   }
 
   private parseViewpoint(item: CatalogItem): ViewpointDefinition {
-    const vp: ViewpointDefinition = { name: item.name };
-    vp.center = item.center;
-    // Parse viewpoint-specific fields from the generic CatalogItem
-    const raw = item as unknown as Record<string, unknown>;
-    if (raw.frame) vp.frame = String(raw.frame);
-    if (raw.distance != null) vp.distance = parseFloat(String(raw.distance));
-    if (raw.longitude != null) vp.longitude = parseFloat(String(raw.longitude));
-    if (raw.latitude != null) vp.latitude = parseFloat(String(raw.latitude));
-    if (Array.isArray(raw.eye)) vp.eye = raw.eye.map(Number) as [number, number, number];
-    if (Array.isArray(raw.target)) vp.target = raw.target.map(Number) as [number, number, number];
-    if (Array.isArray(raw.up)) vp.up = raw.up.map(Number) as [number, number, number];
-    if (raw.fov != null) vp.fov = parseFloat(String(raw.fov));
-    if (raw.time != null && (typeof raw.time === 'string' || typeof raw.time === 'number')) {
-      vp.time = raw.time;
-      const et = this.tryParseEpochValue(raw.time);
+    const vp = parseViewpointItem(item as unknown as Record<string, unknown>, (msg) => {
+      console.warn(`[Cosmolabe] Viewpoint "${item.name}": ${msg}`);
+    });
+    if (vp.time !== undefined) {
+      const et = this.tryParseEpochValue(vp.time);
       if (et === undefined) {
         // Warn rather than fall back to 0. A viewpoint named for an epoch that
         // silently resolves to J2000 is the exact failure this field was added
         // to remove — the scene still renders, just at the wrong moment.
-        console.warn(`[Cosmolabe] Viewpoint "${item.name}": could not parse time ${JSON.stringify(raw.time)}; leaving the clock alone`);
+        console.warn(`[Cosmolabe] Viewpoint "${item.name}": could not parse time ${JSON.stringify(vp.time)}; leaving the clock alone`);
+        delete vp.epoch;
       } else {
         vp.epoch = et;
       }
@@ -911,9 +933,11 @@ export class CatalogLoader {
     // Waypoints → BODY_FIXED, SPICE → the frame it queried, OEM → REF_FRAME).
     const trajectoryFrame = frameName(item.trajectoryFrame);
 
+    if (item.surfaceTrajectory) validateSurfaceTrajectoryProvenance(item.surfaceTrajectory);
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
+      description: typeof item.description === 'string' ? item.description : undefined,
       trajectory,
       rotation,
       parentName: parentName ?? item.center,
@@ -924,6 +948,7 @@ export class CatalogLoader {
       labelVisible: item.label?.visible !== false,
       geometryType: geometry?.type as string | undefined,
       geometryData: geometry,
+      surfaceTrajectory: item.surfaceTrajectory,
       trajectoryPlot,
       trajectoryFrame,
       existsFrom: this.existenceBound(item, 'startTime'),
@@ -1040,7 +1065,9 @@ export class CatalogLoader {
         ? this.parseEpochValue(arc.endTime)
         : (i < arcs.length - 1 && arcs[i + 1].startTime != null
           ? this.parseEpochValue(arcs[i + 1].startTime!)
-          : startTime + 365.25 * 86400);
+          : (i === arcs.length - 1 && item.endTime != null
+            ? this.parseEpochValue(item.endTime)
+            : startTime + 365.25 * 86400));
 
       return {
         trajectory: this.buildTrajectory(arc.trajectory, {
@@ -1101,7 +1128,7 @@ export class CatalogLoader {
           argPeriapsis: argPeri * Math.PI / 180,
           meanAnomalyAtEpoch: (spec.meanAnomaly ?? 0) * Math.PI / 180,
           epoch: spec.epoch ? this.parseEpochValue(spec.epoch) : 0,
-          mu: BODY_GM[item.center ?? 'Sun'] ?? 0,
+          mu: keplerianMu(sma, spec.period, item.center),
         });
       }
 
@@ -1317,7 +1344,10 @@ export class CatalogLoader {
           });
         }
         if (waypoints.length < 2) return new FixedPointTrajectory([0, 0, 0]);
-        return new WaypointTrajectory(waypoints, refRadius, { useAbsoluteAlt: spec.useAbsoluteAlt === true });
+        return new WaypointTrajectory(waypoints, refRadius, {
+          useAbsoluteAlt: spec.useAbsoluteAlt === true || !!item.surfaceTrajectory,
+          frame: item.surfaceTrajectory?.frame,
+        });
       }
 
       default:
@@ -1328,6 +1358,10 @@ export class CatalogLoader {
   private buildRotationModel(item: CatalogItem, trajectory?: Trajectory, parentBody?: Body): RotationModel | undefined {
     const spec = item.rotationModel;
     if (!spec) return undefined;
+    // Cosmographia's item-level `bodyFrame` names the frame a rotation model
+    // is stated in. The rotations whose frame is otherwise a fixed default
+    // take it when they do not name one themselves.
+    const statedFrame = spec.inertialFrame ?? (typeof item.bodyFrame === 'string' ? item.bodyFrame : undefined);
 
     // Check custom factories before built-in types
     const customFactory = this.rotationFactories?.[spec.type];
@@ -1371,7 +1405,7 @@ export class CatalogLoader {
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           poleRaDeg * Math.PI / 180,
           poleDecDeg * Math.PI / 180,
-          spec.inertialFrame ?? 'EquatorJ2000',
+          statedFrame ?? 'EquatorJ2000',
         );
       }
 
@@ -1424,7 +1458,14 @@ export class CatalogLoader {
       }
 
       case 'Spice':
-        if (!this.spice) return undefined;
+        if (!this.spice) {
+          const target = spec.bodyFrame ?? bodyFixedFrameName(item.name);
+          if (!/^(MOON_ME|MOON_PA)(_|$)/i.test(target)) return undefined;
+          return {
+            sourceFrame: spec.inertialFrame ?? 'ECLIPJ2000', bodyFixedFrame: target,
+            rotationAt: () => { throw new Error(`Orientation unavailable for ${item.name}: SPICE is required`); },
+          };
+        }
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? bodyFixedFrameName(item.name),
@@ -1474,11 +1515,12 @@ export class CatalogLoader {
       }
 
       case 'Fixed': {
-        const sourceFrame = spec.inertialFrame ?? 'EquatorJ2000';
+        const sourceFrame = statedFrame ?? 'EquatorJ2000';
         if (spec.quaternion && spec.quaternion.length >= 4) {
           return new FixedRotation(
             [spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]],
             sourceFrame,
+            spec.bodyFixedFrame,
           );
         }
         // Pole angles form: inclination/ascendingNode/meridianAngle (degrees)
@@ -1487,6 +1529,7 @@ export class CatalogLoader {
           (spec.ascendingNode ?? 0) * Math.PI / 180,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           sourceFrame,
+          spec.bodyFixedFrame,
         );
       }
 
@@ -1495,7 +1538,7 @@ export class CatalogLoader {
           return new FixedEulerRotation(
             spec.sequence,
             spec.angles,
-            spec.inertialFrame ?? 'EquatorJ2000',
+            statedFrame ?? 'EquatorJ2000',
           );
         }
         return undefined;
@@ -1669,6 +1712,13 @@ export class CatalogLoader {
   private parseTrajectoryPlot(spec: TrajectoryPlotSpec | undefined): TrajectoryPlotConfig | undefined {
     if (!spec) return undefined;
     const config: TrajectoryPlotConfig = {};
+    if (spec.frame != null) config.frame = spec.frame;
+    if (spec.timelineLabel != null) config.timelineLabel = spec.timelineLabel;
+    if (spec.sampleInterval != null) {
+      const interval = parseValueWithUnit(spec.sampleInterval, 0);
+      if (!(interval > 0) || !Number.isFinite(interval)) throw new Error('trajectoryPlot.sampleInterval must be finite and positive');
+      config.sampleInterval = interval;
+    }
     if (spec.duration != null) config.duration = parseValueWithUnit(spec.duration, 0);
     if (spec.lead != null) config.lead = parseValueWithUnit(spec.lead, 0);
     if (spec.fade != null) config.fade = Math.max(0, Math.min(1, spec.fade));

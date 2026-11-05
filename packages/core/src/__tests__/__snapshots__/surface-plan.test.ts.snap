@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`source evidence and locked builds > keeps synthetic Mars examples reproducible without implying HiRISE coverage 1`] = `
+"Surface data plan — source-aware (estimator 1.1.1)
+Desired snapshot: sha256:9b08c015d32a94b1701eed9e5f33baa04835f771ed05f5d8d99744e5459f7139
+Source metadata: sha256:33425d14f2d7196b84a0120c4be1fd3a5c51875e93ec68c81b4c9c0428d8903c
+Physical source fidelity: unsatisfied; bands 0 satisfied, 0 partial, 3 unsatisfied, 3 unknown (separate from storage budget).
+imagery: 0.0133 km² @ 0.25 m GSD; 213,000 base samples; source unknown; publish 79,900 bytes .. 3.59 MB
+imagery: 12 km² @ 2 m GSD; 2,990,000 base samples; source unknown; publish 990,000 bytes .. 18.7 MB
+imagery: 288 km² @ 20 m GSD; 719,000 base samples; source unknown; publish 240,000 bytes .. 8.59 MB
+elevation: 0.0133 km² @ 1 m GSD / 0.5 m accuracy; 13,300 base samples; source unsatisfied; publish 66,600 bytes .. 1.92 MB
+elevation: 12 km² @ 20 m GSD; 29,900 base samples; source unsatisfied; publish 66,600 bytes .. 2.34 MB
+elevation: 288 km² @ 100 m GSD; 28,800 base samples; source unsatisfied; publish 66,600 bytes .. 2.56 MB
+Raw source download (all candidates, counted once): 1 MB .. unknown
+Output/intermediate work disk scenario: 31.7 MB .. 63.4 MB
+Peak/intermediate work disk: 32.7 MB .. unknown
+Published: 1.51 MB .. 37.7 MB; objects 85 .. 341
+Browser scenario: 7.46 MB .. 29.8 MB decoded; 1.32 MB .. 20 MB transfer; 32..128 requests
+Assumptions: 256px tiles + 1px gutters; imagery 3 B/sample, compression 0.08..0.5; elevation 4 B/sample, compression 0.25..0.8; full 2× pyramid; work multiplier 2..4; 16..64 visible tiles/channel.
+Published budget: 100 MB — within
+Compare only approach at 2× coarser GSD: 1.33 MB .. 32.2 MB — within
+Compare only approach at 4× coarser GSD: 1.29 MB .. 29.4 MB — within
+warning [coarser-native-source] bands.elevation.1: A candidate is coarser than the physical target. Upsampling increases output density, not source fidelity.
+warning [coarser-native-source] bands.elevation.20: A candidate is coarser than the physical target. Upsampling increases output density, not source fidelity.
+warning [coarser-native-source] bands.elevation.100: A candidate is coarser than the physical target. Upsampling increases output density, not source fidelity.
+warning [planning-assumptions] $: Uncalibrated scenario bounds: boundary tile packing, compression, and visible tiles depend on the future generator. Work disk upper bound is unknown without source decode/scratch metadata. No build or download was performed.
+"
+`;

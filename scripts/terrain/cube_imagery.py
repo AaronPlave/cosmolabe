@@ -55,7 +55,7 @@ import numpy as np
 
 sys.dont_write_bytecode = True  # importing dem.py must not litter scripts/terrain with __pycache__
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dem import CUBE_BASES, CUBE_FACES, parse_cube_region  # noqa: E402
+from dem import CUBE_BASES, CUBE_FACES, parse_cube_region, file_sha256  # noqa: E402
 from osgeo import gdal, osr  # noqa: E402
 
 gdal.UseExceptions()
@@ -245,7 +245,7 @@ def raster_open(path):
         geog = srs.CloneGeogCS()
         a, inv_f = geog.GetSemiMajor(), geog.GetInvFlattening()
         if inv_f != 0 or abs(a - R_KM * 1000) > 1e-6:
-            raise SystemExit(f'{path}: CRS is not the 1737.4 km sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
+            raise SystemExit(f'{path}: CRS does not match the declared metric sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
         geog.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         tr = osr.CoordinateTransformation(geog, srs)
@@ -255,7 +255,11 @@ def raster_open(path):
         # A global cylindrical raster wraps in longitude: windows then cross the antimeridian instead of spanning the globe.
         x0, x1 = (tr.TransformPoint(lon, 0.0)[0] for lon in (-180.0, 180.0))
         period = x1 - x0 if abs(abs(x1 - x0) - ds.RasterXSize * gt[1]) < 2 * gt[1] else None
-        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period)
+        eqc_zero = srs.GetAttrValue('PROJECTION') == 'Equirectangular' and srs.GetLinearUnits() == 1 and all(
+            abs(srs.GetProjParm(key, 0)) < 1e-14 for key in
+            ['central_meridian', 'latitude_of_origin', 'standard_parallel_1', 'false_easting', 'false_northing'])
+        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period,
+                          eqc_zero=eqc_zero, radius_m=a, premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
     return _SRC[path]
 
 
@@ -279,8 +283,14 @@ def raster_tile(path, face, L, x, y, T, g, ss):
     d = directions(face, U, V)
     lon, lat = lonlat(d)
     shape = lon.shape
-    pts = np.array(src['tr'].TransformPoints(np.column_stack([lon.ravel(), lat.ravel()]).tolist()))[:, :2]
-    px, py = pts[:, 0], pts[:, 1]
+    if src['eqc_zero']:
+        # Exact spherical zero-origin EQC, independently checked against GDAL
+        # and native-window registration tests. Avoid constructing tens of
+        # millions of Python point lists for each full-resolution mission tile.
+        px, py = np.radians(lon.ravel())*src['radius_m'], np.radians(lat.ravel())*src['radius_m']
+    else:
+        pts = np.array(src['tr'].TransformPoints(np.column_stack([lon.ravel(), lat.ravel()]).tolist()))[:, :2]
+        px, py = pts[:, 0], pts[:, 1]
     gt = src['gt']
     if src['period']:  # unwrap about the tile centre, so a tile across the antimeridian reads two narrow windows
         u0, v0, size = tile_rect(L, x, y)
@@ -288,14 +298,14 @@ def raster_tile(path, face, L, x, y, T, g, ss):
         xc = src['tr'].TransformPoint(float(cl[0]), 0.0)[0]
         px = xc + np.mod(px - xc + src['period'] / 2, src['period']) - src['period'] / 2
     u0, v0, size = tile_rect(L, x, y)
-    sample_m = size / T / ss * R_KM * 1000 * 0.4  # conservative: corner texels are ~2.6× smaller than the centre
+    sample_m = size / T / (1 if src['premultiplied'] else ss) * R_KM * 1000 * 0.4  # conservative: corner texels are ~2.6× smaller than the centre
     fine = 0
     for k, (r, _) in enumerate(src['levels']):
         if r <= max(sample_m, src['levels'][0][0]):
             fine = k
     for res, band in src['levels'][fine:]:  # coarser while the window is too large (equirectangular near a pole)
         cols = (px - gt[0]) / res - 0.5
-        rows = (gt[3] - py) / res - 0.5
+        rows = (gt[3] - py) / (abs(gt[5]) * src['ds'].RasterYSize / band.YSize) - 0.5
         lo_c, hi_c = (-1, band.XSize) if not src['period'] else (-band.XSize, 2 * band.XSize)
         ok = np.isfinite(cols) & np.isfinite(rows) & (cols > lo_c) & (rows > -1) & (cols < hi_c) & (rows < band.YSize)
         if not ok.any():
@@ -307,22 +317,37 @@ def raster_tile(path, face, L, x, y, T, g, ss):
         if (c1 - c0 + 1) * (r1 - r0 + 1) <= WINDOW_CAP:
             break
     h = r1 - r0 + 1
-    if c0 >= 0 and c1 < band.XSize:
-        win = read_window(band, c0, r0, c1 - c0 + 1, h)
-    else:  # wrapped: columns modulo the width, read in contiguous runs
-        idx = np.mod(np.arange(c0, c1 + 1), band.XSize)
+    def window(b):
+        if c0 >= 0 and c1 < b.XSize:
+            return read_window(b, c0, r0, c1 - c0 + 1, h)
+        idx = np.mod(np.arange(c0, c1 + 1), b.XSize)
         runs = np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1)
-        win = np.concatenate([read_window(band, int(p[0]), r0, len(p), h) for p in runs], axis=1)
-    win = win.astype(np.float32)
-    valid = (win != src['nodata']).astype(np.float32) if src['nodata'] is not None else np.ones_like(win)
+        return np.concatenate([read_window(b, int(p[0]), r0, len(p), h) for p in runs], axis=1)
+    win = window(band).astype(np.float64)
+    if src['premultiplied']:
+        alpha_band = src['ds'].GetRasterBand(2)
+        if band.XSize != src['ds'].RasterXSize or band.YSize != src['ds'].RasterYSize:
+            # SWIG band wrappers have unstable object identity; select by dimensions.
+            alpha_band = next(alpha_band.GetOverview(i) for i in range(alpha_band.GetOverviewCount())
+                              if alpha_band.GetOverview(i).XSize == band.XSize and alpha_band.GetOverview(i).YSize == band.YSize)
+        valid = window(alpha_band).astype(np.float64)
+        numerator = win
+    else:
+        valid = np.isfinite(win) & (window(band.GetMaskBand()) > 0)
+        nodata = band.GetNoDataValue()
+        if nodata is not None:
+            valid &= win != nodata
+        valid = valid.astype(np.float64)
+        numerator = np.where(valid > 0, win, 0)
     cc = np.clip(cols - c0, 0, win.shape[1] - 1.000001)
     rr = np.clip(rows - r0, 0, win.shape[0] - 1.000001)
     ci, ri = np.floor(cc).astype(int), np.floor(rr).astype(int)
     ci1, ri1 = np.minimum(ci + 1, win.shape[1] - 1), np.minimum(ri + 1, win.shape[0] - 1)
     fc, fr = cc - ci, rr - ri
     wts = [((1 - fc) * (1 - fr), ri, ci), (fc * (1 - fr), ri, ci1), ((1 - fc) * fr, ri1, ci), (fc * fr, ri1, ci1)]
-    num = sum(w * win[a, b] * valid[a, b] for w, a, b in wts)
+    num = sum(w * numerator[a, b] for w, a, b in wts)
     den = sum(w * valid[a, b] for w, a, b in wts)
+    num = np.where(ok, num, 0)
     den = np.where(ok, den, 0)
     num, den = num.reshape(shape), den.reshape(shape)
     alpha = den.mean(axis=-1)
@@ -375,6 +400,8 @@ _JOB = {}
 
 
 def _init_job(job):
+    global R_KM
+    R_KM = job['radius_km']
     _JOB.update(job)
 
 
@@ -389,13 +416,16 @@ def tile_job(key):
         img = np.clip(np.round(rgb * 255), 0, 255).astype(np.uint8)
     elif J['kind'] == 'registration':
         img = registration_pattern(face, L, x, y, T, g)
+    elif J['kind'] == 'xyz':
+        from cube_xyz import tile
+        img = tile(J['source'], face, L, x, y, T, g, ss)
     elif J['kind'] == 'composite':
         img = composite_tile(J['base'], J['detail'], face, L, x, y, T, g, ss)
     else:
         img = nac_tile(J['source'], face, L, x, y, T, g, ss)
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
     write_image(path, img)
-    return key, os.path.getsize(path), (int(img[..., -1].max()) if J['kind'] == 'nac' else 255)
+    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz', 'raster') else 255)
 
 
 def marker_table(tiles, T, g):
@@ -434,19 +464,26 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     t0 = time.time()
     os.makedirs(args.out, exist_ok=True)
     ext = 'jpg' if kind == 'composite' else 'png'  # opaque grey: JPEG is a third of the bytes
-    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext,
+    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext, radius_km=R_KM,
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
-    sizes, empty = {}, set()
+    sizes, hashes, empty = {}, {}, set()
     # spawn, not fork: a worker forked after GDAL/curl has opened connections (raster_open below)
     # can die on macOS, and a Pool whose worker dies mid-task waits forever.
     with mp.get_context('spawn').Pool(args.workers, initializer=_init_job, initargs=(dict(_JOB),)) as pool:
-        for k, (key, nbytes, alpha) in enumerate(pool.imap_unordered(tile_job, tiles, chunksize=4)):
+        for k, (key, nbytes, content_hash, alpha) in enumerate(pool.imap_unordered(tile_job, tiles, chunksize=4)):
             sizes[key] = nbytes
+            hashes[key] = content_hash
             if alpha == 0:
                 empty.add(key)
             if k % 200 == 0:
                 print(f'  {k:,}/{len(tiles):,} ({time.time() - t0:.0f}s)', flush=True)
+    if kind == 'xyz':
+        from pathlib import Path
+        config = json.load(open(args.source))
+        prefix = config['url'].split('{z}')[0]
+        receipts = [json.load(open(path)) for path in Path(config['cache']).glob('*/*.fallback.json')]
+        extra = {**(extra or {}), 'sourceFallbacks': [r for r in receipts if r['url'].startswith(prefix)]}
     # Drop fully transparent subtrees below the root level (ancestors already draw
     # nothing there); a transparent tile with a non-empty descendant stays, so the tree is complete.
     keep_set = set()
@@ -460,16 +497,19 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     keep = [k for k in tiles if k in keep_set]
     gen = hashlib.sha256(open(os.path.abspath(__file__), 'rb').read()).hexdigest()
     params = json.dumps({'kind': kind, 'tiles': len(keep), 'T': args.tile_size, 'g': args.gutter, 'ss': args.supersample,
-                         'regions': args.region, 'global': args.global_level, **(extra or {})}, sort_keys=True)
+                         'regions': args.region, 'global': args.global_level, 'radiusKm': R_KM,
+                         'body': getattr(args, 'body', 'Moon'), 'registration': registration, 'contentHashes': [hashes[k] for k in keep], **(extra or {})}, sort_keys=True)
     version = f'cube-imagery-{kind}-' + hashlib.sha256((gen + params).encode()).hexdigest()[:16]
     manifest = {
         'format': 'cosmolabe-cube-imagery-1',
         'source': {**source_meta, 'version': version},
-        'bodyId': 'Moon',
+        'bodyId': getattr(args, 'body', 'Moon'),
+        'metricRadiusKm': R_KM,
         'registration': registration,
         'tileSize': args.tile_size, 'gutter': args.gutter, 'encoding': 'jpeg' if ext == 'jpg' else 'png', 'colorSpace': colour_space,
         'minLevel': 0, 'maxLevel': max(k[1] for k in keep),
         'uri': 'tiles/{face}/{level}/{x}/{y}.' + ext,
+        'sourceFallbacks': (extra or {}).get('sourceFallbacks', []),
         'generator': {'script': 'scripts/terrain/cube_imagery.py', 'sha256': gen, 'command': ' '.join(sys.argv[1:]),
                       'supersample': args.supersample, 'seconds': round(time.time() - t0, 1)},
         'bytes': sum(sizes[k] for k in keep),
@@ -481,11 +521,16 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
 
 
 def cmd_fixture(args):
+    global R_KM
+    R_KM = args.radius_km
+    if not math.isfinite(R_KM) or R_KM <= 0:
+        raise SystemExit('--radius-km must be positive and finite')
     regions = [parse_cube_region(r) for r in args.region or []]
     tiles = select_tiles(args.global_level, regions)
     meta = {'id': f'cube-imagery-fixture-{args.pattern}', 'kind': 'imagery',
             'attribution': 'Synthetic diagnostic fixture (scripts/terrain/cube_imagery.py); no observational data'}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame or "IAU_" + args.body.upper()}', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+                    'latitude': 'planetocentric',
                     'resampling': f'analytic, {args.supersample}×{args.supersample} box per pixel' if args.pattern == 'grid' else 'exact texel index',
                     'footprint': 'global'}
     keep = run(args, args.pattern, tiles, meta, registration, 'srgb' if args.pattern == 'grid' else 'linear')
@@ -493,6 +538,54 @@ def cmd_fixture(args):
         json.dump({'convention': 'pixel corners at integers; column from the left (face u), row from the top (face v decreasing); centre colour sRGB bytes',
                    'tileSize': args.tile_size, 'gutter': args.gutter, 'markers': marker_table(keep, args.tile_size, args.gutter)},
                   open(os.path.join(args.out, 'markers.json'), 'w'), indent=1)
+
+
+def cmd_raster(args):
+    """Independent native grayscale raster via the existing window sampler."""
+    global R_KM
+    R_KM = args.radius_km
+    assert math.isfinite(R_KM) and R_KM > 0
+    src = raster_open(args.source)
+    ds = src['ds']
+    assert src['premultiplied'] or (ds.RasterCount == 1 and ds.GetRasterBand(1).DataType == gdal.GDT_Byte), 'raster imagery requires native byte grayscale or a prepared validity pyramid'
+    gt = src['gt']
+    assert gt[1] > 0 and gt[2] == gt[4] == 0 and gt[5] == -gt[1], 'raster imagery requires square north-up pixels'
+    assert not ds.GetSpatialRef().IsGeographic(), 'raster imagery requires an explicit metre-based map projection'
+    regions = [parse_cube_region(r) for r in args.region or []]
+    tiles = select_tiles(args.global_level, regions)
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
+                    'registrationErrorKm': None, 'latitude': 'planetocentric',
+                    'resampling': f'area-average premultiplied DN/validity overviews; bilinear reconstruction, {args.supersample}x{args.supersample} cube-footprint quadrature' if src['premultiplied'] else f'native raster bilinear mask-aware alpha; {args.supersample}x{args.supersample} box samples per output pixel',
+                    'footprint': 'finite built pyramid; source raster masks preserved; native-valid subset is separately verified by the caller'}
+    run(args, 'raster', tiles, {'id': os.path.basename(args.source), 'kind': 'imagery'}, registration, 'srgb',
+        extra={'sourceSha256': file_sha256(args.source)})
+
+
+def cmd_xyz(args):
+    """Preprocess each service independently; no mandatory baked source composite."""
+    from cube_xyz import validate
+    global R_KM
+    R_KM = args.radius_km
+    if not math.isfinite(R_KM) or R_KM <= 0:
+        raise SystemExit('--radius-km must be positive and finite')
+    source = validate(json.load(open(args.source)))
+    if not source.get('cache'):
+        raise SystemExit('source JSON requires cache (disk directory for original responses)')
+    regions = [parse_cube_region(r) for r in args.region or []]
+    tiles = select_tiles(args.global_level, regions)
+    meta = {'id': source.get('id', source['url']), 'kind': 'imagery', 'url': source['url'],
+            'attribution': source.get('attribution', '')}
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
+                    'registrationErrorKm': None, 'latitude': 'planetocentric',
+                    'resampling': f'XYZ EPSG:4326 bilinear premultiplied alpha; {args.supersample}x box samples per output pixel',
+                    'footprint': f'finite built pyramid; source bounds {source.get("bounds", "global")}; source levels {source.get("minZoom", 0)}-{source.get("levels", 8)-1}; native detail only in declared built regions'}
+    identity_config = {k: v for k, v in source.items() if k != 'cache'}
+    if 'lockedTiles' in identity_config:
+        # Local response bindings are not source identities. Content pins survive
+        # relocation to a different worker/cache directory.
+        identity_config['lockedTiles'] = {key: {'sha256': entry['sha256'], **({'unavailable': entry['unavailable']} if entry.get('unavailable') else {})} for key, entry in source['lockedTiles'].items()}
+    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': identity_config,
+         'adapterSha256': hashlib.sha256(open(os.path.join(os.path.dirname(__file__), 'cube_xyz.py'), 'rb').read()).hexdigest()})
 
 
 def cmd_nac(args):
@@ -503,7 +596,7 @@ def cmd_nac(args):
             'attribution': 'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'url': args.source}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner',
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
                     'registrationErrorKm': None,
                     'resampling': f'bilinear from the overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; nodata 0 → alpha',
                     'footprint': 'LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S); transparent elsewhere'}
@@ -520,7 +613,7 @@ def cmd_composite(args):
                            'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'base': os.path.basename(args.base), 'detail': args.detail}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': None,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner', 'registrationErrorKm': None,
                     'resampling': f'each source bilinear from its overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; '
                                   'detail composited over base by its coverage (nodata 0 → base)',
                     'footprint': f'global (base, levels 0–{args.global_level}); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)'}
@@ -580,7 +673,7 @@ def cmd_selftest(args):
     def make(path, fill):
         ds = gdal.GetDriverByName('GTiff').Create(path, W, H, 1, gdal.GDT_Byte, options=['TILED=YES'])
         ds.SetProjection(srs.ExportToWkt())
-        ds.SetGeoTransform((-half, 2 * half / W, 0, half / 2, 0, -half / W))
+        ds.SetGeoTransform((-half, 2 * half / W, 0, half / 2, 0, -2 * half / W))
         b = ds.GetRasterBand(1)
         b.SetNoDataValue(0)
         lon = (np.arange(W) + 0.5) / W * 360 - 180
@@ -628,7 +721,7 @@ def cmd_selftest(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
-    for name in ('fixture', 'nac', 'composite'):
+    for name in ('fixture', 'nac', 'composite', 'xyz', 'raster'):
         s = sub.add_parser(name)
         s.add_argument('--out', required=True)
         s.add_argument('--global-level', type=int, default=3 if name == 'fixture' else 0)
@@ -638,7 +731,19 @@ def main():
         s.add_argument('--supersample', type=int, default=3)
         s.add_argument('--workers', type=int, default=os.cpu_count())
     sub.choices['fixture'].add_argument('--pattern', choices=('grid', 'registration'), required=True)
+    sub.choices['fixture'].add_argument('--radius-km', type=float, default=1737.4, help='angular-to-distance metric for diagnostic rings and region selection')
+    sub.choices['fixture'].add_argument('--body', default='Moon')
+    sub.choices['fixture'].add_argument('--frame')
     sub.choices['nac'].add_argument('--source', required=True)
+    for name in ['nac', 'composite']:
+        sub.choices[name].add_argument('--frame', required=True, help='Audited physical lunar frame realization')
+    sub.choices['xyz'].add_argument('--source', required=True, help='XYZ source JSON; explicit latitudeConvention and disk cache required')
+    sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
+    sub.choices['xyz'].add_argument('--body', required=True)
+    sub.choices['xyz'].add_argument('--frame', required=True)
+    for field in ['source', 'body', 'frame']:
+        sub.choices['raster'].add_argument('--' + field, required=True)
+    sub.choices['raster'].add_argument('--radius-km', type=float, required=True)
     sub.choices['composite'].add_argument('--base', required=True, help='global raster (LROC WAC), drawn everywhere')
     sub.choices['composite'].add_argument('--detail', required=True, help='regional raster (LROC NAC South Pole) drawn over it where it has data')
     c = sub.add_parser('coregister')
@@ -651,7 +756,7 @@ def main():
     c.add_argument('--out')
     sub.add_parser('selftest')
     args = p.parse_args()
-    {'fixture': cmd_fixture, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
+    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'raster': cmd_raster, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

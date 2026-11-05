@@ -1,10 +1,39 @@
 export { Body } from './Body.js';
 export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback, LegacyTrajectoryFrame } from './Body.js';
 export { Universe } from './Universe.js';
+export { StateUnavailableError } from './availability.js';
+export type { StateAvailability, UnavailableReason, CoverageInterval } from './availability.js';
+export { MissionStateManager, MissionStateTrajectory, MissionStateRotation } from './mission-state.js';
+export type {
+  MissionStateSource, MissionStateSink, MissionStateChannel, MissionStateChange, PositionConvention, AttitudeConvention,
+  PositionSample, AttitudeSample, StateBatch, PositionBatch, AttitudeBatch, SuppliedBatch, SampleTime, SourceStatus, ChannelCoverage,
+} from './mission-state.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+// Viewpoints — the catalog `Viewpoint` item, its semantic camera relationships
+// (look-at, placement and up directions, frames, epoch), resolution at an
+// epoch, and the portable JSON form a shareable view state composes.
+export {
+  resolveViewpoint,
+  parseViewpoint,
+  validateViewpoint,
+  viewpointToJson,
+  viewpointBodies,
+  presetViewpoint,
+  ViewpointError,
+} from './viewpoint.js';
+export type {
+  ViewpointDefinition,
+  ViewDirection,
+  ViewAxis,
+  ViewPreset,
+  ResolvedViewpoint,
+  ViewpointScene,
+} from './viewpoint.js';
 export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
+export { validateCatalog } from './catalog/CatalogSchema.js';
+export type { CatalogDiagnostic, CatalogValidationOptions } from './catalog/CatalogSchema.js';
 export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
 // Built-in catalogs (Sun, Earth system, planets, asteroids, …) for programmatic
@@ -204,5 +233,21 @@ export {
   etFromDate,
 } from './time.js';
 
+export * from './surface-coordinates.js';
+export * from './plugins/PluginData.js';
+export { hasLineOfSight } from './plugins/contact-geometry.js';
+
 // Planetary geographic vector data and shared physical coordinate primitives.
 export * from './geographic/index.js';
+export * from './surface-plan/index.js';
+
+export * from './geometry/surface-point.js';
+
+export * from './MissionActivity.js';
+export { surfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
+export type { SurfaceTrajectoryProvenance, SurfaceTrajectoryAvailability, SurfaceTrajectoryDiagnostic } from './geometry/surface-trajectory.js';
+export { LUNAR_SURFACE_FRAME, lunarProductFrame } from './geographic/lunar-frame.js';
+export { findTrajectoryExtrema, validateTrajectoryExtremaQuery, universeTrajectoryAnalysisProvider, trajectoryExtremumEvent } from './geometry/trajectory-extrema.js';
+export type { TrajectoryAnalysisProvider, TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from './geometry/trajectory-extrema.js';
+
+export type { MeasurementDefinition } from './geometry/measurement-definition.js';

@@ -1,3 +1,4 @@
+import { keyEventInScope } from './PointerInput.js';
 import * as THREE from 'three';
 
 export interface KeyboardControlsConfig {
@@ -57,6 +58,9 @@ export class KeyboardControls {
   /** True during the frame if translation was applied */
   translatedThisFrame = false;
 
+  /** Accepted manual navigation key, before the next animation frame. */
+  onNavigationInput: (() => void) | null = null;
+
   /**
    * Altitude (in scene units) above the nearest Globe body, set by
    * `CameraController.adaptSpeeds()` each frame. When non-null, WASD
@@ -80,7 +84,7 @@ export class KeyboardControls {
     onComplete?: () => void;
   } | null = null;
 
-  constructor(config?: KeyboardControlsConfig) {
+  constructor(config?: KeyboardControlsConfig, scope?: Element) {
     this.translateSpeed = config?.translateSpeed ?? 1.0;
     this.rollSpeed = config?.rollSpeed ?? 1.0;
     this.boostMultiplier = config?.boostMultiplier ?? 5;
@@ -88,14 +92,19 @@ export class KeyboardControls {
     this.enabled = config?.enabled ?? true;
 
     this._onKeyDown = (e: KeyboardEvent) => {
-      if (!this.enabled) return;
+      if (!this.enabled || !keyEventInScope(e, scope)) return;
+      // OS/browser shortcuts are not camera commands (KeyC also means descend).
+      if (e.metaKey || e.ctrlKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       // A code editor (the script console's CodeMirror) is a contenteditable
       // element, not a textarea: typing in it is not flying the camera.
       if (target?.isContentEditable) return;
-      if (ALL_CODES.has(e.code)) e.preventDefault();
+      if (ALL_CODES.has(e.code)) {
+        e.preventDefault();
+        this.onNavigationInput?.();
+      }
       this._keys.add(e.code);
     };
 

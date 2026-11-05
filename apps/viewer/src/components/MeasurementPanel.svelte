@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Eye, EyeOff, MousePointer2, Scan, MoreHorizontal, X, Plus, CircleHelp } from 'lucide-svelte';
+  import { describeSource, describeDatum, formatHeight } from '@cosmolabe/three';
   import { endpointLabel } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { Button } from '$lib/components/ui/button';
@@ -16,13 +17,14 @@
   import { geometryFrameOptions } from '../lib/geometry-frames';
   import GeometryFramePicker from './GeometryFramePicker.svelte';
   import * as Select from '$lib/components/ui/select';
+  import { workspaceNode } from '../lib/workspace.svelte';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
   let openMenuId = $state<string | null>(null);
   let framePickerOpen = $state(false);
   $effect(() => { renderedMeasurements(); syncMeasurements(); });
-  $effect(() => { if (measurements.selectedId) document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }); });
+  $effect(() => { if (measurements.selectedId) workspaceNode().querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }); });
   const kind = $derived(measurements.draftKind);
   const bodies = $derived(vs.bodies.map(body => body.name).sort());
   const canCreate = $derived(draftReady(vs.et));
@@ -39,10 +41,13 @@
     // Scene and kernel changes are reflected in viewer state; availability follows time.
     void vs.bodies; void vs.kernelCount;
     const universe = getUniverse();
+    const origin = measurements.draft.source;
+    const bodyName = origin?.kind === 'surface-point' ? origin.point.bodyName
+      : origin && origin.kind !== 'coordinate' ? origin.bodyName : undefined;
     // Resolve the full list as time changes only while browsing it. The selected
     // frame's readiness/message below still follows every epoch independently.
     return universe ? geometryFrameOptions(universe, getMissionFrameNames(), framePickerOpen ? vs.et : universe.time,
-      measurements.draft.source && measurements.draft.source.kind !== 'coordinate' ? measurements.draft.source.bodyName : undefined) : [];
+      bodyName) : [];
   });
   function setEntity(slot: Slot, bodyName: string) {
     measurements.draft[slot] = bodyName ? { kind: 'entity', bodyName } : null;
@@ -69,7 +74,7 @@
     <span class="ui-label">Geometry type</span>
     <Select.Root type="single" value={kind === 'vector-angle' ? 'angle' : kind} onValueChange={next => changeMeasurementKind(next as typeof kind)}>
       <Select.Trigger size="sm" class="ui-control mt-1 w-full rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Geometry type"><Select.Value>{kind === 'vector-angle' ? 'Angle' : kindLabels[kind]}</Select.Value></Select.Trigger>
-      <Select.Content align="start" class="geometry-kind-menu max-w-[calc(100vw-24px)] rounded border border-border-strong bg-surface-2 p-1">
+      <Select.Content align="start" class="geometry-kind-menu max-w-[calc(100cqw-24px)] rounded border border-border-strong bg-surface-2 p-1">
         {#each geometryTypes as option}
           <Select.Item value={option.kind} label={option.label} class="geometry-kind-option items-start rounded-sm px-2 py-2 pr-7 [&>span:last-child]:min-w-0 [&>span:last-child]:shrink [&>span:last-child]:whitespace-normal">
             <div class="flex min-w-0 flex-col gap-0.5"><span class="geometry-kind-label ui-body font-medium">{option.label}</span><span class="geometry-kind-description ui-helper whitespace-normal">{option.description}</span></div>
@@ -111,7 +116,7 @@
     <div class="ui-helper pick-instruction" role="status">{pickInstruction()} · Esc to cancel</div>
     {#if measurements.pickFeedback}<p class="ui-helper mt-1" role="status">{measurements.pickFeedback}</p>{/if}
   {/if}
-  {#if Object.values(measurements.draft).some(endpoint => endpoint?.kind === 'body-fixed')}
+  {#if Object.values(measurements.draft).some(endpoint => endpoint?.kind === 'body-fixed' || endpoint?.kind === 'surface-point')}
     <p class="ui-helper mt-2 text-text-muted">Surface measurements use straight lines, not distance along the surface.</p>
   {/if}
   <div class="settings">
@@ -180,7 +185,7 @@
   <div class="field" class:picking={measurements.pendingPickSlot === slot}>
     <span class="ui-label">{title}</span>
     <div class="endpoint">
-      {#if endpoint?.kind === 'body-fixed' || endpoint?.kind === 'coordinate'}
+      {#if endpoint?.kind === 'surface-point' || endpoint?.kind === 'body-fixed' || endpoint?.kind === 'coordinate'}
         <div class="ui-control picked" title={endpointLabel(endpoint)}>{endpointLabel(endpoint)}</div>
         <Button variant="ghost" size="icon-sm" aria-label={`Clear picked ${slot}`} title="Clear picked point" onclick={() => measurements.draft[slot] = null}><X size={14}/></Button>
       {:else}
@@ -192,6 +197,20 @@
       <Button variant="ghost" size="icon-sm" aria-pressed={measurements.pendingPickSlot === slot && measurements.pickMode === 'object'} class={measurements.pendingPickSlot === slot && measurements.pickMode === 'object' ? 'bg-control-hover border-border-strong' : ''} aria-label={`Pick ${slot} object`} title="Pick object: body center, marker, or label" onclick={() => startMeasurementPick(slot, 'object')}><MousePointer2 size={14}/></Button>
       <Button variant="ghost" size="icon-sm" aria-pressed={measurements.pendingPickSlot === slot && measurements.pickMode === 'surface'} class={measurements.pendingPickSlot === slot && measurements.pickMode === 'surface' ? 'bg-control-hover border-border-strong' : ''} aria-label={`Pick ${slot} surface point`} title="Pick exact point on a visible surface" onclick={() => startMeasurementPick(slot, 'surface')}><Scan size={14}/></Button>
     </div>
+    {#if endpoint?.kind === 'surface-point'}
+      <div class="text-xs text-text-muted">
+        {describeSource(endpoint.point.source)}
+        {#if endpoint.point.hit.heightKm !== null && endpoint.point.hit.datum}
+          · hit {formatHeight(endpoint.point.hit.heightKm)} above {describeDatum(endpoint.point.hit.datum)}
+        {:else}
+          · altitude unavailable (no defined datum)
+        {/if}
+        {#if endpoint.point.terrainSample}
+          {@const sample = endpoint.point.terrainSample}
+          <div title={sample.tileId ?? sample.sourceId}>{sample.describesHit ? 'Terrain' : 'Terrain below'}: {formatHeight(sample.elevationKm)} above {describeDatum(sample.datum)} · {sample.sourceId}</div>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/snippet}
 

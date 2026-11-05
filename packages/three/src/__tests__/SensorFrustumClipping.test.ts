@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Body } from '@cosmolabe/core';
 import { SensorFrustum, type SensorFovClipper } from '../SensorFrustum.js';
@@ -75,6 +76,29 @@ describe('SensorFrustum physical clipping (reference scene)', () => {
     // The label rides the clipped far boundary, not the old target-center plane.
     expect(Math.hypot(sf.labelSprite.position.x, sf.labelSprite.position.y, sf.labelSprite.position.z + 10000)).toBeCloseTo(R, 0);
     sf.dispose();
+  });
+
+  it('extends every LRO catalog sensor to the lunar surface above the former 60 km cap', () => {
+    const catalog = JSON.parse(readFileSync(new URL('../../../../apps/viewer/test-catalogs/lro-moon.json', import.meta.url), 'utf8'));
+    const instruments = catalog.items.find((item: { name: string }) => item.name === 'Moon').items[0].items;
+    expect(instruments).toHaveLength(7);
+    const radius = 1737.4, altitude = 76.7;
+    const moon = { name: 'Moon', stateAt: () => ({ position: [0, 0, 0] }) } as unknown as Body;
+    const surface: FovSurfaceCandidate = {
+      id: 'Moon', centerKm: [0, 0, 0], bodyToWorld: ball.bodyToWorld, boundingRadiusKm: radius,
+      surfaces: [new ReferenceEllipsoidSurface('Moon', 'IAU_MOON', [radius, radius, radius])],
+    };
+    for (const instrument of instruments) {
+      const sf = new SensorFrustum({
+        name: instrument.name, geometryData: instrument.geometry,
+        stateAt: () => ({ position: [0, 0, radius + altitude] }),
+      } as unknown as Body);
+      sf.update(0, 1, moon, undefined, undefined, clipper([surface]));
+      expect(sf.clipSummary!.maxRangeKm, instrument.name).toBeGreaterThan(altitude);
+      expect(sf.perimeter.every(s => s.hit?.candidateId === 'Moon'), instrument.name).toBe(true);
+      expect(sf.perimeter.every(s => s.distanceKm >= altitude - 0.002), instrument.name).toBe(true);
+      sf.dispose();
+    }
   });
 
   it('keeps a grazing FOV partially clipped and the rest at max range', () => {
