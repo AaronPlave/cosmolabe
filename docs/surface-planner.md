@@ -20,7 +20,8 @@ Surface layers stays in charge of everyday visibility, styling and probing.
 2. **Regions.** Select any polygon — a catalog layer, an imported GeoJSON
    layer, or a shape drawn with Draw (#200) — and choose *Add selected*, or
    choose *Draw region* to draw one on the plan's body that is added when
-   finished (leaving the tool without finishing cancels it). The feature is
+   finished (leaving the tool without finishing cancels it, as does closing
+   the plan or the panel mid-shape). The feature is
    **copied** into the plan with its typed stable ID, holes and properties;
    read-only sources are never modified, and the plan layer's `provenance`
    records the source layer, identity, ownership and feature mapping. If the
@@ -50,7 +51,12 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    stricter limit). *Suffices* requires coverage proved for the requested ROI
    and every requested target evidenced; continuous coverage not proved by tile
    availability, or accuracy unreported against a limit, is *not proved*, not
-   success. Compatibility is per region, not by lock identity, so a reusable
+   success. Body, frame and coordinate conventions must match the build's
+   (stated in the feedback's `surface` field, or taken from the build's lock
+   if it was opened this session; otherwise the fit is *not proved*), and the
+   finest output spacing the build actually produced must meet the target;
+   the original request's sampling alone is not evidence.
+   Compatibility is per region, not by lock identity, so a reusable
    product still matches from another build. Unrecognized feedback statuses are
    refused. Without feedback this is *unknown*, never absent.
 5. **Estimate and budget.** The #248 estimator reports imagery and physical

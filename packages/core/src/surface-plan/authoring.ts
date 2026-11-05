@@ -328,6 +328,8 @@ export interface SurfacePlannerFeedback {
   version: 1;
   kind: 'surface-planner-feedback';
   lockIdentity: string;
+  /** Conventions of the requested geometries; absent in older feedback. */
+  surface?: SurfaceBuildConventions;
   requested: {
     regionId: string;
     geometry: unknown;
@@ -341,10 +343,15 @@ export interface SurfacePlannerFeedback {
   products: {
     productId: string;
     sourceProofs: { sourceId: string }[];
+    /** What was actually produced: output sample spacing per level, coarsest first. */
+    emitted: { outputSpacingMByLevel: number[] };
     continuousNativeCoverageStatus: typeof COVERAGE_STATUSES[number];
     publication: { status: typeof PUBLICATION_STATUSES[number] };
   }[];
 }
+
+/** The body, frame and coordinate conventions a build's geometries are in. */
+export type SurfaceBuildConventions = Pick<DesiredSurfacePlan, 'body' | 'frame' | 'coordinates'>;
 
 const PUBLICATION_STATUSES = ['not-published', 'verified-local-http', 'verified-hosted-http'] as const;
 const COVERAGE_STATUSES = ['proved-for-checked-requested-ROI-only', 'not-proved-by-tile-availability'] as const;
@@ -357,6 +364,8 @@ export function parseSurfacePlannerFeedback(data: unknown): SurfacePlannerFeedba
   if (!isObject(data) || data.version !== 1 || data.kind !== 'surface-planner-feedback') fail('$', 'Expected surface-build planner feedback v1');
   const d = data as Record<string, unknown>;
   if (typeof d.lockIdentity !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(d.lockIdentity)) fail('$.lockIdentity', 'Expected a sha256 lock identity');
+  if (d.surface !== undefined && (!isObject(d.surface) || typeof d.surface.body !== 'string' || typeof d.surface.frame !== 'string' || !isObject(d.surface.coordinates)
+    || !isObject(d.surface.coordinates.referenceShape))) fail('$.surface', 'Expected body, frame and coordinates');
   if (!Array.isArray(d.requested)) fail('$.requested', 'Expected an array');
   (d.requested as unknown[]).forEach((r, i) => {
     if (!isObject(r) || typeof r.regionId !== 'string' || !isObject(r.geometry) || !Array.isArray(r.channels)) fail(`$.requested[${i}]`, 'Expected regionId, geometry and channels');
@@ -373,6 +382,8 @@ export function parseSurfacePlannerFeedback(data: unknown): SurfacePlannerFeedba
     const path = `$.products[${i}]`;
     if (!isObject(p) || typeof p.productId !== 'string' || !Array.isArray(p.sourceProofs) || !p.sourceProofs.every(x => isObject(x) && typeof x.sourceId === 'string')) fail(path, 'Malformed product');
     const q = p as Record<string, unknown>;
+    const spacing = isObject(q.emitted) ? q.emitted.outputSpacingMByLevel : undefined;
+    if (!Array.isArray(spacing) || !spacing.every(m => typeof m === 'number' && m > 0 && Number.isFinite(m))) fail(`${path}.emitted.outputSpacingMByLevel`, 'Expected positive output spacings');
     if (!oneOf(COVERAGE_STATUSES, q.continuousNativeCoverageStatus)) fail(`${path}.continuousNativeCoverageStatus`, `Unknown coverage status ${String(q.continuousNativeCoverageStatus)}`);
     if (!isObject(q.publication) || !oneOf(PUBLICATION_STATUSES, q.publication.status)) fail(`${path}.publication.status`, `Unknown publication status ${String((q.publication as { status?: unknown })?.status)}`);
   });
@@ -389,14 +400,22 @@ export type SurfaceBuildStatus = 'published' | 'published-unproven' | 'built' | 
 /**
  * Whether a region's channel is already served by a build in `feedback`, or
  * would need a new one. Compatibility is per region, not by lock identity, so a
- * reusable product still matches from another lock: same region ID, the same
- * embedded geometry, output sampling at least as fine as requested, reported
- * accuracy within any requested limit and, when given, the same selected
- * sources. No feedback means unknown, never absent.
+ * reusable product still matches from another lock: same body, frame and
+ * coordinate conventions, region ID and embedded geometry, achieved output
+ * spacing at least as fine as requested, reported accuracy within any
+ * requested limit and, when given, the same selected sources. The build's
+ * conventions come from the feedback itself or, for older feedback, from
+ * `conventions` (its lock, when known); without either a product is at most
+ * unproven. No feedback means unknown, never absent.
  */
 export function surfaceRegionBuildStatus(plan: DesiredSurfacePlan, feedback: SurfacePlannerFeedback | null, regionId: string,
-  channel: SurfaceChannel, selectedSourceIds: readonly string[] | null = null): { status: SurfaceBuildStatus; detail: string } {
+  channel: SurfaceChannel, selectedSourceIds: readonly string[] | null = null,
+  conventions: SurfaceBuildConventions | null = null): { status: SurfaceBuildStatus; detail: string } {
   if (!feedback) return { status: 'unknown', detail: 'No build feedback loaded; whether a published product exists is unknown.' };
+  const build = feedback.surface ?? conventions;
+  if (build && (build.body !== plan.body || build.frame !== plan.frame || !same(build.coordinates, plan.coordinates))) {
+    return { status: 'needs-build', detail: `The build is on ${build.body} (${build.frame}) in other coordinate conventions; its coordinates do not describe this plan.` };
+  }
   const region = plan.regions.find(r => r.id === regionId);
   const target = region?.[channel];
   const requested = feedback.requested.find(r => r.regionId === regionId);
@@ -412,8 +431,11 @@ export function surfaceRegionBuildStatus(plan: DesiredSurfacePlan, feedback: Sur
   }
   const products = feedback.products.filter(p => p.sourceProofs.some(s => built.sourceIds.includes(s.sourceId)));
   if (!products.length) return { status: 'unknown', detail: 'The build feedback names no product for these sources.' };
+  const achieved = Math.min(...products.flatMap(p => p.emitted.outputSpacingMByLevel));
+  if (achieved > target.gsdM * (1 + 1e-9)) return { status: 'needs-build', detail: `Finest output produced is ${+achieved.toPrecision(3)} m, coarser than the requested ${target.gsdM} m.` };
   if (built.targetMetByNativeSource === false) return { status: 'coarser', detail: 'Built, but its native sources do not meet the target; coarser data was kept under the fallback policy.' };
   const unproven = [
+    ...(build ? [] : ['this feedback does not state the build\'s body, frame and coordinate conventions, and its lock was not opened']),
     ...(products.every(p => p.continuousNativeCoverageStatus === 'proved-for-checked-requested-ROI-only') ? [] : ['continuous coverage of the ROI is not proved by tile availability']),
     ...(built.targetMetByNativeSource === null ? ['whether native sources meet the target is unknown'] : []),
     ...(target.accuracyM !== undefined && accuracies.some(a => a === null) ? [`source accuracy is unreported against the ${target.accuracyM} m limit`] : []),

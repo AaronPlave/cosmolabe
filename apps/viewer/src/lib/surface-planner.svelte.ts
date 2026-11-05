@@ -23,7 +23,7 @@ import {
   resolveSurfacePlan, serializeSurfacePlan, setSurfacePlanBudget, surfaceCoverageLayer, surfacePlanChanges, surfaceRegionChannels,
   surfaceRegionDrift, surfaceRegionRefusal, surfaceRegionSource, updateSurfacePlanRegion, validateDesiredSurfacePlan,
   validateLockedSurfacePlan, validateSurfaceSources, SurfacePlanError, parseSurfacePlannerFeedback, surfaceRegionBuildStatus,
-  surfaceSelectedFidelity, surfacePlanCoordinatesFor, type SurfaceFidelityAssessment, type SurfacePlannerFeedback,
+  surfaceSelectedFidelity, surfacePlanCoordinatesFor, type SurfaceBuildConventions, type SurfaceFidelityAssessment, type SurfacePlannerFeedback,
   type DesiredSurfacePlan, type GeographicFeature, type GeographicLayer, type GeographicLayerLoad, type GeographicLayerStyle,
   type LockedSurfacePlan, type SurfaceChannel, type SurfaceDiscoveryPolicy, type SurfaceDiscoveryRecord, type SurfaceDiscoveryReport,
   type SurfacePlanDiagnostic, type SurfacePlanEstimate, type SurfacePlanLayer, type SurfaceRegionInput, type SurfaceRegionPatch,
@@ -114,6 +114,8 @@ export const planner = new SurfacePlannerState();
 let runToken = 0;
 /** The layer a region is being drawn into, and the features it had before: a new one there becomes the region. */
 let drawing: { layerId: string; before: Set<string> } | null = null;
+/** Conventions of every lock opened this session, by identity: older build feedback does not state its own. */
+const lockConventions = new Map<string, SurfaceBuildConventions>();
 let runTimer: ReturnType<typeof setTimeout> | undefined;
 
 const describe = (e: unknown): string => e instanceof SurfacePlanError ? e.diagnostics.map(d => d.message).join('; ')
@@ -177,7 +179,7 @@ export function startPlan(body: string): boolean {
 export function closePlan(): void {
   planner.plan = null; planner.base = null; planner.importedLock = null; planner.lockedSelections = null; planner.report = null;
   planner.estimate = null; planner.selectedFidelity = null; planner.problems = []; planner.focused = null; planner.choice = {};
-  planner.awaitingDraw = false; drawing = null; planner.message = '';
+  cancelDrawRegion(); planner.message = '';
   installOverlay();
   planner.revision++;
 }
@@ -240,6 +242,14 @@ export function drawRegion(): void {
   drawing = { layerId: edits.target, before: featureIds(edits.target) };
   planner.awaitingDraw = true;
   planner.message = 'Draw a polygon on the globe; double-click or Enter finishes it.';
+}
+
+/** Stop a planner-owned drawing in progress (closing the plan or panel): the shared draw tool must not keep the scene's clicks. */
+export function cancelDrawRegion(): void {
+  if (!drawing) return;
+  drawing = null;
+  planner.awaitingDraw = false;
+  if (edits.tool) setDrawTool(null);
 }
 
 /** The draw tool was left: a new feature in the draw layer (finished) becomes a region; none means cancelled. */
@@ -347,7 +357,9 @@ export function selectionChanged(): boolean {
 /** Whether a region's channel is already built or published, per the loaded build feedback. */
 export function regionBuildStatus(regionId: string, channel: SurfaceChannel) {
   void planner.revision;
-  return planner.plan ? surfaceRegionBuildStatus(planner.plan, planner.feedback?.data ?? null, regionId, channel, selectedSourceIds(regionId, channel)) : null;
+  const feedback = planner.feedback?.data ?? null;
+  return planner.plan ? surfaceRegionBuildStatus(planner.plan, feedback, regionId, channel, selectedSourceIds(regionId, channel),
+    (feedback && lockConventions.get(feedback.lockIdentity)) ?? null) : null;
 }
 
 // ── Change tracking ──
@@ -632,6 +644,7 @@ export async function importPlannerText(text: string, fileName: string): Promise
     }
     if (kind === 'desired-surface-plan' || kind === 'locked-surface-plan') {
       const lock = kind === 'locked-surface-plan' ? await validateLockedSurfacePlan(data) : null;
+      if (lock) lockConventions.set(lock.identity, { body: lock.desired.body, frame: lock.desired.frame, coordinates: lock.desired.coordinates });
       const plan = lock ? lock.desired : resolveSurfacePlan(validateDesiredSurfacePlan(data)).desired;
       const status = plannerBodyStatus(plan.body);
       if (!getUniverse()?.getBody(plan.body)) planner.message = `${plan.body} is not in this scene; the plan is kept but nothing is drawn.`;

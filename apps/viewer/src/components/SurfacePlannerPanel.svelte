@@ -5,6 +5,7 @@
    * leaves Surface layers in charge of everyday visibility and styling.
    * docs/surface-planner.md describes the workflow and its boundaries.
    */
+  import { onDestroy } from 'svelte';
   import { Ellipsis, LocateFixed, PenLine, Plus, Trash2, RefreshCw } from 'lucide-svelte';
   import {
     SURFACE_FIDELITY_PRESETS, featureLabel, matchingSurfacePreset, surfaceRegionChannels, surfaceRegionIntent,
@@ -15,7 +16,7 @@
   import { vs } from '../lib/viewer-state.svelte';
   import { geo } from '../lib/geographic-layers.svelte';
   import {
-    PLANNER_LEGEND, addSelectedRegion, chooseAlternative, chosenAlternative, clearFeedback, clearSources, closePlan, drawRegion, exportDesired,
+    PLANNER_LEGEND, addSelectedRegion, cancelDrawRegion, chooseAlternative, chosenAlternative, clearFeedback, clearSources, closePlan, drawRegion, exportDesired,
     exportLock, focusRegion, importPlannerText, loadJezeroExample, planChanges, planner, plannerBodies, plannerBodyStatus,
     refreshRegion, regionAlternatives, regionBuildStatus, regionDrifted, regionRefusal, removeRegion, selectedSourceFeature,
     selectionChanged, setBudget, setFocusChannel, setPolicy, startPlan, updateRegion, installOverlay,
@@ -51,6 +52,8 @@
   function close() {
     onClose();
   }
+  // However the panel goes away, a region drawing it started ends with it.
+  onDestroy(cancelDrawRegion);
 
   // ── Formatting ──
 

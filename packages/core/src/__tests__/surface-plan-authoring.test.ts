@@ -158,7 +158,11 @@ describe('surface planner authoring (#250)', () => {
   it('reports built/published status from build feedback, and unknown without it', () => {
     const lock = JSON.parse(fixture('jezero-build.lock.json'));
     const plan = validateDesiredSurfacePlan(lock.desired);
-    const feedback = parseSurfacePlannerFeedback(JSON.parse(readFileSync(new URL('../../../../docs/releases/surface-build-jezero/production-planner-feedback.json', import.meta.url), 'utf8')));
+    // The checked-in feedback predates its `surface` field: conventions come from its lock here.
+    const stated = parseSurfacePlannerFeedback(JSON.parse(readFileSync(new URL('../../../../docs/releases/surface-build-jezero/production-planner-feedback.json', import.meta.url), 'utf8')));
+    expect(stated.surface).toBeUndefined();
+    expect(surfaceRegionBuildStatus(plan, stated, 'pilot', 'imagery')).toMatchObject({ status: 'published-unproven', detail: expect.stringContaining('does not state the build') });
+    const feedback: SurfacePlannerFeedback = { ...stated, surface: { body: lock.desired.body, frame: lock.desired.frame, coordinates: lock.desired.coordinates } };
     expect(surfaceRegionBuildStatus(plan, null, 'pilot', 'imagery').status).toBe('unknown');
     expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'imagery', ['hirise-ortho']).status).toBe('published');
     expect(surfaceRegionBuildStatus(plan, feedback, 'context', 'imagery').status).toBe('published');
@@ -181,11 +185,25 @@ describe('surface planner authoring (#250)', () => {
     expect(surfaceRegionBuildStatus(strict, withAccuracy(2), 'pilot', 'elevation').status).toBe('needs-build');
     expect(surfaceRegionBuildStatus(strict, withAccuracy(0.5), 'pilot', 'elevation').status).toBe('published');
 
+    // Same numbers on another body, or in other conventions, are not a reusable product.
+    const moon = (() => { const p = structuredClone(plan); p.body = 'Moon'; p.frame = 'IAU_MOON'; return p; })();
+    expect(surfaceRegionBuildStatus(moon, feedback, 'pilot', 'imagery').status).toBe('needs-build');
+    const oblate = { ...plan, coordinates: { ...plan.coordinates, referenceShape: { kind: 'ellipsoid' as const, radiiKm: [3396.19, 3396.19, 3376.2] as [number, number, number] } } };
+    expect(surfaceRegionBuildStatus(oblate, feedback, 'pilot', 'imagery').status).toBe('needs-build');
+    expect(surfaceRegionBuildStatus(plan, stated, 'pilot', 'imagery', null, feedback.surface!).status).toBe('published');
+    expect(surfaceRegionBuildStatus(moon, stated, 'pilot', 'imagery', null, feedback.surface!).status).toBe('needs-build');
+
+    // Achieved output, not the original request: a product whose finest level is coarser than the target is not sufficient.
+    const coarse: SurfacePlannerFeedback = { ...feedback, products: feedback.products.map(p => ({ ...p, emitted: { ...p.emitted, outputSpacingMByLevel: p.emitted.outputSpacingMByLevel.slice(0, -2) } })) };
+    expect(surfaceRegionBuildStatus(plan, coarse, 'pilot', 'imagery')).toMatchObject({ status: 'needs-build', detail: expect.stringContaining('Finest output produced') });
+
     // Unrecognized statuses and identities are refused, never read as published.
     const raw = JSON.parse(readFileSync(new URL('../../../../docs/releases/surface-build-jezero/production-planner-feedback.json', import.meta.url), 'utf8'));
     expect(() => parseSurfacePlannerFeedback({ ...raw, products: [{ ...raw.products[0], publication: { ...raw.products[0].publication, status: 'published' } }] })).toThrow(/publication status/);
     expect(() => parseSurfacePlannerFeedback({ ...raw, products: [{ ...raw.products[0], continuousNativeCoverageStatus: 'full' }] })).toThrow(/coverage status/);
     expect(() => parseSurfacePlannerFeedback({ ...raw, lockIdentity: 'abc' })).toThrow(/lock identity/);
+    expect(() => parseSurfacePlannerFeedback({ ...raw, products: [{ ...raw.products[0], emitted: {} }] })).toThrow(/output spacings/);
+    expect(() => parseSurfacePlannerFeedback({ ...raw, surface: { body: 'Mars' } })).toThrow(/surface/);
     expect(() => parseSurfacePlannerFeedback({ kind: 'surface-planner-feedback' })).toThrow();
   });
 });
