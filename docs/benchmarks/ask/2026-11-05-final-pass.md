@@ -167,6 +167,8 @@ The review traced the seven-round Cassini–Titan request and asked for small ch
 - **`getEventSearchOptions` with a kind** returns that kind's defaults only. An unknown kind still lists them all.
 - **The Details view is no longer cut at 8,000 characters.** Each step is collapsible, with its input and full host result, and Copy full trace copies everything.
 
+- **Seen means delivered (final review).** Notes count as seen only once a result carrying them has gone back to the model intact. A guided change in the same reply as the read or description that carries its notes is refused once. So is one after a result omitted for size. Two offline regressions cover these cases.
+
 **Offline replay, $0.** The same call sequence, scripted against a fake host with eight event kinds:
 
 | | Rounds | Refusals | Model input across rounds (chars) | describeScene result | getEventSearchOptions result |

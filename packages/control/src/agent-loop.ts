@@ -335,6 +335,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   let goalStated = false;
   // An operation's usage notes reach the model before its first change: from the
   // prompt (directly offered tools), a description, or the first call itself.
+  // Notes count as seen only once a result carrying them was sent back intact,
+  // never by another call in the same reply.
   const noted = new Set((opts.tools.guides?.() ?? []).map(g => g.name));
   // A read also carries the notes of its namespace's other operations, so the change it precedes is not refused for them.
   const notesFor = (use: { name: string; input: unknown }, read: boolean) => {
@@ -486,13 +488,16 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       // order. Every call gets a result, even after a stop, so the history
       // stays a valid conversation.
       const results: AgentContent[] = [];
+      const delivered: string[] = [];
       let batchFailed = false;
       for (const use of uses) {
         opts.onEvent?.({ type: 'tool', id: use.id, name: use.name, input: use.input });
         const read = isRead(use.name, use.input);
-        if (use.name === 'describeCapabilities') for (const id of (use.input as { ids?: unknown } | null)?.ids as unknown[] ?? []) if (typeof id === 'string') noted.add(id.split('.').at(-1)!);
         const pending = isCheck(use) ? [] : notesFor(use, read);
-        for (const g of pending) noted.add(g.name);
+        const described = use.name === 'describeCapabilities' ? ((use.input as { ids?: unknown } | null)?.ids as unknown[] ?? []).flatMap(id => {
+          const guide = typeof id === 'string' ? contractOf('invokeCapability', { id })?.guide : undefined;
+          return guide ? [{ name: (id as string).split('.').at(-1)!, guide }] : [];
+        }) : [];
         const notes = pending.length ? pending.map(g => g.name === actionName(use) ? g.guide : `${g.name}: ${g.guide}`).join(' ') : null;
         let result: AgentToolResult;
         if (isCheck(use) && opts.tools.verify) result = task.ended ? { ok: false, code: task.ended, error: 'this request was stopped; nothing was checked' } : runCheck(use);
@@ -504,7 +509,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
             : opts.tools.preflight?.(use.name, use.input, held) ?? null;
           if (!conflict && !read) ran = true;
           result = conflict ? { ok: false, code: 'refused', error: `Not run: ${conflict}.` } : await task.call(use.name, use.input);
-          if (notes && read) { if (result.ok) result = { ...result, summary: `${result.summary} Notes: ${notes}` }; else for (const g of pending) noted.delete(g.name); }
+          if (notes && read && result.ok) result = { ...result, summary: `${result.summary} Notes: ${notes}` };
         }
         if (result.outcome && result.ok) {
           wrote = true; seen.clear(); report = null;
@@ -517,8 +522,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
-        results.push({ type: 'tool_result', toolUseId: use.id, content: resultText(result, budget, read), isError: !result.ok });
+        const content = resultText(result, budget, read);
+        // Delivered means the text the model receives holds the note, not an omitted or reduced result.
+        for (const g of [...pending, ...described]) if (content.includes(JSON.stringify(g.guide).slice(1, -1))) delivered.push(g.name);
+        results.push({ type: 'tool_result', toolUseId: use.id, content, isError: !result.ok });
       }
+      for (const name of delivered) noted.add(name);
       messages.push({ role: 'user', content: results });
     }
     return finish(ended() ?? { kind: 'step-limit' });

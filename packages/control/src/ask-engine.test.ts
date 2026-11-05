@@ -305,7 +305,8 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
       // Stated before the search is named: it binds to the result this request presents.
-      call(describe_('events.presentEventResult'), goal([{ p: 'eventSelected', pick: 'closest' }]), present('1', 'pm-1')),
+      call(describe_('events.presentEventResult')),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), present('1', 'pm-1')),
       call(present('2', 'pm-0')),
       say('The closest approach is the 2026 flyby at 4,500 km.'),
     ]);
@@ -331,12 +332,13 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     const host = new TwoMinima();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(describe_('events.presentEventResult'), goal([{ p: 'eventRun', query: 'pm', whole: true }]), present('1', 'pm-0')),
+      call(describe_('events.presentEventResult')),
+      call(goal([{ p: 'eventRun', query: 'pm', whole: true }]), present('1', 'pm-0')),
       say('These are all of Psyche\'s approaches to Mars.'),
       say('The search covered only part of the loaded data, so these may not be all of them.'),
     ]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'show me all psyche flybys of mars' });
-    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm does not span the participants' coverage\)/);
+    expect(JSON.stringify(model.requests[3].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm does not span the participants' coverage\)/);
     expect(run.result.status).toBe('failed');
     expect(run.answer).toMatch(/only part/);
   });
@@ -347,7 +349,7 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     host.pinGroundPoint = ((object: string, policy: never) => { pinned++; return FakeViewer.prototype.pinGroundPoint.call(host, object, policy); }) as never;
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const pin = (id: string, policy?: string) => use(id, 'invokeCapability', { id: 'spatial.pinGroundPoint', input: { object: 'Mars', ...(policy ? { policy } : {}) } });
-    const model = scripted([call(describe_('spatial.pinGroundPoint'), goal([{ p: 'probeUnder', object: 'Mars' }]), pin('1', 'reference')), say('I could not pin it.')]);
+    const model = scripted([call(describe_('spatial.pinGroundPoint')), call(goal([{ p: 'probeUnder', object: 'Mars' }]), pin('1', 'reference')), say('I could not pin it.')]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'place a pick marker on the ground where mars currently is' });
     expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for probeUnder Mars, and this would leave probeUnder Mars reference\./);
     expect(pinned).toBe(0);
@@ -452,6 +454,29 @@ describe('round trips a closest-approach request does not need', () => {
     expect(result('scene').receipt).not.toHaveProperty('observation');
     expect(result('scene').receipt.status).toBe('completed');
     expect(run.result.status).toBe('verified');
+  });
+
+  const optionsHost = () => Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+  const upsert = (id: string) => use(id, 'invokeCapability', { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'pm', label: 'pm', enabled: true, visible: true,
+    query: { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} } }) } });
+
+  it('notes a read carries count as seen only after its result is returned: a guided change in the same reply is refused for them', async () => {
+    const host = optionsHost();
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const model = scripted([call(goal(), use('options', 'getEventSearchOptions', { kind: 'closest-approach' }), upsert('1')), call(upsert('2')), say('Configured.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: this operation's usage notes apply before its first use/);
+    expect(errorOf(run, '2')).toBeUndefined();
+    expect(host.calls.filter(c => c.startsWith('upsertEventQuery('))).toHaveLength(1);
+  });
+
+  it('notes in a result the model never receives whole (too large, omitted) are not seen', async () => {
+    const host = Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', label: 'x'.repeat(8000), step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const model = scripted([call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })), call(goal(), upsert('1')), say('Configured.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === 'options') as { content: string }).content)).toHaveProperty('code', 'result-too-large');
+    expect(errorOf(run, '1')).toMatch(/^Not run: this operation's usage notes apply/);
   });
 });
 
