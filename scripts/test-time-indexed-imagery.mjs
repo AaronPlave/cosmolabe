@@ -118,6 +118,7 @@ try {
   await settle(live ? 6000 : 2500);
   let t = (await layer()).temporal;
   assert.deepEqual([t.policy, t.date, t.state, t.cadence], ['follow-simulation', '2024-06-01', 'exact', 'day']);
+  if (live) await page.screenshot({ path: `${out}/orbit-2024-06-01.png` });
   if (!live) {
     const a = await hues('orbit-2024-06-01');
     assert.ok(dominant(a, 'red'), `2024-06-01 should show only its own day: ${JSON.stringify(a)}`);
@@ -132,6 +133,7 @@ try {
   t = (await layer()).temporal;
   assert.equal(t.date, '2024-06-02');
   assert.equal((await stats()).overlays, 1, 'one overlay per layer after a date change');
+  if (live) await page.screenshot({ path: `${out}/orbit-2024-06-02.png` });
   if (!live) {
     const b = await hues('orbit-2024-06-02');
     assert.ok(dominant(b, 'green'), `2024-06-02 should show only its own day: ${JSON.stringify(b)}`);
@@ -142,6 +144,7 @@ try {
   await page.evaluate(() => window.cosmo.viewpoint('Regional close-up'));
   await settle(live ? 8000 : 3000);
   assert.equal((await layer()).temporal.date, '2024-06-02');
+  if (live) await page.screenshot({ path: `${out}/regional-2024-06-02.png` });
   if (!live) result.checks.regional = await hues('regional-2024-06-02');
   if (!live) assert.ok(dominant(result.checks.regional, 'green'), `regional view should be a single day: ${JSON.stringify(result.checks.regional)}`);
 

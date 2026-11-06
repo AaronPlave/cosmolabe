@@ -34,24 +34,23 @@ The Imagery section shows `Acquired <date> · follows time | fixed | latest` und
 
 Open with `?catalog=test-catalogs/earth-gibs-daily` (or from the developer index). Layers, bottom to top: the static `earth-5k.jpg` map; streamed **Blue Marble** (no acquisition date); **MODIS Terra corrected reflectance, true colour**, daily, following simulation time. Viewpoints: *Earth from orbit* (default), *Regional close-up* (central California coast) and *Track ISS* (the 2011 TLE of `iss.json`, so the layer follows to 2011 when the clock is moved there; the ISS mesh is a Git LFS object).
 
-**What the imagery shows.** One composite per UTC day of what MODIS on Terra recorded that day: clouds are real weather, not a cloud product. Expect swath edges and gaps between orbits, no data in polar night, sun glint, and imagery that is not matched to the simulated Sun's position.
+**What the imagery shows.** One composite per UTC day of what MODIS on Terra recorded that day: clouds are real weather, not a cloud product. Expect black swath gaps between orbits (opaque in the JPEG, clearest from orbit), no data in polar night, sun glint, and imagery that is not matched to the simulated Sun's position.
 
 **Cadence, range, latency.** Daily (UTC). The catalog declares a first day of 2000-02-24 and, from the clock, a newest day of yesterday (`latencyDays: 1`). Before that day, or from tomorrow, the layer shows nothing.
 
 **Attribution.** NASA GIBS, MODIS Terra. NASA's standard acknowledgement, from memory and to be checked against GIBS's current wording before publishing, is: *"We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Observing System Data and Information System (EOSDIS)."* GIBS imagery is openly available; confirm the current terms before redistributing it.
 
-**Not in the pilot.** An optional cloud layer (its product name and temporal behaviour were not verified); `wmts-capabilities` for GIBS (the capabilities document is large; the machinery is implemented and tested against a time dimension, and `latest` needs it); a script verb for choosing a fixed date (use the Imagery section, or `BodyMesh.setImageryLayerTime`).
+**Not in the pilot.** An optional cloud layer; `wmts-capabilities` for GIBS (the capabilities document is large; the machinery is implemented and tested against a time dimension, and `latest` needs it); a script verb for choosing a fixed date (use the Imagery section, or `BodyMesh.setImageryLayerTime`).
 
-### Unverified endpoint facts
+### Endpoint facts, checked against the live service (2026-11-06)
 
-This work was developed in a sandbox whose network policy blocks `gibs.earthdata.nasa.gov`, so **none of these have been checked against the live service**:
+* `MODIS_Terra_CorrectedReflectance_TrueColor` exists under `epsg3857/best` with `GoogleMapsCompatible_Level9`, as the catalog's template uses it. Both `BlueMarble_ShadedRelief_Bathymetry` / `Level8` tiles and the MODIS tiles answer `200` with `access-control-allow-origin: *`, so browsers can fetch them cross-origin.
+* The first day is 2000-02-24 (`200`); 2000-02-23 and 1999-12-31 answer `404` (with CORS headers), and so does tomorrow.
+* Today's tile already exists but is partial (5 KB against 22 KB for yesterday at the same tile), which is why the catalog sets `latencyDays: 1`.
+* Tiles are JPEG: swath gaps are opaque black, not transparent, so the layers beneath do not show through them (see the orbit view above). That is data, not a fallback failure.
+* Not checked: how rate limiting answers, and a GIBS `WMTSCapabilities.xml` URL (the per-layer path guessed for this check returned `400`, so the catalog uses the REST template and not `wmts-capabilities`).
 
-* the product `MODIS_Terra_CorrectedReflectance_TrueColor` exists under `epsg3857/best` with tile matrix set `GoogleMapsCompatible_Level9` (the catalog follows the pattern of the `BlueMarble_ShadedRelief_Bathymetry` / `GoogleMapsCompatible_Level8` layer already in `iss.json`);
-* its first day (2000-02-24) and the publication lag (`latencyDays: 1`);
-* that browsers get CORS headers on tile requests;
-* that a day before the first returns no tile, and how rate limiting answers.
-
-Run `node scripts/test-time-indexed-imagery.mjs --live` against a viewer with network access before relying on them; it checks CORS, that two days differ, and that a pre-start day has no tiles, and then runs the same rendering checks against the real service. Correct `url`, `levels`, `start` and `latencyDays` in the catalog if it disagrees.
+`node scripts/test-time-indexed-imagery.mjs --live` repeats the CORS, two-day and pre-start checks, and the same rendering checks, against the real service. It passes here: day changes follow the simulation clock, a scrub keeps one overlay, and a day before the product shows nothing.
 
 ## Verification
 
