@@ -5,12 +5,12 @@ simulated Sun direction and epoch. This page states what is physical, what is
 not, how a catalog tells the renderer which imagery may be relit, and the
 evidence.
 
-**Scope.** The work so far is a Sun-direction correctness fix and the
-illumination-provenance contract that later work builds on. It is **not** a
-general improvement to lunar or planetary imagery, and it does not add terrain
-self-shadowing (#205). How real Moon imagery looks under directional light
-(for example crater interiors already baked into a mosaic) is a product
-question that stays open under #204 until catalogs declare provenance.
+**Scope.** Sun-direction correctness, the illumination-provenance contract, and
+what that contract does to the real Moon and Mars products. It is **not** a
+general improvement to planetary imagery, and it does not add terrain
+self-shadowing (#205), camera-visible Sun occlusion (#242) or regolith
+photometry (#206). The lunar imagery investigation is recorded under
+[Source provenance](#source-provenance); #147 owns any broader imagery work.
 
 Code: `packages/three/src/SurfaceIllumination.ts`. Tests: `SurfaceIllumination`,
 `TerrainIllumination`, `UniverseRenderer.illumination` (vitest) and
@@ -25,8 +25,8 @@ Traced from `UniverseRenderer`, `BodyMesh` and `TerrainManager`.
 | Static globe (`baseMap`, normal/displacement/bump maps) | main | Sun `DirectionalLight` + ambient (Phong/Standard material) | n/a: a body texture, relit as before |
 | Imagery-only ellipsoid (`Globe.imagery`) | main | same light; tiles swapped to `MeshStandardMaterial` | `imagery[].illumination` |
 | Quantized-mesh / 3D Tiles terrain | main | same light | `imagery[].illumination`, else `terrain.illumination` |
-| Multi-imagery overlays | main | composited into `diffuseColor`, then the same light | stack combined conservatively |
-| Cube-sphere terrain and cube imagery | main | same light, physical normals | cube layers' `illumination` |
+| Multi-imagery overlays | main | composited into `diffuseColor`, then the same light | per layer, blended by each layer's alpha |
+| Cube-sphere terrain and cube imagery | main | same light, physical normals | per cube layer; the legacy single product via `cubeSphere.imagery.illumination` |
 | DSK / mesh surfaces | main | same light (`MeshStandardMaterial`) | n/a |
 | `surfaceTiles` mission-site photogrammetry | camera-relative `tileScene` | full ambient only, every mode | **baked**, always |
 
@@ -114,8 +114,9 @@ tiles and is not run in CI.
 
 ## Imagery illumination provenance
 
-`imagery[].illumination` (and `terrain.illumination` for a tileset's own
-textures) declares what the pixels mean:
+`imagery[].illumination` (a cube layer, a geographic overlay), the legacy
+`terrain.cubeSphere.imagery.illumination` (the single cube product) and
+`terrain.illumination` (a tileset's own textures) declare what the pixels mean:
 
 | Value | Meaning | Behaviour |
 | --- | --- | --- |
@@ -123,28 +124,77 @@ textures) declares what the pixels mean:
 | `baked` | shading/shadows already in the pixels | shown as-is; **never relit**, so not double-lit |
 | `unknown` (default) | nothing declared | **legacy**: relit as before, *not* asserted physically relightable |
 
-A surface makes a claim only when **every contributing layer agrees**: all
-`baked` is as-is, all `reflectance` is relit as a physical claim, and any mixture
-(or an undeclared layer) is `unknown`, the legacy relit path. Contributing means
-visible with opacity above zero, so hiding a layer or setting its opacity to 0
-removes it from the decision. This is deliberate: one uniform per surface cannot
-light two sources differently, and treating a small bounded baked overlay as
-"the whole surface is baked" would switch the Sun off everywhere outside its
-footprint. The cost of the mixed case is that the overlay's own pixels are
-double-lit; correct per-pixel mixed lighting (weighting by each layer's
-coverage and opacity in the compositor) is a follow-up. An untextured quantized
-mesh is neutral albedo (`reflectance`). Only `reflectance` in `natural` mode is
-a physical claim. The viewer's Imagery control lists each layer's provenance.
+**The decision is per pixel.** Every compositor that blends imagery into
+`diffuseColor` also blends that layer's weight (1 for `baked`, 0 otherwise) into a
+per-fragment `surfaceAsIs` by the *same alpha*:
 
-Provenance is a shared shader uniform (`uSurfaceAsIs`), so changing it is a
-uniform write: no recompile, no material churn, one program for all tiles.
-Baked imagery still composes with imagery overlays, eclipse shadow and aerial
+```glsl
+diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
+surfaceAsIs      = mix(surfaceAsIs, cubeLayerN_asIs, alpha);
+```
+
+The tile program then shows `diffuseColor` as-is where `surfaceAsIs` is 1 and
+relights it where it is 0. A reflectance base under a baked overlay is therefore
+relit outside the overlay's footprint and shown as-is inside it, and a half
+opaque overlay is half and half. Nothing is lit twice and nothing is switched off
+for a whole surface. Hidden layers and opacity 0 need no special case (their alpha
+is 0). The compositors are the cube imagery shader (`CubeImageryLayer`) and, for
+geographic overlays, `ImageOverlayPlugin`'s loop, patched in
+`injectOverlayAsIsIntoShader` (it adds an `asIs` member to the plugin's
+`LayerInfo`; a test runs the hook against the installed library's real shader and
+fails loudly if the library changes shape). Pixels that no layer draws take
+`uSurfaceAsIs`: the tileset's own texture (`terrain.illumination`, neutral albedo
+for untextured quantized mesh) or, for an imagery-only body, its base map. A
+declaration describes imagery pixels only, so untextured geometry under a baked
+source is never turned into a flat as-is surface.
+
+`surfaceIllumination` (diagnostics, the viewer's layer panel) summarizes a
+stack as the shared value or `mixed`; it no longer chooses a path. Only
+`reflectance` in `natural` mode is a physical claim.
+
+Provenance is a shared shader uniform per layer, so changing it is a uniform
+write: no recompile, no material churn, one program for all tiles. Baked
+imagery still composes with imagery overlays, eclipse shadow and aerial
 perspective; only the Sun, ambient and environment lighting are bypassed.
 
-`illumination` is accepted by the catalog schema on `imagery[]`, `terrain.imagery[]`
-and `terrain`. No catalog in this repository declares it yet. Which products are
-reflectance and which are baked is a #123/#147 decision; until a catalog says,
-it stays `unknown` and renders exactly as before.
+### Baked imagery and the terminator
+
+A baked image cannot tell the renderer that the Sun has set on the surface it
+draws, and showing it at full brightness on the night side would make a lunar
+night look like day. Baked pixels therefore fall to the lighting mode's
+`bakedNightFloor` (natural 3 %, shadow 33 %, flood 100 % = no gate) when the Sun
+is below the **local horizon of the reference sphere**, over a ramp as wide as
+the Sun's angular radius (`sin 0.27°`). This is the terminator only. It uses the
+body-centre direction, never the terrain slope (slopes are in the image, and
+re-shading them would double-light it), never the camera's view of the Sun, and
+never a ridge's shadow: a crater floor facing the Sun is still treated as lit
+(#205). Baked pixels are shown at full scale (relit pixels carry the Lambert
+`1/π`), so Natural, Shadow and Flood of a baked surface differ only at night.
+
+`illumination` is accepted by the catalog schema on `imagery[]`,
+`terrain.imagery[]`, `terrain` and `terrain.cubeSphere.imagery`.
+
+### Source provenance
+
+What the real products are, with the evidence, and what the catalogs declare.
+"Baked" means shading is in the pixels as released; it is a statement about the
+products, not a preference about how Natural should look. Confidence is stated
+where the primary source is thin.
+
+| Product (used by) | Evidence | Declared |
+| --- | --- | --- |
+| LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product exists; it is **not** what the composite uses. | `baked` |
+| LROC NAC south pole **controlled average** mosaic, 1 m (Nov 2025; NAC half of the composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
+| WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (`cubeSphere.imagery`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` (`cubeSphere.imagery.illumination`) |
+| Viking MDIM 2.1 (Mars base, `viking`) | USGS Astropedia: the B/W mosaic "is processed to emphasize local topographic features"; the colour product is blended over it. | `baked` |
+| Murray Lab CTX global mosaic and Jezero/Gale CTX orthomosaics | Single-pass image mosaics seam-blended at acquisition lighting; no albedo normalization found in the product documentation. **Medium confidence**: the V01 processing section was not retrieved. | `baked` |
+| HiRISE orthomosaics (Jezero, Gale) | Single-acquisition lighting; not normalized. | `baked` |
+
+No reflectance-like (photometrically normalized) product is in a production
+catalog yet, so no real scene exercises "reflectance base, baked overlay" except
+by forcing a declaration (see the Gale capture below). If a normalized WAC mosaic
+is added as the lunar base, the per-pixel contract already handles the NAC
+overlay on top of it. That, and any broader imagery decision, belongs to #147.
 
 ### Relation to `temporal.illumination` (#214)
 
@@ -168,6 +218,97 @@ and is left as an explicit decision.
 ambient, no Sun) are **nonphysical visualization aids**. All three are one
 definition (`LIGHTING_MODES`) applied to every surface in the main scene.
 Baked photogrammetry in `tileScene` is mode-independent by design.
+
+For a surface declared `baked` the three modes differ only through the terminator
+gate above: the Sun cannot change its slopes or its shading, because the
+shading is the image's. In particular **Natural cannot reveal more detail than
+the source carries**: where the LRO Natural view looked muddy, the detail was in
+the texels and the geometry was only darkening it (next section).
+
+## Why LRO Natural looked muddy and Flood did not
+
+Hosted LRO/MoonFall scene, Shackleton (-89.67°, 129.78°), 2025-01-15T00:00Z, Sun
+elevation 1.17° (azimuth 222°, `cos i` 0.02 on the local radial):
+
+![WAC+NAC at Shackleton: relit Natural, Flood, baked Natural](validation/surface-illumination/real-scenes/lro-shackleton-natural-flood.jpg)
+
+- The textures are illumination-baked (provenance table), but were declared
+  nothing, so Natural multiplied them by `2·cos(i)` computed from the LOLA
+  normals (118 m globally, 5-10 m at the pole). With the Sun at 1° almost every
+  texel is at grazing incidence, so the product is dark and smooth: the baked
+  detail is attenuated by the geometry's coarse, weakly varying normals.
+- Flood has no Sun term, so it shows the raw texels: the detail is real and
+  comes from the imagery. Its black crater interior is **source**: the NAC
+  mosaic is black in permanently shadowed floors (and `0` is nodata, so a faint
+  arc where the footprint ends and WAC shows through is a compositing seam in
+  the offline composite, visible in Flood too, not a lighting effect).
+- Geometry alone (neutral albedo, imagery off) is smooth by comparison; see
+  the equatorial capture below. At 118 m the global terrain cannot supply the
+  decimetre detail that the 1 m NAC texture does.
+- Declared `baked`, Natural now shows the image once. A lit crater floor is
+  still lit if it faces the Sun; terrain occlusion by the rim is #205, and is
+  not imitated by darkening.
+
+## Real-scene validation
+
+Captured from the hosted products through the real viewer on software WebGL
+(SwiftShader): fixed camera, epoch and lighting mode, streaming complete, Sun
+geometry from `UniverseRenderer.solarGeometryAt`. Metadata and numbers:
+[`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
+"Before" is the same build with the layer provenance set back to `unknown`, which
+is the legacy relit path.
+
+**Globe to streamed.** Equatorial Moon, mean luma of the central patch (0-255):
+
+| Sun elevation | range | static globe | streamed, relit (legacy) | streamed, baked |
+| --- | --- | --- | --- | --- |
+| 60° | 2500 km / 700 km | 131 / 131 | 48 / 44 | 52 / 44 |
+| 8° | 2500 km / 700 km | 48 / 55 | 16 / 18 | 46 / 56 |
+
+At low Sun the legacy relit tiles were three times darker than the globe they
+replace; as-is baked tiles match it within about 5 %. At high Sun the globe is
+2.5× brighter either way: it is a different source image (the NASA SVS CGI Moon
+Kit colour map, `textures/moon-16k.jpg`), not a lighting difference, and is
+unchanged here. Choosing another globe base is a data decision (#147).
+
+**Mixed stack, per pixel.** Gale CTX footprint edge, Natural, Sun 31.6°, mean luma:
+
+![Per-pixel provenance across the Gale CTX edge](validation/surface-illumination/real-scenes/gale-ctx-edge-per-pixel.jpg)
+
+| | baked CTX side | Viking side |
+| --- | --- | --- |
+| before: every layer relit | 61.6 | 60.5 |
+| after: Viking forced to `reflectance`, CTX baked | 117.6 | 60.5 |
+| catalog as declared (all baked) | 117.6 | 98.6 |
+
+The CTX side stops being lit twice, and the relit Viking side is unchanged.
+(Viking is declared `baked` in the catalogs; forcing it `reflectance` is only to
+exercise a mixed stack on real data.) With the Sun 2.9° below the horizon at the
+Gale epoch 2014-02-05T12:00Z, relit imagery is black, baked imagery drops to its
+natural night floor (luma 19), and Flood stays uniform (101).
+
+**Geometry only.** Equatorial Moon, imagery off (neutral albedo), 12 km oblique:
+
+![Neutral albedo with the Sun in the west and in the east](validation/surface-illumination/real-scenes/moon-neutral-albedo-sun-flip.jpg)
+
+Flood is exactly uniform (σ 0.00). Natural varies with slope (σ 3.6-4.6 levels)
+and the gradient flips with the epoch: right side +3.1 levels with the Sun in
+the west (2025-01-15T00:00Z, el 20.1°, az 268.5°), left side +3.9 with the Sun
+in the east (2025-01-03T12:00Z, el 20.3°, az 91.6°). The cube terrain keeps its
+physical normals; nothing was smoothed.
+
+**Jezero**, Ingenuity's shadow-caster override disabled so the receiver-aimed Sun
+is exercised (2021-07-05T13:30Z, el 20.8°, az 288.5°): neutral-albedo Natural
+shades the delta scarps by slope on streamed terrain, and the stack renders as
+declared. The default Ingenuity demo is unchanged by design and is not used as
+evidence.
+
+**Cost.** Real Shackleton scene on software GL: median frame 367 ms relit and
+350-367 ms baked, 10 programs and 46 draw calls in both; the hook adds no
+program variant (the WebGL script asserts one program for relit, baked, flood
+and per-pixel mixed tiles). SwiftShader is not a GPU or mobile-class
+measurement; no desktop GPU or mobile hardware was available, so those timings
+remain unmeasured.
 
 ## Normals
 
@@ -211,6 +352,6 @@ ambient-only look.
 - No indirect bounce or Earthshine; `natural` ambient is a flat 3%.
 - Sun is a point direction; no penumbra on terrain.
 - `unknown` imagery is relit but may already contain shading.
-- Real-body Shackleton, equatorial Moon and Mars captures were not made here (no
-  catalog data or GPU in the authoring environment); the contract is verified on
-  synthetic fixtures and on the production shader path.
+- A baked surface does not respond to the Sun except at the terminator; it
+  cannot be made "more natural" without a reflectance product (#147).
+- Desktop-GPU and mobile-class timings were not available; software-GL only.

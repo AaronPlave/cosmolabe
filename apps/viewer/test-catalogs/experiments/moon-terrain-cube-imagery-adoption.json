@@ -137,7 +137,8 @@
           "cubeSphere": {
             "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json",
             "imagery": {
-              "url": "../data/moon-imagery-cube-nac/imagery.json"
+              "url": "../data/moon-imagery-cube-nac/imagery.json",
+              "illumination": "baked"
             }
           },
           "frame": "MOON_ME_DE421"

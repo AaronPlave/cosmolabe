@@ -92,8 +92,25 @@
     "total": 1
   },
   "timing": {
-    "plainMs": 1.069999999999709,
-    "hookMs": 1.060000000000582,
+    "plainMs": 1.0025000000023283,
+    "hookMs": 1.3900000000023283,
     "note": "software WebGL; no GPU/mobile claim"
+  },
+  "perPixel": {
+    "opaque": {
+      "left": 0.057663872838020325,
+      "right": 0.5
+    },
+    "half": {
+      "left": 0.057663872838020325,
+      "right": 0.27883195877075195
+    }
+  },
+  "terminator": {
+    "dayNatural": 0.5,
+    "nightNatural": 0.01568627543747425,
+    "nightShadow": 0.1666666716337204,
+    "nightFlood": 0.5,
+    "grazing": 0.4551511046011001
   }
 }

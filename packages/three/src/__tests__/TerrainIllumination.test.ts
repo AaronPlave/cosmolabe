@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { TerrainManager, type TerrainConfig } from '../TerrainManager.js';
+import { imageryAsIsWeight } from '../SurfaceIllumination.js';
 
 /**
  * Material variants for the imagery illumination contract (#204). No GL
@@ -41,7 +42,7 @@ const compile = (mat: THREE.Material) => {
   (mat.onBeforeCompile as unknown as (s: typeof shader, r: unknown) => void)(shader, undefined);
   return shader;
 };
-const mixLine = 'outgoingLight = mix(outgoingLight, diffuseColor.rgb, uSurfaceAsIs);';
+const mixLine = 'outgoingLight = mix(outgoingLight, diffuseColor.rgb * surfaceBakedGate, surfaceAsIs);';
 
 describe('surface illumination provenance resolution', () => {
   it('defaults to the legacy `unknown` path when a catalog declares nothing', () => {
@@ -53,43 +54,62 @@ describe('surface illumination provenance resolution', () => {
     expect(make().surfaceIllumination).toBe('reflectance');
   });
 
-  it('honours declared sources and claims a stack only when its layers agree', () => {
+  it('honours declared sources and summarises a stack as shared or mixed', () => {
     expect(make({ imagery: imagery('reflectance') }).surfaceIllumination).toBe('reflectance');
     expect(make({ imagery: [imagery('baked'), imagery('baked')] }).surfaceIllumination).toBe('baked');
-    expect(make({ imagery: [imagery('reflectance'), imagery('baked')] }).surfaceIllumination).toBe('unknown');
-    expect(make({ imagery: [imagery('reflectance'), imagery()] }).surfaceIllumination).toBe('unknown');
+    expect(make({ imagery: [imagery('reflectance'), imagery('baked')] }).surfaceIllumination).toBe('mixed');
+    expect(make({ imagery: [imagery('reflectance'), imagery()] }).surfaceIllumination).toBe('mixed');
     expect(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'baked' }).surfaceIllumination).toBe('baked');
+  });
+
+  it('reads the legacy cubeSphere.imagery declaration for the imagery, not for pixels it does not draw (#204)', () => {
+    const cube = (imageryIllumination?: 'baked' | 'reflectance', terrain?: 'baked' | 'reflectance') => make({
+      type: '3dtiles', url: 'https://example.invalid/t.json', illumination: terrain,
+      cubeSphere: { cpuGrids: 'https://example.invalid/cpu-grids.json', imagery: { url: 'https://example.invalid/imagery.json', illumination: imageryIllumination } },
+    });
+    expect(cube().surfaceIllumination).toBe('unknown'); // nothing declared: legacy relit
+    expect(cube('baked').surfaceIllumination).toBe('baked');
+    expect(cube('reflectance', 'baked').surfaceIllumination).toBe('reflectance'); // the imagery's own declaration wins for the imagery
+    expect(cube(undefined, 'baked').surfaceIllumination).toBe('unknown'); // the tileset's texture does not declare the cube imagery
+    // The declaration never turns untextured geometry (no imagery, or imagery off) into a flat as-is surface.
+    const baked = cube('baked');
+    const { scene, mesh } = litTile();
+    customize(baked, scene);
+    expect(uniformOf(mesh.material as THREE.Material).value).toBe(0);
   });
 });
 
 const uniformOf = (mat: THREE.Material) => compile(mat).uniforms.uSurfaceAsIs as { value: number };
 
 describe('tile material variants', () => {
-  it('gives relit provenance a zero as-is uniform: reflectance and legacy unknown stay Sun-lit', () => {
+  // On the geographic overlay path `uSurfaceAsIs` is the weight of a pixel no overlay covers: the base
+  // map of an imagery-only body, else the tileset's own texture. Overlays carry their own per-layer weight.
+  it('gives relit provenance a zero uncovered-pixel weight: reflectance and legacy unknown stay Sun-lit', () => {
     for (const illumination of ['reflectance', undefined] as const) {
       const { scene, mesh } = unlitTile();
-      customize(make({ imagery: imagery(illumination) }), scene);
+      customize(make({ type: 'imagery', imagery: imagery(illumination) }), scene);
       const mat = mesh.material as THREE.MeshStandardMaterial;
       expect(mat.isMeshStandardMaterial).toBe(true);
       expect(uniformOf(mat).value).toBe(0);
     }
   });
 
-  it('shows illumination-baked unlit imagery as-is, so the Sun cannot double-light it', () => {
+  it('shows an illumination-baked imagery-only base as-is, so the Sun cannot double-light it', () => {
     const { scene, mesh } = unlitTile();
-    customize(make({ imagery: imagery('baked') }), scene);
+    customize(make({ type: 'imagery', imagery: imagery('baked') }), scene);
     const shader = compile(mesh.material as THREE.Material);
     expect(shader.uniforms.uSurfaceAsIs).toEqual({ value: 1 });
     expect(shader.fragmentShader).toContain(mixLine);
     expect(shader.fragmentShader.indexOf(mixLine)).toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
+    expect(shader.fragmentShader).toContain('surfaceAsIs = uSurfaceAsIs;');
   });
 
   it('applies the same path to tiles that arrive as lit PBR materials', () => {
     const { scene, mesh } = litTile();
-    customize(make({ imagery: imagery('baked') }), scene);
+    customize(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'baked' }), scene);
     expect(uniformOf(mesh.material as THREE.Material).value).toBe(1);
     const { scene: relit, mesh: relitMesh } = litTile();
-    customize(make({ imagery: imagery('reflectance') }), relit);
+    customize(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'reflectance' }), relit);
     expect(uniformOf(relitMesh.material as THREE.Material).value).toBe(0);
   });
 
@@ -97,43 +117,61 @@ describe('tile material variants', () => {
     const keys = new Set<string>();
     for (const illumination of ['baked', 'reflectance'] as const) {
       const { scene, mesh } = unlitTile();
-      customize(make({ imagery: imagery(illumination) }), scene);
+      customize(make({ type: 'imagery', imagery: imagery(illumination) }), scene);
       keys.add((mesh.material as THREE.Material).customProgramCacheKey!());
     }
     expect(keys.size).toBe(1);
   });
 
-  it('never lets a bounded baked overlay switch the Sun off for the whole surface', () => {
+  it('keeps a baked overlay from switching the Sun off for the base beneath it: weights are per layer', () => {
+    // Quantized mesh + imagery: the base is an overlay too, so the tileset's own texture is the uncovered pixel.
     const tm = make({ imagery: [imagery('reflectance'), { ...imagery('baked'), id: 'shaded' }] });
-    const { scene, mesh } = unlitTile();
+    const { scene, mesh } = litTile();
     customize(tm, scene);
-    // Visible baked overlay over a reflectance base: mixed, so the legacy relit path.
-    expect(tm.surfaceIllumination).toBe('unknown');
+    expect(tm.surfaceIllumination).toBe('mixed');
+    // The surface-wide weight stays the relit tileset texture; the baked overlay's own weight is per layer.
     expect(uniformOf(mesh.material as THREE.Material).value).toBe(0);
+    const layers = (tm as unknown as { layers: { id: string; illumination?: string }[] }).layers;
+    expect(layers.map(l => imageryAsIsWeight(l.illumination as never))).toEqual([0, 1]);
   });
 
-  it('counts only layers that contribute pixels: hidden or zero-opacity layers do not', () => {
+  it('summarises only layers that contribute pixels: hidden or zero-opacity layers do not count', () => {
     const tm = make({ imagery: [imagery('reflectance'), { ...imagery('baked'), id: 'shaded', visible: false }] });
     const layers = (tm as unknown as { layers: { id: string; visible: boolean; opacity: number }[] }).layers;
-    const refresh = () => (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
-    const { scene, mesh } = unlitTile();
-    customize(tm, scene);
-    const uniform = uniformOf(mesh.material as THREE.Material);
     const shaded = layers.find(l => l.id === 'shaded')!;
     expect(tm.surfaceIllumination).toBe('reflectance'); // hidden baked layer ignored
-    shaded.visible = true; refresh();
-    expect(tm.surfaceIllumination).toBe('unknown'); // mixed
-    shaded.opacity = 0; refresh();
+    shaded.visible = true;
+    expect(tm.surfaceIllumination).toBe('mixed');
+    shaded.opacity = 0;
     expect(tm.surfaceIllumination).toBe('reflectance'); // opacity zero contributes nothing
-    expect(uniform.value).toBe(0);
-    // A baked base with a zero-opacity relit overlay is purely baked: as-is, same uniform, no recompile.
     const baked = make({ imagery: [imagery('baked'), { ...imagery('reflectance'), id: 'extra', opacity: 0 }] });
-    (baked as unknown as { layers: { id: string; opacity: number }[] }).layers.find(l => l.id === 'extra')!.opacity = 0;
-    (baked as unknown as { refreshIllumination(): void }).refreshIllumination();
     expect(baked.surfaceIllumination).toBe('baked');
-    const { scene: s2, mesh: m2 } = unlitTile();
-    customize(baked, s2);
-    expect(uniformOf(m2.material as THREE.Material).value).toBe(1);
+  });
+
+  it('feeds the terminator gate: the mode floor and a body centre in view space, off without a centre', () => {
+    const tm = make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'baked' });
+    const { scene, mesh } = litTile();
+    customize(tm, scene);
+    const shader = compile(mesh.material as THREE.Material);
+    const floor = shader.uniforms.uBakedNightFloor as { value: number };
+    const centre = shader.uniforms.uSurfaceCenterView as { value: THREE.Vector3 };
+    expect(shader.fragmentShader).toContain('directionalLights[0].direction');
+    const gate = (camera: THREE.Camera, at?: THREE.Vector3) =>
+      (tm as unknown as { updateTerminatorGate(c: THREE.Camera, p?: THREE.Vector3): void }).updateTerminatorGate(camera, at);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+    camera.updateMatrixWorld();
+    gate(camera);
+    expect(floor.value).toBe(1); // no body centre: no gate
+    gate(camera, new THREE.Vector3(0, 0, 0));
+    expect(floor.value).toBeCloseTo(8 / 255, 12);
+    expect(centre.value.toArray()).toEqual([0, 0, -10]); // the centre, in view space, ahead of the camera
+    tm.setLightingMode('shadow');
+    gate(camera, new THREE.Vector3(0, 0, 0));
+    expect(floor.value).toBeCloseTo(0x55 / 255, 12); // the shared uniform: no recompile
+    tm.setLightingMode('flood');
+    gate(camera, new THREE.Vector3(0, 0, 0));
+    expect(floor.value).toBe(1);
   });
 
   it('leaves tile geometry, positions and picking data untouched', () => {

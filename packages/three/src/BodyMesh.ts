@@ -18,6 +18,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
 import type { ImageryTimePolicy } from './ImageryTime.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
+import type { LightingMode } from './SurfaceIllumination.js';
 
 /**
  * Which surface a Globe with a streamed surface is drawing:
@@ -127,6 +128,8 @@ export class BodyMesh extends THREE.Object3D {
   scaleFactor = 1;
   /** Streaming terrain manager (3D Tiles). Null if no terrain configured. */
   private terrainManager: TerrainManager | null = null;
+  /** The scene's lighting mode, forwarded to streamed terrain for baked imagery's night floor (#204). */
+  private lightingMode: LightingMode = 'natural';
   /** Whether terrain tiles are currently visible (vs static sphere fallback) */
   private terrainVisible = false;
   /** Surface tile overlays (local-frame tilesets positioned on the globe) */
@@ -1176,6 +1179,7 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+  setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
@@ -1371,6 +1375,7 @@ export class BodyMesh extends THREE.Object3D {
       throw new Error(`Terrain frame ${config.frame} does not match ${this.body.name} attitude ${frame}`);
     }
     this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
+    this.terrainManager.setLightingMode(this.lightingMode);
     this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
     this.terrainManager.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
     if (this.graticule) {

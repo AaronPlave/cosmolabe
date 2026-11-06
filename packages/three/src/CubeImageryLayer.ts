@@ -1,6 +1,7 @@
 import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
+import { declareSurfaceAsIs, imageryAsIsWeight, type ImageryIllumination } from './SurfaceIllumination.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
@@ -21,6 +22,10 @@ import {
 export interface CubeImageryConfig {
   /** `imagery.json` written by `scripts/terrain/cube_imagery.py`. */
   url: string;
+  /** What the single (legacy `cubeSphere.imagery.url`) product's pixels mean for relighting (#204):
+   *  `baked` shows it as-is, `reflectance` and the default `unknown` let the Sun light it.
+   *  A `layers` stack declares this per layer instead. Not `temporal.illumination` (#214). */
+  illumination?: ImageryIllumination;
   /** Globe.imagery cube products, bottom to top. Shares geometry, draws and one texture budget. */
   layers?: TerrainImageryConfig[];
   /** Target projected size of one imagery texel, px. Default 1.5. */
@@ -118,6 +123,8 @@ interface SourceUniforms {
   root: { value: number }; enabled: { value: number }; srgb: { value: number };
   fallback: { value: Int32Array };
   opacity: { value: number }; bounded: { value: number }; bounds: { value: THREE.Vector4 };
+  /** 1 when this source's pixels carry their own lighting and are shown as-is (#204). */
+  asIs: { value: number };
 }
 interface Uniforms {
   layers: SourceUniforms[];
@@ -138,7 +145,7 @@ interface TileRecord { scene: THREE.Object3D; address: ImageryAddress; meshes: M
 
 /** Compatibility for physical picking. All imagery now draws on original meshes. */
 export function isDrawnCubeImagerySource(_object: THREE.Object3D): boolean { return false; }
-const CACHE_KEY = '_cubeimg_pages_v2';
+const CACHE_KEY = '_cubeimg_pages_v3';
 const DEBUG_CODE: Record<CubeImageryDebug, number> = { none: 0, unlit: 1, level: 2 };
 const FACES: CubeFace[] = ['px','nx','py','ny','pz','nz'];
 const _bodyFrustum = new THREE.Frustum(), _box = new THREE.Box3();
@@ -190,10 +197,11 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
   Object.assign(shader.uniforms, flat);
   layers.forEach((u, i) => { for (const [key, uniform] of Object.entries(u)) shader.uniforms[`cubeLayer${i}_${key}`] = uniform; });
   if (shader.vertexShader.includes(VERTEX_PARS)) return;
+  declareSurfaceAsIs(shader);
   shader.vertexShader = VERTEX_PARS + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCubeImageryUvw = cubeImageryUvw;');
   const pars = layers.map((_, i) => `uniform int cubeLayer${i}_root; uniform ivec4 cubeLayer${i}_fallback; uniform float cubeLayer${i}_enabled;
     uniform float cubeLayer${i}_bounded; uniform vec4 cubeLayer${i}_bounds;
-    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity;`).join('\n');
+    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity; uniform float cubeLayer${i}_asIs;`).join('\n');
   let fragment = FRAGMENT_PARS + pars + '\n' + shader.fragmentShader;
   fragment = fragment.replace('void main() {', 'void main() {\n  vec4 cubeImageryTexel = vec4(0.0); float shownLevel = -1.0;');
   const coordinates = `
@@ -218,6 +226,8 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
         }
         vec3 color = cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb;
         diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
+        // Each source lights (or not) by its own provenance, weighted by its coverage.
+        surfaceAsIs = mix(surfaceAsIs, cubeLayer${i}_asIs, alpha);
         cubeImageryTexel.rgb = mix(cubeImageryTexel.rgb, sampleValue.rgb, alpha);
         cubeImageryTexel.a = alpha + cubeImageryTexel.a * (1.0 - alpha);
         if (alpha > 0.0) shownLevel = float(page.y);
@@ -313,7 +323,7 @@ export class CubeImageryLayer {
   private readonly tiles = new Map<object, TileRecord>();
   private readonly shared = { debug: { value: 0 }, srgb: { value: 1 } };
   private readonly manifestAbort = new AbortController();
-  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers'>> & { maxLevel: number | undefined };
+  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers' | 'illumination'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly sources: Source[];
   private readonly order: Source[];
@@ -367,7 +377,7 @@ export class CubeImageryLayer {
       retryFailedMs: config.retryFailedMs ?? 30_000,
       maxLevel: config.maxLevel,
     };
-    const configs = config.layers ?? [{ type: 'cube' as const, url: config.url }];
+    const configs = config.layers ?? [{ type: 'cube' as const, url: config.url, illumination: config.illumination }];
     if (configs.length === 0 || configs.length > 4) throw new Error('Cube imagery supports one to four sources');
     this.sources = describeImageryLayers(configs, 1).map((info, index) => ({
       index, info, baseUrl: new URL(configs[index].url, globalThis.location?.href ?? 'http://localhost/').href,
@@ -809,6 +819,7 @@ export class CubeImageryLayer {
         u.srgb.value = s.manifest?.colorSpace === 'srgb' ? 1 : 0;
         u.opacity.value = s.info.opacity; u.bounded.value = s.info.bounds ? 1 : 0;
         u.bounds.value.fromArray(s.info.bounds ?? [-180, -90, 180, 90]);
+        u.asIs.value = imageryAsIsWeight(s.info.illumination);
       }
     }
     // Prioritize complete coarse feedback across all layers, followed by local
@@ -938,7 +949,7 @@ export class CubeImageryLayer {
     return {
       cubeImageryToBody: { value: new THREE.Matrix3().set(u[0] * size, v[0] * size, n[0] + u0*u[0] + v0*v[0], u[1] * size, v[1] * size, n[1] + u0*u[1] + v0*v[1], u[2] * size, v[2] * size, n[2] + u0*u[2] + v0*v[2]) },
       cubeGeometryAddress: { value: new Int32Array([address.level, address.x, address.y]) },
-      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) } })),
+      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) }, asIs: { value: 0 } })),
       cubeImageryDebug: this.shared.debug, cubePages: { value: this.pages?.array ?? this.emptyPages }, cubePageTable: { value: this.pages?.tableUniform.value ?? this.emptyPageTable }, cubePagePixels: { value: new THREE.Vector2() },
     };
   }

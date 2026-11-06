@@ -260,6 +260,7 @@
             "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
             "resolutionMeters": 325.60563825058347,
             "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "illumination": "baked",
             "type": "cube",
             "url": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json"
           },
@@ -269,6 +270,7 @@
             "description": "Gale CTX BlockAdj service, retained as an independent finite cube layer. Available grid interval about 20.35m; output spacing about 12.96m. Native instrument resolution and absolute registration are separate.",
             "resolutionMeters": 20.350352390661467,
             "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "illumination": "baked",
             "type": "cube",
             "url": "data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf/imagery.json",
             "bounds": [
@@ -284,6 +286,7 @@
             "description": "Curiosity HiRISE mosaic service, retained as an independent finite cube layer. Available grid interval about 1.27m; output spacing about 1.62m. No high-resolution elevation is inferred from this imagery.",
             "resolutionMeters": 1.2718970244163417,
             "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "illumination": "baked",
             "type": "cube",
             "url": "data/curiosity-cube/imagery-65a14eef13d9c08962ea5879/imagery.json",
             "bounds": [

@@ -21,8 +21,8 @@ server.middlewares.use(async (req, res, next) => {
   if (req.url !== '/') return next();
   const html = await server.transformIndexHtml('/', `<link rel="icon" href="data:,"><canvas width="64" height="64"></canvas><script type="module">
     import * as THREE from 'three';
-    import { injectAsIsDisplayIntoShader, LIGHTING_MODES, applyLightingMode } from '/packages/three/src/SurfaceIllumination.ts';
-    window.illumTest = { THREE, injectAsIsDisplayIntoShader, LIGHTING_MODES, applyLightingMode };
+    import { injectAsIsDisplayIntoShader, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode } from '/packages/three/src/SurfaceIllumination.ts';
+    window.illumTest = { THREE, injectAsIsDisplayIntoShader, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode };
   </script>`);
   res.setHeader('Content-Type', 'text/html');
   res.end(html);
@@ -39,7 +39,7 @@ try {
   await page.goto(server.resolvedUrls.local[0]);
   await page.waitForFunction(() => window.illumTest);
   const result = await page.evaluate(() => {
-    const { THREE, injectAsIsDisplayIntoShader, LIGHTING_MODES, applyLightingMode } = window.illumTest;
+    const { THREE, injectAsIsDisplayIntoShader, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode } = window.illumTest;
     const canvas = document.querySelector('canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // linear readback
@@ -89,7 +89,7 @@ try {
       return sum / n;
     }
 
-    const out = { gpu, cases: [], baked: {}, flood: {}, programs: {}, timing: {} };
+    const out = { gpu, cases: [], baked: {}, flood: {}, programs: {}, timing: {}, perPixel: {}, terminator: {} };
     // 1. Neutral-albedo sloped planes vs analytic cos(incidence), normalised to normal incidence.
     const reference = shade({ slope: 0, elevation: 90 });
     for (const slope of [-40, 0, 25, 60]) for (const elevation of [10, 35, 70]) {
@@ -113,6 +113,64 @@ try {
     shade({ slope: 0, elevation: 45, material: a, asIs: 0 });
     shade({ slope: 0, elevation: 45, material: b, asIs: 1 });
     out.programs.total = renderer.info.programs.length;
+    // 6. Per-pixel provenance (#204): one plane, left half a relit layer, right half a baked layer, blended by
+    // the same `surfaceAsIs = mix(surfaceAsIs, layerWeight, alpha)` the cube and overlay compositors emit.
+    const halfMaterial = (rightAlpha) => {
+      const map = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+      map.needsUpdate = true;
+      const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.5, 0.5, 0.5), map, roughness: 1, metalness: 0 });
+      m.onBeforeCompile = shader => {
+        declareSurfaceAsIs(shader);
+        shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
+          `#include <map_fragment>\nsurfaceAsIs = mix(surfaceAsIs, 1.0, step(0.5, vMapUv.x) * ${rightAlpha.toFixed(2)});`);
+        injectAsIsDisplayIntoShader(shader, createSurfaceAsIsUniforms('flood'));
+      };
+      m.customProgramCacheKey = () => '_illum_half_' + rightAlpha;
+      return m;
+    };
+    const readHalves = (material) => {
+      const scene = new THREE.Scene();
+      const ambient = new THREE.AmbientLight(), sun = new THREE.DirectionalLight();
+      scene.add(ambient, sun, sun.target);
+      applyLightingMode('natural', ambient, sun);
+      sun.position.set(Math.cos(deg(10)), 0, Math.sin(deg(10))).multiplyScalar(5); // grazing: relit is dim
+      scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+      camera.position.set(0, 0, 3); camera.lookAt(0, 0, 0);
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      const px = new Float32Array(64 * 64 * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, 64, 64, px); renderer.setRenderTarget(null);
+      const mean = (x0, x1) => { let sum = 0, n = 0; for (let y = 24; y < 40; y++) for (let x = x0; x < x1; x++) { sum += px[(y * 64 + x) * 4]; n++; } return sum / n; };
+      return { left: mean(10, 22), right: mean(42, 54) };
+    };
+    out.perPixel = { opaque: readHalves(halfMaterial(1)), half: readHalves(halfMaterial(0.5)) };
+    // 7. Terminator gate: baked pixels go to the mode's night floor when the Sun is below the body's local horizon.
+    const gated = (elevationDeg, mode) => {
+      const uniforms = createSurfaceAsIsUniforms(mode);
+      uniforms.surfaceAsIs.value = 1;
+      const map = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+      map.needsUpdate = true;
+      const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.5, 0.5, 0.5), map, roughness: 1, metalness: 0 });
+      m.onBeforeCompile = shader => injectAsIsDisplayIntoShader(shader, uniforms);
+      m.customProgramCacheKey = () => '_illum_gate';
+      const scene = new THREE.Scene();
+      const ambient = new THREE.AmbientLight(), sun = new THREE.DirectionalLight();
+      scene.add(ambient, sun, sun.target);
+      applyLightingMode(mode, ambient, sun);
+      // Body centre at the origin, surface point at +Z (local up = +Z); the Sun at `elevationDeg` above the +X horizon.
+      sun.position.set(Math.cos(deg(elevationDeg)), 0, Math.sin(deg(elevationDeg))).multiplyScalar(5);
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m);
+      plane.position.set(0, 0, 100);
+      scene.add(plane);
+      camera.position.set(0, 0, 103); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+      uniforms.centerView.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      const px = new Float32Array(64 * 64 * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, 64, 64, px); renderer.setRenderTarget(null);
+      let sum = 0, n = 0;
+      for (let y = 24; y < 40; y++) for (let x = 24; x < 40; x++) { sum += px[(y * 64 + x) * 4]; n++; }
+      return sum / n;
+    };
+    out.terminator = { dayNatural: gated(30, 'natural'), nightNatural: gated(-20, 'natural'), nightShadow: gated(-20, 'shadow'), nightFlood: gated(-20, 'flood'), grazing: gated(0.2, 'natural') };
     // 5. Software-GL timing, unrepresentative of any GPU: hook vs plain Standard material.
     const plain = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 });
     const time = (material) => {
@@ -145,6 +203,18 @@ try {
   // 3. Flood is slope independent but visibly not physical (uniform, bright).
   const [f0, f1, f2] = result.flood.values;
   assert.ok(Math.abs(f0 - f1) < 1e-4 && Math.abs(f1 - f2) < 1e-4, `flood is slope independent: ${result.flood.values}`);
+  // 5. Per-pixel provenance: the baked half shows its own albedo exactly, the relit half is lit by the grazing Sun.
+  const { opaque, half } = result.perPixel;
+  assert.ok(Math.abs(opaque.right - 0.5) < 1e-3, `a baked layer is shown as-is inside its footprint: ${opaque.right}`);
+  assert.ok(opaque.left < 0.1 && opaque.left < opaque.right * 0.25, `the relit layer beside it stays Sun-lit (dim at 10 deg): ${opaque.left}`);
+  assert.ok(half.right > opaque.left && half.right < opaque.right, `a half-opaque baked layer is half as-is: ${half.right}`);
+  // 6. Terminator gate: Sun up = as-is; Sun below the local horizon = the mode's floor; flood never gates.
+  const t = result.terminator;
+  assert.ok(Math.abs(t.dayNatural - 0.5) < 1e-3, `Sun up: baked shown as-is: ${t.dayNatural}`);
+  assert.ok(Math.abs(t.nightNatural - 0.5 * 8 / 255) < 1e-3, `natural night floor: ${t.nightNatural}`);
+  assert.ok(Math.abs(t.nightShadow - 0.5 * 0x55 / 255) < 1e-3, `shadow night floor: ${t.nightShadow}`);
+  assert.ok(Math.abs(t.nightFlood - 0.5) < 1e-3, `flood is uniform: ${t.nightFlood}`);
+  assert.ok(t.grazing > t.nightNatural && t.grazing < t.dayNatural, `the terminator is a short ramp, not a step: ${t.grazing}`);
   // 4. One program.
   assert.equal(result.programs.total, 1, 'relit, baked and flood tiles all share one program');
   console.log(JSON.stringify({ gpu: result.gpu, cases: result.cases.length, programs: result.programs.total, timing: result.timing }, null, 2));

@@ -33,7 +33,7 @@ Source time is resolved by pure functions (`resolveImageryTime`, `ImageryTimeFol
 
 The Imagery section shows `Acquired <date> · follows time | fixed | latest` under the layer name, and, in the expander, the date mode, a date picker for `fixed`, cadence, available range (and whether the provider declared it), the number of day changes, and: *acquisition date, not the simulation epoch; sunlight is baked in as acquired, and the viewer also shades the globe by the simulated Sun*.
 
-**Lighting is not reconciled.** Daily true-colour imagery has the Sun of its acquisition baked into its pixels. The renderer does not remove it: imagery tiles are shaded by the simulated Sun like any other surface, so the two lightings stack and the day/night boundary will not match the image (`illumination: "baked"` records this; it does not change rendering). Making baked and reflectance imagery render differently belongs with the light/provenance contract (#204, #365).
+**Lighting is not reconciled.** Daily true-colour imagery has the Sun of its acquisition baked into its pixels. The renderer does not remove it: imagery tiles are shaded by the simulated Sun like any other surface, so the two lightings stack and the day/night boundary will not match the image (`temporal.illumination: "baked"` records this; it does not change rendering). Rendering is chosen by the separate layer-level `illumination` key (`baked` shows the layer as-is, per pixel; see [surface-illumination.md](surface-illumination.md)), which a dated layer does not imply: a daily layer that declares nothing is still relit as before.
 
 ## Earth pilot: `test-catalogs/earth-gibs-daily`
 
