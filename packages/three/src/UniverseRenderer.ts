@@ -62,7 +62,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
-import { PositionGlyphs, wantsGlyph, glyphReplacesPlaceholder, type PositionGlyphReadout } from './PositionGlyphs.js';
+import { PositionGlyphs, wantsGlyph, wantsPointMarker, glyphReplacesPlaceholder, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -945,10 +945,12 @@ export class UniverseRenderer {
 
       // The unlit position glyph replaces the legacy lit minimum-size
       // placeholder (and the sphere standing in while a model fades in) for
-      // eligible, still-unresolved bodies. Disabled glyphs or ineligible bodies
+      // eligible, still-unresolved artificial bodies. Disabled glyphs or ineligible bodies
       // keep exactly the old behaviour.
+      // Natural bodies are never replaced: they keep their real-scale rendering (and,
+      // at the library default, the legacy minimum-size sphere) with no point marker.
       const glyphActive = glyphReplacesPlaceholder(
-        this._positionGlyphsEnabled, wantsGlyph(bm, this._customVisuals.has(bm.body.name)), screenPixels);
+        this._positionGlyphsEnabled, wantsPointMarker(bm, this._customVisuals.has(bm.body.name)), screenPixels);
 
       if (bm.hasModel && !bm.attitudeAvailable) {
         // Position known, attitude not: the marker, never a model at a held attitude.

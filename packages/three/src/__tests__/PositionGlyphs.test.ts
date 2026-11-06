@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  GLYPH_FULL_PX, GLYPH_GONE_PX, PHYSICAL_GLYPH_GONE_PX, PHYSICAL_RING_GONE_PX, PositionGlyphs,
-  glyphReplacesPlaceholder, glyphWeight, ringWeight, rasterizeGlyph, wantsGlyph,
+  GLYPH_FULL_PX, GLYPH_GONE_PX, NATURAL_RING_GONE_PX, PositionGlyphs,
+  glyphReplacesPlaceholder, glyphWeight, isNaturalBody, ringWeight, rasterizeGlyph, wantsGlyph, wantsPointMarker,
 } from '../PositionGlyphs.js';
 import type { BodyMesh } from '../BodyMesh.js';
 
@@ -420,23 +420,66 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     expect(drawn(g)).toBe(2);
   });
 
-  it('physical globes hand off to their own disk far earlier than models; the ring leaves first', () => {
+  it('natural bodies never get a filled point; only selected/tracked ones get a hollow ring', () => {
     const cam = camera();
-    expect(glyphWeight(PHYSICAL_GLYPH_GONE_PX, true)).toBe(0);
-    expect(glyphWeight(PHYSICAL_GLYPH_GONE_PX, false)).toBeGreaterThan(0.9); // a model at 3px still needs it
-    expect(ringWeight(PHYSICAL_RING_GONE_PX, true)).toBe(0);
-    expect(ringWeight(PHYSICAL_RING_GONE_PX, true)).toBeLessThan(glyphWeight(PHYSICAL_RING_GONE_PX, true) + 1e-9);
-    // A Moon-like globe whose disk is ~5px: no marker at all, even when selected/tracked.
+    const px = (r: number, d: number) => r / (2 * Math.tan((50 * Math.PI / 180) / 2) * d) * CSS.height;
+    const tiny = 0.4 / px(1, 100); // sub-pixel disk: the case that used to get a white dot
+    const planet = fakeBody('Jupiter', new THREE.Vector3(), { displayRadius: tiny, classification: 'planet', geometryType: 'Globe' });
+    const moon = fakeBody('Moon', new THREE.Vector3(2, 0, 0), { displayRadius: tiny, classification: 'moon', geometryType: 'Globe' });
+    const rock = fakeBody('Ceres', new THREE.Vector3(-2, 0, 0), { displayRadius: tiny, classification: 'asteroid', geometryType: 'Globe' });
+    // Ordinary view, even with a legible label: nothing at all (the label explains the position).
+    const g = new PositionGlyphs(2);
+    settle(g, [planet, moon, rock], cam, ctx());
+    expect(g.readout()).toHaveLength(0);
+    expect(g.group.children.filter((o) => o.visible)).toHaveLength(0);
+    // Selected: a hollow ring, never a dot. Tracked: the heavier ring, still no dot.
+    settle(g, [planet], cam, ctx({ isPinned: () => true }));
+    const sel = g.group.children as THREE.Sprite[];
+    expect(g.readout().map((r) => [r.name, r.ring])).toEqual([['Jupiter', 'selected']]);
+    expect(sel[0].visible).toBe(false); // dot sprite
+    expect(sel[1].visible).toBe(true);  // ring sprite
+    expect(g.readout()[0].footprintPx).toBeGreaterThan(8);
+    settle(g, [planet], cam, ctx({ isPinned: () => true, trackedName: 'Jupiter' }));
+    expect(g.readout()[0].ring).toBe('tracked');
+    expect(sel[0].visible).toBe(false);
+    // Its label need not be legible for the locator (focus), and hover alone adds nothing.
+    const g2 = new PositionGlyphs(2);
+    settle(g2, [planet], cam, ctx({ hoveredName: 'Jupiter' }));
+    expect(g2.readout()).toHaveLength(0);
+  });
+
+  it('the ring leaves a natural body as soon as its real disk is perceptible; an artificial one keeps the dot', () => {
+    expect(ringWeight(0.5, true)).toBe(1);
+    expect(ringWeight(NATURAL_RING_GONE_PX, true)).toBe(0);
+    expect(ringWeight(NATURAL_RING_GONE_PX, false)).toBeGreaterThan(0.9); // a model that small still needs its locator
+    const cam = camera();
     const px = (r: number, d: number) => r / (2 * Math.tan((50 * Math.PI / 180) / 2) * d) * CSS.height;
     const radius = 5 / px(1, 100);
     const moon = fakeBody('Moon', new THREE.Vector3(), { displayRadius: radius, classification: 'moon', geometryType: 'Globe' });
     const g = new PositionGlyphs(2);
     settle(g, [moon], cam, ctx({ isPinned: () => true, trackedName: 'Moon' }));
-    expect(g.readout()).toHaveLength(0);
-    // The same extent for a spacecraft model still gets its glyph.
+    expect(g.readout()).toHaveLength(0); // a 5px disk is its own marker, even when tracked
     const sat = fakeBody('Sat', new THREE.Vector3(), { displayRadius: radius });
     settle(g, [sat], cam, ctx({}));
     expect(g.readout().map((r) => r.name)).toEqual(['Sat']);
+    expect((g.group.children[0] as THREE.Sprite).visible).toBe(true); // the artificial asset's dot
+  });
+
+  it('classifies natural vs artificial bodies and who replaces the legacy placeholder', () => {
+    const p = new THREE.Vector3();
+    const cls = (classification: string | undefined, geometryType = 'Mesh') =>
+      ({ ...fakeBody('X', p, { classification: classification as string, geometryType }), body: { name: 'X', classification, geometryType } }) as unknown as BodyMesh;
+    for (const c of ['planet', 'moon', 'asteroid', 'comet']) expect(isNaturalBody(cls(c, 'Globe'))).toBe(true);
+    for (const c of ['spacecraft', 'other']) expect(isNaturalBody(cls(c, 'Globe'))).toBe(false); // a spacecraft drawn as a globe is still artificial
+    expect(isNaturalBody(cls(undefined, 'Globe'))).toBe(true);
+    expect(isNaturalBody(cls(undefined, 'Mesh'))).toBe(false);
+    // Natural bodies stay eligible for the focus ring but never for the point marker / placeholder replacement.
+    expect(wantsGlyph(cls('planet', 'Globe'), false)).toBe(true);
+    expect(wantsPointMarker(cls('planet', 'Globe'), false)).toBe(false);
+    expect(wantsPointMarker(cls('moon', 'Globe'), false)).toBe(false);
+    expect(wantsPointMarker(cls('spacecraft'), false)).toBe(true);
+    expect(wantsPointMarker(cls('other'), false)).toBe(true);
+    expect(wantsPointMarker(cls('spacecraft'), true)).toBe(false);
   });
 
   it('is stable under a slow zoom: no flicker, and the glyph never reappears after resolving', () => {

@@ -22,15 +22,14 @@ export const GLYPH_FULL_PX = 4;
 /** Projected radius (CSS px) from which the glyph is gone: the body is resolved. */
 export const GLYPH_GONE_PX = 12;
 /**
- * Naturally drawn globes are their own marker as soon as their disk is visible
- * at all, so the glyph hands off far earlier than for a model whose few pixels
- * are easy to lose (a physical body must never wear a second, artificial
- * "body" on top of its real disk).
+ * Natural bodies (planets, moons, asteroids, comets) are drawn at their real
+ * angular size and never get a filled point: a fixed-size white dot on a planet
+ * would read as a physical object. Only a selected/tracked one gets a hollow
+ * ring (an annotation, with its pinned label), and only while its real disk is
+ * too small to mark the position by itself.
  */
-export const PHYSICAL_GLYPH_FULL_PX = 1;
-export const PHYSICAL_GLYPH_GONE_PX = 3;
-/** The selected/tracked ring leaves a physical disk even sooner: an open circle around a tiny disk reads as a second body. */
-export const PHYSICAL_RING_GONE_PX = 2;
+export const NATURAL_RING_FULL_PX = 1;
+export const NATURAL_RING_GONE_PX = 2;
 
 /** Solid dot diameter, CSS px. */
 const DOT_DIAMETER_PX = 3;
@@ -68,24 +67,36 @@ function bandWeight(extentPx: number, full: number, gone: number): number {
 }
 
 /**
- * 1 while the body is unresolved, easing to 0 as its projected extent grows.
- * `physical` bodies (globes drawn at real scale) resolve much sooner than
- * models/spacecraft.
+ * 1 while an artificial body (spacecraft, lander, surface asset) is unresolved,
+ * easing to 0 as its projected extent grows and its model takes over.
  */
-export function glyphWeight(extentPx: number, physical = false): number {
-  return physical
-    ? bandWeight(extentPx, PHYSICAL_GLYPH_FULL_PX, PHYSICAL_GLYPH_GONE_PX)
-    : bandWeight(extentPx, GLYPH_FULL_PX, GLYPH_GONE_PX);
+export function glyphWeight(extentPx: number): number {
+  return bandWeight(extentPx, GLYPH_FULL_PX, GLYPH_GONE_PX);
 }
 
-/** Weight of the selected/tracked ring, which leaves a physical disk before the dot does. */
-export function ringWeight(extentPx: number, physical = false): number {
-  return physical ? bandWeight(extentPx, PHYSICAL_GLYPH_FULL_PX, PHYSICAL_RING_GONE_PX) : glyphWeight(extentPx);
+/**
+ * Weight of the selected/tracked ring. For a natural body it leaves as soon as
+ * its real disk is perceptible; for an artificial one it follows the glyph.
+ */
+export function ringWeight(extentPx: number, natural = false): number {
+  return natural ? bandWeight(extentPx, NATURAL_RING_FULL_PX, NATURAL_RING_GONE_PX) : glyphWeight(extentPx);
 }
 
-/** Globes are drawn at real scale as physical bodies; everything else is a model or marker. */
-export function isPhysicalGlobe(bm: Pick<BodyMesh, 'body'>): boolean {
-  return bm.body.geometryType === 'Globe';
+/**
+ * Natural bodies are drawn at real scale and explained by their label; artificial
+ * ones (spacecraft, landers, surface infrastructure) are the entities whose
+ * position needs a locator when their model is not resolvable. Unclassified
+ * bodies are natural only when they are globes.
+ */
+export function isNaturalBody(bm: Pick<BodyMesh, 'body'>): boolean {
+  switch (bm.body.classification) {
+    case 'planet': case 'moon': case 'asteroid': case 'comet': case 'dwarf-planet': case 'dwarf_planet':
+      return true;
+    case 'spacecraft': case 'other': case 'instrument':
+      return false;
+    default:
+      return bm.body.geometryType === 'Globe';
+  }
 }
 
 /**
@@ -105,6 +116,14 @@ export function wantsGlyph(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, hasCustomVi
     default:
       return true;
   }
+}
+
+/**
+ * Whether the entity gets the unlit point marker (dot, plus ring when
+ * selected/tracked): eligible and artificial. Natural bodies never do.
+ */
+export function wantsPointMarker(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, hasCustomVisual: boolean): boolean {
+  return wantsGlyph(bm, hasCustomVisual) && !isNaturalBody(bm);
 }
 
 /**
@@ -358,16 +377,25 @@ export class PositionGlyphs {
         continue;
       }
 
-      const extent = PositionGlyphs.extentPx(bm, camera, ctx.viewport);
-      const physical = isPhysicalGlobe(bm);
-      const weight = glyphWeight(extent, physical);
-      if (weight <= 0) {
+      const ring: GlyphRing = ctx.trackedName === name ? 'tracked' : ctx.isPinned(name) ? 'selected' : 'none';
+      const hovered = ctx.hoveredName === name;
+
+      // Natural bodies are drawn at real scale and explained by their label: no
+      // marker in ordinary view. Only a selected/tracked one gets a hollow ring
+      // (an annotation, never a filled point), while its real disk is too small to
+      // mark the position itself.
+      const natural = isNaturalBody(bm);
+      if (natural && ring === 'none') {
         if (existing) this.hide(existing);
         continue;
       }
 
-      const ring: GlyphRing = ctx.trackedName === name ? 'tracked' : ctx.isPinned(name) ? 'selected' : 'none';
-      const hovered = ctx.hoveredName === name;
+      const extent = PositionGlyphs.extentPx(bm, camera, ctx.viewport);
+      const weight = natural ? ringWeight(extent, true) : glyphWeight(extent);
+      if (weight <= 0) {
+        if (existing) this.hide(existing);
+        continue;
+      }
 
       // LOD policy. A glyph is a navigation symbol tied to its label: ordinary
       // entities show one only while their label is deliberately shown (a stable,
@@ -410,14 +438,14 @@ export class PositionGlyphs {
       entry.ring.position.copy(entry.dot.position);
 
       const dotMat = entry.dot.material as THREE.SpriteMaterial;
-      dotMat.opacity = (hovered ? 1 : REST_OPACITY) * weight * visibility;
+      dotMat.opacity = natural ? 0 : (hovered ? 1 : REST_OPACITY) * weight * visibility;
       const dotScale = hovered ? HOVER_SCALE : 1;
       entry.dot.scale.set(
         (this.texSize.dot / pxPerScaleX) * dotScale,
         (this.texSize.dot / pxPerScaleY) * dotScale, 1);
       entry.dot.visible = dotMat.opacity > MIN_DRAW_OPACITY;
 
-      const ringAlpha = ring === 'none' ? 0 : (ring === 'tracked' ? 1 : 0.92) * ringWeight(extent, physical) * visibility;
+      const ringAlpha = ring === 'none' ? 0 : (ring === 'tracked' ? 1 : 0.92) * ringWeight(extent, natural) * visibility;
       if (ring === 'none' || ringAlpha <= MIN_DRAW_OPACITY) {
         entry.ring.visible = false;
       } else {
@@ -439,8 +467,8 @@ export class PositionGlyphs {
       r.glyphWeight = weight;
       r.ring = ring;
       r.hovered = hovered;
-      r.footprintPx = !entry.dot.visible ? 0 : (!entry.ring.visible ? DOT_DIAMETER_PX * dotScale
-        : ring === 'tracked' ? TRACKED_RING_DIAMETER_PX : RING_DIAMETER_PX);
+      r.footprintPx = entry.ring.visible ? (ring === 'tracked' ? TRACKED_RING_DIAMETER_PX : RING_DIAMETER_PX)
+        : entry.dot.visible ? DOT_DIAMETER_PX * dotScale : 0;
       r.visibility = visibility;
       r.occluded = occluded;
       r.labelLegible = !!label?.legible;
@@ -472,7 +500,7 @@ export class PositionGlyphs {
     let bestD = slopPx * slopPx;
     for (const [name, entry] of this.entries) {
       const r = entry.readout;
-      if (!entry.dot.visible || !r.anchor || r.occluded || r.glyphWeight * r.visibility < 0.3) continue;
+      if (!(entry.dot.visible || entry.ring.visible) || !r.anchor || r.occluded || r.glyphWeight * r.visibility < 0.3) continue;
       const dx = r.anchor.x - screenX;
       const dy = r.anchor.y - screenY;
       const d2 = dx * dx + dy * dy;

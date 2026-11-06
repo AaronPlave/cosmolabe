@@ -38,6 +38,10 @@ const catalog = {
           geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.002, surfaceLock: true }, label: { color: [1, 1, 1] } },
         { name: 'Rover Far', class: 'spacecraft', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [669439.2, 0, 0] },
           geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.002, surfaceLock: true }, label: { color: [1, 1, 1] } },
+        // An artificial entity alone in the frame: its label is never culled, so it is the
+        // subject of the label-coordinated LOD checks.
+        { name: 'Lone Probe', class: 'spacecraft', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [671000, 30000, -4000] },
+          geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.01 }, label: { color: [1, 1, 1] } },
         { name: 'Europa Clipper', class: 'spacecraft', center: 'Jupiter',
           trajectory: { type: 'FixedPoint', position: [671000, 0, 2600] },
           geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.01 }, label: { color: [1, 1, 1] } },
@@ -219,11 +223,17 @@ try {
     // --- Label-coordinated LOD (live-testing feedback) ---
     const ring2 = async (name = 'Europa Clipper') => { await frame(); return r.getPositionGlyphReadout().find((e) => e.name === name) ?? null; };
     out.lod = {};
-    out.lod.ordinaryWithLabel = !!(await ring2('Tiny'));
-    r.setLabelVisible('Tiny', false);                       // label deliberately gone ...
-    out.lod.ordinaryNoLabel = (await ring2('Tiny')) !== null; // ... so the marker goes too
-    r.setLabelVisible('Tiny', true);
-    out.lod.ordinaryBack = (await ring2('Tiny')) !== null;
+    out.lod.ordinaryWithLabel = !!(await ring2('Lone Probe'));
+    r.setLabelVisible('Lone Probe', false);                       // label deliberately gone ...
+    out.lod.ordinaryNoLabel = (await ring2('Lone Probe')) !== null; // ... so the marker goes too
+    r.setLabelVisible('Lone Probe', true);
+    out.lod.ordinaryBack = (await ring2('Lone Probe')) !== null;
+    // Natural bodies: no filled point, ever, in ordinary view; a hollow ring only when focused.
+    out.lod.naturalOrdinary = ['Tiny', 'Europa', 'Jupiter'].map((n) => r.getPositionGlyphReadout().some((e) => e.name === n));
+    r.setLabelPinned('Tiny', true);
+    const tinyFocus = await ring2('Tiny');
+    out.lod.naturalFocus = tinyFocus ? { ring: tinyFocus.ring, footprint: tinyFocus.footprintPx } : null;
+    r.setLabelPinned('Tiny', false);
     r.setLabelVisible('Europa Clipper', false);              // focus keeps its locator ...
     r.setLabelPinned('Europa Clipper', true);
     out.lod.focusNoLabelRing = (await ring2())?.ring ?? null;
@@ -241,7 +251,7 @@ try {
     // --- Whole-glyph terrain/plate occlusion ---
     // A reconstructed-surface plate between the camera and the selected spacecraft's
     // anchor must hide the whole symbol (dot and ring), and releasing it brings it back.
-    r.setLabelVisible('Tiny', false); // keep the only drawn glyph in this section the one under test
+    r.setLabelVisible('Lone Probe', false); // keep the only drawn glyph in this section the one under test
     r.setLabelPinned('Europa Clipper', true);
     out.occ = { before: (await ring2())?.occluded ?? null };
     const rover = r.getBodyMesh('Rover Near');
@@ -262,7 +272,7 @@ try {
     rover.modelContainer.remove(plate);
     out.occ.after = (await ring2())?.occluded ?? null;
     r.setLabelPinned('Europa Clipper', false);
-    r.setLabelVisible('Tiny', true);
+    r.setLabelVisible('Lone Probe', true);
     return out;
   });
   console.log('states', JSON.stringify(states));
@@ -273,13 +283,16 @@ try {
   assert.notEqual(states.pickHidden, 'Hidden Probe', 'glyph behind Europa must not be pickable');
   assert.equal(states.pickRoverNear, 'Rover Near', 'surface-locked asset on the visible side stays pickable');
   assert.notEqual(states.pickRoverFar, 'Rover Far', 'surface-locked asset on the far side is occluded by its parent');
-  assert.deepEqual(states.placeholderOn, { clipper: false, tiny: false, europa: true }, 'glyph replaces the lit placeholder for unresolved bodies only');
+  assert.deepEqual(states.placeholderOn, { clipper: false, tiny: true, europa: true }, 'glyph replaces the lit placeholder for unresolved artificial bodies only; natural bodies keep their real-scale rendering');
   assert.deepEqual(states.placeholderOff, { clipper: true, tiny: true }, 'legacy placeholder returns when glyphs are disabled');
-  assert.deepEqual(states.placeholderBack, { clipper: false, tiny: false });
+  assert.deepEqual(states.placeholderBack, { clipper: false, tiny: true });
   assert.deepEqual(states.appDefault, states.appDefaultGlyphsOff, 'with minBodyPixels 0 the glyph changes no placeholder state');
   // Label-coordinated LOD: no marker without the label that explains it; focus overrides.
-  assert.equal(states.lod.ordinaryWithLabel, true, 'a labelled ordinary entity shows its marker');
+  assert.equal(states.lod.ordinaryWithLabel, true, 'a labelled ordinary spacecraft shows its marker');
   assert.equal(states.lod.ordinaryNoLabel, false, 'an ordinary entity whose label is gone has no marker');
+  assert.deepEqual(states.lod.naturalOrdinary, [false, false, false], 'natural bodies get no filled point in ordinary view');
+  assert.equal(states.lod.naturalFocus?.ring, 'selected', 'a selected natural body gets a hollow ring');
+  assert.ok(states.lod.naturalFocus.footprint >= 8, 'the natural-body locator is the ring, not a dot');
   assert.equal(states.lod.ordinaryBack, true, 'the marker returns with its label');
   assert.equal(states.lod.focusNoLabelRing, 'selected', 'a selected entity keeps its locator even without a label');
   assert.equal(states.lod.allLabelsOffOrdinary, 0, 'with labels disabled, no unexplained markers on ordinary entities');
