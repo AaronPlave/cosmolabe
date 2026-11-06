@@ -9,8 +9,9 @@ import { normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import {
   etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
+  resolveViewpoint, presetViewpoint,
   type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
-  type ViewpointDefinition,
+  type ViewDirection, type ViewPreset, type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
@@ -24,6 +25,7 @@ import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { workspaceNode } from './workspace.svelte';
+import { faultIdentity, clearViewerFault, recordViewerFault, recordViewerLog, setViewerFault } from './viewer-log.svelte';
 import { navigateToPlace, selectPlace, viewportPlace } from './places';
 import { setCatalogActivities } from './analysis.svelte';
 import { activityEvent } from './mission-activities';
@@ -647,6 +649,14 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
         summary.failures,
       );
     }
+    for (const [index, failure] of summary.failures.entries()) {
+      const detail = `${failure.owner} · ${failure.role}: ${failure.reason} (${failure.url})`;
+      if (index === 0) recordViewerFault('Asset load', detail);
+      else recordViewerLog('error', 'Asset load', detail, { showStatus: false });
+    }
+    if (summary.timedOut) {
+      recordViewerLog('warning', 'Asset load', `${summary.stillPending.length} asset(s) were still pending at the initial load deadline.`);
+    }
   }));
   // A renderer whose assets settled before this binding (an all-analytical
   // catalog with nothing to fetch) has already emitted; take the summary it kept.
@@ -681,6 +691,9 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // from the start (`focusBody`), so the HUD does not read the previous body
     // for the length of the flight.
     const cc = renderer.cameraController;
+    const frameFault = cc.frameFault;
+    if (frameFault) setViewerFault('Camera frame', faultIdentity(frameFault.frameId, frameFault.reason), frameFault.message);
+    else clearViewerFault('Camera frame');
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) {
       vs.trackedBodyName = focus;
@@ -1541,6 +1554,59 @@ export function applyViewpoint(name: string, opts: { animate?: boolean } = {}): 
   syncTimeState();
   syncCameraState();
   return true;
+}
+
+/** The outcome of a one-shot semantic view, with the reason when it could not be placed. */
+export type ViewResult = { ok: true } | { ok: false; reason: string };
+
+/** The body a semantic view is relative to unless one is named. */
+export function viewCenterName(): string {
+  return vs.trackedBodyName ?? vs.selectedBodyName ?? _renderer?.cameraController.originBody?.body.name ?? '';
+}
+
+function semanticView(definition: ViewpointDefinition, center: string, place: boolean): ViewResult {
+  if (!_renderer) return { ok: false, reason: 'No scene is loaded.' };
+  const body = center ? _renderer.getBodyMesh(center) : undefined;
+  if (!center || !body) return { ok: false, reason: 'Select or track an object first.' };
+  try {
+    const resolved = resolveViewpoint(_renderer.getContext().universe, definition, vs.et);
+    if (!place) return { ok: true };
+    const scale = _renderer.scaleFactor;
+    _renderer.cameraController.establishView({
+      position: new THREE.Vector3(...resolved.eye).multiplyScalar(scale),
+      target: new THREE.Vector3(...resolved.target).multiplyScalar(scale),
+      up: new THREE.Vector3(...resolved.up),
+    }, { origin: body, track: body });
+    syncCameraState();
+    return { ok: true };
+  } catch (error) {
+    // Not an application fault: the reason belongs beside the control that asked.
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * How far a semantic view stands off `center`: where Frame would land, so a
+ * spacecraft is seen at its own scale however far away the camera was.
+ */
+function viewDistanceKm(center: string): number {
+  const body = _renderer?.getBodyMesh(center);
+  if (!_renderer || !body) return 1;
+  return _renderer.cameraController.framingDistance(body, _renderer.scaleFactor) / _renderer.scaleFactor;
+}
+
+/** Place the camera along a direction from `centerName`, as a one-shot free-orbit view. */
+export function setViewFromDirection(direction: ViewDirection, centerName = viewCenterName(), opts: { place?: boolean } = {}): ViewResult {
+  return semanticView({ name: `${centerName}: vector view`, center: centerName, distance: viewDistanceKm(centerName), from: direction }, centerName, opts.place !== false);
+}
+
+/**
+ * One-shot Top (orbital normal), Sun or Velocity view of `centerName`. It is an
+ * ordinary semantic viewpoint, not a locked-frame mode: the camera ends in free
+ * orbit. `place: false` only checks whether the view exists now.
+ */
+export function applyViewPreset(preset: ViewPreset, centerName = viewCenterName(), opts: { place?: boolean } = {}): ViewResult {
+  return semanticView(presetViewpoint(preset, centerName, viewDistanceKm(centerName)), centerName, opts.place !== false);
 }
 
 /** Vertical field of view, in degrees. */
