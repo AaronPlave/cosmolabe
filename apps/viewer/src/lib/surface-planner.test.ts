@@ -5,10 +5,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  addSurfacePlanRegion, createSurfacePlanDraft, parseGeographicGeoJson, resolveSurfacePlan, type GeographicCoordinates,
+  addSurfacePlanRegion, createSurfacePlanDraft, parseGeographicGeoJson, resolveSurfacePlan, surfaceRegionSource, type GeographicCoordinates,
 } from '@cosmolabe/core';
 import {
-  channelFinding, chooseAlternative, clearSources, findSources, handoffReadiness, importPlannerText, inLongitudeDomain, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
+  channelFinding, chooseAlternative, clearSources, findSources, handoffReadiness, importPlannerText, inLongitudeDomain, lockPreparationGaps, regionFromShape, regionRefusal, renameRegion, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
 } from './surface-planner.svelte';
 
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8');
@@ -113,7 +113,10 @@ describe('surface planner store', () => {
     expect(finding({}, 0.5, 'unverified').verdict).toBe('partial');
     expect(finding({ verifiedFraction: 0.4, unknownFraction: 0.6, targetVerifiedFraction: 0.4 }).summary).toMatch(/40%/);
     expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, 100)).toMatchObject({ verdict: 'coarser', nativeM: 100 });
-    expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, null).summary).toMatch(/valid pixels and some resolutions are not established/);
+    expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, null).summary).toMatch(/No resolution is stated/);
+    // Fine enough on paper is not usable coverage.
+    expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, 0.5, 'unverified')).toMatchObject({ verdict: 'unknown',
+      registration: 'unverified', products: [{ productId: 'a', nativeM: 0.5 }], summary: expect.stringMatching(/doesn't show usable coverage.*registration is unverified/) });
     planner.report = { combinations: [] } as never;
     expect(channelFinding('approach', 'imagery')?.verdict).toBe('none');
   });
@@ -126,6 +129,21 @@ describe('surface planner store', () => {
     await run();
     // Real archive footprints over the synthetic ROI: overlap, not proven valid pixels.
     expect(['unknown', 'partial', 'coarser']).toContain(channelFinding('approach', 'imagery')?.verdict);
+  });
+
+  it('renames an area, keeping its source choice, and refuses re-using its shape', async () => {
+    expect(await importPlannerText(jezeroPlan(), 'jezero.plan.json')).toBe(true);
+    planner.focused = 'approach';
+    planner.choice = { approach: 1 };
+    expect(renameRegion('approach', 'Crater rim')).toBe(true);
+    expect(planner.plan!.regions.map(r => r.id)).toContain('crater-rim');
+    expect(planner).toMatchObject({ focused: 'crater-rim', choice: { 'crater-rim': 1 } });
+    expect(renameRegion('crater-rim', 'landing')).toBe(false);
+    expect(planner.message).toMatch(/already named/);
+    const source = surfaceRegionSource(planner.plan!, planner.plan!.regions[0])!;
+    const shape = [{ id: source.layerId }, { id: source.featureId }] as never as [never, never];
+    expect(regionFromShape(...shape)).toBe('crater-rim');
+    expect(regionRefusal(...shape)).toMatch(/already in the plan as “crater-rim”/);
   });
 
   it('re-expresses archive footprints in the plan longitude domain only when exact', () => {

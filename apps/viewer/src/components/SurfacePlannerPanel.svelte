@@ -6,7 +6,7 @@
    * docs/surface-planner.md describes the flow and its boundaries.
    */
   import { onDestroy } from 'svelte';
-  import { Ellipsis, LocateFixed, PenLine, Plus, Trash2, RefreshCw } from 'lucide-svelte';
+  import { Ellipsis, LocateFixed, Pencil, PenLine, Plus, Trash2, RefreshCw } from 'lucide-svelte';
   import {
     SURFACE_FIDELITY_PRESETS, featureLabel, surfaceRegionChannels,
     type EstimateRange, type SurfaceChannel, type SurfacePlanRegion,
@@ -18,8 +18,9 @@
   import {
     PLANNER_LEGEND, addSelectedRegion, canFindSources, cancelDrawRegion, channelFinding, chooseAlternative, chosenAlternative, clearFeedback,
     closePlan, drawRegion, exportDesired, exportLock, findSources, focusRegion, handoffReadiness, importPlannerText, installOverlay,
-    loadJezeroExample, planner, plannerBodies, plannerBodyStatus, refreshRegion, regionAlternatives, regionBuildStatus, regionDrifted,
-    regionRefusal, removeRegion, sceneProducts, selectedSourceFeature, setBudget, setFocusChannel, startPlan, updateRegion,
+    loadJezeroExample, planChanges, planner, plannerBodies, plannerBodyStatus, refreshRegion, regionAlternatives, regionBuildStatus, regionDrifted,
+    regionFromShape, regionRefusal, removeRegion, renameRegion, sceneProducts, selectedSourceFeature, setBudget, showOnGlobe, startPlan, updateRegion,
+    type ChannelFinding,
   } from '../lib/surface-planner.svelte';
 
   interface Props { onClose: () => void; }
@@ -28,7 +29,7 @@
   const fieldClass = 'ui-control min-w-0 w-full bg-surface-3 text-text-primary border border-border rounded px-2 py-1 outline-none';
 
   const STEPS = [
-    { id: 'area', label: 'Area' }, { id: 'detail', label: 'Detail' }, { id: 'available', label: 'Available data' }, { id: 'finish', label: 'Finish' },
+    { id: 'area', label: 'Area' }, { id: 'detail', label: 'Detail' }, { id: 'available', label: 'Sources' }, { id: 'finish', label: 'Finish' },
   ] as const;
   type Step = (typeof STEPS)[number]['id'];
   let step = $state<Step>('area');
@@ -40,6 +41,14 @@
   let status = $derived((void vs.assetsReady, plan ? plannerBodyStatus(plan.body) : startBody ? plannerBodyStatus(startBody) : null));
   let selected = $derived((void geo.revision, void geo.selected, plan ? selectedSourceFeature() : null));
   let refusal = $derived(selected ? regionRefusal(selected.layer, selected.feature) : null);
+  let duplicate = $derived(selected ? regionFromShape(selected.layer, selected.feature) : null);
+  let saved = $derived((void planner.revision, plan ? !planChanges()?.dirty : false));
+  let renaming = $state<string | null>(null);
+  function commitRename(regionId: string, e: Event) {
+    const value = (e.currentTarget as HTMLInputElement).value;
+    renaming = null;
+    if (value.trim() && value.trim() !== regionId) renameRegion(regionId, value);
+  }
   let current = $derived(plan?.regions.find((r) => r.id === planner.focused) ?? plan?.regions[0] ?? null);
   let estimate = $derived((void planner.revision, planner.estimate));
   let handoff = $derived((void planner.revision, handoffReadiness()));
@@ -80,6 +89,10 @@
     elevation: { name: '3D terrain', detail: '3D terrain detail', unit: 'per sample', explain: 'How finely heights are sampled, not how accurate they are.' },
   } as const;
   const PRESET_NAME: Record<string, string> = { 'orbit-context': 'Regional', descent: 'Landing', 'local-operations': 'Close-up' };
+  const KIND: Record<string, string> = {
+    'controlled-mosaic': 'Mosaic', 'observation-image': 'Observation image', orthoimage: 'Orthoimage', 'stereo-dtm': 'Stereo terrain model', 'gridded-elevation': 'Elevation grid',
+  };
+  const productName = (p: ChannelFinding['products'][number]) => `${p.kind ? `${KIND[p.kind]} ` : ''}${p.productId}`;
   const VERDICT: Record<string, string> = {
     proven: 'Proven', partial: 'Partly proven', coarser: 'Coarser than requested', unknown: 'Unknown — needs verification',
     none: 'Not found', 'not-searched': 'Not searched',
@@ -105,11 +118,28 @@
     const v = (e.currentTarget as HTMLInputElement).valueAsNumber;
     setBudget(Number.isFinite(v) && v > 0 ? Math.round(v * 1e6) : null);
   }
+  /** What the plan can honestly do next, in plain terms. */
+  let outlook = $derived.by(() => {
+    void planner.revision;
+    if (!plan?.regions.length) return null;
+    if (planner.importedLock) return { title: 'Build handoff opened', text: 'The sources are pinned by the handoff you opened.' };
+    if (planner.sources.kind === 'none') return { title: 'Sources not checked', text: 'Check which products could supply these areas in step 3.', go: 'available' as Step };
+    const findings = plan.regions.flatMap((r) => surfaceRegionChannels(r).map((c) => ({ r, c, f: channelFinding(r.id, c) })));
+    const missing = findings.filter((x) => x.f?.verdict === 'none' || x.f?.verdict === 'coarser');
+    if (findings.every((x) => x.f?.verdict === 'proven')) return { title: 'Sources cover the request', text: 'The checked products are shown to cover every area at the requested detail.' };
+    const names = (xs: typeof findings) => xs.map((x) => `${x.r.id} ${x.c === 'imagery' ? 'imagery' : '3D terrain'}`).join(', ');
+    return {
+      title: 'Source verification required before preparing a build',
+      text: `${missing.length ? `No checked product meets the request for ${names(missing)}. ` : ''}The planner only compares product metadata, so it can't confirm that the chosen products have valid pixels at the requested detail. ${saved ? 'The saved plan' : 'Save the plan; it'} is the input for that verification and a wider archive search.`,
+    };
+  });
   const stepIndex = (s: Step) => STEPS.findIndex((x) => x.id === s);
-  function go(delta: number) { step = STEPS[Math.max(0, Math.min(STEPS.length - 1, stepIndex(step) + delta))].id; }
+  function goTo(s: Step) { step = s; planner.message = ''; }
+  function go(delta: number) { goTo(STEPS[Math.max(0, Math.min(STEPS.length - 1, stepIndex(step) + delta))].id); }
 </script>
 
-<InstrumentPanel key="planner" title="Surface planner" width={380} onClose={onClose} expandable>
+<InstrumentPanel key="planner" title="Surface planner" width={380} onClose={onClose}>
+  <div class="planner">
   {#if !vs.assetsReady}
     <p class="ui-helper text-text-muted">Loading the scene…</p>
   {:else if !plan}
@@ -137,7 +167,7 @@
         <DropdownMenu.Trigger class="icon-action" aria-label="More plan actions" title="More plan actions"><Ellipsis size={14} /></DropdownMenu.Trigger>
         <DropdownMenu.Content align="end">
           <DropdownMenu.Item onSelect={() => fileInput?.click()}>Open plan, inventory or build feedback…</DropdownMenu.Item>
-          <DropdownMenu.Item disabled={!plan.regions.length} onSelect={() => void exportLock()}>Save build handoff (lock JSON)…</DropdownMenu.Item>
+          {#if handoff.ready}<DropdownMenu.Item onSelect={() => void exportLock()}>Save build handoff (lock JSON)…</DropdownMenu.Item>{/if}
           {#if planner.feedback}<DropdownMenu.Item onSelect={clearFeedback}>Clear build feedback</DropdownMenu.Item>{/if}
           <DropdownMenu.Item onSelect={closePlan}>Close plan</DropdownMenu.Item>
         </DropdownMenu.Content>
@@ -146,7 +176,7 @@
 
     <ol class="steps" aria-label="Steps">
       {#each STEPS as s, i (s.id)}
-        <li><button class:on={step === s.id} aria-current={step === s.id ? 'step' : undefined} disabled={i > 0 && !plan.regions.length} onclick={() => (step = s.id)}>
+        <li><button class:on={step === s.id} aria-current={step === s.id ? 'step' : undefined} disabled={i > 0 && !plan.regions.length} onclick={() => goTo(s.id)}>
           <span class="num">{i + 1}</span>{s.label}</button></li>
       {/each}
     </ol>
@@ -167,6 +197,7 @@
   {/if}
   {#if planner.message && !plan}<p class="ui-helper message" role="status">{planner.message}</p>{/if}
   <input bind:this={fileInput} type="file" accept=".json,application/json" class="hidden" onchange={openFile} />
+  </div>
 </InstrumentPanel>
 
 {#snippet areaPicker()}
@@ -182,9 +213,17 @@
   <ul class="regions">
     {#each plan!.regions as region (region.id)}
       <li class="region" class:focused={region.id === current?.id}>
-        <button class="region-name" onclick={() => focusRegion(region.id)}>
-          <span class="swatch" aria-hidden="true"></span><span class="label">{region.id}</span>
-        </button>
+        {#if renaming === region.id}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input class="{fieldClass} rename" aria-label="Name for {region.id}" value={region.id} autofocus
+            onblur={(e) => commitRename(region.id, e)}
+            onkeydown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); else if (e.key === 'Escape') renaming = null; }} />
+        {:else}
+          <button class="region-name" onclick={() => focusRegion(region.id)} ondblclick={() => (renaming = region.id)}>
+            <span class="swatch" aria-hidden="true"></span><span class="label">{region.id}</span>
+          </button>
+          <button class="icon-action" title="Rename area" aria-label="Rename {region.id}" onclick={() => (renaming = region.id)}><Pencil size={12} /></button>
+        {/if}
         <button class="icon-action" title="Fly to area" aria-label="Fly to {region.id}" onclick={() => focusRegion(region.id, { fly: true })}><LocateFixed size={13} /></button>
         <button class="icon-action" title="Remove area" aria-label="Remove {region.id}" onclick={() => removeRegion(region.id)}><Trash2 size={13} /></button>
       </li>
@@ -195,12 +234,14 @@
   </ul>
   <div class="actions">
     <button class={plan!.regions.length ? 'secondary' : 'primary'} onclick={drawRegion} disabled={planner.awaitingDraw || !!status?.blocked}><PenLine size={13} /> Draw an area</button>
-    <button class="secondary" disabled={!selected || !!refusal} onclick={() => addSelectedRegion()}
-      title={refusal ?? (selected ? `Use ${featureLabel(selected.feature)}` : 'Select a polygon in the scene first')}>
-      <Plus size={13} /> {selected ? `Use “${featureLabel(selected.feature)}”` : 'Use selected shape'}
-    </button>
+    {#if !duplicate}
+      <button class="secondary" disabled={!selected || !!refusal} onclick={() => addSelectedRegion()}
+        title={refusal ?? (selected ? `Use ${featureLabel(selected.feature)}` : 'Select a polygon in the scene first')}>
+        <Plus size={13} /> {selected ? `Use “${featureLabel(selected.feature)}”` : 'Use selected shape'}
+      </button>
+    {/if}
   </div>
-  {#if refusal}<p class="ui-helper warn">{refusal}</p>{/if}
+  {#if refusal && !duplicate}<p class="ui-helper warn">{refusal}</p>{/if}
   {#if status && !status.blocked}
     <p class="ui-meta text-text-muted context">In this scene: {status.imageryLayers} imagery {status.imageryLayers === 1 ? 'layer' : 'layers'},
       {status.measuredTerrain ? 'measured 3D terrain' : 'no 3D terrain (smooth reference shape)'}. Planning doesn't change the scene.</p>
@@ -252,60 +293,73 @@
   {@render areaPicker()}
   {#if planner.sources.kind === 'none' && !planner.importedLock}
     {#if canFindSources(plan!.body)}
-      <p class="ui-helper">Check which archive products could supply <strong>{region.id}</strong> at the requested detail.</p>
+      <p class="ui-helper">Check which known products could supply <strong>{region.id}</strong> at the requested detail.</p>
       <div class="actions"><button class="primary" onclick={() => void findSources()}>Find available imagery and terrain</button></div>
-      <p class="ui-meta text-text-muted">Searches archive product metadata bundled with the viewer. Nothing is downloaded.</p>
+      <p class="ui-meta text-text-muted">Compares product metadata indexed in the viewer (a small set near Jezero and Gale). It is not a live archive search, and nothing is downloaded.</p>
     {:else}
-      <p class="ui-helper warn">No archive product metadata for {plan!.body} is available in the viewer, so what exists here is unknown — it needs source verification.</p>
-      <p class="ui-meta text-text-muted">To check, run <code>npm run discover:surface</code> with an archive query and open its inventory from the ⋯ menu.</p>
+      <p class="ui-helper warn">The viewer has no indexed product metadata for {plan!.body}, so what exists here is unknown — it needs source verification.</p>
+      <p class="ui-meta text-text-muted">A developer can search an archive with <code>npm run discover:surface</code> and open its inventory from the ⋯ menu.</p>
     {/if}
   {:else}
-    {#if planner.sources.kind !== 'none'}<p class="ui-meta text-text-muted">Searched: {planner.sources.label}</p>{/if}
-    {#each surfaceRegionChannels(region) as c (c)}
-      {@const f = channelFinding(region.id, c)}
-      {#if f}
-        <div class="card">
-          <div class="card-head"><strong>{CHANNEL[c].name}</strong><span class="verdict" data-verdict={f.verdict}>{VERDICT[f.verdict]}</span></div>
-          <dl class="compare ui-meta">
-            <dt>Requested</dt><dd>{meters(f.requestedM)} {CHANNEL[c].unit}</dd>
-            <dt>Best candidate</dt><dd>{f.sourceIds.length ? (f.nativeM !== null ? `${meters(f.nativeM)} ${CHANNEL[c].unit} at source` : 'resolution unknown') : '—'}</dd>
-            <dt>Proven coverage</dt><dd>{f.sourceIds.length ? `${pct(f.targetVerified)} of the area at the requested detail` : '—'}</dd>
-          </dl>
-          <p class="ui-meta">{f.summary}</p>
-          {#if f.sourceIds.length}
-            <button class="text-link ui-meta" onclick={() => { setFocusChannel(c); planner.showCoverage = true; installOverlay(); }}>Show on the globe</button>
-          {/if}
-        </div>
-      {/if}
-    {/each}
+    {#if planner.sources.kind !== 'none'}<p class="ui-meta text-text-muted">{planner.sources.label}</p>{/if}
+    <div class="channels">
+      {#each surfaceRegionChannels(region) as c (c)}
+        {@const f = channelFinding(region.id, c)}
+        {#if f}
+          <div class="card">
+            <div class="card-head"><strong>{CHANNEL[c].name}</strong><span class="verdict" data-verdict={f.verdict}>{VERDICT[f.verdict]}</span></div>
+            <dl class="compare ui-meta">
+              <dt>Requested</dt><dd>{meters(f.requestedM)} {CHANNEL[c].unit}</dd>
+              <dt>Candidate</dt><dd>{#if f.products.length}{#each f.products as p (p.productId)}<span class="product">{productName(p)} · {p.nativeM !== null ? `${meters(p.nativeM)} ${CHANNEL[c].unit} stated` : 'resolution not stated'}</span>{/each}{:else}None among the checked products{/if}</dd>
+              {#if f.products.length}
+                <dt>Evidenced</dt><dd>footprint overlaps {pct(f.verified + f.unknown)} · valid pixels proven over {pct(f.verified)} ({pct(f.targetVerified)} at the requested detail) · registration {f.registration}</dd>
+              {/if}
+            </dl>
+            <p class="ui-meta">{f.summary}</p>
+            {#if f.sourceIds.length}
+              <button class="text-link ui-meta" onclick={() => showOnGlobe(region.id, c)}><LocateFixed size={11} /> Show on the globe</button>
+            {/if}
+          </div>
+        {/if}
+      {/each}
+    </div>
     {@const alts = regionAlternatives(region.id)}
-    {#if alts.some((a) => a.sourceIds.length)}
+    {#if alts.length > 1}
       {@const chosen = chosenAlternative(region.id)}
-      <details class="more">
-        <summary class="ui-meta">Candidates and evidence ({alts.length})</summary>
-        <ol class="alternatives">
-          {#each alts as alt, i (alt.id)}
-            <li>
-              <label class="alt" class:on={alt === chosen}>
-                <input type="radio" name="alt-{region.id}" checked={alt === chosen} onchange={() => chooseAlternative(region.id, i)} />
-                <span class="alt-body ui-meta">
-                  <span>{i === 0 ? 'Top-ranked' : `Option ${i + 1}`} · registration {alt.compatibility === 'evidenced' ? 'evidenced' : 'unverified'}</span>
+      <p class="ui-label sub">Candidates ({alts.length}) — ranked by metadata, not proven suitable; choose one to compare</p>
+      <ol class="alternatives">
+        {#each alts as alt, i (alt.id)}
+          <li>
+            <label class="alt" class:on={alt === chosen}>
+              <input type="radio" name="alt-{region.id}" checked={alt === chosen} onchange={() => chooseAlternative(region.id, i)} />
+              <span class="alt-body ui-meta">
+                {#each surfaceRegionChannels(region) as c (c)}
+                  {@const ch = alt.channels[c]}
+                  {@const recs = planner.sources.kind === 'inventory' ? planner.sources.records.filter((r) => ch?.sourceIds.includes(r.descriptor.id)) : []}
+                  <span><strong>{CHANNEL[c].name}:</strong> {recs.length ? recs.map((r) => `${KIND[r.kind]} ${r.descriptor.productId}${r.descriptor.nativeGsdM !== null ? ` (${meters(r.descriptor.nativeGsdM)})` : ''}`).join(', ') : 'none'}{ch?.sourceIds.length ? ` — overlaps ${pct(ch.coverage.verifiedFraction + ch.coverage.unknownFraction)}, ${pct(ch.coverage.verifiedFraction)} proven` : ''}</span>
+                {/each}
+                <details>
+                  <summary>Evidence</summary>
+                  <span>Registration {alt.compatibility === 'evidenced' ? 'evidenced' : 'unverified'} · source download {range(alt.cost.downloadBytes)}</span>
                   {#each surfaceRegionChannels(region) as c (c)}
                     {@const ch = alt.channels[c]}
-                    <span>{CHANNEL[c].name}: {ch?.sourceIds.length ? ch.sourceIds.join(', ') : 'none'}{ch ? ` — ${pct(ch.coverage.verifiedFraction)} valid, ${pct(ch.coverage.unknownFraction)} unknown, ${pct(ch.coverage.gapFraction)} gap` : ''}</span>
+                    {#if ch}<span>{CHANNEL[c].name}: {ch.sourceIds.join(', ') || 'none'} — {pct(ch.coverage.verifiedFraction)} valid, {pct(ch.coverage.unknownFraction)} unknown, {pct(ch.coverage.gapFraction)} gap</span>{/if}
                   {/each}
-                  <span>Source download: {range(alt.cost.downloadBytes)}</span>
                   {#if alt.warnings.length}<ul class="warnings">{#each alt.warnings as w (w)}<li>{w}</li>{/each}</ul>{/if}
-                </span>
-              </label>
-            </li>
-          {/each}
-        </ol>
-        <label class="ui-meta check"><input type="checkbox" checked={planner.showCoverage} onchange={(e) => { planner.showCoverage = (e.currentTarget as HTMLInputElement).checked; installOverlay(); }} /> Show coverage on the globe</label>
+                </details>
+              </span>
+            </label>
+          </li>
+        {/each}
+      </ol>
+    {/if}
+    {#if alts.some((a) => a.sourceIds.length)}
+      <label class="ui-meta check"><input type="checkbox" checked={planner.showCoverage} onchange={(e) => { planner.showCoverage = (e.currentTarget as HTMLInputElement).checked; installOverlay(); }} /> Show the comparison on the globe</label>
+      {#if planner.showCoverage}
         <ul class="legend" aria-label="Legend">
-          {#each PLANNER_LEGEND as item (item.id)}<li class="ui-meta" title={item.detail}><span class="key" style:background={item.color}></span>{item.label}</li>{/each}
+          {#each PLANNER_LEGEND.filter((l) => l.id !== 'planner:built-product' || planner.feedback) as item (item.id)}<li class="ui-meta" title={item.detail}><span class="key" class:outline={item.id === 'planner:source-footprints'} style:--key={item.color}></span>{item.label}</li>{/each}
         </ul>
-      </details>
+      {/if}
     {/if}
   {/if}
   {@const scene = sceneProducts(region.id)}
@@ -334,20 +388,25 @@
     {@const t = estimate.totals}
     <dl class="compare ui-meta">
       <dt>Storage when published</dt><dd>{range(t.publishedBytes)}{estimate.budget ? ` · ${estimate.budget.status === 'within' ? 'within' : estimate.budget.status === 'over' ? 'over' : 'uncertain against'} the ${bytes(estimate.budget.publishedBytes)} limit` : ''}</dd>
-      <dt>Source download</dt><dd>{planner.sources.kind === 'none' ? 'unknown until sources are found' : range(t.rawSourceDownloadBytes)}</dd>
+      <dt>Source download</dt><dd>{planner.sources.kind === 'none' ? 'unknown until sources are checked' : range(t.rawSourceDownloadBytes)}</dd>
     </dl>
   {/if}
-  <div class="actions"><button class="primary" onclick={exportDesired}>Save plan</button></div>
-  <p class="ui-meta text-text-muted">Saves the areas and requested detail as a plan file you can reopen here or use with the command-line tools.</p>
-
-  <div class="card">
-    <strong class="ui-meta">Prepare a build</strong>
-    <p class="ui-meta">The planner doesn't build anything. A build handoff pins the chosen sources; the command-line build still needs a preparation step (processing settings, downloaded source files) before it can run.</p>
-    <div class="actions">
-      <button class="secondary" disabled={!handoff.ready} onclick={() => void exportLock()}>Save build handoff</button>
-    </div>
-    {#if !handoff.ready}<p class="ui-meta warn">{handoff.reason}</p>{/if}
+  <div class="actions save">
+    <button class="primary" onclick={exportDesired}>Save plan</button>
+    <span class="ui-meta" class:text-text-muted={saved}>{saved ? 'Plan saved' : 'Ready to save'}</span>
   </div>
+
+  {#if outlook}
+    <div class="card">
+      <strong class="ui-meta">Next: {outlook.title}</strong>
+      <p class="ui-meta">{outlook.text}</p>
+      {#if outlook.go}<div class="actions"><button class="secondary" onclick={() => goTo(outlook.go!)}>Go to Sources</button></div>{/if}
+      {#if handoff.ready}
+        <div class="actions"><button class="secondary" onclick={() => void exportLock()}>Save build handoff</button></div>
+        <p class="ui-meta text-text-muted">The planner doesn't build. A handoff still needs a preparation step before the command-line build can run it.</p>
+      {/if}
+    </div>
+  {/if}
 
   <details class="more">
     <summary class="ui-meta">Details</summary>
@@ -364,6 +423,8 @@
       </dl>
       <p class="ui-meta text-text-muted">Uncalibrated estimates (tile packing, compression, scratch space).</p>
     {/if}
+    {#if !handoff.ready}<p class="ui-meta text-text-muted">Build handoff (locked plan): not available — {handoff.reason}</p>{/if}
+    <p class="ui-meta text-text-muted">Wider search (developer): <code>npm run discover:surface -- PLAN.json --inventory … --ode-query QUERY.json</code> queries archive metadata for the saved plan; it does not verify pixels either.</p>
     {#if planner.feedback}<p class="ui-meta text-text-muted">Build feedback: {planner.feedback.label}</p>{/if}
     {#if planner.problems.length}
       <ul class="problems">{#each planner.problems as d, i (i)}<li class="ui-meta" data-severity={d.severity}><code>{d.code}</code> {d.path}: {d.message}</li>{/each}</ul>
@@ -372,6 +433,7 @@
 {/snippet}
 
 <style>
+  .planner { container: planner / inline-size; }
   .field { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
   .field.inline { margin-top: 4px; }
   .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -386,7 +448,7 @@
   .spacer { flex: 1; }
   .steps { display: flex; gap: 2px; margin: 6px 0 10px; border-bottom: 1px solid var(--color-border); }
   .steps li { flex: 1; }
-  .steps button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 0 6px; border: none; border-bottom: 2px solid transparent;
+  .steps button { width: 100%; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 0 6px; border: none; border-bottom: 2px solid transparent;
     background: none; color: var(--color-text-secondary); font-size: var(--text-metadata); cursor: pointer; }
   .steps button.on { border-bottom-color: var(--color-text-primary); color: var(--color-text-primary); font-weight: 600; }
   .steps button:disabled { opacity: 0.4; cursor: default; }
@@ -427,7 +489,14 @@
   .check { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
   .legend { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; }
   .legend li { display: inline-flex; align-items: center; gap: 4px; color: var(--color-text-secondary); }
-  .key { width: 9px; height: 9px; border-radius: 2px; }
+  .key { width: 9px; height: 9px; border-radius: 2px; background: var(--key); }
+  .key.outline { background: none; border: 1px solid var(--key); }
+  .channels { display: grid; gap: 0 8px; }
+  @container planner (min-width: 560px) { .channels { grid-template-columns: 1fr 1fr; } }
+  .product { display: block; overflow-wrap: anywhere; }
+  .sub { margin-top: 10px; }
+  .save { align-items: center; }
+  .rename { flex: 1; height: 26px; }
   .problems li { overflow-wrap: anywhere; margin-top: 2px; }
   .problems li[data-severity='error'] { color: var(--color-error); }
   .text-link { display: inline-flex; align-items: center; gap: 3px; border: none; background: none; padding: 0; color: var(--color-text-secondary); cursor: pointer; text-decoration: underline; }

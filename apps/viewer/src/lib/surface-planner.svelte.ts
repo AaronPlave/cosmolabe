@@ -20,7 +20,7 @@
 import {
   GEOGRAPHIC_STYLE_VERSION, addSurfacePlanRegion, createLockedSurfacePlan, createSurfacePlanDraft, discoveryEstimatorSources,
   estimateSurfacePlan, parseGeographicGeoJson, recommendSurfaceSources, refreshSurfaceRegion, removeSurfacePlanRegion,
-  resolveSurfacePlan, serializeSurfacePlan, setSurfacePlanBudget, surfaceCoverageLayer, surfacePlanChanges, surfaceRegionChannels,
+  renameSurfacePlanRegion, resolveSurfacePlan, serializeSurfacePlan, setSurfacePlanBudget, surfaceCoverageLayer, surfacePlanChanges, surfaceRegionChannels,
   surfaceRegionDrift, surfaceRegionRefusal, surfaceRegionSource, updateSurfacePlanRegion, validateDesiredSurfacePlan,
   validateLockedSurfacePlan, validateSurfaceSources, SurfacePlanError, parseSurfacePlannerFeedback, surfaceRegionBuildStatus,
   surfaceSelectedFidelity, surfacePlanCoordinatesFor, type SurfaceBuildConventions, type SurfaceFidelityAssessment, type SurfacePlannerFeedback,
@@ -33,6 +33,7 @@ import { untrack } from 'svelte';
 import { getRenderer, onViewerEvent } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { findFeature, geo, goToFeature, isPlannerDisplayLayer, selectFeature } from './geographic-layers.svelte';
+import { setLayerStyle } from './geographic-styles.svelte';
 import { bodyReferenceShape, createLayer, editLayers, edits, inferredCoordinates, matchesDrawFrame, setDrawTool } from './geographic-editing.svelte';
 
 /** Scene-store owner for the planner's display layers. */
@@ -53,8 +54,8 @@ const LAYER = {
 
 /** Legend: what each display layer is, and is not. Colours are shared with the panel. */
 export const PLANNER_LEGEND = [
-  { id: LAYER.desired, color: '#f2c14e', label: 'Desired region', detail: 'Requested ROI; says nothing about data.' },
-  { id: LAYER.footprints, color: '#9aa7b8', label: 'Candidate footprint', detail: 'Archive footprint of a selected source; not valid pixels.' },
+  { id: LAYER.desired, color: '#f2c14e', label: 'Your area', detail: 'The area you asked for (labelled with its name); says nothing about data.' },
+  { id: LAYER.footprints, color: '#9aa7b8', label: 'Product footprint', detail: 'Where the chosen product says it lies (labelled with its product ID); not proof of valid pixels.' },
   { id: LAYER.verified, color: '#4cc38a', label: 'Confirmed valid', detail: 'Independently evidenced valid pixels of the selected sources.' },
   { id: LAYER.unknown, color: '#d9a03f', label: 'Validity unknown', detail: 'Inside a footprint, but pixel validity is not evidenced.' },
   { id: LAYER.gap, color: '#e5575c', label: 'Gap', detail: 'Not covered by the selected sources (not an archive-wide absence).' },
@@ -62,8 +63,9 @@ export const PLANNER_LEGEND = [
 ] as const;
 
 const STYLES: Record<string, GeographicLayerStyle> = {
-  [LAYER.desired]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0.08, outlineWidthPx: 2.5 } },
-  [LAYER.footprints]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0, outlineWidthPx: 1.5 } },
+  // The area is the boldest, labelled shape; a footprint is a faint thin outline, labelled by product.
+  [LAYER.desired]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0.18, outlineWidthPx: 3.5 }, labels: { field: null, halo: true } },
+  [LAYER.footprints]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0, outlineWidthPx: 1, outlineOpacity: 0.7 }, labels: { field: null, maxLabels: 3, halo: true } },
   [LAYER.verified]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0.28, outlineWidthPx: 1 } },
   [LAYER.unknown]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0.22, hatch: true, outlineWidthPx: 1 } },
   [LAYER.gap]: { version: GEOGRAPHIC_STYLE_VERSION, polygon: { fillOpacity: 0.25, hatch: true, outlineWidthPx: 1 } },
@@ -194,8 +196,16 @@ export function selectedSourceFeature(): { layer: GeographicLayer; feature: Geog
   return findFeature(geo.selected);
 }
 
+/** The area already made from this shape, if any: using it again would duplicate it. */
+export function regionFromShape(layer: GeographicLayer, feature: GeographicFeature): string | null {
+  const plan = planner.plan;
+  return plan?.regions.find(r => { const s = surfaceRegionSource(plan, r); return s?.layerId === layer.id && s.featureId === feature.id; })?.id ?? null;
+}
+
 export function regionRefusal(layer: GeographicLayer, feature: GeographicFeature): string | null {
-  return planner.plan ? surfaceRegionRefusal(planner.plan, layer, feature) : 'Start a plan first.';
+  if (!planner.plan) return 'Start a plan first.';
+  const existing = regionFromShape(layer, feature);
+  return existing ? `This shape is already in the plan as “${existing}”.` : surfaceRegionRefusal(planner.plan, layer, feature);
 }
 
 export function addRegion(layer: GeographicLayer, feature: GeographicFeature, input: SurfaceRegionInput = {}): string | null {
@@ -213,6 +223,8 @@ export function addRegion(layer: GeographicLayer, feature: GeographicFeature, in
 export function addSelectedRegion(input: SurfaceRegionInput = {}): string | null {
   const found = selectedSourceFeature();
   if (!found) { planner.message = 'Select a polygon on the globe or in Surface layers first.'; return null; }
+  const existing = regionFromShape(found.layer, found.feature);
+  if (existing) { planner.message = `This shape is already in the plan as “${existing}”.`; return null; }
   return addRegion(found.layer, found.feature, input);
 }
 
@@ -272,6 +284,22 @@ export function updateRegion(regionId: string, patch: SurfaceRegionPatch): boole
   catch (e) { planner.message = describe(e); return false; }
 }
 
+/** Give an area a meaningful name (its ID becomes the name's slug). */
+export function renameRegion(regionId: string, name: string): boolean {
+  if (!planner.plan) return false;
+  try {
+    const { plan, regionId: id } = renameSurfacePlanRegion(planner.plan, regionId, name);
+    if (id === regionId) return true;
+    planner.plan = plan;
+    if (planner.focused === regionId) planner.focused = id;
+    const { [regionId]: choice, ...rest } = planner.choice;
+    planner.choice = choice === undefined ? rest : { ...rest, [id]: choice };
+    planner.message = '';
+    changed();
+    return true;
+  } catch (e) { planner.message = describe(e); return false; }
+}
+
 export function removeRegion(regionId: string): void {
   if (!planner.plan) return;
   planner.plan = removeSurfacePlanRegion(planner.plan, regionId);
@@ -320,6 +348,17 @@ export function focusRegion(regionId: string | null, options: { fly?: boolean } 
   if (regionId && options.fly) goToFeature({ layerId: LAYER.desired, featureId: `string:${regionId}`, bodyName: planner.plan!.body });
 }
 
+/** Show one area's comparison for a channel on the globe, fly to the area, and say what is drawn. */
+export function showOnGlobe(regionId: string, channel: SurfaceChannel): void {
+  planner.showCoverage = true;
+  planner.focusChannel = channel;
+  focusRegion(regionId, { fly: true });
+  const ids = chosenAlternative(regionId)?.channels[channel]?.sourceIds ?? [];
+  const records = planner.sources.kind === 'inventory' ? planner.sources.records : [];
+  const names = ids.map(id => records.find(r => r.descriptor.id === id)?.descriptor.productId ?? id);
+  planner.message = `On the globe: “${regionId}” is the bold yellow, labelled area. ${names.length ? `The thin grey outline is where ${names.join(', ')} lies (its ${channel === 'imagery' ? 'imagery' : 'terrain'} footprint), not proof of valid pixels; hatching marks where validity is unknown (amber) or nothing covers the area (red).` : 'No product footprint is drawn: none was found for it.'}`;
+}
+
 export function setFocusChannel(channel: SurfaceChannel): void {
   planner.focusChannel = channel;
   installOverlay();
@@ -362,6 +401,10 @@ export interface ChannelFinding {
   /** Finest native sampling among the chosen sources, per their metadata; null when unknown or none. */
   nativeM: number | null;
   sourceIds: string[];
+  /** The chosen products by name, with what their metadata says. */
+  products: { productId: string; kind: SurfaceDiscoveryRecord['kind'] | null; nativeM: number | null }[];
+  /** Whether the chosen sources' registration to each other and the plan is evidenced; null without a ranked choice. */
+  registration: 'evidenced' | 'unverified' | null;
   /** Fractions of the region: valid pixels evidenced, footprint only, proven gap, and evidenced at the requested sampling. */
   verified: number; unknown: number; gap: number; targetVerified: number;
   verdict: 'proven' | 'partial' | 'coarser' | 'unknown' | 'none' | 'not-searched';
@@ -376,7 +419,8 @@ export function channelFinding(regionId: string, channel: SurfaceChannel): Chann
   const region = planner.plan?.regions.find(r => r.id === regionId);
   if (!region?.[channel]) return null;
   const requestedM = region[channel]!.gsdM;
-  const empty = { requestedM, nativeM: null, sourceIds: [] as string[], verified: 0, unknown: 0, gap: 0, targetVerified: 0 };
+  const empty = { requestedM, nativeM: null, sourceIds: [] as string[], products: [] as ChannelFinding['products'], registration: null,
+    verified: 0, unknown: 0, gap: 0, targetVerified: 0 };
   if (planner.importedLock) {
     return { ...empty, sourceIds: selectedSourceIds(regionId, channel) ?? [], verdict: 'unknown',
       summary: 'Sources are fixed by the opened build handoff; their coverage is not re-assessed here.' };
@@ -392,12 +436,17 @@ export function channelFinding(regionId: string, channel: SurfaceChannel): Chann
       : 'No product in the searched metadata covers this area. Unknown — needs source verification.' };
   }
   const records = planner.sources.records;
-  const native = ch.sourceIds.map(id => records.find(r => r.descriptor.id === id)?.descriptor.nativeGsdM ?? null);
+  const products = ch.sourceIds.map(id => {
+    const r = records.find(x => x.descriptor.id === id);
+    return { productId: r?.descriptor.productId ?? id, kind: r?.kind ?? null, nativeM: r?.descriptor.nativeGsdM ?? null };
+  });
+  const native = products.map(p => p.nativeM);
   const known = native.filter((n): n is number => n !== null);
   const nativeM = known.length ? Math.min(...known) : null;
   const c = ch.coverage;
-  const base = { requestedM, nativeM, sourceIds: ch.sourceIds, verified: c.verifiedFraction, unknown: c.unknownFraction, gap: c.gapFraction, targetVerified: c.targetVerifiedFraction };
   const alt = chosenAlternative(regionId)!;
+  const base = { requestedM, nativeM, sourceIds: ch.sourceIds, products, registration: alt.compatibility === 'evidenced' ? 'evidenced' as const : 'unverified' as const,
+    verified: c.verifiedFraction, unknown: c.unknownFraction, gap: c.gapFraction, targetVerified: c.targetVerifiedFraction };
   if (c.targetVerifiedFraction >= 0.999999 && alt.compatibility === 'evidenced') {
     return { ...base, verdict: 'proven', summary: `Proven by product metadata: valid pixels at ${mText(requestedM)} or finer over the whole area.` };
   }
@@ -407,7 +456,9 @@ export function channelFinding(regionId: string, channel: SurfaceChannel): Chann
   if (nativeM !== null && nativeM > requestedM) {
     return { ...base, verdict: 'coarser', summary: `The best candidate is ${mText(nativeM)} per ${channel === 'imagery' ? 'pixel' : 'sample'} at source, coarser than the ${mText(requestedM)} requested.` };
   }
-  return { ...base, verdict: 'unknown', summary: `Footprints overlap ${pctText(c.unknownFraction)} of the area, but valid pixels${known.length < native.length ? ' and some resolutions' : ''} are not established. Unknown — needs source verification.` };
+  const unit = channel === 'imagery' ? 'pixel' : 'sample';
+  const nominal = nativeM === null ? 'No resolution is stated, and the' : `The stated ${mText(nativeM)} per ${unit} is fine enough on paper, but that doesn't show usable coverage: the`;
+  return { ...base, verdict: 'unknown', summary: `${nominal} footprint covers ${pctText(c.unknownFraction)} of the area${c.gapFraction > 0 ? ` (${pctText(c.gapFraction)} is not covered)` : ''} without evidence of valid pixels there${base.registration === 'unverified' ? '; registration is unverified' : ''}. Needs source verification.` };
 }
 
 /** Whether the viewer can search product metadata for a body without a hand-built inventory. */
@@ -431,7 +482,7 @@ export async function findSources(): Promise<void> {
   const plan = planner.plan!;
   const records = ([...JSON.parse(jezero), ...JSON.parse(gale)] as SurfaceDiscoveryRecord[]).map(r => inLongitudeDomain(r, plan));
   validateSurfaceSources(records.map(r => r.descriptor));
-  planner.sources = { kind: 'inventory', label: `Bundled Mars archive metadata (${records.length} products near Jezero and Gale)`, records };
+  planner.sources = { kind: 'inventory', label: `Checked ${records.length} locally indexed Mars products near Jezero and Gale. This is not a live archive search; other datasets may exist.`, records };
   planner.choice = {};
   planner.message = '';
   sourcesChanged();
@@ -660,10 +711,15 @@ export function installOverlay(): void {
     }
   }
   universe.geographicLayers.replaceCatalog(PLANNER_OWNER, loads);
+  // Session-only styles (labels need the style store); areas out of focus are dimmed.
+  const dim = Object.fromEntries((plan?.regions ?? []).filter(r => r.id !== planner.focused).map(r => [`string:${r.id}`, { opacity: 0.4 }]));
+  for (const [id, style] of Object.entries(STYLES)) {
+    const shown = loads.some(l => l.id === id);
+    setLayerStyle(id, shown ? (id === LAYER.desired ? { ...style, features: dim } : style) : null, { persist: false });
+  }
   universe.events.emit('geographic:changed', {});
   const vectors = getRenderer()?.geographicVectors;
   if (vectors) {
-    for (const [id, style] of Object.entries(STYLES)) vectors.setStyle(id, loads.some(l => l.id === id) ? style : null);
     // The desired regions draw over the coverage they are compared with.
     const others = vectors.layerOrder.filter(id => !isPlannerLayer(id));
     vectors.setLayerOrder([...others, LAYER.desired, LAYER.built, LAYER.footprints, LAYER.gap, LAYER.unknown, LAYER.verified]);
@@ -856,7 +912,8 @@ export async function loadJezeroExample(): Promise<void> {
   const presets = ['orbit-context', 'descent', 'local-operations'] as const;
   layer.features.forEach((feature, i) => { planner.plan = addSurfacePlanRegion(planner.plan!, layer, feature, { preset: presets[i] ?? 'descent' }).plan; });
   planner.plan = setSurfacePlanBudget(planner.plan, 100_000_000);
-  planner.sources = { kind: 'inventory', label: 'mars-jezero.inventory.json (offline example)', records: JSON.parse(inventory) as SurfaceDiscoveryRecord[] };
+  const records = JSON.parse(inventory) as SurfaceDiscoveryRecord[];
+  planner.sources = { kind: 'inventory', label: `Checked ${records.length} locally indexed products from the Jezero example inventory. This is not a live archive search; other datasets may exist.`, records };
   planner.focused = planner.plan.regions[0]?.id ?? null;
   planner.message = 'Loaded the synthetic Jezero example. Its regions and inventory are fixtures, not mission or coverage claims.';
   changed();

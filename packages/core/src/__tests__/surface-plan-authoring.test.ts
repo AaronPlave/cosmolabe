@@ -4,7 +4,7 @@ import { parseGeographicGeoJson } from '../geographic/import.js';
 import type { GeographicCoordinates, GeographicLayer } from '../geographic/model.js';
 import {
   addSurfacePlanRegion, createSurfacePlanDraft, estimateSurfacePlan, matchingSurfacePreset, parseSurfacePlan,
-  recommendSurfaceSources, refreshSurfaceRegion, removeSurfacePlanRegion, serializeSurfacePlan, setSurfacePlanBudget,
+  recommendSurfaceSources, refreshSurfaceRegion, removeSurfacePlanRegion, renameSurfacePlanRegion, serializeSurfacePlan, setSurfacePlanBudget,
   surfaceCoverageLayer, surfacePlanChanges, surfacePlanIdentity, surfaceRegionDrift, surfaceRegionIntent,
   surfaceRegionRefusal, surfaceRegionSource, updateSurfacePlanRegion, validateDesiredSurfacePlan, resolveSurfacePlan,
   surfaceSelectedFidelity, parseSurfacePlannerFeedback, surfaceRegionBuildStatus, validateSurfaceSources,
@@ -117,6 +117,21 @@ describe('surface planner authoring (#250)', () => {
     const removed = removeSurfacePlanRegion(refreshed, 'approach');
     expect(removed.regions).toHaveLength(0);
     expect(removed.layers).toHaveLength(0);
+  });
+
+  it('renames a region to a unique slug and refuses empty or taken names', () => {
+    const source = layer(fixture('jezero.geojson'), { kind: 'user' });
+    let plan = addSurfacePlanRegion(createSurfacePlanDraft('Mars', MARS), source, source.features[0]).plan;
+    plan = addSurfacePlanRegion(plan, source, source.features[1]).plan;
+    const [first, second] = plan.regions.map(r => r.id);
+    const renamed = renameSurfacePlanRegion(plan, first, '  Crater Rim ');
+    expect(renamed.regionId).toBe('crater-rim');
+    expect(renamed.plan.regions.map(r => r.id)).toEqual(['crater-rim', second]);
+    expect(renamed.plan.regions[0].feature).toEqual(plan.regions[0].feature);
+    expect(plan.regions[0].id).toBe(first);
+    expect(() => renameSurfacePlanRegion(plan, first, '!!')).toThrow(/letter or digit/);
+    expect(() => renameSurfacePlanRegion(plan, first, second)).toThrow(/already named/);
+    expect(renameSurfacePlanRegion(plan, first, first).regionId).toBe(first);
   });
 
   it('an imagery-only plan on a reference ellipsoid needs no elevation inputs or work', async () => {

@@ -208,6 +208,17 @@ export function updateSurfacePlanRegion(plan: DesiredSurfacePlan, regionId: stri
   return next;
 }
 
+/** Rename a region: its ID becomes the name's slug, as when it was added. Refuses an empty or taken name. */
+export function renameSurfacePlanRegion(plan: DesiredSurfacePlan, regionId: string, name: string): { plan: DesiredSurfacePlan; regionId: string } {
+  const id = slug(name);
+  if (!plan.regions.some(r => r.id === regionId)) planFail('unresolved-reference', `$.regions.${regionId}`, 'Unknown region');
+  if (!id) planFail('schema', `$.regions.${regionId}`, 'A name needs at least one letter or digit');
+  if (id !== regionId && plan.regions.some(r => r.id === id)) planFail('duplicate-id', `$.regions.${regionId}`, `Another area is already named ${id}`);
+  const next = clone(plan);
+  next.regions.find(r => r.id === regionId)!.id = id;
+  return { plan: next, regionId: id };
+}
+
 /** Remove a region and any embedded feature/layer copy no other region uses. */
 export function removeSurfacePlanRegion(plan: DesiredSurfacePlan, regionId: string): DesiredSurfacePlan {
   const next = clone(plan);
