@@ -23,7 +23,7 @@ export const GLYPH_FULL_PX = 4;
 export const GLYPH_GONE_PX = 12;
 
 /** Solid dot diameter, CSS px. */
-const DOT_DIAMETER_PX = 4;
+const DOT_DIAMETER_PX = 3;
 /** Open ring (selected) outer diameter, CSS px, and its stroke. */
 const RING_DIAMETER_PX = 11;
 const RING_STROKE_PX = 1.25;
