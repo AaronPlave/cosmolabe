@@ -24,6 +24,9 @@ export const GLYPH_GONE_PX = 12;
 
 /** Solid dot diameter, CSS px. */
 const DOT_DIAMETER_PX = 4;
+/** Hollow square locator side, CSS px, and its stroke. */
+const SQUARE_SIDE_PX = 7;
+const SQUARE_STROKE_PX = 1.25;
 /** Open ring (selected) outer diameter, CSS px, and its stroke. */
 const RING_DIAMETER_PX = 11;
 const RING_STROKE_PX = 1.25;
@@ -37,7 +40,9 @@ const REST_OPACITY = 0.85;
 const HOVER_SCALE = 1.25;
 
 export type GlyphRing = 'none' | 'selected' | 'tracked';
-type GlyphKind = 'dot' | 'selected' | 'tracked';
+type GlyphKind = 'dot' | 'square' | 'selected' | 'tracked';
+/** Shape of the unresolved marker for spacecraft: a point, or a hollow square locator. */
+export type SpacecraftGlyphShape = 'dot' | 'square';
 
 /** 1 while the body is unresolved, easing to 0 as its projected extent grows. */
 export function glyphWeight(extentPx: number): number {
@@ -80,18 +85,27 @@ function coverage(distance: number): number {
 export function rasterizeGlyph(kind: GlyphKind, pixelRatio: number): { data: Uint8Array; size: number } {
   const dpr = Math.max(1, pixelRatio);
   const outer = kind === 'dot' ? DOT_DIAMETER_PX
+    : kind === 'square' ? SQUARE_SIDE_PX
     : kind === 'selected' ? RING_DIAMETER_PX : TRACKED_RING_DIAMETER_PX;
   const size = Math.ceil((outer + 2 * HALO_PX + 1) * dpr);
   const data = new Uint8Array(size * size * 4);
   const c = size / 2;
   const radius = (outer / 2) * dpr;
-  const stroke = (kind === 'tracked' ? TRACKED_RING_STROKE_PX : RING_STROKE_PX) * dpr;
+  const stroke = (kind === 'tracked' ? TRACKED_RING_STROKE_PX : kind === 'square' ? SQUARE_STROKE_PX : RING_STROKE_PX) * dpr;
   const halo = HALO_PX * dpr;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const d = Math.hypot(x + 0.5 - c, y + 0.5 - c);
+      const dx = x + 0.5 - c;
+      const dy = y + 0.5 - c;
       // Signed distance to the white stroke/fill and to its halo-grown outline.
-      const sd = kind === 'dot' ? d - radius : Math.abs(d - (radius - stroke / 2)) - stroke / 2;
+      let sd: number;
+      if (kind === 'square') {
+        const edge = Math.max(Math.abs(dx), Math.abs(dy)); // Chebyshev distance: axis-aligned square
+        sd = Math.abs(edge - (radius - stroke / 2)) - stroke / 2;
+      } else {
+        const d = Math.hypot(dx, dy);
+        sd = kind === 'dot' ? d - radius : Math.abs(d - (radius - stroke / 2)) - stroke / 2;
+      }
       const fill = coverage(sd);
       const grown = coverage(sd - halo) * HALO_ALPHA;
       const alpha = Math.max(fill, grown);
@@ -136,6 +150,8 @@ export interface PositionGlyphContext {
 
 interface GlyphEntry {
   dot: THREE.Sprite;
+  /** Which unresolved-marker texture the dot sprite currently shows. */
+  kind: 'dot' | 'square';
   ring: THREE.Sprite;
   readout: PositionGlyphReadout;
 }
@@ -147,10 +163,12 @@ const _toCam = new THREE.Vector3();
 export class PositionGlyphs {
   /** Add to the scene; sprites live on the overlay layer and depth-test against bodies. */
   readonly group = new THREE.Group();
+  /** Marker used for unresolved spacecraft (natural bodies always use the point). */
+  spacecraftShape: SpacecraftGlyphShape = 'dot';
   private readonly entries = new Map<string, GlyphEntry>();
   private textures: Record<GlyphKind, THREE.DataTexture> | null = null;
   private texturePixelRatio = 0;
-  private texSize: Record<GlyphKind, number> = { dot: 0, selected: 0, tracked: 0 };
+  private texSize: Record<GlyphKind, number> = { dot: 0, square: 0, selected: 0, tracked: 0 };
 
   constructor(private readonly layer: number) {
     this.group.name = 'position-glyphs';
@@ -160,7 +178,7 @@ export class PositionGlyphs {
     const ratio = Math.max(1, pixelRatio);
     if (this.textures && this.texturePixelRatio === ratio) return this.textures;
     const next = {} as Record<GlyphKind, THREE.DataTexture>;
-    for (const kind of ['dot', 'selected', 'tracked'] as const) {
+    for (const kind of ['dot', 'square', 'selected', 'tracked'] as const) {
       const { data, size } = rasterizeGlyph(kind, ratio);
       const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
@@ -173,7 +191,7 @@ export class PositionGlyphs {
     this.textures = next;
     this.texturePixelRatio = ratio;
     for (const entry of this.entries.values()) {
-      (entry.dot.material as THREE.SpriteMaterial).map = next.dot;
+      (entry.dot.material as THREE.SpriteMaterial).map = next[entry.kind];
       this.setRingTexture(entry, entry.readout.ring);
     }
     if (previous) for (const tex of Object.values(previous)) tex.dispose();
@@ -212,6 +230,7 @@ export class PositionGlyphs {
     if (!entry) {
       entry = {
         dot: this.makeSprite(textures.dot, 998),
+        kind: 'dot',
         ring: this.makeSprite(textures.selected, 998),
         readout: {
           name, anchor: null, extentPx: Infinity, glyphWeight: 0,
@@ -297,12 +316,14 @@ export class PositionGlyphs {
       entry.dot.position.copy(bm.position).addScaledVector(_toCam, nudge);
       entry.ring.position.copy(entry.dot.position);
 
+      const kind: 'dot' | 'square' = this.spacecraftShape === 'square' && bm.body.classification === 'spacecraft' ? 'square' : 'dot';
       const dotMat = entry.dot.material as THREE.SpriteMaterial;
+      if (entry.kind !== kind) { entry.kind = kind; dotMat.map = textures[kind]; }
       dotMat.opacity = (hovered ? 1 : REST_OPACITY) * weight;
       const dotScale = hovered ? HOVER_SCALE : 1;
       entry.dot.scale.set(
-        (this.texSize.dot / pxPerScaleX) * dotScale,
-        (this.texSize.dot / pxPerScaleY) * dotScale, 1);
+        (this.texSize[kind] / pxPerScaleX) * dotScale,
+        (this.texSize[kind] / pxPerScaleY) * dotScale, 1);
       entry.dot.visible = true;
 
       if (ring === 'none') {
@@ -326,7 +347,7 @@ export class PositionGlyphs {
       r.glyphWeight = weight;
       r.ring = ring;
       r.hovered = hovered;
-      r.footprintPx = (ring === 'none' ? DOT_DIAMETER_PX * dotScale
+      r.footprintPx = (ring === 'none' ? (kind === 'square' ? SQUARE_SIDE_PX : DOT_DIAMETER_PX) * dotScale
         : ring === 'tracked' ? TRACKED_RING_DIAMETER_PX : RING_DIAMETER_PX);
       r.onScreen = !behind && x >= 0 && y >= 0 && x <= ctx.viewport.width && y <= ctx.viewport.height;
     }
