@@ -324,6 +324,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const facts: ResultFact[] = [];
   let wrote = false, ran = false, repaired = false, cutOff = false, checks = 0, intentStated = false;
   let escalated: string | null = null;
+  // Missing SPICE worker frame dependencies cannot be repaired with another event query.
+  // Bound model attempts to recover with sampled profiles, without certifying an event.
+  let eventFrameUnavailable = false, recoveryRounds = 0;
   const escalate = opts.escalate ?? escalateDestructive;
   const requestStart = messages.length - 1;
   /** Slots whose verdict the model has seen since the last change. */
@@ -418,6 +421,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     for (let step = 0; step < maxSteps; step++) {
       const stop = ended();
       if (stop) return finish(stop);
+      if (eventFrameUnavailable && ++recoveryRounds > 5) {
+        answer = 'Event Finder could not calculate the closest approach because its SPICE worker is missing a reference-frame dependency. A sampled distance profile can show only an approximate center-to-center minimum, not verified closest approach or physical touchdown.';
+        return finish({ kind: 'done' });
+      }
       opts.onEvent?.({ type: 'thinking' });
       let reply: AgentResponse;
       try {
@@ -501,6 +508,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         const notes = pending.length ? pending.map(g => g.name === actionName(use) ? g.guide : `${g.name}: ${g.guide}`).join(' ') : null;
         let result: AgentToolResult;
         if (isCheck(use) && opts.tools.verify) result = task.ended ? { ok: false, code: task.ended, error: 'this request was stopped; nothing was checked' } : runCheck(use);
+        else if (eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery'].includes(actionName(use))) result = { ok: false, code: 'missing-dependency', error: 'Not run: this request already encountered an unrecoverable Event Finder SPICE frame dependency. Changing the query or retrying cannot furnish worker kernels. Use a clearly labeled approximate sampled center-distance profile if useful, or report that closest approach was not calculated.' };
         else if (batchFailed && !read && !task.ended) result = { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' };
         else {
           const conflict = read ? null : !goalStated && opts.tools.verify
@@ -519,6 +527,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
           } else unobservable.push(`${actionName(use)}: ${result.outcome.unobservable}`);
         }
         if (result.facts) facts.push(...result.facts);
+        if (!result.ok && result.code === 'missing-dependency' && actionName(use) === 'runEventQuery') eventFrameUnavailable = true;
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
