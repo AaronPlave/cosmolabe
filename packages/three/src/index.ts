@@ -64,6 +64,8 @@ export { StarField } from './StarField.js';
 export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
+export { glyphWeight, GLYPH_FULL_PX, GLYPH_GONE_PX } from './PositionGlyphs.js';
+export type { PositionGlyphReadout, GlyphRing } from './PositionGlyphs.js';
 export { EventMarkers } from './EventMarkers.js';
 export type { EventMarker, EventMarkerType, EventMarkersOptions, EventLeadVisibility } from './EventMarkers.js';
 export type { ScreenRect } from './EventCallout.js';
