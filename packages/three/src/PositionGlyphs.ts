@@ -246,8 +246,10 @@ export interface PositionGlyphContext {
    * The stable label decision for a body (null if it has no label). Ordinary
    * entities get a glyph only while their label is legible, so a marker never
    * outlives the label that explains it; selected/tracked entities do not need one.
+   * If the user turned labels off (globally or for this body) every marker for it is
+   * off too, selected/tracked included: `enabled: false`.
    */
-  labelState: (name: string) => { legible: boolean; occlusion: number } | null;
+  labelState: (name: string) => { legible: boolean; occlusion: number; enabled: boolean } | null;
   /**
    * Whether terrain or reconstructed plates hide the entity's anchor. Asked
    * only for glyphs that would otherwise draw. Spheres are covered by the
@@ -431,10 +433,14 @@ export class PositionGlyphs {
       // entities show one only while their label is deliberately shown (a stable,
       // hysteretic decision made by the label manager), so no unexplained marker
       // is left behind at far zoom. Selected/tracked entities always keep their
-      // locator (their label is pinned by the label manager).
+      // locator (their label is pinned by the label manager) — unless the user turned
+      // labels off, which turns the whole glyph off.
       const label = ctx.labelState(name);
       const focus = ring !== 'none';
-      const wantVis = focus || label?.legible ? 1 : 0;
+      // Labels turned off by the user (the global switch or this body's own label)
+      // turn off every annotation tied to them, the selected/tracked locator included.
+      const labelsOn = label ? label.enabled : true;
+      const wantVis = labelsOn && (focus || label?.legible) ? 1 : 0;
       let entry = existing;
       if (!entry && wantVis === 0) continue;
       entry = entry ?? this.entryFor(name, textures);

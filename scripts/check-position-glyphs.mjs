@@ -239,19 +239,31 @@ try {
     const tinyFocus = await ring2('Tiny');
     out.lod.naturalFocus = tinyFocus ? { ring: tinyFocus.ring, footprint: tinyFocus.footprintPx } : null;
     r.setLabelPinned('Tiny', false);
-    r.setLabelVisible('Europa Clipper', false);              // focus keeps its locator ...
     r.setLabelPinned('Europa Clipper', true);
-    out.lod.focusNoLabelRing = (await ring2())?.ring ?? null;
-    r.setLabelPinned('Europa Clipper', false);
+    out.lod.focusWithLabel = (await ring2())?.ring ?? null;
+    r.setLabelVisible('Europa Clipper', false);              // ... but the user turning this body's label off turns its glyph off too
+    out.lod.focusLabelOff = (await ring2())?.ring ?? null;
     r.setLabelVisible('Europa Clipper', true);
+    out.lod.focusLabelBack = (await ring2())?.ring ?? null;
+    r.setLabelPinned('Europa Clipper', false);
     window.glyphState.setDisplayOption('labels', false, { persist: false }); // all labels off:
     await frame();
     out.lod.allLabelsOffOrdinary = r.getPositionGlyphReadout().filter((e) => e.ring === 'none').length;
     r.setLabelPinned('Europa Clipper', true);
-    out.lod.allLabelsOffFocus = (await ring2())?.ring ?? null;  // selected entity keeps its locator
+    out.lod.allLabelsOffFocus = (await ring2())?.ring ?? null;  // selected: off with the labels
+    r.setLabelPinned('Tiny', true);
+    out.lod.allLabelsOffNaturalFocus = (await ring2('Tiny'))?.ring ?? null;
+    r.setLabelPinned('Tiny', false);
+    window.cosmo.track?.('Europa Clipper');
+    out.lod.allLabelsOffTracked = (await ring2())?.ring ?? null; // tracked: off with the labels
+    out.lod.allLabelsOffCount = r.getPositionGlyphReadout().length;
+    window.cosmo.untrack();
     r.setLabelPinned('Europa Clipper', false);
     window.glyphState.setDisplayOption('labels', true, { persist: false });
     await frame();
+    r.setLabelPinned('Europa Clipper', true);
+    out.lod.labelsBackFocus = (await ring2())?.ring ?? null; // the locator returns with the labels
+    r.setLabelPinned('Europa Clipper', false);
 
     // --- Whole-glyph terrain/plate occlusion ---
     // A reconstructed-surface plate between the camera and the selected spacecraft's
@@ -303,9 +315,15 @@ try {
   assert.equal(states.lod.naturalFocus?.ring, 'selected', 'a selected natural body gets a hollow ring');
   assert.ok(states.lod.naturalFocus.footprint >= 8, 'the natural-body locator is the ring, not a dot');
   assert.equal(states.lod.ordinaryBack, true, 'the marker returns with its label');
-  assert.equal(states.lod.focusNoLabelRing, 'selected', 'a selected entity keeps its locator even without a label');
+  assert.equal(states.lod.focusWithLabel, 'selected');
+  assert.equal(states.lod.focusLabelOff, null, 'turning a body\'s label off turns its selected locator off');
+  assert.equal(states.lod.focusLabelBack, 'selected', 'the locator returns with the label');
   assert.equal(states.lod.allLabelsOffOrdinary, 0, 'with labels disabled, no unexplained markers on ordinary entities');
-  assert.equal(states.lod.allLabelsOffFocus, 'selected', 'with labels disabled, the selected entity keeps its locator');
+  assert.equal(states.lod.allLabelsOffFocus, null, 'with labels disabled, the selected spacecraft\'s point and ring are off');
+  assert.equal(states.lod.allLabelsOffNaturalFocus, null, 'with labels disabled, a selected natural body\'s ring is off');
+  assert.equal(states.lod.allLabelsOffTracked, null, 'with labels disabled, the tracked entity\'s ring is off');
+  assert.equal(states.lod.allLabelsOffCount, 0, 'with labels disabled, no glyph of any kind exists');
+  assert.equal(states.lod.labelsBackFocus, 'selected', 'the selected locator returns when labels are turned back on');
   // Whole-glyph occlusion by a plate in front of the anchor.
   assert.equal(states.occ.before, false);
   assert.equal(states.occ.during.occluded, true, 'plate in front of the anchor hides the glyph');

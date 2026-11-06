@@ -42,12 +42,14 @@ function ctx(over: Partial<Parameters<PositionGlyphs['update']>[2]> = {}): Param
     isEligible: (bm) => wantsGlyph(bm, false),
     isPinned: () => false, trackedName: null, hoveredName: null,
     // Default: a labelled entity whose label is shown and not occluded.
-    labelState: () => ({ legible: true, occlusion: 1 }),
+    labelState: () => ({ legible: true, occlusion: 1, enabled: true }),
     ...over,
   };
 }
 
 type Ctx = Parameters<PositionGlyphs['update']>[2];
+const sprites = (g: PositionGlyphs) => g.group.children as THREE.Sprite[];
+const drawn = (g: PositionGlyphs) => sprites(g).filter((o) => o.visible).length;
 
 /** Run enough frames for the eased visibility factors to settle. */
 function settle(g: PositionGlyphs, bodies: BodyMesh[], cam: THREE.PerspectiveCamera, c: Ctx, frames = 60): void {
@@ -304,7 +306,7 @@ describe('PositionGlyphs.update', () => {
     const cam = camera();
     const hidden = fakeBody('Hidden', new THREE.Vector3(0, 0, -50)); // behind a foreground globe
     const visible = fakeBody('Visible', new THREE.Vector3(0.0001, 0, 0)); // a few px away, in front
-    const c = ctx({ labelState: (n) => ({ legible: true, occlusion: n === 'Hidden' ? 0 : 1 }) });
+    const c = ctx({ labelState: (n) => ({ legible: true, occlusion: n === 'Hidden' ? 0 : 1, enabled: true }) });
     settle(g, [hidden, visible], cam, c);
     const hiddenGlyph = g.readout().find((r) => r.name === 'Hidden');
     expect(hiddenGlyph?.occluded ?? true).toBe(true);
@@ -351,14 +353,11 @@ describe('PositionGlyphs.update', () => {
 });
 
 describe('label-coordinated LOD (#337 live-testing feedback)', () => {
-  const sprites = (g: PositionGlyphs) => g.group.children as THREE.Sprite[];
-  const drawn = (g: PositionGlyphs) => sprites(g).filter((o) => o.visible).length;
-
   it('an ordinary entity whose label is culled gets no glyph — no unexplained dots', () => {
     const g = new PositionGlyphs(2);
     const cam = camera();
     const sc = fakeBody('Far', new THREE.Vector3());
-    settle(g, [sc], cam, ctx({ labelState: () => ({ legible: false, occlusion: 1 }) }));
+    settle(g, [sc], cam, ctx({ labelState: () => ({ legible: false, occlusion: 1, enabled: true }) }));
     expect(g.readout()).toHaveLength(0);
     expect(g.group.children).toHaveLength(0); // never even allocated
     // Entities with no label at all are not marked either.
@@ -372,8 +371,8 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     const sc = fakeBody('Clipper', new THREE.Vector3());
     const alphas: number[] = [];
     const op = () => (sprites(g)[0].material as THREE.SpriteMaterial).opacity;
-    const on = ctx({ labelState: () => ({ legible: true, occlusion: 1 }) });
-    const off = ctx({ labelState: () => ({ legible: false, occlusion: 1 }) });
+    const on = ctx({ labelState: () => ({ legible: true, occlusion: 1, enabled: true }) });
+    const off = ctx({ labelState: () => ({ legible: false, occlusion: 1, enabled: true }) });
     for (let i = 0; i < 40; i++) { g.update([sc], cam, on); alphas.push(op()); }
     const peak = alphas.at(-1)!;
     expect(peak).toBeGreaterThan(0.8);
@@ -392,7 +391,7 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     const g = new PositionGlyphs(2);
     const cam = camera();
     const sc = fakeBody('Clipper', new THREE.Vector3());
-    const culled = { labelState: () => ({ legible: false, occlusion: 1 }) };
+    const culled = { labelState: () => ({ legible: false, occlusion: 1, enabled: true }) };
     settle(g, [sc], cam, ctx({ ...culled, isPinned: () => true }));
     expect(g.readout()[0].ring).toBe('selected');
     expect(g.readout()[0].visibility).toBeGreaterThan(0.95);
@@ -405,6 +404,40 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     expect(g2.readout()).toHaveLength(0);
   });
 
+  it('turning labels off turns every marker off, the selected/tracked locator included', () => {
+    const cam = camera();
+    const sc = fakeBody('Clipper', new THREE.Vector3());
+    const moon = fakeBody('Moon', new THREE.Vector3(2, 0, 0), { classification: 'moon', geometryType: 'Globe', displayRadius: 1e-9 });
+    const on = { legible: true, occlusion: 1, enabled: true };
+    const off = { legible: false, occlusion: 1, enabled: false }; // labels disabled by the user
+    const focus = { isPinned: () => true, trackedName: 'Clipper' as string | null };
+    const g = new PositionGlyphs(2);
+    // Labels on: the tracked spacecraft shows its point and ring, a selected natural body its ring.
+    settle(g, [sc, moon], cam, ctx({ ...focus, labelState: () => on }));
+    expect(drawn(g)).toBeGreaterThanOrEqual(3);
+    // Labels off (global switch or the body's own label): nothing is drawn for either, and it eases out.
+    const alphas: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      g.update([sc, moon], cam, ctx({ ...focus, labelState: () => off }));
+      alphas.push(sprites(g).reduce((m, o) => Math.max(m, (o.material as THREE.SpriteMaterial).opacity * (o.visible ? 1 : 0)), 0));
+    }
+    expect(drawn(g)).toBe(0);
+    expect(g.readout()).toHaveLength(0);
+    for (let i = 1; i < alphas.length; i++) expect(alphas[i]).toBeLessThanOrEqual(alphas[i - 1] + 1e-9); // eased, never popped back
+    // Not pickable while off.
+    expect(g.pickNearest(400, 300, 50)).toBeNull();
+    // Labels back on: the locators return.
+    settle(g, [sc, moon], cam, ctx({ ...focus, labelState: () => on }));
+    expect(drawn(g)).toBeGreaterThanOrEqual(3);
+    // Only this body's own label off: only its glyph goes; the other keeps its locator.
+    settle(g, [sc, moon], cam, ctx({ ...focus, labelState: (n) => (n === 'Clipper' ? off : on) }));
+    expect(g.readout().map((r) => r.name)).toEqual(['Moon']);
+    // A body with no label at all has nothing to turn off: a selected one keeps its locator.
+    const g2 = new PositionGlyphs(2);
+    settle(g2, [sc], cam, ctx({ ...focus, labelState: () => null }));
+    expect(g2.readout().map((r) => r.ring)).toEqual(['tracked']);
+  });
+
   it('draws the whole glyph or none: dot and ring share one visibility, and occlusion removes both', () => {
     const g = new PositionGlyphs(2);
     const cam = camera();
@@ -412,13 +445,13 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     const pinned = { isPinned: () => true, trackedName: 'Clipper' as string | null };
     const op = (i: number) => (sprites(g)[i].material as THREE.SpriteMaterial).opacity;
     for (const occlusion of [1, 0.7, 0.4, 0.1]) {
-      settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion }) }), 3);
+      settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion, enabled: true }) }), 3);
       if (sprites(g)[1].visible && sprites(g)[0].visible) {
         // Same multiplier on both parts (ring base 1 for tracked, dot base 0.85).
         expect(op(1) / 1).toBeCloseTo(op(0) / 0.85, 6);
       }
     }
-    settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion: 0 }) }));
+    settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion: 0, enabled: true }) }));
     expect(drawn(g)).toBe(0); // nothing left of either part
     expect(g.readout().every((r) => r.occluded)).toBe(true);
     const anchor = g.readout()[0]?.anchor ?? { x: 400, y: 300 };

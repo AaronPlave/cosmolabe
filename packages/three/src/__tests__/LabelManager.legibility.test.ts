@@ -121,8 +121,12 @@ describe('LabelManager legibility state', () => {
     expect(labels.getLabelState('A')!.legible).toBe(false);
     labels.setLabelVisible('A', true); run(labels, [a], 60);
     expect(labels.getLabelState('A')!.legible).toBe(true);
+    expect(labels.getLabelState('A')).toMatchObject({ legible: true, enabled: true });
+    labels.setLabelVisible('A', false);
+    expect(labels.getLabelState('A')).toMatchObject({ legible: false, enabled: false }); // the body's own label turned off
+    labels.setLabelVisible('A', true);
     labels.setAllVisible(false);
-    expect(labels.getLabelState('A')!.legible).toBe(false);
+    expect(labels.getLabelState('A')).toMatchObject({ legible: false, enabled: false }); // the global switch
     expect(labels.getLabelState('Nope')).toBeNull();
   });
 });

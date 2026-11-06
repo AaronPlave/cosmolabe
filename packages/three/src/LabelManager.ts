@@ -257,16 +257,21 @@ export class LabelManager {
 
   /**
    * Stable view of a label for coordinated annotations: whether the label is
-   * deliberately shown right now (not culled by collision/LOD, not hidden by the
-   * user or by the global label switch) — with hysteresis — and its current
-   * occlusion fade. Null for a body without a label.
+   * deliberately shown right now (not culled by collision/LOD) — with hysteresis
+   * — its current occlusion fade, and whether labels are enabled for it at all.
+   * `enabled` is false when the user turned labels off (the global switch, or
+   * this body's own label); annotations tied to the label (position glyphs) must
+   * then be off too, even for a selected/tracked entity. Null for a body without
+   * a label.
    */
-  getLabelState(name: string): { legible: boolean; occlusion: number } | null {
+  getLabelState(name: string): { legible: boolean; occlusion: number; enabled: boolean } | null {
     const entry = this.labels.get(name);
     if (!entry) return null;
+    const enabled = this._globalVisible && entry.sprite.visible;
     return {
-      legible: this._globalVisible && entry.legible,
+      legible: enabled && entry.legible,
       occlusion: entry.occlusionOpacity,
+      enabled,
     };
   }
 

@@ -8,7 +8,8 @@
  * ordinary / selected / tracked / labels-off states, and asserts from live renderer
  * state that:
  *   - an ordinary entity's marker exists only while its label is legible (no orphaned dots);
- *   - a selected/tracked entity keeps its locator while it is unresolved, and its label;
+ *   - a selected/tracked entity keeps its locator while it is unresolved, and its label —
+ *     unless labels are turned off, which turns every marker off, tracked/selected included;
  *   - natural bodies (planets, moons, asteroids) never get a filled point: only a selected/tracked one
  *     gets a hollow ring, and only while its real disk is too small to mark the position itself;
  *   - something always represents the focus entity (glyph, real-scale body or model): no dead zone,
@@ -186,13 +187,13 @@ try {
       assert.ok(rows.every((x) => x.w <= 0.05 || x.legible || x.w < 0.35), `${name}: ordinary marker strongly shown without its label`);
     }
     // (The first steps may still be easing out markers from the previous state.)
-    if (name === 'labels-off-ordinary') assert.equal(Math.max(...rows.filter((x) => x.k >= 4).map((x) => x.count)), 0, 'labels off: no unexplained markers anywhere');
-    if (name === 'tracked' || name === 'selected' || name === 'labels-off-tracked') {
+    if (name === 'labels-off-ordinary' || name === 'labels-off-tracked') assert.equal(Math.max(...rows.filter((x) => x.k >= 4).map((x) => x.count)), 0, 'labels off: no marker of any kind, tracked/selected included');
+    if (name === 'tracked' || name === 'selected') {
       // Focus keeps its locator while unresolved (the target is a point at the far end of the sweep).
       const far = rows.filter((x) => x.extent !== null && x.extent <= 1);
       const unresolvedRows = rows.filter((x) => x.d >= scene.maxKm * 0.3);
       assert.ok(unresolvedRows.every((x) => x.w > 0.5), `${name}: focus keeps its locator at far zoom`);
-      if (name !== 'labels-off-tracked') assert.ok(unresolvedRows.every((x) => x.legible), `${name}: focus keeps its label at far zoom`);
+      assert.ok(unresolvedRows.every((x) => x.legible), `${name}: focus keeps its label at far zoom`);
       assert.ok(far.length >= 0);
     }
     if (scene.natural) {
@@ -201,7 +202,7 @@ try {
       else assert.ok(rows.filter((x) => x.w > 0.05).every((x) => x.footprint >= 8), `${name}: natural locator must be the ring, not a dot`);
       // Real-scale rendering is never replaced: nothing hides the body at either minBodyPixels.
       assert.ok(rows.every((x) => x.meshVisible), `${name}: natural body's real-scale rendering was hidden`);
-    } else if (name !== 'ordinary' && name !== 'labels-off-ordinary') {
+    } else if (name === 'selected' || name === 'tracked') {
       // Artificial focus: something always represents it — glyph, placeholder or model; never a dead zone.
       const dead = rows.filter((x) => !(x.w > 0.05 || x.meshVisible || x.modelVisible));
       assert.equal(dead.length, 0, `${name} @ minBodyPixels ${MIN_BODY_PIXELS}: nothing represents the focus at ${JSON.stringify(dead[0])}`);
