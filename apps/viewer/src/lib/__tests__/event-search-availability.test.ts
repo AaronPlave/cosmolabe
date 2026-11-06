@@ -336,6 +336,7 @@ describe('which demo catalogs cannot search at all', () => {
     'atmosphere-mars.json',
     'atmosphere-saturn-shadow.json',
     'atmosphere-titan.json',
+    'earth-gibs-daily.json',
     'earth-moon.json',
     'geographic-vectors-earth-countries.json',
     'geographic-vectors-earth-overlay-comparison.json',
