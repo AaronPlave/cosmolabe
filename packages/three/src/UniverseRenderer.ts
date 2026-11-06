@@ -62,6 +62,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
+import { PositionGlyphs, wantsGlyph, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -157,6 +158,12 @@ export interface UniverseRendererOptions {
   trajectoryFilter?: (body: Body) => boolean;
   /** Minimum screen pixels for any body (ensures visibility). Default 4. Set 0 for real scale. */
   minBodyPixels?: number;
+  /**
+   * Draw a small unlit position glyph (dot; open ring when selected/tracked) at
+   * entities whose shape is too small to recognise, handing off to the model or
+   * globe as it resolves (#337). Default true.
+   */
+  positionGlyphs?: boolean;
   /** Resolve a model source path (from catalog geometry.source) to a loadable URL */
   modelResolver?: (source: string) => string | undefined;
   /** Resolve a texture path (from catalog geometry.baseMap/normalMap) to a loadable URL.
@@ -379,6 +386,8 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
+  private readonly positionGlyphs: PositionGlyphs;
+  private _positionGlyphsEnabled = true;
   private _devicePixelObserver: ResizeObserver | null = null;
   private _devicePixelBox: {
     pixels: ResizeObserverSize;
@@ -575,6 +584,10 @@ export class UniverseRenderer {
     this.ambientLight = new THREE.AmbientLight(0x080808);
     this.ambientLight.layers.enableAll();
     this.scene.add(this.ambientLight);
+
+    this._positionGlyphsEnabled = options.positionGlyphs ?? true;
+    this.positionGlyphs = new PositionGlyphs(OVERLAY_LAYER);
+    this.scene.add(this.positionGlyphs.group);
 
     // Separate scene for surface tile CRR rendering.
     // Full ambient light: surface tiles are photogrammetric with baked lighting.
@@ -1253,6 +1266,20 @@ export class UniverseRenderer {
         );
       }
     }
+
+    // Position glyphs read the same final camera and pinned/tracked/hover state
+    // as the labels, so marker and label agree on the anchor.
+    if (this._positionGlyphsEnabled) {
+      const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
+      this.positionGlyphs.update(bodyMeshArr, this.camera, {
+        viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
+        isEligible: (bm) => wantsGlyph(bm, this._customVisuals.has(bm.body.name)),
+        isPinned: (name) => this.labelManager?.isLabelPinned(name) ?? false,
+        trackedName: this.cameraController.trackedBody?.body.name ?? null,
+        hoveredName: this._hoveredBody,
+      });
+    } else this.positionGlyphs.group.visible = false;
 
     // Solar optics use the final camera, physical body radius, and the same
     // transmittance LUT/profile as the visible atmosphere shell.
@@ -2797,6 +2824,23 @@ export class UniverseRenderer {
     this.labelManager?.setLabelPinned(name, pinned);
   }
 
+  /**
+   * Observable state of every entity currently drawn as a position glyph (#337):
+   * anchor in canvas CSS px, projected extent of its actual representation,
+   * glyph weight/ring/footprint, and whether the anchor is inside the canvas.
+   * Depth occlusion is applied on the GPU and is deliberately not reported —
+   * callers must not read a listed entity as proof its pixels are visible.
+   */
+  getPositionGlyphReadout(): PositionGlyphReadout[] {
+    return this._positionGlyphsEnabled ? this.positionGlyphs.readout() : [];
+  }
+
+  /** Turn position glyphs on or off at runtime. */
+  setPositionGlyphsEnabled(enabled: boolean): void {
+    this._positionGlyphsEnabled = enabled;
+    this.positionGlyphs.group.visible = enabled;
+  }
+
   /** Unpin all labels (e.g. on selection clear). */
   clearPinnedLabels(): void {
     this.labelManager?.clearPinnedLabels();
@@ -3971,6 +4015,7 @@ export class UniverseRenderer {
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.positionGlyphs.dispose();
     this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
@@ -4974,7 +5019,7 @@ export class UniverseRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     return this.labelManager.pickNearest(
       screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
-    ) ?? null;
+    ) ?? (this._positionGlyphsEnabled ? this.positionGlyphs.pickNearest(screenX, screenY, 6) : null);
   }
 
   /**

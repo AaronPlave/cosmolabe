@@ -221,6 +221,11 @@ export class LabelManager {
     return entry ? entry.sprite.visible : null;
   }
 
+  /** Whether a label is pinned (selected/tracked focus). */
+  isLabelPinned(name: string): boolean {
+    return this._pinnedNames.has(name);
+  }
+
   setAllVisible(visible: boolean): void {
     this._globalVisible = visible;
     for (const entry of this.labels.values()) {
