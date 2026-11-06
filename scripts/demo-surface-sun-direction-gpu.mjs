@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Same-camera, same-epoch, same-imagery before/after of the #204 Sun-direction correction on
- * real streamed terrain (NASA Trek Viking MDIM 2.1 tiles, fetched once and cached).
+ * real streamed imagery on an ellipsoid (NASA Trek Viking MDIM 2.1 tiles, cached).
+ * The fixture uses geometry.imagery without geometry.terrain: no displaced terrain relief.
  *
  * Scene origin is Earth, the camera views Mars, nothing casts a shadow. "Before" is the old
  * origin-aimed Sun (the shared light targets the scene origin); "after" is the receiver-aimed Sun
@@ -192,7 +193,7 @@ try {
   writeFileSync(`${output}/result.json`, JSON.stringify(summary, null, 2));
   for (const k of ['before', 'after']) writeFileSync(`${output}/mars-${k}.png`, Buffer.from(png[k].split(',')[1], 'base64'));
   console.log(JSON.stringify({ ...summary, positions: undefined }, null, 2));
-  // Streamed terrain was actually in play, not the fallback sphere.
+  // Streamed imagery-only ellipsoid tiles were drawn, not the fallback sphere.
   assert.ok(summary.streamed.terrainVisible && summary.streamed.meshes > 0, `streamed surface active: ${JSON.stringify(summary.streamed)}`);
   // The two renders differ only by the Sun target, and the correction is the physical Sun direction.
   assert.ok(summary.sunDirection.separationDeg > 10, 'epoch gives a meaningful origin-vs-Mars Sun direction difference');
