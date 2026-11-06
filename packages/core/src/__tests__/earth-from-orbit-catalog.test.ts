@@ -31,7 +31,7 @@ describe('Earth from Orbit catalog', () => {
     expect(layers[0].temporal).toBeUndefined();
     const viirs = layers[1];
     expect(viirs.visible).not.toBe(false);
-    expect(viirs.url).toContain('VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/2026-03-31/');
+    expect(viirs.url).toContain('VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/2026-11-04/');
     expect(viirs.url).toContain('GoogleMapsCompatible_Level9');
     expect(viirs.temporal).toMatchObject({ semantics: 'acquisition', cadence: 'day', policy: 'follow-simulation', start: '2022-01-14', outOfRange: 'hide', illumination: 'baked' });
     expect(viirs.attribution).toMatch(/NASA GIBS/);
@@ -40,26 +40,37 @@ describe('Earth from Orbit catalog', () => {
     expect(JSON.stringify(earth.geometry)).not.toMatch(/wmts-capabilities|"terrain"/);
   });
 
-  it('draws the ISS only near the epoch of its (2026) TLE, never the 2011 element set', () => {
+  it('draws the ISS only near the epoch of its CelesTrak TLE, never the 2011 element set', () => {
     const { line1, line2 } = station.trajectory;
     expect(line1).not.toContain('11042.40620627');
     const tle = new TLETrajectory({ line1, line2 });
     const epoch = tle.epochEt;
     // `epochEt` reads the TLE's UTC Julian date without leap seconds (about a minute), hence the tolerance.
-    expect(Math.abs(epoch - utcToEt('2026-03-31T03:11:40Z'))).toBeLessThan(120);
+    expect(Math.abs(epoch - utcToEt('2026-11-05T20:28:37Z'))).toBeLessThan(120);
 
     const { bodies } = new CatalogLoader().load(iss);
     const body = bodies.find((b) => b.name === 'ISS')!;
     const at = (iso: string) => body.existsAt(utcToEt(iso));
     expect(at(iss.defaultTime)).toBe(true);
-    expect(Math.abs(utcToEt(iss.defaultTime) - epoch)).toBeLessThan(DAY);
-    expect(at('2026-04-02T11:00:00Z')).toBe(true);
-    expect(at('2026-04-04T11:00:00Z')).toBe(false);
-    expect(at('2026-03-27T11:00:00Z')).toBe(false);
+    expect(Math.abs(utcToEt(iss.defaultTime) - epoch)).toBeLessThan(2 * DAY);
+    expect(at('2026-11-07T20:00:00Z')).toBe(true);
+    expect(at('2026-11-09T11:00:00Z')).toBe(false);
+    expect(at('2026-11-02T11:00:00Z')).toBe(false);
     expect(at('2011-02-11T09:45:00Z')).toBe(false);
     // The window is the declared 3 days either side of the epoch.
     expect(Math.abs(body.existsFrom! - (epoch - 3 * DAY))).toBeLessThan(120);
     expect(Math.abs(body.existsUntil! - (epoch + 3 * DAY))).toBeLessThan(120);
+  });
+
+  it('gives the Moon its texture and IAU rotation, as the base Earth system does', () => {
+    const moon = earth.items.find((i: { name: string }) => i.name === 'Moon');
+    const reference = read('base/earth-system.json').items[0].items.find((i: { name: string }) => i.name === 'Moon');
+    expect(moon.rotationModel).toEqual(reference.rotationModel);
+    expect(moon.rotationModel).toEqual({ type: 'Builtin', name: 'IAU Moon' });
+    expect(moon.geometry.baseMap).toBe('textures/moon-4k.jpg');
+    expect(moon.geometry.radius).toBe(reference.geometry.radius);
+    // The 16K normal map and Moon terrain stay out of this entry.
+    expect(JSON.stringify(moon.geometry)).not.toMatch(/normalMap|displacement|terrain/);
   });
 
   it('leaves the MODIS fixture and its historical ISS TLE alone', () => {
