@@ -299,6 +299,24 @@ export interface ScriptImageryLayer {
   /** Native ground resolution in m/px as the provider advertises it; null when unstated. */
   readonly resolutionMeters: number | null;
   /**
+   * Present only for time-indexed imagery: which observation (acquisition) day
+   * the layer depicts, which is not the simulation epoch. `date` is the day on
+   * screen, null when none is shown (see `state`). When `offsetDays` is not 0
+   * the day shown is not the day requested.
+   */
+  readonly time?: {
+    readonly policy: 'fixed' | 'follow-simulation' | 'latest';
+    readonly cadence: 'day';
+    readonly date: string | null;
+    readonly requestedDate: string | null;
+    readonly state: 'exact' | 'nearest' | 'before-range' | 'after-range' | 'not-yet-published' | 'invalid';
+    readonly offsetDays: number;
+    readonly rangeStart: string | null;
+    readonly rangeEnd: string | null;
+    /** Daily true-colour products carry the Sun of their acquisition; they are not relit to the simulated Sun. */
+    readonly illumination: 'baked' | 'reflectance';
+  };
+  /**
    * Which product the layer is, as the catalog names it, apart from its
    * display name and who serves it. The endpoint is an HTTP(S) provider origin
    * only (null for other resources), never a path, userinfo, query or fragment.

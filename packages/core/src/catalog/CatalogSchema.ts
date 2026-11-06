@@ -212,8 +212,13 @@ const IMAGERY: NestedSpec = {
     'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
-    'attribution', 'description', 'resolutionMeters', 'visible',
+    'attribution', 'description', 'resolutionMeters', 'visible', 'temporal',
   ),
+  children: {
+    temporal: {
+      keys: keys('semantics', 'cadence', 'policy', 'date', 'start', 'end', 'latencyDays', 'outOfRange', 'illumination'),
+    },
+  },
 };
 
 const SURFACE_LOCK: NestedSpec = { keys: keys('mode') };
