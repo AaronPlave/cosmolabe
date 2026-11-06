@@ -1,7 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
-import { aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
+import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -3508,6 +3508,31 @@ export class UniverseRenderer {
     if (!bm || !sun) return null;
     return solarGeometryAt(bm.position, bm.mesh.quaternion, sun.position,
       bm.displayRadius * this.scaleFactor, latitudeDeg, longitudeDeg);
+  }
+
+  /**
+   * Fixed-pose diagnostic of the **unshadowed direct solar term** a surface
+   * receiver gets in the current lighting mode (#204): `sunIntensity × cos(incidence)`
+   * for a surface whose normal is the local radial, or for `normal` (body-fixed
+   * east/north/up components) to probe a slope. Zero past the terminator and in
+   * `flood`. Ambient and baked terms are not included, and neither is terrain
+   * occlusion (#205): a receiver facing the Sun can still be behind a ridge.
+   * The result does not depend on the camera or on what it can see.
+   */
+  directSolarTermAt(
+    bodyName: string, latitudeDeg: number, longitudeDeg: number,
+    normal: { east: number; north: number; up: number } = { east: 0, north: 0, up: 1 },
+  ): (SolarGeometry & { mode: 'natural' | 'shadow' | 'flood'; physical: boolean; directTerm: number }) | null {
+    const g = this.solarGeometryAt(bodyName, latitudeDeg, longitudeDeg);
+    if (!g) return null;
+    const el = g.elevationDeg * Math.PI / 180, az = g.azimuthDeg * Math.PI / 180;
+    const n = new THREE.Vector3(normal.east, normal.north, normal.up).normalize();
+    // Sun direction in the local east/north/up frame.
+    const cosEl = Math.cos(el);
+    const sunEnu = new THREE.Vector3(cosEl * Math.sin(az), cosEl * Math.cos(az), Math.sin(el));
+    const params = LIGHTING_MODES[this._lightingMode];
+    return { ...g, mode: this._lightingMode, physical: params.physical,
+      directTerm: params.sunIntensity * Math.max(0, n.dot(sunEnu)) };
   }
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */

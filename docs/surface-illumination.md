@@ -2,22 +2,32 @@
 
 In **natural** lighting mode, sunlight on streamed planetary terrain follows the
 simulated Sun direction and epoch. This page states what is physical, what is
-not, and how a catalog tells the renderer which imagery may be relit.
+not, how a catalog tells the renderer which imagery may be relit, and the
+evidence.
 
-Code: `packages/three/src/SurfaceIllumination.ts`. Tests:
-`SurfaceIllumination`, `TerrainIllumination`, `UniverseRenderer.illumination`.
+Code: `packages/three/src/SurfaceIllumination.ts`. Tests: `SurfaceIllumination`,
+`TerrainIllumination`, `UniverseRenderer.illumination` (vitest) and
+`scripts/test-surface-illumination-webgl.mjs` (real WebGL, `npm run test:illumination:webgl`).
 
-## Which scene lights which surface
+## How each surface path is lit
 
-| Surface | Scene | Lit by |
-| --- | --- | --- |
-| Fallback globe (`baseMap`) and body spheres | main | Sun `DirectionalLight` + ambient |
-| Streamed terrain / imagery-only ellipsoid / cube terrain (`TerrainManager`) | main | the same Sun light + ambient |
-| `surfaceTiles` mission-site photogrammetry | camera-relative `tileScene` | full ambient only, in every mode: `baked`, shown as-is |
+Traced from `UniverseRenderer`, `BodyMesh` and `TerrainManager`.
+
+| Surface path | Scene | Lit by | Provenance |
+| --- | --- | --- | --- |
+| Static globe (`baseMap`, normal/displacement/bump maps) | main | Sun `DirectionalLight` + ambient (Phong/Standard material) | n/a: a body texture, relit as before |
+| Imagery-only ellipsoid (`Globe.imagery`) | main | same light; tiles swapped to `MeshStandardMaterial` | `imagery[].illumination` |
+| Quantized-mesh / 3D Tiles terrain | main | same light | `imagery[].illumination`, else `terrain.illumination` |
+| Multi-imagery overlays | main | composited into `diffuseColor`, then the same light | stack combined conservatively |
+| Cube-sphere terrain and cube imagery | main | same light, physical normals | cube layers' `illumination` |
+| DSK / mesh surfaces | main | same light (`MeshStandardMaterial`) | n/a |
+| `surfaceTiles` mission-site photogrammetry | camera-relative `tileScene` | full ambient only, every mode | **baked**, always |
 
 `tileScene`'s ambient-only lighting is intentional and is **not** the streamed
-terrain path. Streamed terrain is never drawn in `tileScene`, so it cannot fall
-back to ambient-only brightness at the sphere/streamed switch.
+terrain path. `TerrainManager` tiles are never drawn in `tileScene`, so they
+cannot fall back to ambient-only brightness at the sphere/streamed switch:
+both are lit by the same main-scene light. Mixed terrain LOD changes geometry
+and imagery level only; every tile shares one program and one light.
 
 ## Sun direction
 
@@ -26,12 +36,22 @@ origin, which is the Sun direction *at the camera's origin body* only. It is now
 aimed at the streamed-surface body nearest the camera (within 20 radii), so its
 direction is the Sun direction at the surface being viewed. With no such body
 the origin aim is unchanged. A flagged shadow-caster still takes precedence.
+Bodies far from the viewed surface keep the shared light (a single light cannot
+be correct for two distant bodies at once).
 
 `UniverseRenderer.solarGeometryAt(body, latDeg, lonDeg)` returns the Sun's
 elevation, azimuth and `cos(incidence)` at a planetocentric point for the
-current epoch, for diagnostics and screenshot captions. It reads the body's
-current orientation each call, so rotation, a moving Sun and time seeks need no
-special handling.
+current epoch. It reads the body's orientation each call, so rotation, a moving
+Sun and time seeks need no special handling.
+
+`UniverseRenderer.directSolarTermAt(body, latDeg, lonDeg, normal?)` returns the
+**unshadowed direct term** a receiver gets in the current mode
+(`sunIntensity × cos(incidence)`), for a local radial or a slope given in
+east/north/up. It depends on the receiver and Sun only, never on the camera or
+on what the camera can see: a Sun disk hidden behind a ridge (#242) says nothing
+about a different, sunlit patch, and a receiver facing the Sun can still be
+behind a ridge (#205). #205 should attenuate this term, which is kept separate
+from ambient and baked terms, rather than darkening the composited image.
 
 ## Imagery illumination provenance
 
@@ -45,29 +65,61 @@ textures) declares what the pixels mean:
 | `unknown` (default) | nothing declared | **legacy**: relit as before, *not* asserted physically relightable |
 
 A mixed stack takes the most conservative value (baked > unknown >
-reflectance), over declared layers whether or not currently visible. An
-untextured quantized mesh is neutral albedo (`reflectance`). Only
-`reflectance` in `natural` mode is a physical claim.
+reflectance) over the layers **currently visible**: showing a baked overlay
+switches the whole surface to as-is, hiding it returns the surface to relit.
+An untextured quantized mesh is neutral albedo (`reflectance`). Only
+`reflectance` in `natural` mode is a physical claim. The viewer's Imagery
+control lists each layer's provenance.
 
+Provenance is a shared shader uniform (`uSurfaceAsIs`), so changing it is a
+uniform write: no recompile, no material churn, one program for all tiles.
 Baked imagery still composes with imagery overlays, eclipse shadow and aerial
 perspective; only the Sun, ambient and environment lighting are bypassed.
+
+No catalog in this repository declares `illumination` yet. Which products are
+reflectance and which are baked is a #123/#147 decision; until a catalog says,
+it stays `unknown` and renders exactly as before.
 
 ## Lighting modes
 
 `natural` is physical. `shadow` (brighter ambient, softer Sun) and `flood` (full
 ambient, no Sun) are **nonphysical visualization aids**. All three are one
 definition (`LIGHTING_MODES`) applied to every surface in the main scene.
-
-`directTerm` (`intensity × cos(incidence)`) is the unshadowed direct solar
-contribution. Terrain-cast shadows and horizon occlusion (#205) should attenuate
-this term; it is kept separate from ambient and baked terms.
+Baked photogrammetry in `tileScene` is mode-independent by design.
 
 ## Normals
 
 `TerrainManager.blendSphereNormals(…, 0.6)` rewrites only the `normal`
 attribute of quantized-mesh surfaces. Positions, picking, elevation sampling and
-slope data are untouched. The blend flattens real slope in the direct term;
-cube terrain keeps its physical normals instead.
+slope data are untouched (tested). The blend pulls every tile's normal toward
+the same absolute sphere normal, so a seam between independently decoded tiles
+shrinks to under half its source discontinuity (tested) at the cost of
+flattening real slope in the direct term. Cube terrain keeps its physical
+normals instead. Separate shading normals were not introduced; that is a
+follow-up if the flattening matters for a product.
+
+## Evidence
+
+Real-WebGL run (`scripts/test-surface-illumination-webgl.mjs`, software
+SwiftShader, so repeatable acceptance evidence and not a GPU benchmark),
+[`docs/validation/surface-illumination/result.json`](validation/surface-illumination/result.json):
+
+- Neutral-albedo sloped planes at 4 slopes × 3 Sun elevations match
+  `cos(incidence)` within 0.004 (normalized to normal incidence); the back-facing
+  and past-terminator cases are dark; facing > flat > away.
+- Illumination-baked imagery reads back exactly its own albedo on every slope,
+  Sun elevation and mode; relit imagery on the same back-facing slope is ~0.
+- `flood` is identical across slopes and elevations.
+- Relit, baked and flood tiles compile **one** program.
+- Frame cost: the hook measured 1.02 ms against 1.25 ms for a plain Standard
+  material per software-GL frame, i.e. no measurable cost above noise. This says
+  nothing about desktop GPU or mobile-class hardware, which was not available.
+
+![Ridge fixture under each lighting path](validation/surface-illumination/ridge-lighting-sheet.png)
+
+Rows are the lighting paths, columns Sun elevations 8°, 25°, 60° at azimuth 90°.
+The fixture is synthetic, so no mission epoch applies. The first row is the old
+ambient-only look.
 
 ## Not photometrically accurate
 
@@ -77,3 +129,6 @@ cube terrain keeps its physical normals instead.
 - No indirect bounce or Earthshine; `natural` ambient is a flat 3%.
 - Sun is a point direction; no penumbra on terrain.
 - `unknown` imagery is relit but may already contain shading.
+- Real-body Shackleton, equatorial Moon and Mars captures were not made here (no
+  catalog data or GPU in the authoring environment); the contract is verified on
+  synthetic fixtures and on the production shader path.

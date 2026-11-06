@@ -1,4 +1,5 @@
 import type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
+import { DEFAULT_IMAGERY_ILLUMINATION, type ImageryIllumination } from './SurfaceIllumination.js';
 
 /**
  * Streamed surface imagery as a Globe capability (#123).
@@ -58,6 +59,8 @@ export interface ImageryLayerInfo {
   resolutionMeters: number | null;
   /** The full product name, for details. Null when the catalog gives none. */
   description: string | null;
+  /** Whether the image may be relit by the simulated Sun (#204). `unknown` when the catalog declares nothing. */
+  illumination?: ImageryIllumination;
   /** Provider origin and explicit service identifiers; never a raw resource location. */
   source: ImageryLayerSource;
   /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
@@ -203,6 +206,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       failedTiles: 0,
       resolutionMeters: cfg.resolutionMeters ?? null,
       description: cfg.description ?? null,
+      illumination: cfg.illumination ?? DEFAULT_IMAGERY_ILLUMINATION,
       source: { type: cfg.type ?? 'xyz', endpoint: publicEndpoint(cfg.url), layer: cfg.layer ?? null, tileMatrixSet: cfg.tileMatrixSet ?? null },
       view: null,
     };

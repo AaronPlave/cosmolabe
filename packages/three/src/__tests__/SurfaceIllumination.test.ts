@@ -34,14 +34,17 @@ describe('imagery illumination provenance (#204)', () => {
     expect(isPhysicallyRelit('reflectance', 'flood')).toBe(false);
   });
 
-  it('injects the as-is display ahead of later injections and fails loudly if the hook moves', () => {
-    const shader = { fragmentShader: 'a\n#include <opaque_fragment>\nb' };
-    injectAsIsDisplayIntoShader(shader);
-    expect(shader.fragmentShader).toBe('a\noutgoingLight = diffuseColor.rgb;\n#include <opaque_fragment>\nb');
+  it('injects a uniform-driven as-is display ahead of later injections and fails loudly if the hook moves', () => {
+    const uniform = { value: 1 };
+    const shader = { fragmentShader: 'a\n#include <opaque_fragment>\nb', uniforms: {} as Record<string, unknown> };
+    injectAsIsDisplayIntoShader(shader, uniform);
+    expect(shader.uniforms.uSurfaceAsIs).toBe(uniform); // shared by reference: a write needs no recompile
+    expect(shader.fragmentShader).toContain('uniform float uSurfaceAsIs;');
+    expect(shader.fragmentShader).toContain('outgoingLight = mix(outgoingLight, diffuseColor.rgb, uSurfaceAsIs);');
     // A later injection that replaces the same token still lands after ours.
     const later = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= eclipse();\n#include <opaque_fragment>');
     expect(later.indexOf('diffuseColor.rgb')).toBeLessThan(later.indexOf('eclipse()'));
-    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' })).toThrow(/hook changed/);
+    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' }, uniform)).toThrow(/hook changed/);
   });
 });
 

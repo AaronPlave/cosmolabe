@@ -41,7 +41,7 @@ const compile = (mat: THREE.Material) => {
   (mat.onBeforeCompile as unknown as (s: typeof shader, r: unknown) => void)(shader, undefined);
   return shader;
 };
-const asIsLine = 'outgoingLight = diffuseColor.rgb;';
+const mixLine = 'outgoingLight = mix(outgoingLight, diffuseColor.rgb, uSurfaceAsIs);';
 
 describe('surface illumination provenance resolution', () => {
   it('defaults to the legacy `unknown` path when a catalog declares nothing', () => {
@@ -61,47 +61,63 @@ describe('surface illumination provenance resolution', () => {
   });
 });
 
+const uniformOf = (mat: THREE.Material) => compile(mat).uniforms.uSurfaceAsIs as { value: number };
+
 describe('tile material variants', () => {
-  it('relights reflectance and legacy unknown imagery with the Sun: no as-is hook', () => {
+  it('gives relit provenance a zero as-is uniform: reflectance and legacy unknown stay Sun-lit', () => {
     for (const illumination of ['reflectance', undefined] as const) {
       const { scene, mesh } = unlitTile();
       customize(make({ imagery: imagery(illumination) }), scene);
       const mat = mesh.material as THREE.MeshStandardMaterial;
       expect(mat.isMeshStandardMaterial).toBe(true);
-      expect(mat.customProgramCacheKey?.() ?? '').not.toContain('asis');
-      expect(mat.onBeforeCompile.toString()).not.toContain('diffuseColor');
+      expect(uniformOf(mat).value).toBe(0);
     }
   });
 
   it('shows illumination-baked unlit imagery as-is, so the Sun cannot double-light it', () => {
     const { scene, mesh } = unlitTile();
     customize(make({ imagery: imagery('baked') }), scene);
-    const mat = mesh.material as THREE.MeshStandardMaterial;
-    const shader = compile(mat);
-    expect(shader.fragmentShader).toContain(asIsLine);
-    expect(shader.fragmentShader.indexOf(asIsLine)).toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
-    expect(mat.customProgramCacheKey!()).toContain('_asis_v1');
+    const shader = compile(mesh.material as THREE.Material);
+    expect(shader.uniforms.uSurfaceAsIs).toEqual({ value: 1 });
+    expect(shader.fragmentShader).toContain(mixLine);
+    expect(shader.fragmentShader.indexOf(mixLine)).toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
   });
 
-  it('applies the same as-is path to tiles that arrive as lit PBR materials', () => {
+  it('applies the same path to tiles that arrive as lit PBR materials', () => {
     const { scene, mesh } = litTile();
     customize(make({ imagery: imagery('baked') }), scene);
-    expect(compile(mesh.material as THREE.Material).fragmentShader).toContain(asIsLine);
+    expect(uniformOf(mesh.material as THREE.Material).value).toBe(1);
     const { scene: relit, mesh: relitMesh } = litTile();
     customize(make({ imagery: imagery('reflectance') }), relit);
-    expect((relitMesh.material as THREE.MeshStandardMaterial).customProgramCacheKey?.() ?? '').not.toContain('asis');
+    expect(uniformOf(relitMesh.material as THREE.Material).value).toBe(0);
   });
 
-  it('keeps baked and relit programs distinct and adds only one variant per provenance', () => {
+  it('shares one program for relit and baked tiles: provenance is a uniform, not a variant', () => {
     const keys = new Set<string>();
     for (const illumination of ['baked', 'reflectance'] as const) {
       const { scene, mesh } = unlitTile();
-      const tm = make({ imagery: imagery(illumination) });
-      tm.enableAerialPerspective({} as never);
-      customize(tm, scene);
+      customize(make({ imagery: imagery(illumination) }), scene);
       keys.add((mesh.material as THREE.Material).customProgramCacheKey!());
     }
-    expect(keys.size).toBe(2);
+    expect(keys.size).toBe(1);
+  });
+
+  it('follows overlay visibility: hiding a baked overlay relights, showing it switches to as-is', () => {
+    const tm = make({ imagery: [imagery('reflectance'), { ...imagery('baked'), id: 'shaded', visible: false }] });
+    // Layer state only: no overlay plugin in this harness, so drive the same flag the control does.
+    const layers = (tm as unknown as { layers: { id: string; visible: boolean }[] }).layers;
+    const { scene, mesh } = unlitTile();
+    customize(tm, scene);
+    const uniform = uniformOf(mesh.material as THREE.Material);
+    expect(tm.surfaceIllumination).toBe('reflectance');
+    expect(uniform.value).toBe(0);
+    layers.find(l => l.id === 'shaded')!.visible = true;
+    (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
+    expect(tm.surfaceIllumination).toBe('baked');
+    expect(uniform.value).toBe(1); // same uniform object: no recompile
+    layers.find(l => l.id === 'shaded')!.visible = false;
+    (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
+    expect(uniform.value).toBe(0);
   });
 
   it('leaves tile geometry, positions and picking data untouched', () => {
@@ -109,5 +125,47 @@ describe('tile material variants', () => {
     const before = Array.from(mesh.geometry.getAttribute('position').array);
     customize(make({ imagery: imagery('baked') }), scene);
     expect(Array.from(mesh.geometry.getAttribute('position').array)).toEqual(before);
+  });
+});
+
+describe('shading normals across tiles (blendSphereNormals, #204)', () => {
+  // Two tiles meeting at one ECEF vertex, each carrying its own slope-derived
+  // normal there, as independently decoded quantized-mesh tiles do.
+  const R = 1737.4e3;
+  const shared = new THREE.Vector3(R, 0, 0);
+  const tile = (center: THREE.Vector3, normal: THREE.Vector3) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([...shared.clone().sub(center).toArray()], 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normal.clone().normalize().toArray(), 3));
+    const mesh = new THREE.Mesh(geometry);
+    mesh.position.copy(center);
+    return mesh;
+  };
+  const blend = (mesh: THREE.Mesh, factor: number) =>
+    (make() as unknown as { blendSphereNormals(m: THREE.Mesh, f: number): void }).blendSphereNormals(mesh, factor);
+  const normalAt = (mesh: THREE.Mesh) => new THREE.Vector3().fromBufferAttribute(mesh.geometry.getAttribute('normal') as THREE.BufferAttribute, 0);
+
+  it('shrinks the seam discontinuity and never moves a vertex', () => {
+    const a = tile(new THREE.Vector3(R, -500, 0), new THREE.Vector3(1, 0.5, 0)); // leans toward tile B
+    const b = tile(new THREE.Vector3(R, 500, 0), new THREE.Vector3(1, -0.5, 0));
+    const before = normalAt(a).angleTo(normalAt(b));
+    const positionsBefore = [a, b].map(m => Array.from(m.geometry.getAttribute('position').array));
+    blend(a, 0.6); blend(b, 0.6);
+    const after = normalAt(a).angleTo(normalAt(b));
+    expect(before).toBeGreaterThan(0.8);
+    expect(after).toBeLessThan(before * 0.5);
+    expect(after).toBeGreaterThanOrEqual(0);
+    expect([a, b].map(m => Array.from(m.geometry.getAttribute('position').array))).toEqual(positionsBefore);
+    // Both converge on the same sphere normal, so tiles agree wherever they share an absolute position.
+    expect(normalAt(a).distanceTo(shared.clone().normalize())).toBeLessThan(0.35);
+  });
+
+  it('is exactly continuous at blend factor 1 and exactly the source normal at 0', () => {
+    const a = tile(new THREE.Vector3(R, -500, 0), new THREE.Vector3(1, 0.5, 0));
+    const b = tile(new THREE.Vector3(R, 500, 0), new THREE.Vector3(1, -0.5, 0));
+    const untouched = normalAt(a).clone();
+    blend(a, 0); blend(b, 1);
+    expect(normalAt(a).distanceTo(untouched)).toBeLessThan(1e-6);
+    expect(normalAt(b).distanceTo(shared.clone().normalize())).toBeLessThan(1e-6);
   });
 });

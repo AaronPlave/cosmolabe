@@ -28,6 +28,8 @@ function harness(bodies: Record<string, ReturnType<typeof body>>, cameraPos: THR
     updateSunLightAndShadow(sun: unknown): void;
     setLightingMode(mode: 'natural' | 'shadow' | 'flood'): void;
     solarGeometryAt(name: string, lat: number, lon: number): { elevationDeg: number } | null;
+    directSolarTermAt(name: string, lat: number, lon: number, normal?: { east: number; north: number; up: number }):
+      { directTerm: number; mode: string; physical: boolean; cosIncidence: number } | null;
   };
   return { state, light, ambient, bodies };
 }
@@ -102,6 +104,39 @@ describe('UniverseRenderer physical Sun illumination (#204)', () => {
     moon.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
     expect(state.solarGeometryAt('Moon', 0, 0)!.elevationDeg).toBeCloseTo(0, 2);
     expect(state.solarGeometryAt('Nowhere', 0, 0)).toBeNull();
+  });
+
+  it('reports the unshadowed direct term at ridge-facing and ridge-away receivers, independent of the camera', () => {
+    // Moon-like body; observer at lat 0 lon 0 (up=+X, east=+Y).
+    const moon = body(0, 0, 0, 1737.4, true);
+    const el = 15 * Math.PI / 180;
+    const sunB = body(0, 0, 0, 695700, false);
+    // Observer at lat 0 lon 0 has up=+X: put the Sun at elevation 15° toward east (+Y).
+    sunB.position.set(AU * Math.sin(el), AU * Math.cos(el), 0);
+    const { state } = harness({ Sun: sunB, Moon: moon }, new THREE.Vector3(0, 0, 2000 * SCALE));
+    const facing = state.directSolarTermAt('Moon', 0, 0, { east: Math.sin(25 * Math.PI / 180), north: 0, up: Math.cos(25 * Math.PI / 180) })!;
+    const away = state.directSolarTermAt('Moon', 0, 0, { east: -Math.sin(25 * Math.PI / 180), north: 0, up: Math.cos(25 * Math.PI / 180) })!;
+    expect(facing.mode).toBe('natural');
+    expect(facing.physical).toBe(true);
+    expect(facing.directTerm).toBeCloseTo(2 * Math.cos((90 - 15 - 25) * Math.PI / 180), 4);
+    // The Sun is up globally (elevation +15°) but the receiver's own incidence is negative.
+    expect(state.solarGeometryAt('Moon', 0, 0)!.elevationDeg).toBeGreaterThan(14);
+    expect(away.directTerm).toBe(0);
+    // Camera position is irrelevant to the receiver term.
+    const other = harness({ Sun: sunB, Moon: moon }, new THREE.Vector3(5, 5, 5)).state;
+    expect(other.directSolarTermAt('Moon', 0, 0)!.directTerm).toBeCloseTo(state.directSolarTermAt('Moon', 0, 0)!.directTerm, 12);
+  });
+
+  it('has no direct term in flood and a nonphysical shadow mode', () => {
+    const moon = body(0, 0, 0, 1737.4, true);
+    const sunB = body(AU, 0, 0, 695700, false);
+    const { state } = harness({ Sun: sunB, Moon: moon }, new THREE.Vector3(0, 0, 2000 * SCALE));
+    state.setLightingMode('flood');
+    const flood = state.directSolarTermAt('Moon', 0, 0)!;
+    expect(flood.directTerm).toBe(0);
+    expect(flood.physical).toBe(false);
+    state.setLightingMode('shadow');
+    expect(state.directSolarTermAt('Moon', 0, 0)!.physical).toBe(false);
   });
 
   it('applies one lighting-mode definition: flood switches the Sun off, natural restores it', () => {

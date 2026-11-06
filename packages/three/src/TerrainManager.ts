@@ -34,7 +34,7 @@ export interface TerrainImageryConfig {
    *    asserted to be physically relightable.
    *
    *  A stack mixing sources takes the most conservative value (baked > unknown >
-   *  reflectance). Declared layers count whether or not currently visible. */
+   *  reflectance), over the layers currently visible. */
   illumination?: ImageryIllumination;
   /** Imagery source type. Default 'xyz'.
    *
@@ -670,8 +670,29 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
-  /** Resolved illumination provenance of this surface's imagery (#204). */
-  readonly surfaceIllumination: ImageryIllumination;
+  /** Declared illumination provenance by layer id, and the fallback with no imagery (#204). */
+  private readonly illuminationById = new Map<string, ImageryIllumination>();
+  private readonly noImageryIllumination: ImageryIllumination;
+  /** Shared by every tile program: 1 shows tiles as-is (baked), 0 relights them with the Sun. */
+  private readonly asIsUniform = { value: 0 };
+
+  /**
+   * Resolved illumination provenance of what is drawn now (#204): the visible
+   * imagery layers combined conservatively, so hiding a baked overlay returns
+   * the surface to relit, and showing it switches the whole surface to as-is.
+   */
+  get surfaceIllumination(): ImageryIllumination {
+    const layers = this.cubeImagery && this.layers.length ? this.cubeImagery.imageryLayers : this.layers;
+    const visible = layers.filter(l => l.visible);
+    return visible.length > 0
+      ? combineImageryIllumination(visible.map(l => this.illuminationById.get(l.id)))
+      : this.noImageryIllumination;
+  }
+
+  /** Push the current provenance to the tile shaders. No recompile: it is a uniform. */
+  private refreshIllumination(): void {
+    this.asIsUniform.value = surfaceLightingPath(this.surfaceIllumination) === 'as-is' ? 1 : 0;
+  }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -838,9 +859,7 @@ export class TerrainManager {
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
-    this.surfaceIllumination = imageryConfigs.length > 0
-      ? combineImageryIllumination(imageryConfigs.map(c => c.illumination))
-      : config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
+    this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
     if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
@@ -859,6 +878,8 @@ export class TerrainManager {
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
     }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
+    this.layers.forEach((l, i) => this.illuminationById.set(l.id, imageryConfigs[i].illumination ?? DEFAULT_IMAGERY_ILLUMINATION));
+    this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this._overlayResolution = config.overlayResolution ?? 256;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -1789,10 +1810,15 @@ export class TerrainManager {
    * base layer, an unknown id, or the same state).
    */
   setImageryLayerVisible(id: string, visible: boolean): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerVisible(id, visible);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerVisible(id, visible);
+      if (changed) this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
     layer.visible = visible;
+    this.refreshIllumination();
     if (visible) {
       layer.requests = 0;
       layer.failedTiles = 0;
@@ -2604,8 +2630,10 @@ export class TerrainManager {
     const su = this.shadowUniforms;
     const apu = this.aerialPerspectiveUniforms;
     // Illumination-baked imagery is displayed as-is, never relit by the Sun (#204).
-    const asIs = surfaceLightingPath(this.surfaceIllumination) === 'as-is';
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + (asIs ? '_asis_v1' : '');
+    // Always injected and driven by a shared uniform, so provenance changes
+    // (layer visibility) need no recompile and every tile shares one program.
+    const asIsUniform = this.asIsUniform;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v1';
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -2656,17 +2684,15 @@ export class TerrainManager {
         // perspective passes. Order matters — overlays should land before
         // shadow/atmosphere darken the result.
         const cacheKeySuffix = (hasOverlayWrap ? '_overlay_v1' : '');
-        if (su || apu || hasOverlayWrap || asIs) {
-          mat.onBeforeCompile = (shader, renderer) => {
-            if (hasOverlayWrap && overlayOnBeforeCompile) {
-              (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
-            }
-            if (asIs) injectAsIsDisplayIntoShader(shader);
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
-        }
+        mat.onBeforeCompile = (shader, renderer) => {
+          if (hasOverlayWrap && overlayOnBeforeCompile) {
+            (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
+          }
+          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
         // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
         // material a second time: the chain above already carries its shader.
         for (const sym of Object.getOwnPropertySymbols(basic)) {
@@ -2701,17 +2727,15 @@ export class TerrainManager {
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
-        if (su || apu || asIs) {
-          const prevOBC = (mat as any).onBeforeCompile;
-          (mat as any).onBeforeCompile = (shader: any) => {
-            prevOBC?.(shader);
-            if (asIs) injectAsIsDisplayIntoShader(shader);
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          (mat as any).customProgramCacheKey = () => cacheKey;
-          (mat as any).needsUpdate = true;
-        }
+        const prevOBC = (mat as any).onBeforeCompile;
+        (mat as any).onBeforeCompile = (shader: any) => {
+          prevOBC?.(shader);
+          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        (mat as any).customProgramCacheKey = () => cacheKey;
+        (mat as any).needsUpdate = true;
       }
     });
 

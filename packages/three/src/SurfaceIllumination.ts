@@ -236,14 +236,22 @@ export function solarGeometryAt(
  * eclipse shadow and atmosphere still compose over the displayed colour. The
  * material's `diffuseColor` includes imagery overlays, so layer composition
  * survives.
+ *
+ * `uSurfaceAsIs` is a shared uniform (1 = as-is, 0 = lit), so a change of
+ * provenance is a uniform write, not a recompile, and relit and as-is tiles
+ * share one program.
  */
-export function injectAsIsDisplayIntoShader(shader: { fragmentShader: string }): void {
+export function injectAsIsDisplayIntoShader(
+  shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
+  uniform: { value: number },
+): void {
   const hook = '#include <opaque_fragment>';
   if (!shader.fragmentShader.includes(hook)) {
     throw new Error('Baked-imagery display: Three.js opaque_fragment shader hook changed.');
   }
-  shader.fragmentShader = shader.fragmentShader.replace(
+  if (shader.uniforms) shader.uniforms.uSurfaceAsIs = uniform;
+  shader.fragmentShader = 'uniform float uSurfaceAsIs;\n' + shader.fragmentShader.replace(
     hook,
-    'outgoingLight = diffuseColor.rgb;\n' + hook,
+    'outgoingLight = mix(outgoingLight, diffuseColor.rgb, uSurfaceAsIs);\n' + hook,
   );
 }
