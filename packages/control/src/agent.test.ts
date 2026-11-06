@@ -757,6 +757,21 @@ describe('review regressions: camera and clock ownership', () => {
 });
 
 describe('agent tools: provider metadata boundary', () => {
+  it('delivers the surface-inventory limit to the provider when terrain is null', async () => {
+    const host = new MissionViewer();
+    (host as ViewerControl).getSurfaceData = () => ({ body: 'Titan', bodyFrame: null, surface: null,
+      terrain: null, cubeImagery: null, textures: [], imageryProducts: [], overlays: [] });
+    const tools = createAgentTools(host);
+    const transport = new MockTransport([
+      { stop: 'tool_use', content: [use('surface', 'getSurfaceData', { object: 'Titan' })] },
+      { stop: 'end', content: [{ type: 'text', text: 'Physical clearance profiles are unsupported; physical surface availability is not assessed.' }] },
+    ]);
+    await runAgent({ tools, transport, prompt: 'Show physical surface height in the timeline' });
+    const wire = JSON.stringify(transport.requests[1]);
+    expect(wire).toContain('availability is not assessed');
+    expect(wire).toContain('null terrain does not establish absent geometry');
+    tools.dispose();
+  });
   it.each(['https://internal.example/PATH_EMBEDDED_SECRET/catalog.json', '/Users/private/PATH_EMBEDDED_SECRET/catalog.json', 'relative/PATH_EMBEDDED_SECRET/catalog.json'])('withholds private metadata on every nested read and the next provider wire request: %s', async (identity) => {
     const host = new MissionViewer();
     const secret = 'PATH_EMBEDDED_SECRET';

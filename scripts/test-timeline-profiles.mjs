@@ -50,6 +50,29 @@ try {
   assert.equal(result.unsupported.ok, false);
   const row = page.locator('[data-tl-row="profile:philae-distance"]');
   assert.ok(await row.locator('path.trace').getAttribute('d'), 'native sampled trace exists');
+  // A narrow valid window between the coarse readback probes is not a gap.
+  await page.evaluate(() => {
+    const c = window.cosmo, def = c.getProfile('philae-distance').definition;
+    const start = c.getTime();
+    c.upsertProfile({ ...def, profile: { ...def.profile, window: { start: start + 20, end: start + 50 } } });
+  });
+  await page.waitForFunction(() => window.cosmo.getProfile('philae-distance').timeline.traceVisible);
+  const narrow = await page.evaluate(() => window.cosmo.getProfile('philae-distance'));
+  assert.equal(narrow.status, 'available');
+  assert.equal(narrow.timeline.missing, 0, 'clipped native samples are not missing trajectory data');
+  // Disabled profiles retain ordinary native edit/remove/show controls.
+  await page.evaluate(() => {
+    const c = window.cosmo, def = c.getProfile('philae-distance').definition;
+    c.upsertProfile({ ...def, enabled: false });
+  });
+  await row.getByRole('button', { name: 'Show profile', exact: true }).waitFor();
+  assert.equal(await row.locator('path.trace').count(), 0);
+  await row.locator('.tl-label-main').click();
+  await page.locator('[data-slot=popover-content] select').first().selectOption('range');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await row.getByRole('button', { name: 'Show profile', exact: true }).click();
+  await page.waitForFunction(() => window.cosmo.getProfile('philae-distance').timeline.traceVisible);
+  assert.equal(await page.evaluate(() => window.cosmo.getProfile('philae-distance').definition.enabled), true);
   await row.getByRole('button', { name: 'Hide profile', exact: true }).click();
   await page.waitForFunction(() => window.cosmo.getProfile('philae-distance').definition.visible === false);
   await row.getByRole('button', { name: 'Show profile', exact: true }).click();
@@ -57,6 +80,7 @@ try {
   await page.locator('[data-slot=popover-content] select').first().selectOption('range-rate');
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   assert.equal(await page.evaluate(() => window.cosmo.getProfile('philae-distance').definition.profile.quantity), 'range-rate');
+  await page.evaluate(() => { const c = window.cosmo; c.upsertProfile({ ...c.getProfile('philae-distance').definition, enabled: false }); });
   await row.getByRole('button', { name: 'Remove profile', exact: true }).click();
   assert.equal(await page.evaluate(() => window.cosmo.listProfiles().total), 0);
   // Native Add uses the same semantic adapter and is visible to a host read.

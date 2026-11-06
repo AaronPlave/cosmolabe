@@ -1877,6 +1877,24 @@ describe('shared continuous timeline profiles (#359)', () => {
     expect(c.removeProfile(def.id)).toBe(true);
     expect(c.getProfile(def.id).status).toBe('missing-profile');
   });
+  it('probes narrow intersecting windows without counting intentional clipping as missing data', async () => {
+    const c = profileScene();
+    c.upsertProfile({ ...def, profile: { ...def.profile, window: { start: 4.001, end: 4.002 } } });
+    // No original full-window 65-probe instant lands in this valid interval.
+    expect(c.getProfile(def.id).status).toBe('partial'); // no mounted native row yet
+    expect(c.getProfile(def.id).limitations.join(' ')).not.toContain('probes are missing');
+    const { observeProfileRow, profileSignature } = await import('../profile-control');
+    const off = observeProfileRow(def.id, { signature: profileSignature(def.id), samples: 1000, missing: 0, traceVisible: true });
+    expect(c.getProfile(def.id).status).toBe('available');
+    off();
+    viewerState.getSceneUniverse()!.absolutePositionOf = () => [NaN, 0, 0];
+    expect(c.getProfile(def.id).status).toBe('unavailable');
+    vs.scrubMin = 5; vs.scrubMax = 10;
+    const outside = c.getProfile(def.id);
+    expect(outside.status).toBe('partial');
+    expect(outside.limitations.join(' ')).toContain('does not overlap');
+    expect(outside.limitations.join(' ')).not.toContain('No available position samples');
+  });
   it('rejects unsupported clearance, unknown quantities, missing pair and unsupported sampling overrides without mutation', () => {
     const c = profileScene();
     for (const profile of [{ quantity: 'physical-clearance', bodies: def.profile.bodies }, { quantity: 'range' }, { quantity: 'range', bodies: { observer: 'Cassini', target: 'missing' } }, { ...def.profile, step: 10 }, { ...def.profile, window: { start: 10, end: 0 } }]) {

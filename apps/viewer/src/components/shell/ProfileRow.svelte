@@ -66,6 +66,11 @@
   const tall = $derived(expanded);
   const inspectedRow = $derived(timeline.hoverRow === rowId);
 
+  const shown = $derived(item.enabled && item.visible);
+  function toggleVisible() {
+    profileControl.upsertProfile({ id: item.id, profile: item.profile, enabled: true, visible: !shown });
+  }
+
   const spec = $derived(profileQuantity(item.profile.quantity));
 
   const bodies = $derived.by((): ProfileBodies | null => {
@@ -90,7 +95,7 @@
     void vs.sceneLoaded;
     void vs.kernelRevision;
     const pos = positionOf();
-    if (!item.visible || !spec || !bodies || !pos || !(axisWidth > 0)) return null;
+    if (!shown || !spec || !bodies || !pos || !(axisWidth > 0)) return null;
     return sampleProfile(
       spec, bodies, { start: vs.scrubMin, end: vs.scrubMax },
       sampleCountFor(axisWidth), pos, item.profile.window,
@@ -106,8 +111,8 @@
   const hasData = $derived(!!series && series.values.some((v) => v != null));
   $effect(() => observeProfileRow(item.id, {
     signature: profileSignature(item.id), samples: series?.values.length ?? 0,
-    missing: series?.values.filter(v => v === null).length ?? 0,
-    traceVisible: item.visible && hasData && axisWidth > 0 && path.includes('L'),
+    missing: series?.values.filter((v, i) => v === null && (!item.profile.window || series!.ets[i] >= item.profile.window.start && series!.ets[i] <= item.profile.window.end)).length ?? 0,
+    traceVisible: shown && hasData && axisWidth > 0 && path.includes('L'),
   }));
   const grid = $derived(tall && series && hasData ? gridValues(series) : []);
 
@@ -116,7 +121,7 @@
   const ghost = $derived(ghostEt());
   const readout = $derived.by(() => {
     const pos = positionOf();
-    if (!item.visible || !spec || !bodies || !pos) return null;
+    if (!shown || !spec || !bodies || !pos) return null;
     return quantityAt(spec.id, bodies, ghost ?? vs.et, pos);
   });
 
@@ -155,11 +160,11 @@
   class="tl-row"
   class:stacked={!wide}
   class:boundary
-  class:hidden-row={!item.visible}
+  class:hidden-row={!shown}
   class:inspected={inspectedRow}
   data-tl-row={rowId}
   data-tl-no-axis={!wide || undefined}
-  style="height: {item.visible ? H : TL_HEAD_PX}px"
+  style="height: {shown ? H : TL_HEAD_PX}px"
 >
   <!-- One grammar for every row: the label opens its configuration; expand,
        the eye and the trash sit beside it. Units live with the value. -->
@@ -176,8 +181,8 @@
             initial={item.profile}
             submitLabel="Apply"
             onSubmit={apply}
-            visible={item.visible}
-            onToggleVisible={() => { profileControl.upsertProfile({ id: item.id, profile: item.profile, visible: !item.visible }); configOpen = false; }}
+            visible={shown}
+            onToggleVisible={() => { toggleVisible(); configOpen = false; }}
             onMoveUp={first ? undefined : () => moveConfiguredProfile(item.id, -1)}
             onMoveDown={last ? undefined : () => moveConfiguredProfile(item.id, 1)}
             onRemove={() => { configOpen = false; profileControl.removeProfile(item.id); }}
@@ -187,7 +192,7 @@
       </Popover.Portal>
     </Popover.Root>
     <span class="tl-label-controls">
-      {#if item.visible}
+      {#if shown}
         <button
           class="tl-icon-btn"
           onclick={() => toggleRowExpanded(item.id)}
@@ -200,11 +205,11 @@
       {/if}
       <button
         class="tl-icon-btn"
-        onclick={() => profileControl.upsertProfile({ id: item.id, profile: item.profile, visible: !item.visible })}
-        aria-label={item.visible ? 'Hide profile' : 'Show profile'}
-        title={item.visible ? 'Hide profile' : 'Show profile'}
+        onclick={toggleVisible}
+        aria-label={shown ? 'Hide profile' : 'Show profile'}
+        title={shown ? 'Hide profile' : 'Show profile'}
       >
-        {#if item.visible}<Eye size={icon} />{:else}<EyeOff size={icon} />{/if}
+        {#if shown}<Eye size={icon} />{:else}<EyeOff size={icon} />{/if}
       </button>
       <button
         class="tl-icon-btn danger"
@@ -217,7 +222,7 @@
     </span>
   </div>
 
-  {#if item.visible}
+  {#if shown}
     <div
       class="tl-plot plot"
       data-tl-plot

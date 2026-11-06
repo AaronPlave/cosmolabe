@@ -425,10 +425,10 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   },
   {
     name: 'getSurfaceData',
-    contract: { namespace: 'surface', writes: [], guide: 'Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
+    contract: { namespace: 'surface', writes: [], guide: 'This inventory does not assess DSK or irregular mesh availability: terrain:null never establishes no physical surface model. Physical-surface clearance timeline profiles are unsupported; say that capability limit without inferring absent geometry. Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
     effect: 'read',
     method: 'getSurfaceData',
-    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
+    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Does not assess DSK/irregular mesh availability; terrain:null does not mean no physical surface model. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -810,7 +810,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const name = input.object as string;
     const data = host.getSurfaceData!(name);
     if (!data) return { ok: false, code: 'refused', error: `surface data unavailable for ${JSON.stringify(name)}` };
-    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data: metadata.surface(data) };
+    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null. Physical-surface/DSK/irregular mesh availability is not assessed by this inventory; null terrain does not establish absent geometry.`, data: metadata.surface(data) };
   }
 
   function getImagery(input: Input): AgentToolResult {

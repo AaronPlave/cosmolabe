@@ -47,11 +47,14 @@ export function getProfile(id: string, opts?: { scene?: number }): ScriptProfile
   const supported = !!spec && !!bodies.observer && !!bodies.target && bodies.observer !== bodies.target
     && !!universe.getBody(bodies.observer) && !!universe.getBody(bodies.target)
     && (spec.id !== 'phase-angle' || !!universe.getBody(bodies.illuminator || 'Sun'));
-  const values = supported ? sampleProfile(spec!, { observer: bodies.observer!, target: bodies.target!, illuminator: bodies.illuminator }, timeline.window, 65,
+  // Probe only the intersection: clipping is intentional, not missing ephemeris.
+  const window = { start: Math.max(timeline.window.start, item.profile.window?.start ?? -Infinity), end: Math.min(timeline.window.end, item.profile.window?.end ?? Infinity) };
+  const intersects = window.end > window.start;
+  const values = supported && intersects ? sampleProfile(spec!, { observer: bodies.observer!, target: bodies.target!, illuminator: bodies.illuminator }, window, 65,
     (body, et) => universe.absolutePositionOf(body, et), item.profile.window).values : [];
   const valid = values.filter(v => v !== null).length;
   const observed = rows.get(id);
-  if (item.enabled && observed?.signature === profileSignature(id)) {
+  if (observed?.signature === profileSignature(id)) {
     timeline.present = true;
     timeline.traceVisible = observed.traceVisible;
     timeline.samples = observed.samples;
@@ -59,12 +62,13 @@ export function getProfile(id: string, opts?: { scene?: number }): ScriptProfile
   }
   const notes = [...limitations];
   if (!supported) notes.push('Unsupported quantity or missing/distinct scene participants.');
-  if (!valid) notes.push('No available position samples in the bounded display probes of the visible timeline/profile window.');
+  if (!intersects) notes.push('Profile window does not overlap the visible timeline window; no position coverage was assessed.');
+  if (intersects && !valid) notes.push('No available position samples in the bounded display probes of the visible timeline/profile window.');
   if (timeline.missing) notes.push(`${timeline.missing} native timeline samples are missing; the trace contains gaps.`);
   if (values.length > valid) notes.push(`${values.length - valid} of ${values.length} bounded display probes are missing; probes do not certify continuous coverage.`);
   if (!timeline.present) notes.push('No current native timeline row observation; configured state alone does not prove timeline presence.');
   return { scene, definition: def, resolved, timeline,
-    status: !supported || !valid && !timeline.traceVisible ? 'unavailable' : values.length > valid || timeline.missing > 0 || item.enabled && (!timeline.present || item.visible && !timeline.traceVisible) ? 'partial' : 'available', limitations: notes };
+    status: !supported || intersects && !valid && !timeline.traceVisible ? 'unavailable' : !intersects || values.length > valid || timeline.missing > 0 || item.enabled && (!timeline.present || item.visible && !timeline.traceVisible) ? 'partial' : 'available', limitations: notes };
 }
 export const profileControl: Pick<Required<ViewerControl>, 'getProfileOptions' | 'listProfiles' | 'getProfile' | 'upsertProfile' | 'removeProfile'> = {
   getProfileOptions: () => ({ quantities: PROFILE_QUANTITIES.map(({ id, label, unit }) => ({ id, label, unit })), window: { start: vs.scrubBaseMin, end: vs.scrubBaseMax }, limitations: [...limitations] }),

@@ -88,6 +88,7 @@ try {
         if (scenario === 'clearance' && index === 0) {
           assert.equal(result.profiles.length, 0, 'Physical clearance must not silently become center distance');
           assert.match(result.reply, /surface|clearance|height/i);
+          assert.match(result.reply, /can(?:not|[’']t) show|unsupported|not (?:supported|available)|only (?:offer|support)/i, 'Explain the timeline capability limit');
         } else {
           assert.equal(result.profiles.length, 1, 'Reuse the same native profile on a correction');
           const profile = result.profiles[0];
