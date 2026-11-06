@@ -16,6 +16,8 @@ This is tiled raster imagery with a date. It is not a terrain streamer, a GIS pa
 | `follow-simulation` | the simulation's UTC day | Throttled to the source cadence (below). |
 | `latest` | the newest day the provider declares | `wmts-capabilities` sources only: it reads the WMTS time dimension, and without one shows nothing rather than guessing from the clock. |
 
+`wmts-capabilities` here means a catalog-named single layer: the document configures that layer's tile grid and supplies its time dimension. It is not source or layer discovery, and layers are not added or removed at runtime; that is a separate workflow.
+
 The legacy `time` field is a fixed date in the same system, so there is one date substitution: a `/default/YYYY-MM-DD/` URL segment or a WMTS `{Time}` dimension. A URL that carries neither logs a warning, because the label would otherwise name a day the pixels are not.
 
 Source time is resolved by pure functions (`resolveImageryTime`, `ImageryTimeFollower` in `packages/three/src/ImageryTime.ts`). A day resolves to one of: *exact*, *nearest* (only with `outOfRange: "nearest"` in follow mode; the offset is labelled), or nothing, because it is *before the source's first day*, *after its last*, *later than the clock allows it to have been published* (`today − latencyDays`, whatever the declared range says), *in a gap the provider declares* (*no data*), or *invalid*.
@@ -26,9 +28,12 @@ Source time is resolved by pure functions (`resolveImageryTime`, `ImageryTimeFol
 * **Throttled following.** A new day must hold 0.4 s, changes are at least 1 s apart, and one is forced after 3 s of continuous change. Fast playback or scrubbing requests a few days, not one per frame. Explicit choices (a typed date, a policy switch, re-enabling the layer) apply at once.
 * **Bounded work.** One overlay per layer at a time; a hidden layer requests nothing and does not follow, and comes back showing the current day. Terrain geometry is never touched: it is the existing overlay path (enable, opacity, order unchanged).
 * **Missing days.** Outside the range, or not yet published: the overlay is removed and nothing is requested (badges *Before data*, *After data*, *Not published*). A day inside the range whose tiles fail (404, CORS, rate limit): the layers beneath show through, with the layer's usual *Gaps* / *No imagery* state. No other day is fetched to stand in.
+* **Not in snapshots.** A view snapshot / permalink records each imagery layer's visibility, opacity and order, but **not** its date policy or fixed day, so replaying one does not restore a chosen date (a following layer simply follows the replayed clock). Capturing it needs a script verb and snapshot field, which this PR does not add.
 * **Time scripts and readiness.** `getImagery` reports `time` (policy, `date`, `requestedDate`, `state`, `offsetDays`, range, illumination) per dated layer, and `waitUntilReady` for an imagery layer is *partial* while a newer day waits out the throttle and *unavailable* while no day is shown.
 
-The Imagery section shows `Acquired <date> · follows time | fixed | latest` under the layer name, and, in the expander, the date mode, a date picker for `fixed`, cadence, available range (and whether the provider declared it), the number of day changes, and: *acquisition date, not the simulation epoch; lit as acquired, not relit to the simulated Sun*. Daily true-colour imagery has the Sun of its acquisition baked in; it is not physically relit, and coordination with the light/provenance contract (#204) should carry that qualification if the labels change.
+The Imagery section shows `Acquired <date> · follows time | fixed | latest` under the layer name, and, in the expander, the date mode, a date picker for `fixed`, cadence, available range (and whether the provider declared it), the number of day changes, and: *acquisition date, not the simulation epoch; sunlight is baked in as acquired, and the viewer also shades the globe by the simulated Sun*.
+
+**Lighting is not reconciled.** Daily true-colour imagery has the Sun of its acquisition baked into its pixels. The renderer does not remove it: imagery tiles are shaded by the simulated Sun like any other surface, so the two lightings stack and the day/night boundary will not match the image (`illumination: "baked"` records this; it does not change rendering). Making baked and reflectance imagery render differently belongs with the light/provenance contract (#204, #365).
 
 ## Earth pilot: `test-catalogs/earth-gibs-daily`
 

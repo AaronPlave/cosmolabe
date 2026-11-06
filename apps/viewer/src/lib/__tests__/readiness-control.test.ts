@@ -60,11 +60,14 @@ describe('explicit readiness predicates', () => {
   it('is not ready for a dated layer while another day is on screen or no day is shown', () => {
     const request = { kind: 'imagery' as const, body: 'Mars', layer: 'base' };
     const layer = bm.imageryLayers[0] as unknown as { temporal?: Record<string, unknown> };
-    layer.temporal = { date: '2024-06-01', pendingDate: null, requestedDate: '2024-06-01', state: 'exact' };
+    layer.temporal = { date: '2024-06-01', pending: false, pendingDate: null, requestedDate: '2024-06-01', state: 'exact' };
     expect(getReadiness(request).status).toBe('ready');
-    layer.temporal = { date: '2024-06-01', pendingDate: '2024-06-02', requestedDate: '2024-06-02', state: 'exact' };
+    layer.temporal = { date: '2024-06-01', pending: true, pendingDate: '2024-06-02', requestedDate: '2024-06-02', state: 'exact' };
     expect(getReadiness(request)).toMatchObject({ status: 'partial', missing: [expect.stringContaining('2024-06-02')] });
-    layer.temporal = { date: null, pendingDate: null, requestedDate: '1990-01-01', state: 'before-range' };
+    // A seek to a missing day: the old day is still on screen and no day is pending.
+    layer.temporal = { date: '2024-06-01', pending: true, pendingDate: null, requestedDate: '1990-01-01', state: 'exact' };
+    expect(getReadiness(request)).toMatchObject({ status: 'partial', missing: [expect.stringContaining('no imagery')] });
+    layer.temporal = { date: null, pending: false, pendingDate: null, requestedDate: '1990-01-01', state: 'before-range' };
     expect(getReadiness(request)).toMatchObject({ status: 'unavailable', missing: [expect.stringContaining('before-range')] });
   });
   it('never promotes resident counters across streamed/static/preloading/waiting/fallback transitions', () => {

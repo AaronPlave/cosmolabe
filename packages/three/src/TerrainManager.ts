@@ -392,8 +392,9 @@ function resolveTime(spec: string | undefined): string | undefined {
  *  `default`. Match that ISO-date segment between style and TMS and swap
  *  it for the user-requested date. Services with a custom style or a
  *  non-date time format fall through unchanged. */
+const DATED_SEGMENT = /\/default\/\d{4}-\d{2}-\d{2}\//;
 function timeSubstitutedURL(url: string, resolvedTime: string): string {
-  return url.replace(/\/default\/\d{4}-\d{2}-\d{2}\//, `/default/${resolvedTime}/`);
+  return url.replace(DATED_SEGMENT, `/default/${resolvedTime}/`);
 }
 
 /** The capabilities layer a source config names (the first when it names none). */
@@ -1941,6 +1942,7 @@ export class TerrainManager {
       state: cur?.state ?? 'invalid',
       offsetDays: cur?.offsetDays ?? 0,
       range: { ...rt.availability, source: rt.rangeSource },
+      pending: rt.follower.pending,
       pendingDate: rt.follower.pendingDate,
       switches: rt.switches,
     };
@@ -1955,7 +1957,8 @@ export class TerrainManager {
   updateImageryTime(simulationMs: number, now = performance.now()): void {
     this.simulationMs = Number.isFinite(simulationMs) ? simulationMs : null;
     for (const [id, rt] of this.temporal) {
-      if (rt.base || rt.policy === 'fixed') continue;
+      // A hidden layer does not follow; re-enabling resolves the current day at once.
+      if (rt.base || rt.policy === 'fixed' || !this.layer(id)?.visible) continue;
       if (rt.follower.offer(this.resolveFor(rt), now)) this.applyTemporalCommit(id);
     }
   }
@@ -2181,8 +2184,8 @@ export class TerrainManager {
         let out = inner ? inner(url) : url;
         if (date && out !== SKIP_TILE_DATA_URL) {
           out = timeSubstitutedURL(out, date);
-          // A URL that never carried the day would show one unlabelled image under a dated name.
-          if (!out.includes(date)) this.warnOnce(`imagery-time-unapplied:${id}`, `[Cosmolabe:Imagery] Layer "${layer.name}" has a date but its tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date cannot take effect.`);
+          // Never fetch what the label cannot vouch for: a URL that did not take the day is skipped, not shown as that day.
+          if (!out.includes(date)) return SKIP_TILE_DATA_URL;
         }
         // Count real requests, not the skip tiles outside a layer's coverage.
         if (out !== SKIP_TILE_DATA_URL) layer.requests++;
@@ -2205,6 +2208,13 @@ export class TerrainManager {
         });
       }
       await o.init();
+      // Fail closed: a dated layer whose URL cannot carry the date would show one unlabelled image under a dated name.
+      if (date) {
+        const template = (overlay as unknown as { imageSource?: { url?: string } }).imageSource?.url ?? cfg.url;
+        if (!template.includes(date) && !DATED_SEGMENT.test(template)) {
+          throw new Error(`the tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date ${date} cannot take effect`);
+        }
+      }
       this.setupFailed.delete(id);
       return { id, overlay, generation };
     } catch (err) {

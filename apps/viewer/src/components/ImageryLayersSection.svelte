@@ -281,7 +281,7 @@
           <div class="ui-meta layer-indent layer-provenance">{provenance(layer)}</div>
           {#if layer.temporal}
             <!-- The acquisition day is the one fact that says which epoch the pixels depict, so it is never truncated. -->
-            <div class="ui-meta layer-indent layer-day" class:muted={layer.temporal.date === null}>{timeSummary(layer.temporal)}</div>
+            <div class="ui-meta layer-indent layer-day" class:muted={layer.temporal.date === null || !layer.visible}>{layer.visible ? timeSummary(layer.temporal) : 'Off'}</div>
           {/if}
           {#if isOpen}
             <div class="layer-indent layer-details ui-meta">
@@ -342,13 +342,13 @@
                     </label>
                   {/if}
                   <div class="text-text-secondary">
-                    {#if t.date}Showing the daily image acquired {t.date} (UTC){:else}Showing no imagery{/if}{#if t.pendingDate}; loading {t.pendingDate}…{/if}
+                    {#if !layer.visible}Layer is off; it does not follow time{:else if t.date}Showing the daily image acquired {t.date} (UTC){:else}Showing no imagery{/if}{#if t.pending}; {t.pendingDate ? `loading ${t.pendingDate}` : 'about to show nothing'}…{/if}
                   </div>
                   {#if t.policy === 'follow-simulation' && t.requestedDate && t.requestedDate !== t.date}
                     <div class="text-text-secondary">Simulation day {t.requestedDate}{#if t.date}; nearest available day shown{/if}</div>
                   {/if}
                   <div class="text-text-secondary">
-                    {t.semantics === 'acquisition' ? 'Acquisition' : 'Valid'} date, not the simulation epoch. {t.illumination === 'baked' ? 'Lit as acquired; it is not relit to the simulated Sun.' : 'Reflectance; lighting follows the simulated Sun.'}
+                    {t.semantics === 'acquisition' ? 'Acquisition' : 'Valid'} date, not the simulation epoch. {t.illumination === 'baked' ? 'Sunlight is baked into the image as acquired. The viewer also shades the globe by the simulated Sun, so the day/night boundary will not match.' : 'Reflectance; lighting follows the simulated Sun.'}
                   </div>
                 </div>
               {/if}

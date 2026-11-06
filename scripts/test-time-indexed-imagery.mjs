@@ -252,7 +252,7 @@ try {
     acquiredLabel: /Acquired 2024-06-01/.test(section),
     dailyCadence: /Daily \(UTC\)/.test(section),
     notSimulationEpoch: /not the simulation epoch/.test(section),
-    bakedLighting: /not relit to the simulated Sun/.test(section),
+    bakedLighting: /Sunlight is baked into the image/.test(section),
   };
   assert.ok(Object.values(result.checks.section).every(Boolean), `Imagery section should state the acquisition date, cadence and lighting: ${JSON.stringify(result.checks.section)}`);
   // Choosing a date from the section itself.

@@ -42,7 +42,7 @@ export type ImageryOutOfRange = 'hide' | 'nearest';
 
 /**
  * How the image's lighting relates to the simulated Sun. Daily true-colour
- * products have the *acquisition-time* Sun baked in; they cannot be relit.
+ * products have the *acquisition-time* Sun baked in. The renderer does not remove it: imagery tiles are still shaded by the simulated Sun, so the two lightings stack.
  */
 export type ImageryIllumination = 'baked' | 'reflectance';
 
@@ -243,7 +243,9 @@ export interface ImageryLayerTime {
   offsetDays: number;
   /** What the source has. `source` says who declared it: the catalog, the provider's capabilities, or neither (the clock bounds the end). */
   range: ImageryAvailability & { source: 'catalog' | 'provider' | 'clock' };
-  /** A newer day waiting out the throttle; null when the displayed day is current. */
+  /** A different resolution (a newer day, or none) is waiting out the throttle, so what is on screen is about to change. */
+  pending: boolean;
+  /** The day it will change to; null when `pending` is false or the change is to showing nothing. */
   pendingDate: string | null;
   /** Times the layer's source has been replaced by a different day. */
   switches: number;

@@ -1,5 +1,5 @@
 # Time-indexed imagery pilot (#214): one MODIS daily composite per UTC day, following simulation time.
-# Imagery shows the acquisition day, not the simulation epoch; it is lit as acquired, not relit to the simulated Sun.
+# Imagery shows the acquisition day, not the simulation epoch; its sunlight is baked in as acquired, and the globe is also shaded by the simulated Sun.
 # Needs network access to gibs.earthdata.nasa.gov (the viewer shows "No imagery" for a day the service lacks).
 setPlaying off
 viewpoint "Earth from orbit"

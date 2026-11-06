@@ -329,7 +329,7 @@ A layer may depict one **observation (acquisition) day**, which is not the simul
 | `latencyDays` | Days between acquisition and publication; the newest day shown is today (UTC) minus this. Default 0 |
 | `outOfRange` | For `follow-simulation` outside `[start, end]`: `hide` (default; the layers beneath show) or `nearest` (the closest available day, labelled as such). An explicit `fixed` date is never swapped |
 | `semantics`, `cadence` | `acquisition` and `day`, the only values so far |
-| `illumination` | `baked` (default): lit as acquired, not relit to the simulated Sun; `reflectance` when the product has no baked lighting |
+| `illumination` | `baked` (default): the image carries its acquisition-time Sun, and the viewer still shades the globe by the simulated Sun, so the two stack (nothing un-lights the image); `reflectance` when the product has no baked lighting |
 
 Following is throttled to the source cadence: a new day must hold 0.4 s, no two changes are less than 1 s apart, and one is forced after 3 s of continuous change, so fast playback or scrubbing asks for a handful of days, not one per frame. A day change replaces the layer's overlay: the old day's fetches are aborted and its textures released before the new day's loads, so two days never share a layer. The base layer can only be `fixed` (put a daily layer above a static backdrop). `Imagery` shows the acquisition day under the layer's name, with date mode, a date picker, cadence, range and the lighting note in the expander, and badges for *Before data*, *After data*, *No data*, *Not published*, *Nearest day* and *No imagery*. Full notes and the Earth GIBS pilot: [time-indexed imagery](time-indexed-imagery.md).
 

@@ -25,7 +25,7 @@ const layerOf = (tm: TerrainManager, id: string) => tm.imageryLayers.find((l) =>
 
 describe('time-indexed imagery layers (#214)', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] });
     vi.setSystemTime(at('2026-11-06T12:00:00Z'));
   });
   afterEach(() => { vi.useRealTimers(); });
@@ -90,14 +90,14 @@ describe('time-indexed imagery layers (#214)', () => {
     tm.updateImageryTime(at('2024-03-10T00:00:00Z'), 1100);
     // Debounced: the old day stays until the new one has held.
     expect(internals(tm).activeOverlays.get('daily')).toBe(first);
-    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2024-03-09', pendingDate: '2024-03-10' });
+    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2024-03-09', pending: true, pendingDate: '2024-03-10' });
     tm.updateImageryTime(at('2024-03-10T00:00:00Z'), 1600);
     await flush();
 
     const second = internals(tm).activeOverlays.get('daily')!;
     expect(second).not.toBe(first);
     expect(plugin(tm).overlays).toHaveLength(1);
-    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2024-03-10', pendingDate: null, switches: 2 });
+    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2024-03-10', pending: false, pendingDate: null, switches: 2 });
     // The retired overlay can no longer issue a request for its day; the new one asks for the new day only.
     expect(first.preprocessURL(TILE)).toMatch(/^data:image\/png/);
     expect(second.preprocessURL(TILE)).toContain('/default/2024-03-10/');
@@ -266,6 +266,8 @@ describe('time-indexed imagery layers (#214)', () => {
     tm.updateImageryTime(at('2024-08-01T00:00:00Z'), 60_000);
     await flush();
     expect(plugin(tm).overlays).toHaveLength(0);
+    // Hidden means not following: no commit, no counters, no resolved day.
+    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: null, switches: 0 });
 
     expect(tm.setImageryLayerVisible('daily', true)).toBe(true);
     await flush();
@@ -273,6 +275,22 @@ describe('time-indexed imagery layers (#214)', () => {
     // Switching off removes the overlay; no work remains for any day.
     expect(tm.setImageryLayerVisible('daily', false)).toBe(true);
     expect(plugin(tm).overlays).toHaveLength(0);
+    tm.dispose();
+  });
+
+  it('stops following when hidden after following, and resumes at the current day', async () => {
+    const tm = make({ policy: 'follow-simulation' });
+    tm.updateImageryTime(at('2024-03-09T00:00:00Z'), 0);
+    await flush();
+    tm.setImageryLayerVisible('daily', false);
+    const switches = layerOf(tm, 'daily').temporal!.switches;
+    for (let t = 5000; t < 30_000; t += 1000) tm.updateImageryTime(at('2024-03-09T00:00:00Z') + t * 86_400_000 / 100, t);
+    expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2024-03-09', switches });
+    expect(tm.followsSimulationTime).toBe(true);
+    tm.setImageryLayerVisible('daily', true);
+    await flush();
+    expect(layerOf(tm, 'daily').temporal!.date).not.toBe('2024-03-09');
+    expect(plugin(tm).overlays).toHaveLength(1);
     tm.dispose();
   });
 
@@ -306,14 +324,35 @@ describe('time-indexed imagery layers (#214)', () => {
     warn.mockRestore();
   });
 
-  it('reports a date that its URL cannot carry', async () => {
+  it('fails closed when the URL cannot carry the date: nothing is fetched under a dated label', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const tm = make({ policy: 'fixed', date: '2024-01-01' }, { url: 'https://example.invalid/static/{z}/{y}/{x}.jpg' });
     await flush();
-    tileUrl(tm, 'daily', 'https://example.invalid/static/3/4/5.jpg');
-    expect(warn.mock.calls.some((c) => String(c[0]).includes('cannot take effect'))).toBe(true);
+    expect(plugin(tm).overlays).toHaveLength(0);
+    expect(internals(tm).activeOverlays.size).toBe(0);
+    expect(layerOf(tm, 'daily').status).toBe('failed');
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('could not be set up') && String(c[1]).includes('cannot take effect'))).toBe(true);
+    // The layers beneath are unaffected.
+    expect(layerOf(tm, 'layer-0').visible).toBe(true);
     tm.dispose();
     warn.mockRestore();
+  });
+
+  it('exposes a pending change to no imagery, so the old day cannot read as settled', async () => {
+    const tm = make({ policy: 'follow-simulation', start: '2010-01-01', end: '2024-12-31' });
+    tm.updateImageryTime(at('2024-03-09T00:00:00Z'), 0);
+    await flush();
+    // Seek to a missing day inside the throttle interval.
+    tm.updateImageryTime(at('2005-01-01T00:00:00Z'), 100);
+    let t = layerOf(tm, 'daily').temporal!;
+    expect(t).toMatchObject({ date: '2024-03-09', pending: true, pendingDate: null });
+    expect(plugin(tm).overlays).toHaveLength(1);
+    tm.updateImageryTime(at('2005-01-01T00:00:00Z'), 4000);
+    await flush();
+    t = layerOf(tm, 'daily').temporal!;
+    expect(t).toMatchObject({ date: null, state: 'before-range', pending: false });
+    expect(plugin(tm).overlays).toHaveLength(0);
+    tm.dispose();
   });
 
   describe('with a WMTS capabilities time dimension', () => {

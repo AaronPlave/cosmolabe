@@ -65,7 +65,8 @@ export function getReadiness(request: ScriptReadinessRequest, opts?: ScriptScene
   if (bm.surfaceTransitionState === 'fallback') return result('failed', ['The streamed surface failed; the static map is drawn.'], limitations);
   // A dated layer is only ready for the day it is asked to show: while a newer day waits out the throttle the old one is still on screen.
   const time = layer.temporal;
-  if (time?.pendingDate) return result('partial', [`Imagery for ${time.pendingDate} has not replaced ${time.date ?? 'no imagery'} yet.`], limitations);
+  // Pending is its own fact: a change to *no imagery* has no pending day, but the old day is still on screen.
+  if (time?.pending) return result('partial', [`${time.pendingDate ? `Imagery for ${time.pendingDate}` : 'A change to no imagery'} has not replaced ${time.date ?? 'no imagery'} yet.`], limitations);
   if (time && time.date === null) return result('unavailable', [`No imagery is shown for ${time.requestedDate ?? 'this time'} (${time.state}).`], limitations);
   if (bm.surfaceTransitionState !== 'streamed') return result('partial', ['Streamed imagery is resident or loading but is not drawn.'], limitations);
   if (!renderer.surfaceViewIsCurrent(request.body)) return result('partial', ['The current camera/time/source settings have not been observed by a streaming update.'], limitations);

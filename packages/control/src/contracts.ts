@@ -311,9 +311,11 @@ export interface ScriptImageryLayer {
     readonly requestedDate: string | null;
     readonly state: 'exact' | 'nearest' | 'before-range' | 'after-range' | 'no-data' | 'not-yet-published' | 'invalid';
     readonly offsetDays: number;
+    /** A change of what is shown (to another day, or to none) is waiting out the throttle; the layer is not settled. */
+    readonly pending: boolean;
     readonly rangeStart: string | null;
     readonly rangeEnd: string | null;
-    /** Daily true-colour products carry the Sun of their acquisition; they are not relit to the simulated Sun. */
+    /** `baked`: the image carries the Sun of its acquisition, and the viewer still shades the globe by the simulated Sun, so lighting is applied twice. Nothing un-lights the image. */
     readonly illumination: 'baked' | 'reflectance';
   };
   /**
@@ -963,6 +965,7 @@ export interface ViewerSnapshotState {
   readonly placeSources?: readonly { id: string; enabled: boolean; labelsVisible: boolean }[];
   /** Present => merge by stable ID; absent => preserve. No cached results or drafts. */
   readonly measurements?: { version: 1; items: MeasurementDefinition[]; selected?: string };
+  /** Visibility, opacity and order only. A time-indexed layer's date policy and fixed day are not captured, so a replay does not restore a chosen date. */
   readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number; index?: number }[];
   readonly geographic?: readonly { id: string; visible: boolean; style: GeographicLayerStyle }[];
   readonly appearance?: readonly { body: string; settings: ScriptSurfaceAppearance }[];

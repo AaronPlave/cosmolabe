@@ -188,7 +188,7 @@ function scriptImagery(bm: BodyMesh): ScriptImagery {
       resolutionMeters: l.resolutionMeters, source: { ...l.source }, status: l.status,
       ...(l.temporal ? { time: {
         policy: l.temporal.policy, cadence: l.temporal.cadence, date: l.temporal.date,
-        requestedDate: l.temporal.requestedDate, state: l.temporal.state, offsetDays: l.temporal.offsetDays,
+        requestedDate: l.temporal.requestedDate, state: l.temporal.state, offsetDays: l.temporal.offsetDays, pending: l.temporal.pending,
         rangeStart: l.temporal.range.start, rangeEnd: l.temporal.range.end, illumination: l.temporal.illumination,
       } } : {}),
       view: l.view ? { ...l.view, minZoom: l.minZoom } : null,
