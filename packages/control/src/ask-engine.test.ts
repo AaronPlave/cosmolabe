@@ -480,6 +480,65 @@ describe('round trips a closest-approach request does not need', () => {
   });
 });
 
+describe('missing SPICE worker dependency recovery (#363)', () => {
+  const frameError = 'The number -226000 is not a recognized id-code for a reference frame.';
+  const probe = { id: 'philae-range', start: 0, end: 10, count: 2 };
+  function failingScene() {
+    let attempts = 0;
+    const host = Object.assign(new EventScene(), {
+      getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 10 }, error: null }) as never,
+      runEventQuery: async () => { attempts++; throw new Error(frameError); },
+      sampleProfileData: () => ({
+        scene: 3, id: probe.id, status: 'available', quantity: 'range', unit: 'km', bodies: { observer: 'Philae', target: '67P' },
+        requestedWindow: { start: 0, end: 10 }, window: { start: 0, end: 10 },
+        samples: [{ et: 0, utc: 't0', value: 4 }, { et: 10, utc: 't10', value: 3 }],
+        missing: 0, gaps: [], minimum: { et: 10, utc: 't10', value: 3 }, maximum: { et: 0, utc: 't0', value: 4 },
+        sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 10, coverage: 'not-certified', interpolation: 'none' }, limitations: [],
+      }),
+    });
+    return { host, attempts: () => attempts };
+  }
+  const runQuery = (id: string, query: string) => use(id, 'invokeCapability', { id: 'events.runEventQuery', input: { id: query } });
+  const readSamples = (id: string) => use(id, 'invokeCapability', { id: 'profiles.sampleProfileData', input: probe });
+  const resultOf = (run: Awaited<ReturnType<typeof runAgent>>, id: string) =>
+    JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content);
+
+  it('classifies the real worker error, refuses repeated event searches, and still allows a numerical profile read', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-first-touchdown')),
+      call(runQuery('retry', 'philae-new-id')),
+      call(readSamples('sampled')),
+      say('The SPICE search worker cannot calculate a closest approach. The profile sampled 3 km at t10, only a sampled center-distance minimum, not touchdown.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to 67P during landing? Show me.' });
+    expect(resultOf(run, 'search')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('non-retryable') });
+    expect(resultOf(run, 'retry')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('Not run') });
+    expect(resultOf(run, 'sampled')).toMatchObject({ data: { minimum: { et: 10, value: 3 }, sampling: { coverage: 'not-certified' } } });
+    expect(attempts()).toBe(1);
+    expect(run.answer).toContain('only a sampled center-distance minimum');
+    tools.dispose();
+  });
+
+  it('caps additional model rounds after a frame-dependency error, instead of exhausting the full request budget', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
+      call(goal(), runQuery('search', 'philae-landing')),
+      ...Array.from({ length: 9 }, (_, i) => call(runQuery('again-' + i, 'changed-' + i))),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to 67P?' });
+    expect(attempts()).toBe(1);
+    expect(run.stats.rounds).toBe(7);
+    expect(run.answer).toContain('SPICE worker is missing a reference-frame dependency');
+    expect(run.answer).not.toContain('verified closest approach');
+    tools.dispose();
+  });
+});
+
 describe('the model-facing context stays bounded as operations are added', () => {
   it('300 more operations leave the prompt unchanged and the index within its budget, and a new one is still found and run', async () => {
     const measure = () => {
