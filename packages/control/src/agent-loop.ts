@@ -474,8 +474,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         report = wrote ? verify() : null;
         // Repair is for a known unmet predicate only; what cannot be observed is reported, not retried.
         const missingEventDependency = facts.some(f => f.kind === 'sampled-range' && f.eventSearchUnavailable);
-        const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot)
-          && !(missingEventDependency && /^(event$|eventRun:|eventEpoch:|eventFramed:|eventDrawn:)/.test(c.slot))) ?? [];
+        const unavailableEventSlots = new Set(missingEventDependency
+          ? held.filter(p => ['eventSelected', 'eventRun', 'eventEpoch', 'eventFramed', 'eventDrawn'].includes(p.p)).map(slotOf) : []);
+        const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot) && !unavailableEventSlots.has(c.slot)) ?? [];
         const issues = outcome.kind === 'done' ? checkAnswer(text, facts) : [];
         if (outcome.kind === 'done' && !repaired && step + 1 < maxSteps && (unseen.length || issues.length)) {
           repaired = true;

@@ -563,7 +563,7 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     const { host } = failingScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }, { p: 'eventFramed', query: 'philae-landing' }, { p: 'eventDrawn', query: 'philae-landing' }]), runQuery('search', 'philae-landing')),
       call(readSamples('samples')),
       call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
       say('The SPICE dependency prevented computation. The smallest of 2 samples over ET 0 to 10 is 3 km at t10, with no gaps. The clock is there, but this sampled center-distance minimum is not verified closest approach, clearance or touchdown.'),
