@@ -212,7 +212,7 @@ const IMAGERY: NestedSpec = {
     'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
-    'attribution', 'description', 'resolutionMeters', 'visible',
+    'attribution', 'description', 'resolutionMeters', 'visible', 'illumination',
   ),
 };
 
@@ -237,6 +237,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
         'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere', 'frame', 'bodyId',
+        'illumination',
       ),
       children: {
         imagery: IMAGERY,

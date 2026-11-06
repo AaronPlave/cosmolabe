@@ -33,8 +33,9 @@ export interface TerrainImageryConfig {
    *  - `'unknown'` (default when omitted): legacy path, relit as before and not
    *    asserted to be physically relightable.
    *
-   *  A stack mixing sources takes the most conservative value (baked > unknown >
-   *  reflectance), over the layers currently visible. */
+   *  A stack is `baked` or `reflectance` only when every contributing layer (visible,
+   *  opacity above zero) agrees; any mixture is `unknown`, so a bounded baked overlay
+   *  never switches the Sun off for the whole surface. */
   illumination?: ImageryIllumination;
   /** Imagery source type. Default 'xyz'.
    *
@@ -677,13 +678,14 @@ export class TerrainManager {
   private readonly asIsUniform = { value: 0 };
 
   /**
-   * Resolved illumination provenance of what is drawn now (#204): the visible
-   * imagery layers combined conservatively, so hiding a baked overlay returns
-   * the surface to relit, and showing it switches the whole surface to as-is.
+   * Resolved illumination provenance of what is drawn now (#204): the layers that
+   * contribute pixels (visible, opacity above zero) must all agree for a claim, so
+   * a baked overlay over another source leaves the surface on the legacy relit
+   * path instead of disabling the Sun outside its footprint.
    */
   get surfaceIllumination(): ImageryIllumination {
     const layers = this.cubeImagery && this.layers.length ? this.cubeImagery.imageryLayers : this.layers;
-    const visible = layers.filter(l => l.visible);
+    const visible = layers.filter(l => l.visible && l.opacity > 0);
     return visible.length > 0
       ? combineImageryIllumination(visible.map(l => this.illuminationById.get(l.id)))
       : this.noImageryIllumination;
@@ -1837,10 +1839,15 @@ export class TerrainManager {
    * has no opacity.
    */
   setImageryLayerOpacity(id: string, opacity: number): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerOpacity(id, opacity);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerOpacity(id, opacity);
+      this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
     layer.opacity = clampOpacity(opacity);
+    this.refreshIllumination();
     const overlay = this.activeOverlays.get(id);
     if (overlay) (overlay as unknown as OverlayInternals).opacity = layer.opacity;
     return true;

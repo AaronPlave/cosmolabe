@@ -53,9 +53,10 @@ describe('surface illumination provenance resolution', () => {
     expect(make().surfaceIllumination).toBe('reflectance');
   });
 
-  it('honours declared sources and combines stacks conservatively', () => {
+  it('honours declared sources and claims a stack only when its layers agree', () => {
     expect(make({ imagery: imagery('reflectance') }).surfaceIllumination).toBe('reflectance');
-    expect(make({ imagery: [imagery('reflectance'), imagery('baked')] }).surfaceIllumination).toBe('baked');
+    expect(make({ imagery: [imagery('baked'), imagery('baked')] }).surfaceIllumination).toBe('baked');
+    expect(make({ imagery: [imagery('reflectance'), imagery('baked')] }).surfaceIllumination).toBe('unknown');
     expect(make({ imagery: [imagery('reflectance'), imagery()] }).surfaceIllumination).toBe('unknown');
     expect(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'baked' }).surfaceIllumination).toBe('baked');
   });
@@ -102,22 +103,37 @@ describe('tile material variants', () => {
     expect(keys.size).toBe(1);
   });
 
-  it('follows overlay visibility: hiding a baked overlay relights, showing it switches to as-is', () => {
+  it('never lets a bounded baked overlay switch the Sun off for the whole surface', () => {
+    const tm = make({ imagery: [imagery('reflectance'), { ...imagery('baked'), id: 'shaded' }] });
+    const { scene, mesh } = unlitTile();
+    customize(tm, scene);
+    // Visible baked overlay over a reflectance base: mixed, so the legacy relit path.
+    expect(tm.surfaceIllumination).toBe('unknown');
+    expect(uniformOf(mesh.material as THREE.Material).value).toBe(0);
+  });
+
+  it('counts only layers that contribute pixels: hidden or zero-opacity layers do not', () => {
     const tm = make({ imagery: [imagery('reflectance'), { ...imagery('baked'), id: 'shaded', visible: false }] });
-    // Layer state only: no overlay plugin in this harness, so drive the same flag the control does.
-    const layers = (tm as unknown as { layers: { id: string; visible: boolean }[] }).layers;
+    const layers = (tm as unknown as { layers: { id: string; visible: boolean; opacity: number }[] }).layers;
+    const refresh = () => (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
     const { scene, mesh } = unlitTile();
     customize(tm, scene);
     const uniform = uniformOf(mesh.material as THREE.Material);
-    expect(tm.surfaceIllumination).toBe('reflectance');
+    const shaded = layers.find(l => l.id === 'shaded')!;
+    expect(tm.surfaceIllumination).toBe('reflectance'); // hidden baked layer ignored
+    shaded.visible = true; refresh();
+    expect(tm.surfaceIllumination).toBe('unknown'); // mixed
+    shaded.opacity = 0; refresh();
+    expect(tm.surfaceIllumination).toBe('reflectance'); // opacity zero contributes nothing
     expect(uniform.value).toBe(0);
-    layers.find(l => l.id === 'shaded')!.visible = true;
-    (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
-    expect(tm.surfaceIllumination).toBe('baked');
-    expect(uniform.value).toBe(1); // same uniform object: no recompile
-    layers.find(l => l.id === 'shaded')!.visible = false;
-    (tm as unknown as { refreshIllumination(): void }).refreshIllumination();
-    expect(uniform.value).toBe(0);
+    // A baked base with a zero-opacity relit overlay is purely baked: as-is, same uniform, no recompile.
+    const baked = make({ imagery: [imagery('baked'), { ...imagery('reflectance'), id: 'extra', opacity: 0 }] });
+    (baked as unknown as { layers: { id: string; opacity: number }[] }).layers.find(l => l.id === 'extra')!.opacity = 0;
+    (baked as unknown as { refreshIllumination(): void }).refreshIllumination();
+    expect(baked.surfaceIllumination).toBe('baked');
+    const { scene: s2, mesh: m2 } = unlitTile();
+    customize(baked, s2);
+    expect(uniformOf(m2.material as THREE.Material).value).toBe(1);
   });
 
   it('leaves tile geometry, positions and picking data untouched', () => {

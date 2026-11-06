@@ -42,20 +42,27 @@ export function isImageryIllumination(value: unknown): value is ImageryIlluminat
 
 /**
  * The provenance of a surface drawn from several sources composited into one
- * material. Conservative: any `baked` source makes the surface `baked`, since
- * relighting it would double-light that source; otherwise any undeclared or
- * `unknown` source makes it `unknown`. Only an all-`reflectance` stack is
- * `reflectance`. An empty list is `unknown`, never an assertion.
+ * material. One uniform per surface cannot light two sources differently, so a
+ * claim is made only when every contributing source agrees: all `baked` is
+ * `baked` (shown as-is), all `reflectance` is `reflectance`. Anything mixed,
+ * undeclared or empty is `unknown`: the legacy relit path, no physical claim.
+ * That keeps the Sun working outside a small baked overlay's footprint, at the
+ * cost of double-lighting the overlay's own pixels until per-pixel mixed
+ * lighting exists. Callers pass only sources that actually contribute pixels
+ * (visible, opacity above zero).
  */
 export function combineImageryIllumination(values: Iterable<ImageryIllumination | undefined>): ImageryIllumination {
-  let seen = false, unknown = false;
+  let seen = 0, baked = 0, reflectance = 0;
   for (const raw of values) {
-    seen = true;
+    seen++;
     const v = isImageryIllumination(raw) ? raw : DEFAULT_IMAGERY_ILLUMINATION;
-    if (v === 'baked') return 'baked';
-    if (v === 'unknown') unknown = true;
+    if (v === 'baked') baked++;
+    else if (v === 'reflectance') reflectance++;
   }
-  return !seen || unknown ? 'unknown' : 'reflectance';
+  if (seen === 0) return 'unknown';
+  if (baked === seen) return 'baked';
+  if (reflectance === seen) return 'reflectance';
+  return 'unknown';
 }
 
 /**

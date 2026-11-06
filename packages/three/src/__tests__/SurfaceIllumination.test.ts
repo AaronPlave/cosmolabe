@@ -11,12 +11,15 @@ const deg = (d: number) => d * Math.PI / 180;
 const AU = 1.496e8 * 1e-6; // scene units at scaleFactor 1e-6
 
 describe('imagery illumination provenance (#204)', () => {
-  it('is conservative: baked beats unknown beats reflectance; nothing declared is unknown', () => {
+  it('claims baked or reflectance only when every contributing source agrees', () => {
     expect(combineImageryIllumination([])).toBe('unknown');
     expect(combineImageryIllumination([undefined])).toBe('unknown');
     expect(combineImageryIllumination(['reflectance', 'reflectance'])).toBe('reflectance');
+    expect(combineImageryIllumination(['baked', 'baked'])).toBe('baked');
+    // A mixture never disables the Sun for the whole surface: it is the legacy relit path.
+    expect(combineImageryIllumination(['reflectance', 'baked'])).toBe('unknown');
+    expect(combineImageryIllumination(['baked', 'unknown'])).toBe('unknown');
     expect(combineImageryIllumination(['reflectance', undefined])).toBe('unknown');
-    expect(combineImageryIllumination(['reflectance', 'unknown', 'baked'])).toBe('baked');
     expect(combineImageryIllumination(['bogus' as never])).toBe('unknown');
   });
 

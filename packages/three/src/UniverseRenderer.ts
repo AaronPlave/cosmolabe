@@ -3506,7 +3506,9 @@ export class UniverseRenderer {
     const bm = this.bodyMeshes.get(bodyName);
     const sun = this.bodyMeshes.get('Sun');
     if (!bm || !sun) return null;
-    return solarGeometryAt(bm.position, bm.mesh.quaternion, sun.position,
+    // Body-fixed (Z north) to world. `mesh.quaternion` also carries the globe
+    // geometry's own axis rotation, so it is not that frame.
+    return solarGeometryAt(bm.position, bm.bodyToWorldQuaternion(new THREE.Quaternion()), sun.position,
       bm.displayRadius * this.scaleFactor, latitudeDeg, longitudeDeg);
   }
 

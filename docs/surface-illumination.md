@@ -41,8 +41,11 @@ be correct for two distant bodies at once).
 
 `UniverseRenderer.solarGeometryAt(body, latDeg, lonDeg)` returns the Sun's
 elevation, azimuth and `cos(incidence)` at a planetocentric point for the
-current epoch. It reads the body's orientation each call, so rotation, a moving
-Sun and time seeks need no special handling.
+current epoch. It reads the body-fixed (Z north) to world orientation from
+`BodyMesh.bodyToWorldQuaternion()` each call, so rotation, a moving Sun and time
+seeks need no special handling. (`mesh.quaternion` is not that frame: it also
+carries the globe geometry's own axis rotation.) Tested on a real Globe
+`BodyMesh`, with and without a rotation applied.
 
 `UniverseRenderer.directSolarTermAt(body, latDeg, lonDeg, normal?)` returns the
 **unshadowed direct term** a receiver gets in the current mode
@@ -64,19 +67,26 @@ textures) declares what the pixels mean:
 | `baked` | shading/shadows already in the pixels | shown as-is; **never relit**, so not double-lit |
 | `unknown` (default) | nothing declared | **legacy**: relit as before, *not* asserted physically relightable |
 
-A mixed stack takes the most conservative value (baked > unknown >
-reflectance) over the layers **currently visible**: showing a baked overlay
-switches the whole surface to as-is, hiding it returns the surface to relit.
-An untextured quantized mesh is neutral albedo (`reflectance`). Only
-`reflectance` in `natural` mode is a physical claim. The viewer's Imagery
-control lists each layer's provenance.
+A surface makes a claim only when **every contributing layer agrees**: all
+`baked` is as-is, all `reflectance` is relit as a physical claim, and any mixture
+(or an undeclared layer) is `unknown`, the legacy relit path. Contributing means
+visible with opacity above zero, so hiding a layer or setting its opacity to 0
+removes it from the decision. This is deliberate: one uniform per surface cannot
+light two sources differently, and treating a small bounded baked overlay as
+"the whole surface is baked" would switch the Sun off everywhere outside its
+footprint. The cost of the mixed case is that the overlay's own pixels are
+double-lit; correct per-pixel mixed lighting (weighting by each layer's
+coverage and opacity in the compositor) is a follow-up. An untextured quantized
+mesh is neutral albedo (`reflectance`). Only `reflectance` in `natural` mode is
+a physical claim. The viewer's Imagery control lists each layer's provenance.
 
 Provenance is a shared shader uniform (`uSurfaceAsIs`), so changing it is a
 uniform write: no recompile, no material churn, one program for all tiles.
 Baked imagery still composes with imagery overlays, eclipse shadow and aerial
 perspective; only the Sun, ambient and environment lighting are bypassed.
 
-No catalog in this repository declares `illumination` yet. Which products are
+`illumination` is accepted by the catalog schema on `imagery[]`, `terrain.imagery[]`
+and `terrain`. No catalog in this repository declares it yet. Which products are
 reflectance and which are baked is a #123/#147 decision; until a catalog says,
 it stays `unknown` and renders exactly as before.
 

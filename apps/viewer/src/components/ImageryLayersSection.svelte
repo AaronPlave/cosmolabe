@@ -263,7 +263,7 @@
                   <dt>Source resolution</dt><dd>{formatResolution(layer.resolutionMeters)}</dd>
                 {/if}
                 {#if layer.illumination}
-                  <dt>Illumination</dt><dd>{layer.illumination === 'reflectance' ? 'Reflectance: lit by the simulated Sun' : layer.illumination === 'baked' ? 'Shading baked in: shown as-is, not relit' : 'Not declared: lit by the simulated Sun (legacy), not asserted physical'}</dd>
+                  <dt>Illumination</dt><dd>{layer.illumination === 'reflectance' ? 'Reflectance: lit by the simulated Sun' : layer.illumination === 'baked' ? 'Shading baked in: shown as-is when every visible layer is baked, otherwise lit by the Sun (legacy)' : 'Not declared: lit by the simulated Sun (legacy), not asserted physical'}</dd>
                 {/if}
                 {#if layer.metersPerPixel != null}
                   <dt>Available tile resolution</dt><dd>~{formatResolution(layer.metersPerPixel)} at zoom {layer.maxLevel}{#if layer.minZoom > 0}, from zoom {layer.minZoom}{/if}</dd>

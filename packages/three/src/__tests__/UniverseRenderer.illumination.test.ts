@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { Universe } from '@cosmolabe/core';
+import { BodyMesh } from '../BodyMesh.js';
 import { UniverseRenderer } from '../UniverseRenderer.js';
 
 /**
@@ -10,7 +12,8 @@ const SCALE = 1e-6;
 const body = (x: number, y: number, z: number, radiusKm: number, terrain = true, geometryData: Record<string, unknown> = {}) => ({
   body: { geometryData },
   position: new THREE.Vector3(x, y, z), displayRadius: radiusKm, hasTerrain: terrain, hasSurfaceTiles: false,
-  present: true, visible: true, mesh: { quaternion: new THREE.Quaternion() },
+  present: true, visible: true, bodyToWorld: new THREE.Quaternion(),
+  bodyToWorldQuaternion(out: THREE.Quaternion) { return out.copy(this.bodyToWorld); },
 });
 
 function harness(bodies: Record<string, ReturnType<typeof body>>, cameraPos: THREE.Vector3) {
@@ -101,7 +104,7 @@ describe('UniverseRenderer physical Sun illumination (#204)', () => {
     const sunB = body(AU, 0, 0, 695700, false);
     const { state } = harness({ Sun: sunB, Moon: moon }, new THREE.Vector3(0, 0, 2000 * SCALE));
     expect(state.solarGeometryAt('Moon', 0, 0)!.elevationDeg).toBeCloseTo(90, 5);
-    moon.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    moon.bodyToWorld.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
     expect(state.solarGeometryAt('Moon', 0, 0)!.elevationDeg).toBeCloseTo(0, 2);
     expect(state.solarGeometryAt('Nowhere', 0, 0)).toBeNull();
   });
@@ -137,6 +140,45 @@ describe('UniverseRenderer physical Sun illumination (#204)', () => {
     expect(flood.physical).toBe(false);
     state.setLightingMode('shadow');
     expect(state.directSolarTermAt('Moon', 0, 0)!.physical).toBe(false);
+  });
+
+  describe('on a real Globe BodyMesh (mesh.quaternion is not the body-fixed frame)', () => {
+    const globe = () => {
+      const u = new Universe();
+      u.loadCatalog({ items: [{ name: 'Rock', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+        geometry: { type: 'Globe', radius: 1737.4 } }] });
+      return new BodyMesh(u.getBody('Rock')!);
+    };
+    const withSun = (bm: BodyMesh, sunPos: THREE.Vector3) => harness(
+      { Sun: Object.assign(body(0, 0, 0, 695700, false), { position: sunPos }), Rock: bm as never },
+      new THREE.Vector3(0, 0, 2000 * SCALE)).state;
+
+    it('keeps the globe\'s own pole (world +Y) for a body with no rotation model', () => {
+      const bm = globe();
+      const state = withSun(bm, new THREE.Vector3(0, AU, 0));
+      // The pole points at the Sun: elevation 90° there, and the equator is on the terminator.
+      expect(state.solarGeometryAt('Rock', 90, 0)!.elevationDeg).toBeCloseTo(90, 4);
+      expect(state.solarGeometryAt('Rock', 0, 0)!.elevationDeg).toBeCloseTo(0, 2);
+      // Contrast: the mesh quaternion carries the geometry's X-90° rotation, so using it
+      // (the earlier behaviour) put the pole on world +Z instead.
+      expect(bm.mesh.quaternion.angleTo(bm.bodyToWorldQuaternion(new THREE.Quaternion()))).toBeGreaterThan(1);
+      bm.dispose();
+    });
+
+    it('follows a rotation applied to the mesh the way BodyMesh.update composes it', () => {
+      const bm = globe();
+      // update(): mesh.quaternion = bodyToWorld × meshRotationQ. Rotate body-fixed Z (the pole) to world +X.
+      const bodyToWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+      bm.mesh.quaternion.multiplyQuaternions(bodyToWorld, bm.meshRotationQ);
+      const state = withSun(bm, new THREE.Vector3(AU, 0, 0));
+      expect(state.solarGeometryAt('Rock', 90, 0)!.elevationDeg).toBeCloseTo(90, 4);
+      expect(state.directSolarTermAt('Rock', 90, 0)!.directTerm).toBeCloseTo(2, 4);
+      // Spinning about the pole moves the Sun across the equator: lon 0 now faces world +Y.
+      const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+      bm.mesh.quaternion.multiplyQuaternions(spin.multiply(bodyToWorld), bm.meshRotationQ);
+      expect(state.solarGeometryAt('Rock', 0, 0)!.elevationDeg).toBeCloseTo(0, 2);
+      bm.dispose();
+    });
   });
 
   it('applies one lighting-mode definition: flood switches the Sun off, natural restores it', () => {
