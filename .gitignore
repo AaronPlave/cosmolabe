@@ -21,9 +21,12 @@ vendor/
 apps/viewer/test-screenshots/atmosphere-surface/
 
 # SPICE kernels — see scripts/fetch-*.sh for downloads.
-# Tier rule: anything > ~5 MB lives behind a fetch script, not in the repo.
+# Viewer binary mission kernels are fetched locally or served from pinned R2.
+apps/viewer/test-catalogs/kernels/**/*.bsp
+apps/viewer/test-catalogs/kernels/**/*.bc
+apps/viewer/test-catalogs/kernels/**/*.bpc
+!apps/viewer/test-catalogs/kernels/de440s.bsp
 *.gz
-apps/viewer/test-catalogs/kernels/de440s.bsp
 apps/viewer/test-catalogs/kernels/codes_300ast_20100725.bsp
 apps/viewer/test-catalogs/kernels/mar099s.bsp
 apps/viewer/test-catalogs/kernels/jup348.bsp
@@ -53,9 +56,12 @@ apps/viewer/test-catalogs/data/moon-terrain-fused/
 apps/viewer/test-catalogs/data/moon-terrain-polar/
 apps/viewer/test-catalogs/data/moon-terrain-cube
 apps/viewer/test-catalogs/data/moon-terrain-cube-*/
-apps/viewer/test-catalogs/data/moon-imagery-cube-*/
+apps/viewer/test-catalogs/data/moon-imagery-cube-*
 # Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
 work/surface-build/
+work/ingenuity-246/
+work/curiosity-247/
+work/moonfall-jank/
 work/cube-terrain/
 work/cube-imagery/
 work/cube-surface-appearance/
@@ -71,6 +77,10 @@ scripts/build-globe-textures/.venv/
 apps/viewer/test-catalogs/models/rosetta/*.png
 apps/viewer/test-catalogs/models/rosetta/*.part
 
+# Geographic smoke and benchmark output (#198–#200): curated captures live in
+# docs/validation/geographic-*, raw runs here.
+/work/geographic/
+
 # Places acceptance output (#191): keep raw runs outside reviewed documentation.
 /work/issue-191-places/
 /docs/validation/issue-191-places/raw/
@@ -83,3 +93,27 @@ apps/viewer/test-catalogs/models/rosetta/*.part
 /docs/validation/issue-191-places/**/mars-moon-motion.json
 /docs/validation/issue-191-places/**/diagnosis.json
 /docs/validation/issue-191-places/**/original-reference-diagnostics.json
+
+# Local immutable #246 candidate products; published only after explicit authorization.
+apps/viewer/test-catalogs/data/ingenuity-cube/
+apps/viewer/test-catalogs/data/curiosity-cube/
+
+# Mission activity browser captures and raw performance measurements (#293).
+/work/issue-293/
+
+# The embeddable workspace build (npm run build:embed)
+dist-embed/
+
+# Generated graticule browser captures and detailed diagnostics (PR #163).
+/work/graticule/
+
+# Python runtime bytecode
+__pycache__/
+*.py[cod]
+
+# Generated trajectory-clearance acceptance outputs; retain only reviewed captures.
+/work/issue-329/
+/docs/validation/issue-329/raw/
+/docs/validation/issue-329/acceptance.json
+/docs/validation/issue-329/ingenuity-acceptance.json
+/docs/validation/issue-329/trajectory-extrema.json

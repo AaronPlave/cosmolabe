@@ -1,0 +1,4321 @@
+{
+  "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+  "authoredSha256": "d60b2fe7e971f6e884b7b853aef5e4afaeda8deb5815050b7bbfffbf2511f1df",
+  "sampling": {
+    "maxDistanceM": 2,
+    "maxTimeS": 0.1
+  },
+  "thresholds": {
+    "minClearanceM": 0.75,
+    "maxClearanceM": 500
+  },
+  "flights": [
+    {
+      "hopper": "Polaris-A",
+      "epoch": "2028-12-15T10:00:00Z",
+      "label": "PSR floor sample run",
+      "pathSha256": "01c7f22c5ef7a88beebac42413b499f7893eb314f768afc68e36ebbf28745b0a",
+      "knots": 620,
+      "before": {
+        "samples": 15384,
+        "minClearanceM": 0.9996460351660517,
+        "maxClearanceM": 250.02260735430752,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 25,
+            "samples": 546,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 79.99964603511694,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 25,
+            "endS": 90,
+            "samples": 2541,
+            "minClearanceM": 79.99964603511694,
+            "maxClearanceM": 149.4645402910554,
+            "at": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 90,
+            "endS": 160,
+            "samples": 2465,
+            "minClearanceM": 89.99961290371596,
+            "maxClearanceM": 212.30325539952992,
+            "at": {
+              "t": 160,
+              "lat": -89.69,
+              "lon": -10,
+              "groundM": -514.1856129036793
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 160,
+            "endS": 200,
+            "samples": 1019,
+            "minClearanceM": 4.502684720480488,
+            "maxClearanceM": 89.99961290371596,
+            "at": {
+              "t": 197.4459724950884,
+              "lat": -89.70948162049108,
+              "lon": -2.2412510270013857,
+              "groundM": -304.4247856488506
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 200,
+            "endS": 260,
+            "samples": 1293,
+            "minClearanceM": 4.731302709220245,
+            "maxClearanceM": 90.00036492832498,
+            "at": {
+              "t": 204.78328173374612,
+              "lat": -89.7108021948391,
+              "lon": -1.5583727979038637,
+              "groundM": -287.44422065421145
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 260,
+            "endS": 330,
+            "samples": 4581,
+            "minClearanceM": 90.00036492832498,
+            "maxClearanceM": 250.02260735430752,
+            "at": {
+              "t": 260,
+              "lat": -89.71,
+              "lon": -2,
+              "groundM": -299.1903649288148
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 330,
+            "endS": 400,
+            "samples": 2352,
+            "minClearanceM": 59.99964603513513,
+            "maxClearanceM": 140.00046875188684,
+            "at": {
+              "t": 400,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 400,
+            "endS": 430,
+            "samples": 587,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 59.99964603513513,
+            "at": {
+              "t": 430,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 11767,
+        "minClearanceM": 1.0000000350603386,
+        "maxClearanceM": 147.49608517060312,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "to": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 80
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 84.65524103514804,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 313
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 80
+            },
+            "to": {
+              "t": 90,
+              "lat": -89.62,
+              "lon": -30,
+              "altM": 140
+            },
+            "minClearanceM": 81.32140269388628,
+            "maxClearanceM": 144.17345768714517,
+            "at": {
+              "t": 26.48692833333333,
+              "lat": -89.5513854078722,
+              "lon": -44.78801649141858,
+              "groundM": -930.9477602462107
+            },
+            "samples": 2112
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 90,
+              "lat": -89.62,
+              "lon": -30,
+              "altM": 140
+            },
+            "to": {
+              "t": 160,
+              "lat": -89.69,
+              "lon": -10,
+              "altM": 90
+            },
+            "minClearanceM": 102.99519057022746,
+            "maxClearanceM": 143.61018165936173,
+            "at": {
+              "t": 158.92078689473684,
+              "lat": -89.68930454282788,
+              "lon": -10.309843441616414,
+              "groundM": -523.9394619845554
+            },
+            "samples": 2265
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 160,
+              "lat": -89.69,
+              "lon": -10,
+              "altM": 90
+            },
+            "to": {
+              "t": 200,
+              "lat": -89.71,
+              "lon": -2,
+              "altM": 5
+            },
+            "minClearanceM": 9.317647873753913,
+            "maxClearanceM": 104.50469768332118,
+            "at": {
+              "t": 198.731707,
+              "lat": -89.70976347452499,
+              "lon": -2.1139501424306264,
+              "groundM": -301.73259680210754
+            },
+            "samples": 780
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 200,
+              "lat": -89.71,
+              "lon": -2,
+              "altM": 5
+            },
+            "to": {
+              "t": 260,
+              "lat": -89.71,
+              "lon": -2,
+              "altM": 90
+            },
+            "minClearanceM": 10.090009928514178,
+            "maxClearanceM": 104.94792151431488,
+            "at": {
+              "t": 200,
+              "lat": -89.71,
+              "lon": -1.9999999999999998,
+              "groundM": -299.1903649288148
+            },
+            "samples": 742
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 260,
+              "lat": -89.71,
+              "lon": -2,
+              "altM": 90
+            },
+            "to": {
+              "t": 330,
+              "lat": -89.62,
+              "lon": -30,
+              "altM": 140
+            },
+            "minClearanceM": 93.77251398084337,
+            "maxClearanceM": 142.71034026058942,
+            "at": {
+              "t": 260.8876813333333,
+              "lat": -89.70967574580207,
+              "lon": -2.246307498599371,
+              "groundM": -304.0491920937482
+            },
+            "samples": 3089
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 330,
+              "lat": -89.62,
+              "lon": -30,
+              "altM": 140
+            },
+            "to": {
+              "t": 400,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "minClearanceM": 61.47173020556647,
+            "maxClearanceM": 147.49608517060312,
+            "at": {
+              "t": 398.3298248,
+              "lat": -89.55139031728719,
+              "lon": -44.78598846441785,
+              "groundM": -930.9860055105032
+            },
+            "samples": 2106
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 400,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "to": {
+              "t": 430,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 64.6808270351587,
+            "at": {
+              "t": 430,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 360
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-A",
+      "epoch": "2028-12-17T22:00:00Z",
+      "label": "PSR transect — west half",
+      "pathSha256": "4a92f0d97631738ccc9477b4c7192add938279c33a53b6ccc77cd9f9ae94bca7",
+      "knots": 576,
+      "before": {
+        "samples": 14170,
+        "minClearanceM": 0.9996460351660517,
+        "maxClearanceM": 191.4654227042762,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 25,
+            "samples": 423,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 69.99964603512603,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 25,
+            "endS": 110,
+            "samples": 2365,
+            "minClearanceM": 69.99964603512603,
+            "maxClearanceM": 178.2734312442035,
+            "at": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -45,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 110,
+            "endS": 180,
+            "samples": 1440,
+            "minClearanceM": 39.99983671704183,
+            "maxClearanceM": 110.00009996306369,
+            "at": {
+              "t": 180,
+              "lat": -89.72000000000001,
+              "lon": -25,
+              "groundM": -599.6598367171636
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 180,
+            "endS": 240,
+            "samples": 1718,
+            "minClearanceM": 34.57919884510852,
+            "maxClearanceM": 45.38772547841887,
+            "at": {
+              "t": 188.49155503785673,
+              "lat": -89.7289878956104,
+              "lon": -23.622368262584796,
+              "groundM": -554.0759384181231
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 240,
+            "endS": 300,
+            "samples": 601,
+            "minClearanceM": 4.507995126195283,
+            "maxClearanceM": 40.24735068384078,
+            "at": {
+              "t": 296.2,
+              "lat": -89.7801046832377,
+              "lon": -14.976205601113016,
+              "groundM": -247.0489598792567
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 300,
+            "endS": 360,
+            "samples": 1069,
+            "minClearanceM": 5.000017665514406,
+            "maxClearanceM": 70.00001766579635,
+            "at": {
+              "t": 300,
+              "lat": -89.78,
+              "lon": -14.999999999999998,
+              "groundM": -247.7090176658462
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 360,
+            "endS": 440,
+            "samples": 3723,
+            "minClearanceM": 70.00001766579635,
+            "maxClearanceM": 191.4654227042762,
+            "at": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": -14.999999999999996,
+              "groundM": -247.7090176658462
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 440,
+            "endS": 510,
+            "samples": 2275,
+            "minClearanceM": 59.99964603513513,
+            "maxClearanceM": 170.14697909395807,
+            "at": {
+              "t": 510,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 8,
+            "startS": 510,
+            "endS": 540,
+            "samples": 556,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 59.99964603513513,
+            "at": {
+              "t": 540,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 11324,
+        "minClearanceM": 1.0000000350603386,
+        "maxClearanceM": 140.07116041458096,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "to": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 70
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 70.8564030349637,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 286
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 25,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 70
+            },
+            "to": {
+              "t": 110,
+              "lat": -89.65,
+              "lon": -35,
+              "altM": 110
+            },
+            "minClearanceM": 70.28242488128535,
+            "maxClearanceM": 119.31944033580396,
+            "at": {
+              "t": 28.970394437499998,
+              "lat": -89.55390381040365,
+              "lon": -44.70844984976134,
+              "groundM": -927.6516509708167
+            },
+            "samples": 1986
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 110,
+              "lat": -89.65,
+              "lon": -35,
+              "altM": 110
+            },
+            "to": {
+              "t": 180,
+              "lat": -89.72,
+              "lon": -25,
+              "altM": 40
+            },
+            "minClearanceM": 46.05920785310809,
+            "maxClearanceM": 120.97093477159069,
+            "at": {
+              "t": 169.29535234782608,
+              "lat": -89.70951929311181,
+              "lon": -26.637498161490033,
+              "groundM": -643.4449340482788
+            },
+            "samples": 1434
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 180,
+              "lat": -89.72,
+              "lon": -25,
+              "altM": 40
+            },
+            "to": {
+              "t": 240,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 40
+            },
+            "minClearanceM": 45.61431791519149,
+            "maxClearanceM": 55.81518381529395,
+            "at": {
+              "t": 238.0869568,
+              "lat": -89.77904880755109,
+              "lon": -15.211880321389348,
+              "groundM": -254.01343623668632
+            },
+            "samples": 1250
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 240,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 40
+            },
+            "to": {
+              "t": 300,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 5
+            },
+            "minClearanceM": 5.724251665759311,
+            "maxClearanceM": 48.88386266572388,
+            "at": {
+              "t": 300,
+              "lat": -89.78,
+              "lon": -14.999999999999998,
+              "groundM": -247.7090176658462
+            },
+            "samples": 630
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 300,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 5
+            },
+            "to": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 70
+            },
+            "minClearanceM": 5.724251665759311,
+            "maxClearanceM": 82.0798146658658,
+            "at": {
+              "t": 300,
+              "lat": -89.78,
+              "lon": -14.999999999999998,
+              "groundM": -247.7090176658462
+            },
+            "samples": 681
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": -15,
+              "altM": 70
+            },
+            "to": {
+              "t": 440,
+              "lat": -89.65,
+              "lon": -35,
+              "altM": 130
+            },
+            "minClearanceM": 76.82389043829457,
+            "maxClearanceM": 137.84444777057774,
+            "at": {
+              "t": 361.1714463636364,
+              "lat": -89.77906299396577,
+              "lon": -15.265329224569449,
+              "groundM": -255.31875573382817
+            },
+            "samples": 2699
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 440,
+              "lat": -89.65,
+              "lon": -35,
+              "altM": 130
+            },
+            "to": {
+              "t": 510,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "minClearanceM": 60.500643623580686,
+            "maxClearanceM": 140.07116041458096,
+            "at": {
+              "t": 506.442307625,
+              "lat": -89.55386177250365,
+              "lon": -44.707518695753166,
+              "groundM": -927.7671716307021
+            },
+            "samples": 1993
+          },
+          {
+            "segment": 8,
+            "from": {
+              "t": 510,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "to": {
+              "t": 540,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 60.80068903504548,
+            "at": {
+              "t": 540,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 365
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-A",
+      "epoch": "2028-12-22T14:00:00Z",
+      "label": "Ridge climb to rim peak",
+      "pathSha256": "609aee7c10a24b1d0903e33b4d243d35005bdb9f7ff547702b0848c61bb5ad26",
+      "knots": 415,
+      "before": {
+        "samples": 10038,
+        "minClearanceM": 0.9996460351660517,
+        "maxClearanceM": 242.70690979802885,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 397,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 89.99964603510784,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 100,
+            "samples": 1739,
+            "minClearanceM": 89.99964603510784,
+            "maxClearanceM": 179.9996799772548,
+            "at": {
+              "t": 30,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 100,
+            "endS": 170,
+            "samples": 2009,
+            "minClearanceM": 179.9996799772548,
+            "maxClearanceM": 239.99986605290053,
+            "at": {
+              "t": 100,
+              "lat": -89.52,
+              "lon": -55,
+              "groundM": -772.432679977283
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 170,
+            "endS": 230,
+            "samples": 712,
+            "minClearanceM": 4.999866053000574,
+            "maxClearanceM": 241.49127587775138,
+            "at": {
+              "t": 230,
+              "lat": -89.5,
+              "lon": -65,
+              "groundM": -576.1798660526862
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 230,
+            "endS": 320,
+            "samples": 901,
+            "minClearanceM": 4.999866053000574,
+            "maxClearanceM": 242.70690979802885,
+            "at": {
+              "t": 230,
+              "lat": -89.5,
+              "lon": -65,
+              "groundM": -576.1798660526862
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 320,
+            "endS": 390,
+            "samples": 2141,
+            "minClearanceM": 179.9996799772548,
+            "maxClearanceM": 239.99986605290053,
+            "at": {
+              "t": 390,
+              "lat": -89.52,
+              "lon": -55,
+              "groundM": -772.432679977283
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 390,
+            "endS": 460,
+            "samples": 1742,
+            "minClearanceM": 59.99964603513513,
+            "maxClearanceM": 179.9996799772548,
+            "at": {
+              "t": 460,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 460,
+            "endS": 490,
+            "samples": 397,
+            "minClearanceM": 0.9996460351660517,
+            "maxClearanceM": 59.99964603513513,
+            "at": {
+              "t": 490,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 8026,
+        "minClearanceM": 1.0000000350603386,
+        "maxClearanceM": 242.69296089653972,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 90
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 95.90991003512977,
+            "at": {
+              "t": 0,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 325
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 90
+            },
+            "to": {
+              "t": 100,
+              "lat": -89.52,
+              "lon": -55,
+              "altM": 180
+            },
+            "minClearanceM": 95.55453085675686,
+            "maxClearanceM": 185.2109093552467,
+            "at": {
+              "t": 34.93333333333333,
+              "lat": -89.54873437414412,
+              "lon": -45.55132461062447,
+              "groundM": -914.3143117418592
+            },
+            "samples": 1427
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 100,
+              "lat": -89.52,
+              "lon": -55,
+              "altM": 180
+            },
+            "to": {
+              "t": 170,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 240
+            },
+            "minClearanceM": 182.82070097730002,
+            "maxClearanceM": 242.20956105259268,
+            "at": {
+              "t": 100,
+              "lat": -89.52,
+              "lon": -55,
+              "groundM": -772.432679977283
+            },
+            "samples": 1467
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 170,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 240
+            },
+            "to": {
+              "t": 230,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 5
+            },
+            "minClearanceM": 5.000000052720338,
+            "maxClearanceM": 242.69296089653972,
+            "at": {
+              "t": 230,
+              "lat": -89.5,
+              "lon": -65,
+              "groundM": -576.1798660526862
+            },
+            "samples": 630
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 230,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 5
+            },
+            "to": {
+              "t": 320,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 240
+            },
+            "minClearanceM": 4.983868490105465,
+            "maxClearanceM": 242.42210393505127,
+            "at": {
+              "t": 230.3,
+              "lat": -89.50000015822609,
+              "lon": -64.99994462802806,
+              "groundM": -576.1787377625091
+            },
+            "samples": 945
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 320,
+              "lat": -89.5,
+              "lon": -65,
+              "altM": 240
+            },
+            "to": {
+              "t": 390,
+              "lat": -89.52,
+              "lon": -55,
+              "altM": 180
+            },
+            "minClearanceM": 182.51903397726937,
+            "maxClearanceM": 241.9030860529316,
+            "at": {
+              "t": 390,
+              "lat": -89.52,
+              "lon": -55,
+              "groundM": -772.432679977283
+            },
+            "samples": 1479
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 390,
+              "lat": -89.52,
+              "lon": -55,
+              "altM": 180
+            },
+            "to": {
+              "t": 460,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "minClearanceM": 65.91002903503545,
+            "maxClearanceM": 185.05950881990816,
+            "at": {
+              "t": 460,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 1428
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 460,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 60
+            },
+            "to": {
+              "t": 490,
+              "lat": -89.55,
+              "lon": -45,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000000350603386,
+            "maxClearanceM": 65.91002903503545,
+            "at": {
+              "t": 490,
+              "lat": -89.55,
+              "lon": -44.99999999999999,
+              "groundM": -929.2786460353684
+            },
+            "samples": 325
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-B",
+      "epoch": "2028-12-15T10:00:00Z",
+      "label": "Rim traverse east",
+      "pathSha256": "27db75b04077d843b06e68f1bf14de3f643591e1b39b345409b314a6cde5c089",
+      "knots": 1183,
+      "before": {
+        "samples": 29478,
+        "minClearanceM": 1.0004774997725008,
+        "maxClearanceM": 310.3502279935699,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 25,
+            "samples": 888,
+            "minClearanceM": 1.0004774997725008,
+            "maxClearanceM": 84.83482545387983,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 25,
+            "endS": 110,
+            "samples": 4990,
+            "minClearanceM": 64.93573173055483,
+            "maxClearanceM": 206.64669556141575,
+            "at": {
+              "t": 39.70334736420124,
+              "lat": -89.40815345578307,
+              "lon": 33.5314154698257,
+              "groundM": -559.5312928457024
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 110,
+            "endS": 200,
+            "samples": 6417,
+            "minClearanceM": 106.59219050629451,
+            "maxClearanceM": 310.3502279935699,
+            "at": {
+              "t": 197.44700748129674,
+              "lat": -89.45088266010961,
+              "lon": 84.38835915734413,
+              "groundM": 523.2360987947364
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 200,
+            "endS": 240,
+            "samples": 1411,
+            "minClearanceM": 4.999693092785606,
+            "maxClearanceM": 111.95452919048364,
+            "at": {
+              "t": 240,
+              "lat": -89.45,
+              "lon": 85,
+              "groundM": 543.1093069072821
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 240,
+            "endS": 310,
+            "samples": 2266,
+            "minClearanceM": 4.9133148797232025,
+            "maxClearanceM": 111.9627154814051,
+            "at": {
+              "t": 240.9580573951435,
+              "lat": -89.44999559559419,
+              "lon": 85.0027890425066,
+              "groundM": 543.1756482410669
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 310,
+            "endS": 380,
+            "samples": 7622,
+            "minClearanceM": 86.97825504556772,
+            "maxClearanceM": 304.6403846704163,
+            "at": {
+              "t": 312.5810261120588,
+              "lat": -89.4508484295728,
+              "lon": 84.39391026444255,
+              "groundM": 523.2400965810318
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 380,
+            "endS": 460,
+            "samples": 4822,
+            "minClearanceM": 47.44186186415686,
+            "maxClearanceM": 204.58243714314722,
+            "at": {
+              "t": 446.8243103090645,
+              "lat": -89.40724937799227,
+              "lon": 33.17146146988802,
+              "groundM": -556.7633171346945
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 460,
+            "endS": 490,
+            "samples": 1062,
+            "minClearanceM": 1.0004774997725008,
+            "maxClearanceM": 65.13037494914363,
+            "at": {
+              "t": 490,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 20788,
+        "minClearanceM": 1.0000004995873724,
+        "maxClearanceM": 139.88546533728493,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 1
+            },
+            "to": {
+              "t": 25,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 80
+            },
+            "minClearanceM": 1.0000004995873724,
+            "maxClearanceM": 83.2317440090967,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 378
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 25,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 80
+            },
+            "to": {
+              "t": 110,
+              "lat": -89.42,
+              "lon": 55,
+              "altM": 110
+            },
+            "minClearanceM": 79.99153741112036,
+            "maxClearanceM": 119.0869545344284,
+            "at": {
+              "t": 26.540625,
+              "lat": -89.40102137680297,
+              "lon": 30.33265414242393,
+              "groundM": -551.7633875746976
+            },
+            "samples": 4201
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 110,
+              "lat": -89.42,
+              "lon": 55,
+              "altM": 110
+            },
+            "to": {
+              "t": 200,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 110
+            },
+            "minClearanceM": 109.52623221007457,
+            "maxClearanceM": 130.5526485418148,
+            "at": {
+              "t": 110.16479764705882,
+              "lat": -89.42006389385766,
+              "lon": 55.04924123757451,
+              "groundM": -663.6767380152571
+            },
+            "samples": 4930
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 200,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 110
+            },
+            "to": {
+              "t": 240,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 5
+            },
+            "minClearanceM": 5.278089092443338,
+            "maxClearanceM": 123.71476840981472,
+            "at": {
+              "t": 240,
+              "lat": -89.45,
+              "lon": 85,
+              "groundM": 543.1093069072821
+            },
+            "samples": 619
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 240,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 5
+            },
+            "to": {
+              "t": 310,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 90
+            },
+            "minClearanceM": 5.266554446677219,
+            "maxClearanceM": 104.48043174847862,
+            "at": {
+              "t": 240.096153875,
+              "lat": -89.4500000341586,
+              "lon": 84.99997836384618,
+              "groundM": 543.10879224164
+            },
+            "samples": 989
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 310,
+              "lat": -89.45,
+              "lon": 85,
+              "altM": 90
+            },
+            "to": {
+              "t": 380,
+              "lat": -89.42,
+              "lon": 55,
+              "altM": 130
+            },
+            "minClearanceM": 92.59578165400228,
+            "maxClearanceM": 136.95491050575959,
+            "at": {
+              "t": 311.4280507777778,
+              "lat": -89.45047742682858,
+              "lon": 84.67675480370376,
+              "groundM": 533.5902909149962
+            },
+            "samples": 5002
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 380,
+              "lat": -89.42,
+              "lon": 55,
+              "altM": 130
+            },
+            "to": {
+              "t": 460,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 60
+            },
+            "minClearanceM": 60.04327746383649,
+            "maxClearanceM": 139.88546533728493,
+            "at": {
+              "t": 458.47150275,
+              "lat": -89.40100986613938,
+              "lon": 30.330578599226676,
+              "groundM": -551.7742928027645
+            },
+            "samples": 4217
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 460,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 60
+            },
+            "to": {
+              "t": 490,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000004995873724,
+            "maxClearanceM": 63.73721114570844,
+            "at": {
+              "t": 490,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 452
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-B",
+      "epoch": "2028-12-19T06:00:00Z",
+      "label": "Sun-illuminated peak sampling",
+      "pathSha256": "c65c3e0ec6c467d6d33b1181a7c0299f429ffb222ecb6b1cd1faa906bc171f9b",
+      "knots": 584,
+      "before": {
+        "samples": 14433,
+        "minClearanceM": 1.0004774997725008,
+        "maxClearanceM": 372.74581224300084,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 589,
+            "minClearanceM": 1.0004774997725008,
+            "maxClearanceM": 100.00047749993257,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 90,
+            "samples": 2404,
+            "minClearanceM": 63.81018821060786,
+            "maxClearanceM": 219.99957082359526,
+            "at": {
+              "t": 69.1510611735331,
+              "lat": -89.37419997875188,
+              "lon": 23.63831815361821,
+              "groundM": -525.0927469420625
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 90,
+            "endS": 150,
+            "samples": 2522,
+            "minClearanceM": 149.36533907804352,
+            "maxClearanceM": 280.33571204791997,
+            "at": {
+              "t": 127.03292344307815,
+              "lat": -89.34694271201876,
+              "lon": 13.232750933229877,
+              "groundM": -502.00512321477055
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 150,
+            "endS": 190,
+            "samples": 764,
+            "minClearanceM": 4.999518090174092,
+            "maxClearanceM": 220.0438923920567,
+            "at": {
+              "t": 190,
+              "lat": -89.33999999999999,
+              "lon": 10,
+              "groundM": -539.9565180902508
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 190,
+            "endS": 260,
+            "samples": 1334,
+            "minClearanceM": 4.999518090174092,
+            "maxClearanceM": 220.04141181401565,
+            "at": {
+              "t": 190,
+              "lat": -89.33999999999999,
+              "lon": 10,
+              "groundM": -539.9565180902508
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 260,
+            "endS": 330,
+            "samples": 4799,
+            "minClearanceM": 157.10765420506561,
+            "maxClearanceM": 372.74581224300084,
+            "at": {
+              "t": 322.90954564401835,
+              "lat": -89.37780930579189,
+              "lon": 23.78046934577209,
+              "groundM": -534.6808812560818
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 330,
+            "endS": 400,
+            "samples": 1720,
+            "minClearanceM": 60.00047749996895,
+            "maxClearanceM": 160.00022034869892,
+            "at": {
+              "t": 400,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 400,
+            "endS": 430,
+            "samples": 301,
+            "minClearanceM": 1.0004774997725008,
+            "maxClearanceM": 60.00047749996895,
+            "at": {
+              "t": 430,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 9717,
+        "minClearanceM": 1.0000004995873724,
+        "maxClearanceM": 234.4512329876046,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 100
+            },
+            "minClearanceM": 1.0000004995873724,
+            "maxClearanceM": 100.65468249997878,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 360
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 100
+            },
+            "to": {
+              "t": 90,
+              "lat": -89.36,
+              "lon": 20,
+              "altM": 220
+            },
+            "minClearanceM": 100.62755877487382,
+            "maxClearanceM": 231.36372382352658,
+            "at": {
+              "t": 30.523394384615383,
+              "lat": -89.39982071222558,
+              "lon": 29.937852463168564,
+              "groundM": -553.0385768808507
+            },
+            "samples": 1908
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 90,
+              "lat": -89.36,
+              "lon": 20,
+              "altM": 220
+            },
+            "to": {
+              "t": 150,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 220
+            },
+            "minClearanceM": 219.773814725053,
+            "maxClearanceM": 234.4512329876046,
+            "at": {
+              "t": 128.44884461111113,
+              "lat": -89.34651478382439,
+              "lon": 12.988009208859898,
+              "groundM": -499.99654396277407
+            },
+            "samples": 1911
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 150,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 220
+            },
+            "to": {
+              "t": 190,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 5
+            },
+            "minClearanceM": 5.00000009007897,
+            "maxClearanceM": 224.05740203317134,
+            "at": {
+              "t": 190,
+              "lat": -89.33999999999999,
+              "lon": 10,
+              "groundM": -539.9565180902508
+            },
+            "samples": 457
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 190,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 5
+            },
+            "to": {
+              "t": 260,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 220
+            },
+            "minClearanceM": 4.96516858634584,
+            "maxClearanceM": 223.44079320698722,
+            "at": {
+              "t": 190.29914523076923,
+              "lat": -89.33999955154881,
+              "lon": 9.999977022701696,
+              "groundM": -539.9573301775084
+            },
+            "samples": 801
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 260,
+              "lat": -89.34,
+              "lon": 10,
+              "altM": 220
+            },
+            "to": {
+              "t": 330,
+              "lat": -89.38,
+              "lon": 25,
+              "altM": 160
+            },
+            "minClearanceM": 160.4231080740285,
+            "maxClearanceM": 224.61151532832878,
+            "at": {
+              "t": 329.5989586,
+              "lat": -89.37988553742579,
+              "lon": 24.940330686012462,
+              "groundM": -546.7268732858067
+            },
+            "samples": 2922
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 330,
+              "lat": -89.38,
+              "lon": 25,
+              "altM": 160
+            },
+            "to": {
+              "t": 400,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 60
+            },
+            "minClearanceM": 60.395983499873296,
+            "maxClearanceM": 162.23737933406176,
+            "at": {
+              "t": 400,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 1043
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 400,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 60
+            },
+            "to": {
+              "t": 430,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000004995873724,
+            "maxClearanceM": 60.395983499873296,
+            "at": {
+              "t": 430,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 315
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-B",
+      "epoch": "2028-12-26T11:00:00Z",
+      "label": "Long hop to neighboring rim site",
+      "pathSha256": "06ca61d7bc36ed7ccac7a5d4a2416a46d09a1e19ec5e093da57c91901c80003b",
+      "knots": 892,
+      "before": {
+        "samples": 22227,
+        "minClearanceM": -9.137581269841803,
+        "maxClearanceM": 273.55176159528435,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 988,
+            "minClearanceM": 1.0004774997725008,
+            "maxClearanceM": 104.43757475146344,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 150,
+            "samples": 6248,
+            "minClearanceM": 95.628205409609,
+            "maxClearanceM": 244.44312826815076,
+            "at": {
+              "t": 43.65775572274692,
+              "lat": -89.4023860906928,
+              "lon": 32.97080417505868,
+              "groundM": -568.7740077960069
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 150,
+            "endS": 280,
+            "samples": 7333,
+            "minClearanceM": 159.99955837844232,
+            "maxClearanceM": 273.55176159528435,
+            "at": {
+              "t": 150,
+              "lat": -89.36,
+              "lon": 59.99999999999999,
+              "groundM": -803.4495583784721
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 280,
+            "endS": 380,
+            "samples": 6344,
+            "minClearanceM": -9.137581269841803,
+            "maxClearanceM": 200.00032062359838,
+            "at": {
+              "t": 321.7783383257134,
+              "lat": -89.31448580288966,
+              "lon": 106.02658068142259,
+              "groundM": 827.4383766067233
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 380,
+            "endS": 420,
+            "samples": 1314,
+            "minClearanceM": 0.9999895289827236,
+            "maxClearanceM": 104.94098650971137,
+            "at": {
+              "t": 420,
+              "lat": -89.3,
+              "lon": 120.00000000000001,
+              "groundM": 1133.9530104710132
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 17894,
+        "minClearanceM": 0.9999995288769696,
+        "maxClearanceM": 222.50378561720305,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 100
+            },
+            "minClearanceM": 1.0000004995873724,
+            "maxClearanceM": 101.7315228155735,
+            "at": {
+              "t": 0,
+              "lat": -89.4,
+              "lon": 29.999999999999993,
+              "groundM": -552.6814774996893
+            },
+            "samples": 439
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.4,
+              "lon": 30,
+              "altM": 100
+            },
+            "to": {
+              "t": 150,
+              "lat": -89.36,
+              "lon": 60,
+              "altM": 160
+            },
+            "minClearanceM": 99.98037850725473,
+            "maxClearanceM": 165.43794312044315,
+            "at": {
+              "t": 30.225882352941177,
+              "lat": -89.40006771975996,
+              "lon": 30.045691470854454,
+              "groundM": -552.6516581420967
+            },
+            "samples": 5307
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 150,
+              "lat": -89.36,
+              "lon": 60,
+              "altM": 160
+            },
+            "to": {
+              "t": 280,
+              "lat": -89.32,
+              "lon": 95,
+              "altM": 200
+            },
+            "minClearanceM": 160.00219236987994,
+            "maxClearanceM": 219.66945590109188,
+            "at": {
+              "t": 151.74543457894737,
+              "lat": -89.35974306289239,
+              "lon": 60.43305682706431,
+              "groundM": -802.7776940683319
+            },
+            "samples": 6576
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 280,
+              "lat": -89.32,
+              "lon": 95,
+              "altM": 200
+            },
+            "to": {
+              "t": 380,
+              "lat": -89.3,
+              "lon": 120,
+              "altM": 100
+            },
+            "minClearanceM": 99.99600109552784,
+            "maxClearanceM": 222.50378561720305,
+            "at": {
+              "t": 379.2428826923077,
+              "lat": -89.30044882180047,
+              "lon": 119.87178116887084,
+              "groundM": 1135.9245280397004
+            },
+            "samples": 4993
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 380,
+              "lat": -89.3,
+              "lon": 120,
+              "altM": 100
+            },
+            "to": {
+              "t": 420,
+              "lat": -89.3,
+              "lon": 120,
+              "altM": 1
+            },
+            "minClearanceM": 0.9999995288769696,
+            "maxClearanceM": 106.52054104813419,
+            "at": {
+              "t": 420,
+              "lat": -89.3,
+              "lon": 120.00000000000001,
+              "groundM": 1133.9530104710132
+            },
+            "samples": 579
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-C",
+      "epoch": "2028-12-15T10:00:00Z",
+      "label": "Crater inner-wall transect",
+      "pathSha256": "6914d2d1bb357bca05dc27c00920a50f1380b982a54352035e68bbbcaa5dcc58",
+      "knots": 457,
+      "before": {
+        "samples": 11252,
+        "minClearanceM": -429.0972298615509,
+        "maxClearanceM": 228.39947887539097,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 25,
+            "samples": 303,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 80.00012986440481,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 25,
+            "endS": 100,
+            "samples": 1511,
+            "minClearanceM": 80.00012986440481,
+            "maxClearanceM": 214.70480504539287,
+            "at": {
+              "t": 25,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 100,
+            "endS": 180,
+            "samples": 2920,
+            "minClearanceM": -429.0972298615509,
+            "maxClearanceM": 110.00030412050768,
+            "at": {
+              "t": 141.0277492291881,
+              "lat": -89.7428439147966,
+              "lon": 61.12961249301934,
+              "groundM": 1351.5922240360362
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 180,
+            "endS": 240,
+            "samples": 781,
+            "minClearanceM": 4.99417935280826,
+            "maxClearanceM": 169.67328126060943,
+            "at": {
+              "t": 239.84615384615384,
+              "lat": -89.72999987800105,
+              "lon": 49.999937007955424,
+              "groundM": 1077.2451133910986
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 240,
+            "endS": 310,
+            "samples": 848,
+            "minClearanceM": 5.000136869523885,
+            "maxClearanceM": 185.410758695411,
+            "at": {
+              "t": 240,
+              "lat": -89.73,
+              "lon": 50,
+              "groundM": 1077.2478631301847
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 310,
+            "endS": 390,
+            "samples": 3026,
+            "minClearanceM": -412.7256303887252,
+            "maxClearanceM": 130.0003041204895,
+            "at": {
+              "t": 349.11404958677684,
+              "lat": -89.74291465715362,
+              "lon": 61.12959825904308,
+              "groundM": 1351.2961363179174
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 390,
+            "endS": 470,
+            "samples": 1531,
+            "minClearanceM": 60.00012986419563,
+            "maxClearanceM": 228.39947887539097,
+            "at": {
+              "t": 470,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 470,
+            "endS": 500,
+            "samples": 332,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 60.00012986419563,
+            "at": {
+              "t": 500,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 8773,
+        "minClearanceM": 0.9999998644644847,
+        "maxClearanceM": 184.23941688460394,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "to": {
+              "t": 25,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 80
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 110.90110253106889,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 274
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 25,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 80
+            },
+            "to": {
+              "t": 100,
+              "lat": -89.75,
+              "lon": 75,
+              "altM": 110
+            },
+            "minClearanceM": 106.11939640773028,
+            "maxClearanceM": 163.50045803582157,
+            "at": {
+              "t": 27.612704625,
+              "lat": -89.77938632395387,
+              "lon": 89.55650609988088,
+              "groundM": -699.2588815368164
+            },
+            "samples": 1319
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 100,
+              "lat": -89.75,
+              "lon": 75,
+              "altM": 110
+            },
+            "to": {
+              "t": 180,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 80
+            },
+            "minClearanceM": 87.21412495580307,
+            "maxClearanceM": 147.8971866749556,
+            "at": {
+              "t": 153.17244829411766,
+              "lat": -89.73926674145046,
+              "lon": 56.86358560668404,
+              "groundM": 1321.8693527399278
+            },
+            "samples": 2068
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 180,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 80
+            },
+            "to": {
+              "t": 240,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 5
+            },
+            "minClearanceM": 4.999999869608473,
+            "maxClearanceM": 107.31125896045819,
+            "at": {
+              "t": 240,
+              "lat": -89.73,
+              "lon": 49.99999999999999,
+              "groundM": 1077.2478631301847
+            },
+            "samples": 647
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 240,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 5
+            },
+            "to": {
+              "t": 310,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 90
+            },
+            "minClearanceM": 4.999999869608473,
+            "maxClearanceM": 117.52597932086178,
+            "at": {
+              "t": 240,
+              "lat": -89.73,
+              "lon": 49.99999999999999,
+              "groundM": 1077.2478631301847
+            },
+            "samples": 739
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 310,
+              "lat": -89.73,
+              "lon": 50,
+              "altM": 90
+            },
+            "to": {
+              "t": 390,
+              "lat": -89.75,
+              "lon": 75,
+              "altM": 130
+            },
+            "minClearanceM": 97.83119965309538,
+            "maxClearanceM": 164.33246280635012,
+            "at": {
+              "t": 310.0734618888889,
+              "lat": -89.73002062010242,
+              "lon": 50.010676090130964,
+              "groundM": 1077.6314611245164
+            },
+            "samples": 2071
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 390,
+              "lat": -89.75,
+              "lon": 75,
+              "altM": 130
+            },
+            "to": {
+              "t": 470,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "minClearanceM": 85.02340082170292,
+            "maxClearanceM": 184.23941688460394,
+            "at": {
+              "t": 467.07526886666665,
+              "lat": -89.7793700568738,
+              "lon": 89.54828148918097,
+              "groundM": -698.7475783698955
+            },
+            "samples": 1340
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 470,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "to": {
+              "t": 500,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 90.8033642992533,
+            "at": {
+              "t": 500,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 315
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-C",
+      "epoch": "2028-12-20T15:00:00Z",
+      "label": "PSR floor exploration",
+      "pathSha256": "cd1fb3b1ff27e278e3d8d985327ad88e80be6fea9448fc2500be8cc8f2c9dfce",
+      "knots": 676,
+      "before": {
+        "samples": 16812,
+        "minClearanceM": 1.000129864226551,
+        "maxClearanceM": 239.71306322605153,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 25,
+            "samples": 497,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 73.71221490486778,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 25,
+            "endS": 110,
+            "samples": 3116,
+            "minClearanceM": 59.760086360299965,
+            "maxClearanceM": 172.21150290507296,
+            "at": {
+              "t": 33.24077046548957,
+              "lat": -89.77973399403508,
+              "lon": 87.42790567961853,
+              "groundM": -536.7162731907208
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 110,
+            "endS": 190,
+            "samples": 3587,
+            "minClearanceM": 39.166732850087044,
+            "maxClearanceM": 200.08102227900565,
+            "at": {
+              "t": 189.196876742889,
+              "lat": -89.72039438770653,
+              "lon": 30.160978364631653,
+              "groundM": 414.1285970245763
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 190,
+            "endS": 240,
+            "samples": 842,
+            "minClearanceM": 4.919359797028562,
+            "maxClearanceM": 40.87848190292527,
+            "at": {
+              "t": 238.92984542211653,
+              "lat": -89.71998904542782,
+              "lon": 29.995587409165246,
+              "groundM": 406.66930139828156
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 240,
+            "endS": 320,
+            "samples": 1096,
+            "minClearanceM": 5.000009646106605,
+            "maxClearanceM": 60.71859038062058,
+            "at": {
+              "t": 240,
+              "lat": -89.72000000000001,
+              "lon": 29.999999999999993,
+              "groundM": 406.871990353569
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 320,
+            "endS": 400,
+            "samples": 3793,
+            "minClearanceM": 59.34742455649962,
+            "maxClearanceM": 239.71306322605153,
+            "at": {
+              "t": 320.65400843881855,
+              "lat": -89.72026200065403,
+              "lon": 30.106820995891535,
+              "groundM": 411.91521544585135
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 400,
+            "endS": 480,
+            "samples": 3283,
+            "minClearanceM": 52.9842036994321,
+            "maxClearanceM": 182.6215767182572,
+            "at": {
+              "t": 472.27300426569167,
+              "lat": -89.77975285725752,
+              "lon": 87.54641098007896,
+              "groundM": -545.5906393344574
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 480,
+            "endS": 510,
+            "samples": 598,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 63.751518857272,
+            "at": {
+              "t": 510,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 11824,
+        "minClearanceM": 0.9999998644644847,
+        "maxClearanceM": 125.84835520550473,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "to": {
+              "t": 25,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 70
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 112.93632619925881,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 310
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 25,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 70
+            },
+            "to": {
+              "t": 110,
+              "lat": -89.75,
+              "lon": 60,
+              "altM": 60
+            },
+            "minClearanceM": 66.92710787634246,
+            "maxClearanceM": 107.64482140396557,
+            "at": {
+              "t": 110,
+              "lat": -89.75,
+              "lon": 59.99999999999999,
+              "groundM": 1360.9461791234414
+            },
+            "samples": 2400
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 110,
+              "lat": -89.75,
+              "lon": 60,
+              "altM": 60
+            },
+            "to": {
+              "t": 190,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 40
+            },
+            "minClearanceM": 47.56606044234297,
+            "maxClearanceM": 77.70504208651164,
+            "at": {
+              "t": 189.16666650000002,
+              "lat": -89.72040929588886,
+              "lon": 30.167145205799077,
+              "groundM": 414.367781482404
+            },
+            "samples": 2423
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 190,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 40
+            },
+            "to": {
+              "t": 240,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 5
+            },
+            "minClearanceM": 4.999999646439733,
+            "maxClearanceM": 59.85178969437118,
+            "at": {
+              "t": 240,
+              "lat": -89.72000000000001,
+              "lon": 29.999999999999993,
+              "groundM": 406.871990353569
+            },
+            "samples": 568
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 240,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 5
+            },
+            "to": {
+              "t": 320,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 60
+            },
+            "minClearanceM": 4.998754098546613,
+            "maxClearanceM": 80.61534837242152,
+            "at": {
+              "t": 240.09569378947367,
+              "lat": -89.72000007063414,
+              "lon": 30.000028455826726,
+              "groundM": 406.87334164613736
+            },
+            "samples": 891
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 320,
+              "lat": -89.72,
+              "lon": 30,
+              "altM": 60
+            },
+            "to": {
+              "t": 400,
+              "lat": -89.75,
+              "lon": 60,
+              "altM": 90
+            },
+            "minClearanceM": 65.94677738793649,
+            "maxClearanceM": 104.94294364366078,
+            "at": {
+              "t": 321.052632,
+              "lat": -89.7204239301,
+              "lon": 30.1740840241,
+              "groundM": 414.5973616121941
+            },
+            "samples": 2445
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 400,
+              "lat": -89.75,
+              "lon": 60,
+              "altM": 90
+            },
+            "to": {
+              "t": 480,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "minClearanceM": 84.88761900772988,
+            "maxClearanceM": 125.84835520550473,
+            "at": {
+              "t": 478.32167823076924,
+              "lat": -89.78002989077923,
+              "lon": 89.49445824172406,
+              "groundM": -691.0506884439365
+            },
+            "samples": 2418
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 480,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "to": {
+              "t": 510,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 104.85015558883731,
+            "at": {
+              "t": 510,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 369
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-C",
+      "epoch": "2028-12-25T02:00:00Z",
+      "label": "Rim south-arc survey",
+      "pathSha256": "fc2f72137f8b4fe1a9fc3d859e249c0e93d7d83bef2db65f551de9859563ba23",
+      "knots": 660,
+      "before": {
+        "samples": 16394,
+        "minClearanceM": 1.000129864226551,
+        "maxClearanceM": 219.87599231083937,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 563,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 90.00012986439572,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 130,
+            "samples": 3361,
+            "minClearanceM": 90.00012986439572,
+            "maxClearanceM": 219.87599231083937,
+            "at": {
+              "t": 30,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 130,
+            "endS": 240,
+            "samples": 3316,
+            "minClearanceM": 99.999807730719,
+            "maxClearanceM": 200.34870940003225,
+            "at": {
+              "t": 240,
+              "lat": -89.78,
+              "lon": 170,
+              "groundM": -617.865807730859
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 240,
+            "endS": 280,
+            "samples": 675,
+            "minClearanceM": 4.999807730691714,
+            "maxClearanceM": 99.999807730719,
+            "at": {
+              "t": 280,
+              "lat": -89.78,
+              "lon": 170,
+              "groundM": -617.865807730859
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 280,
+            "endS": 360,
+            "samples": 1025,
+            "minClearanceM": 2.851902632913948,
+            "maxClearanceM": 99.999807730719,
+            "at": {
+              "t": 302.734375,
+              "lat": -89.77835361431488,
+              "lon": 170.80822747989822,
+              "groundM": -562.5160226342576
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 360,
+            "endS": 470,
+            "samples": 3728,
+            "minClearanceM": 99.999807730719,
+            "maxClearanceM": 204.22303279283256,
+            "at": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": 170,
+              "groundM": -617.865807730859
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 470,
+            "endS": 580,
+            "samples": 3214,
+            "minClearanceM": 60.00012986419563,
+            "maxClearanceM": 215.45094732775442,
+            "at": {
+              "t": 580,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 580,
+            "endS": 610,
+            "samples": 512,
+            "minClearanceM": 1.000129864226551,
+            "maxClearanceM": 60.00012986419563,
+            "at": {
+              "t": 610,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 12311,
+        "minClearanceM": 0.9999998644644847,
+        "maxClearanceM": 162.601569348054,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 90
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 123.65670286408488,
+            "at": {
+              "t": 0,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 361
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 90
+            },
+            "to": {
+              "t": 130,
+              "lat": -89.8,
+              "lon": 130,
+              "altM": 130
+            },
+            "minClearanceM": 113.93148265307627,
+            "maxClearanceM": 144.47187494453715,
+            "at": {
+              "t": 33.60493853333333,
+              "lat": -89.78183425848134,
+              "lon": 90.96373578043202,
+              "groundM": -788.598550258318
+            },
+            "samples": 2561
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 130,
+              "lat": -89.8,
+              "lon": 130,
+              "altM": 130
+            },
+            "to": {
+              "t": 240,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 100
+            },
+            "minClearanceM": 123.49411310797473,
+            "maxClearanceM": 146.76922301789864,
+            "at": {
+              "t": 236.3609022,
+              "lat": -89.781603625519,
+              "lon": 169.15893953527126,
+              "groundM": -672.855622669297
+            },
+            "samples": 2577
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 240,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 100
+            },
+            "to": {
+              "t": 280,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 5
+            },
+            "minClearanceM": 7.8414607308239965,
+            "maxClearanceM": 138.5406942234373,
+            "at": {
+              "t": 280,
+              "lat": -89.78,
+              "lon": 170,
+              "groundM": -617.865807730859
+            },
+            "samples": 448
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 280,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 5
+            },
+            "to": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 100
+            },
+            "minClearanceM": 7.76819915427086,
+            "maxClearanceM": 142.70635257423965,
+            "at": {
+              "t": 280.292683,
+              "lat": -89.78000006096615,
+              "lon": 169.999969436269,
+              "groundM": -617.8677239124686
+            },
+            "samples": 869
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 360,
+              "lat": -89.78,
+              "lon": 170,
+              "altM": 100
+            },
+            "to": {
+              "t": 470,
+              "lat": -89.8,
+              "lon": 130,
+              "altM": 150
+            },
+            "minClearanceM": 116.90161562274238,
+            "maxClearanceM": 162.601569348054,
+            "at": {
+              "t": 364.2666667272727,
+              "lat": -89.78152494734212,
+              "lon": 169.1940303247912,
+              "groundM": -670.6129961130553
+            },
+            "samples": 2602
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 470,
+              "lat": -89.8,
+              "lon": 130,
+              "altM": 150
+            },
+            "to": {
+              "t": 580,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "minClearanceM": 85.72739588365084,
+            "maxClearanceM": 157.22959820988262,
+            "at": {
+              "t": 576.269379625,
+              "lat": -89.78175573211155,
+              "lon": 90.92092032452949,
+              "groundM": -786.0640033927943
+            },
+            "samples": 2545
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 580,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 60
+            },
+            "to": {
+              "t": 610,
+              "lat": -89.78,
+              "lon": 90,
+              "altM": 1
+            },
+            "minClearanceM": 0.9999998644644847,
+            "maxClearanceM": 93.6133548641493,
+            "at": {
+              "t": 610,
+              "lat": -89.78,
+              "lon": 90,
+              "groundM": -727.9171298644115
+            },
+            "samples": 348
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-D",
+      "epoch": "2028-12-15T10:00:00Z",
+      "label": "Connector hop to de Gerlache",
+      "pathSha256": "e535e57945bf1b9982ebf8f32c3c177858b17aaa17145e73d2bce5d65bdb4dec",
+      "knots": 894,
+      "before": {
+        "samples": 22228,
+        "minClearanceM": -147.57844420407332,
+        "maxClearanceM": 279.3648908919731,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 508,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 132.01504231506146,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 160,
+            "samples": 3067,
+            "minClearanceM": -66.89377870582621,
+            "maxClearanceM": 279.3648908919731,
+            "at": {
+              "t": 56.45792563600783,
+              "lat": -89.48567602373653,
+              "lon": -138.11739302637562,
+              "groundM": 1926.9208855629863
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 160,
+            "endS": 320,
+            "samples": 3724,
+            "minClearanceM": 127.49393551275784,
+            "maxClearanceM": 276.0597371638046,
+            "at": {
+              "t": 244.40504969110933,
+              "lat": -89.30157849366022,
+              "lon": -156.38473163082918,
+              "groundM": 1208.7924478085363
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 320,
+            "endS": 380,
+            "samples": 2484,
+            "minClearanceM": 39.9995070798516,
+            "maxClearanceM": 274.6104527299319,
+            "at": {
+              "t": 380,
+              "lat": -89.10000000000001,
+              "lon": -160,
+              "groundM": 55.04649292005955
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 380,
+            "endS": 420,
+            "samples": 627,
+            "minClearanceM": 4.558798093124857,
+            "maxClearanceM": 39.9995070798516,
+            "at": {
+              "t": 417.50798722044726,
+              "lat": -89.09985435529835,
+              "lon": -160,
+              "groundM": 53.976728225894625
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 420,
+            "endS": 490,
+            "samples": 1151,
+            "minClearanceM": 4.999507079997116,
+            "maxClearanceM": 93.67105106478166,
+            "at": {
+              "t": 420,
+              "lat": -89.10000000000001,
+              "lon": -160,
+              "groundM": 55.04649292005955
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 490,
+            "endS": 620,
+            "samples": 4036,
+            "minClearanceM": 43.53243832901535,
+            "maxClearanceM": 277.5864458520359,
+            "at": {
+              "t": 513.5192069392813,
+              "lat": -89.12748558258515,
+              "lon": -159.52370696823957,
+              "groundM": 292.3974540693107
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 620,
+            "endS": 750,
+            "samples": 5809,
+            "minClearanceM": -147.57844420407332,
+            "maxClearanceM": 218.1771930565285,
+            "at": {
+              "t": 731.7131542699724,
+              "lat": -89.48002269738105,
+              "lon": -138.29079928120012,
+              "groundM": 1932.9954545330295
+            }
+          },
+          {
+            "segment": 8,
+            "startS": 750,
+            "endS": 780,
+            "samples": 822,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 136.75975578732937,
+            "at": {
+              "t": 780,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 18747,
+        "minClearanceM": 1.0000003881928023,
+        "maxClearanceM": 276.091643752257,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 100
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 120.98848435272726,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 353
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 100
+            },
+            "to": {
+              "t": 160,
+              "lat": -89.4,
+              "lon": -150,
+              "altM": 250
+            },
+            "minClearanceM": 107.58909445155678,
+            "maxClearanceM": 272.45186086981016,
+            "at": {
+              "t": 39.882113849999996,
+              "lat": -89.49493667115293,
+              "lon": -136.12709328317337,
+              "groundM": 1846.4023727632348
+            },
+            "samples": 2855
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 160,
+              "lat": -89.4,
+              "lon": -150,
+              "altM": 250
+            },
+            "to": {
+              "t": 320,
+              "lat": -89.2,
+              "lon": -160,
+              "altM": 250
+            },
+            "minClearanceM": 249.6405553661466,
+            "maxClearanceM": 276.091643752257,
+            "at": {
+              "t": 181.16331104166665,
+              "lat": -89.37711394120535,
+              "lon": -151.8089304105178,
+              "groundM": 1515.3776406802658
+            },
+            "samples": 3827
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 320,
+              "lat": -89.2,
+              "lon": -160,
+              "altM": 250
+            },
+            "to": {
+              "t": 380,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 40
+            },
+            "minClearanceM": 47.58631591619434,
+            "maxClearanceM": 267.0806335075528,
+            "at": {
+              "t": 377.1636363636364,
+              "lat": -89.1030454709097,
+              "lon": -160.00386836864513,
+              "groundM": 75.13222886779857
+            },
+            "samples": 1728
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 380,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 40
+            },
+            "to": {
+              "t": 420,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 5
+            },
+            "minClearanceM": 5.000000079785664,
+            "maxClearanceM": 59.53371848409019,
+            "at": {
+              "t": 420,
+              "lat": -89.10000000000001,
+              "lon": -160,
+              "groundM": 55.04649292005955
+            },
+            "samples": 456
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 420,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 5
+            },
+            "to": {
+              "t": 490,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 80
+            },
+            "minClearanceM": 4.996941136481141,
+            "maxClearanceM": 105.78865270546936,
+            "at": {
+              "t": 420.0951086875,
+              "lat": -89.10000052480397,
+              "lon": -160.00001974040248,
+              "groundM": 55.048700943304326
+            },
+            "samples": 809
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 490,
+              "lat": -89.1,
+              "lon": -160,
+              "altM": 80
+            },
+            "to": {
+              "t": 620,
+              "lat": -89.3,
+              "lon": -155,
+              "altM": 200
+            },
+            "minClearanceM": 93.22822105193711,
+            "maxClearanceM": 223.4497299919949,
+            "at": {
+              "t": 490.32098759999997,
+              "lat": -89.10032317185404,
+              "lon": -159.99382366398612,
+              "groundM": 57.935262365412086
+            },
+            "samples": 3545
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 620,
+              "lat": -89.3,
+              "lon": -155,
+              "altM": 200
+            },
+            "to": {
+              "t": 750,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "minClearanceM": 65.81160030376805,
+            "maxClearanceM": 210.93390628620386,
+            "at": {
+              "t": 734.3156886666667,
+              "lat": -89.48310486090665,
+              "lon": -137.8081909705791,
+              "groundM": 1932.2275761189399
+            },
+            "samples": 4754
+          },
+          {
+            "segment": 8,
+            "from": {
+              "t": 750,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "to": {
+              "t": 780,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 84.62332113938487,
+            "at": {
+              "t": 780,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 420
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-D",
+      "epoch": "2028-12-21T07:30:00Z",
+      "label": "PSR oblique entry",
+      "pathSha256": "00a41332756821647205ed1954cdca7f5397b469e930fad5191858b2ca28db15",
+      "knots": 614,
+      "before": {
+        "samples": 15199,
+        "minClearanceM": -159.35116739460477,
+        "maxClearanceM": 251.857012936405,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 617,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 82.15576047600507,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 120,
+            "samples": 3208,
+            "minClearanceM": 60.00014739826133,
+            "maxClearanceM": 239.5221748284764,
+            "at": {
+              "t": 120,
+              "lat": -89.6,
+              "lon": -120.00000000000001,
+              "groundM": 754.3678526015699
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 120,
+            "endS": 220,
+            "samples": 2854,
+            "minClearanceM": -159.35116739460477,
+            "maxClearanceM": 60.00014739826133,
+            "at": {
+              "t": 158.52085524009814,
+              "lat": -89.6376048649934,
+              "lon": -112.4113303615814,
+              "groundM": 718.0268139753005
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 220,
+            "endS": 270,
+            "samples": 754,
+            "minClearanceM": 4.925494752328063,
+            "maxClearanceM": 56.86600850386023,
+            "at": {
+              "t": 269.070385126162,
+              "lat": -89.68000632039269,
+              "lon": -99.99722908177475,
+              "groundM": 258.22246342524124
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 270,
+            "endS": 340,
+            "samples": 932,
+            "minClearanceM": 5.000176012419672,
+            "maxClearanceM": 77.96640555382803,
+            "at": {
+              "t": 270,
+              "lat": -89.68,
+              "lon": -100,
+              "groundM": 258.32282398725323
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 340,
+            "endS": 440,
+            "samples": 3032,
+            "minClearanceM": -121.06678829154123,
+            "maxClearanceM": 100.00014739822495,
+            "at": {
+              "t": 402.09171890465194,
+              "lat": -89.63761874322327,
+              "lon": -112.40609900735986,
+              "groundM": 717.9176013305959
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 440,
+            "endS": 530,
+            "samples": 3192,
+            "minClearanceM": 59.937979355122025,
+            "maxClearanceM": 251.857012936405,
+            "at": {
+              "t": 529.7179567533689,
+              "lat": -89.50026742836239,
+              "lon": -134.97204033384907,
+              "groundM": 1756.1146109820997
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 530,
+            "endS": 560,
+            "samples": 610,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 61.854760862777994,
+            "at": {
+              "t": 560,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 12175,
+        "minClearanceM": 1.0000003881928023,
+        "maxClearanceM": 113.9613838462958,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 80
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 95.04926538815971,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 359
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 80
+            },
+            "to": {
+              "t": 120,
+              "lat": -89.6,
+              "lon": -120,
+              "altM": 60
+            },
+            "minClearanceM": 61.029981912876224,
+            "maxClearanceM": 106.78091565937189,
+            "at": {
+              "t": 118.52713166666668,
+              "lat": -89.59857893264748,
+              "lon": -120.26678475388265,
+              "groundM": 753.2639536428484
+            },
+            "samples": 2603
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 120,
+              "lat": -89.6,
+              "lon": -120,
+              "altM": 60
+            },
+            "to": {
+              "t": 220,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 40
+            },
+            "minClearanceM": 49.666998180907285,
+            "maxClearanceM": 72.27478431537088,
+            "at": {
+              "t": 216.98550699999998,
+              "lat": -89.67882332602298,
+              "lon": -100.50294848924716,
+              "groundM": 278.4723237517601
+            },
+            "samples": 2449
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 220,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 40
+            },
+            "to": {
+              "t": 270,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 5
+            },
+            "minClearanceM": 5.000000012461953,
+            "maxClearanceM": 57.980683329902035,
+            "at": {
+              "t": 270,
+              "lat": -89.68,
+              "lon": -100,
+              "groundM": 258.32282398725323
+            },
+            "samples": 572
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 270,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 5
+            },
+            "to": {
+              "t": 340,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 60
+            },
+            "minClearanceM": 4.999877091406802,
+            "maxClearanceM": 78.78442593144166,
+            "at": {
+              "t": 270.09695289473683,
+              "lat": -89.67999996352259,
+              "lon": -100.00001599038983,
+              "groundM": 258.32340315427916
+            },
+            "samples": 769
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 340,
+              "lat": -89.68,
+              "lon": -100,
+              "altM": 60
+            },
+            "to": {
+              "t": 440,
+              "lat": -89.6,
+              "lon": -120,
+              "altM": 100
+            },
+            "minClearanceM": 68.14005025947102,
+            "maxClearanceM": 107.67925186976754,
+            "at": {
+              "t": 343.40479238461535,
+              "lat": -89.67880565935658,
+              "lon": -100.50899441623397,
+              "groundM": 278.7048990469162
+            },
+            "samples": 2459
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 440,
+              "lat": -89.6,
+              "lon": -120,
+              "altM": 100
+            },
+            "to": {
+              "t": 530,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "minClearanceM": 74.69123541847262,
+            "maxClearanceM": 113.9613838462958,
+            "at": {
+              "t": 528.828125,
+              "lat": -89.50111773311149,
+              "lon": -134.88263008378973,
+              "groundM": 1746.22061521512
+            },
+            "samples": 2600
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 530,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "to": {
+              "t": 560,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 75.04967838790299,
+            "at": {
+              "t": 560,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 364
+          }
+        ]
+      }
+    },
+    {
+      "hopper": "Polaris-D",
+      "epoch": "2028-12-27T18:00:00Z",
+      "label": "Long traverse to Sverdrup",
+      "pathSha256": "e0a7bcfe6c6a39f5309ed852dfce0e137211caf99add2a4a983045dce5890339",
+      "knots": 2037,
+      "before": {
+        "samples": 50798,
+        "minClearanceM": -979.9487955413365,
+        "maxClearanceM": 1138.3198792300482,
+        "segments": [
+          {
+            "segment": 0,
+            "startS": 0,
+            "endS": 30,
+            "samples": 590,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 121.91035096629594,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          },
+          {
+            "segment": 1,
+            "startS": 30,
+            "endS": 180,
+            "samples": 5196,
+            "minClearanceM": 89.16377330998148,
+            "maxClearanceM": 331.4442192531603,
+            "at": {
+              "t": 52.55052935514918,
+              "lat": -89.47601539246963,
+              "lon": -133.4651808109794,
+              "groundM": 1745.6966605784983
+            }
+          },
+          {
+            "segment": 2,
+            "startS": 180,
+            "endS": 350,
+            "samples": 9507,
+            "minClearanceM": 279.99988095300364,
+            "maxClearanceM": 1138.3198792300482,
+            "at": {
+              "t": 350,
+              "lat": -88.85,
+              "lon": -110,
+              "groundM": -188.3958809528151
+            }
+          },
+          {
+            "segment": 3,
+            "startS": 350,
+            "endS": 430,
+            "samples": 7328,
+            "minClearanceM": -529.149899056302,
+            "maxClearanceM": 279.99988095300364,
+            "at": {
+              "t": 375.1562713252354,
+              "lat": -88.78277916523345,
+              "lon": -106.94750299882095,
+              "groundM": 275.60651401258906
+            }
+          },
+          {
+            "segment": 4,
+            "startS": 430,
+            "endS": 480,
+            "samples": 1740,
+            "minClearanceM": 4.999519406057516,
+            "maxClearanceM": 112.60057717909399,
+            "at": {
+              "t": 480,
+              "lat": -88.65,
+              "lon": -100,
+              "groundM": -1201.137519406304
+            }
+          },
+          {
+            "segment": 5,
+            "startS": 480,
+            "endS": 560,
+            "samples": 3164,
+            "minClearanceM": -2.69414600899745,
+            "maxClearanceM": 123.99801157485649,
+            "at": {
+              "t": 528.9408789124249,
+              "lat": -88.62320294007849,
+              "lon": -99.41341144325973,
+              "groundM": -1208.6602741364286
+            }
+          },
+          {
+            "segment": 6,
+            "startS": 560,
+            "endS": 720,
+            "samples": 14834,
+            "minClearanceM": -979.9487955413365,
+            "maxClearanceM": 413.3432269540086,
+            "at": {
+              "t": 626.2091282950179,
+              "lat": -88.8537628540151,
+              "lon": -106.07837794897789,
+              "groundM": 483.098591731537
+            }
+          },
+          {
+            "segment": 7,
+            "startS": 720,
+            "endS": 880,
+            "samples": 7492,
+            "minClearanceM": -179.2276830437604,
+            "maxClearanceM": 249.99984473107378,
+            "at": {
+              "t": 767.8867974903217,
+              "lat": -89.26445855334424,
+              "lon": -125.02326424049338,
+              "groundM": 1138.613604432263
+            }
+          },
+          {
+            "segment": 8,
+            "startS": 880,
+            "endS": 910,
+            "samples": 947,
+            "minClearanceM": 0.9999193879125414,
+            "maxClearanceM": 83.55172174055087,
+            "at": {
+              "t": 910,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            }
+          }
+        ]
+      },
+      "after": {
+        "samples": 37167,
+        "minClearanceM": 1.0000003881928023,
+        "maxClearanceM": 310.90910211501,
+        "segments": [
+          {
+            "segment": 0,
+            "from": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "to": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 120
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 122.2791953879082,
+            "at": {
+              "t": 0,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 358
+          },
+          {
+            "segment": 1,
+            "from": {
+              "t": 30,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 120
+            },
+            "to": {
+              "t": 180,
+              "lat": -89.3,
+              "lon": -125,
+              "altM": 280
+            },
+            "minClearanceM": 120.86258883608252,
+            "maxClearanceM": 310.31956840276007,
+            "at": {
+              "t": 36.026786,
+              "lat": -89.49364598771587,
+              "lon": -134.55094104059813,
+              "groundM": 1758.740048299494
+            },
+            "samples": 3774
+          },
+          {
+            "segment": 2,
+            "from": {
+              "t": 180,
+              "lat": -89.3,
+              "lon": -125,
+              "altM": 280
+            },
+            "to": {
+              "t": 350,
+              "lat": -88.85,
+              "lon": -110,
+              "altM": 280
+            },
+            "minClearanceM": 279.38685865078946,
+            "maxClearanceM": 310.90910211501,
+            "at": {
+              "t": 186.01049864705882,
+              "lat": -89.28808331558496,
+              "lon": -124.40941832526887,
+              "groundM": 1085.1721413363496
+            },
+            "samples": 8403
+          },
+          {
+            "segment": 3,
+            "from": {
+              "t": 350,
+              "lat": -88.85,
+              "lon": -110,
+              "altM": 280
+            },
+            "to": {
+              "t": 430,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 100
+            },
+            "minClearanceM": 106.82789332774132,
+            "maxClearanceM": 289.8224983517079,
+            "at": {
+              "t": 425.07936524999997,
+              "lat": -88.6587820217103,
+              "lon": -100.36313181863795,
+              "groundM": -1126.7316886009355
+            },
+            "samples": 5092
+          },
+          {
+            "segment": 4,
+            "from": {
+              "t": 430,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 100
+            },
+            "to": {
+              "t": 480,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 5
+            },
+            "minClearanceM": 5.000000405972969,
+            "maxClearanceM": 120.3118911553006,
+            "at": {
+              "t": 480,
+              "lat": -88.65,
+              "lon": -100,
+              "groundM": -1201.137519406304
+            },
+            "samples": 766
+          },
+          {
+            "segment": 5,
+            "from": {
+              "t": 480,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 5
+            },
+            "to": {
+              "t": 560,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 100
+            },
+            "minClearanceM": 4.996415902346371,
+            "maxClearanceM": 120.22272428058,
+            "at": {
+              "t": 480.0899887142857,
+              "lat": -88.65000003767683,
+              "lon": -100.00001458266934,
+              "groundM": -1201.1355418970513
+            },
+            "samples": 1322
+          },
+          {
+            "segment": 6,
+            "from": {
+              "t": 560,
+              "lat": -88.65,
+              "lon": -100,
+              "altM": 100
+            },
+            "to": {
+              "t": 720,
+              "lat": -89.15,
+              "lon": -120,
+              "altM": 250
+            },
+            "minClearanceM": 105.9678043013671,
+            "maxClearanceM": 271.0191447308809,
+            "at": {
+              "t": 565.7463526666667,
+              "lat": -88.663756398807,
+              "lon": -100.31714691765538,
+              "groundM": -1116.680884512102
+            },
+            "samples": 10557
+          },
+          {
+            "segment": 7,
+            "from": {
+              "t": 720,
+              "lat": -89.15,
+              "lon": -120,
+              "altM": 250
+            },
+            "to": {
+              "t": 880,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "minClearanceM": 60.29348058843584,
+            "maxClearanceM": 271.0594218595374,
+            "at": {
+              "t": 876.2980395294118,
+              "lat": -89.49366855003532,
+              "lon": -134.52101978433646,
+              "groundM": 1756.9367830105223
+            },
+            "samples": 6477
+          },
+          {
+            "segment": 8,
+            "from": {
+              "t": 880,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 60
+            },
+            "to": {
+              "t": 910,
+              "lat": -89.5,
+              "lon": -135,
+              "altM": 1
+            },
+            "minClearanceM": 1.0000003881928023,
+            "maxClearanceM": 62.63459138799453,
+            "at": {
+              "t": 910,
+              "lat": -89.5,
+              "lon": -135,
+              "groundM": 1758.2020806120468
+            },
+            "samples": 418
+          }
+        ]
+      }
+    }
+  ],
+  "terrainInputsSha256": "95ed50bb2cd4c2a108c45dd8545d71a16d60bc3485a5f07c3ee23b19f9dee7da",
+  "terrainInputs": {
+    "cpu-grids.json": "25fc941847c2c0e07abe281ccdf00ab80e58c219d2b257f98a11cc25143cdd78",
+    "heights/nx/0/0/0.f32": "9b1306dc2154b40f7d8b06ba77e4311725ae1bf5dc87ecfb4eeae4621b72fbfc",
+    "heights/nx/1/0/0.f32": "8b776da780612a08a621e1a3d78491daea872426e7a15e64679faf32426da5a6",
+    "heights/nx/1/0/1.f32": "a3c266103ecc58dcd7817c17e7d3a2849d2c06874b416fb84aa9932b014451e3",
+    "heights/nx/1/1/0.f32": "27f4b3e0ee31e82b71849a1fbcba5a26f21e38e3dca0c313ff70341772a50df6",
+    "heights/nx/1/1/1.f32": "6c0affb502be36cd3836ff7116981bc678d4a0a7118b555da0c3a2b051c6a0ac",
+    "heights/nx/2/0/0.f32": "bbb7b24fc4469c3806cfd7996fd4594822507e0210982bda089180a0db3bf7e1",
+    "heights/nx/2/0/1.f32": "bab5963ec216b64126855364d0eeaa128df80072e4b54a0f790d432f08093ca5",
+    "heights/nx/2/0/2.f32": "e1b47e338c25ced0168fcf724b4ba3a3dc4e196aac9ab7177c5556da65eaf9ba",
+    "heights/nx/2/0/3.f32": "049641db6d744723e6ff2823ba60ccf7c4f59521bc31946099581bd1a6a31235",
+    "heights/nx/2/1/0.f32": "eca2acba19b172008b9431d4c1fbb1ac732caba6fbb16f13129175eb0072e571",
+    "heights/nx/2/1/1.f32": "1ea9975e64f7a2f9b0e1b9b43b6a41e629fd69828708a4344772cea81f6e8e64",
+    "heights/nx/2/1/2.f32": "ec8e2b05d0d557e1aab54bb010ab8d0e538c6dac85da3ded5570abccdb8c2308",
+    "heights/nx/2/1/3.f32": "962f4adfa77d2b4d7020c17a83ef744874e39f474c83693afde661f46f08fec1",
+    "heights/nx/2/2/0.f32": "4b3644e69b375a08bde63e4bdc3d6577b8603afbae356e88ed5111a6c9b3788b",
+    "heights/nx/2/2/1.f32": "e39679c5cf43fcfdde551567afa8c10aa9118f20e25c395ac1b5f6574885e6a6",
+    "heights/nx/2/2/2.f32": "25bbeaddafdad2ded881a95b742ecb853733ae0994e6790f8e32bfe608673ea4",
+    "heights/nx/2/2/3.f32": "e0b21ba070f6dccb4805a6fc8be51419c96839d8c740092089d995ab4f685d87",
+    "heights/nx/2/3/0.f32": "da3050f6f98c34dcd3e3c925a3b2ef1ed4df34a396a074b13648fc26a7e3ff1b",
+    "heights/nx/2/3/1.f32": "ff16aa711e5d0d201e83d0ef36d5978e36995b017468de7e554f832fdba35965",
+    "heights/nx/2/3/2.f32": "0222f3e040f831bc4dd131fe2f93ffb7f09ee9fa98f44ee613ec9b0109d220fa",
+    "heights/nx/2/3/3.f32": "6458e4611d068494a16c2c253ccf76c3290a22dec26d1a044552e894f7f9a7d5",
+    "heights/ny/0/0/0.f32": "54e74caa06e80068f34f1db8a9a8202be1d7a8c55b8e5fba55ba60e6cc804ad0",
+    "heights/ny/1/0/0.f32": "7da1454615c8b8ac1c92b21f0b0314027db120b5c339393c863462e9f91a19f1",
+    "heights/ny/1/0/1.f32": "fc7ecec4d1642c71a98d42ffde9db7d65f53e46546ec94b43d41c8d2a3b176ef",
+    "heights/ny/1/1/0.f32": "83751d0b370192d775bf91720b30c623e103e6ae86615ff09173bc033131ac78",
+    "heights/ny/1/1/1.f32": "ead618cfb09a0245713e96776da35dbf84e279333c4d0b77ec430f2031f1e620",
+    "heights/ny/2/0/0.f32": "0ae89033af649d64946a3e4bba1430da8a07b56e68bf28986a63758e910910e8",
+    "heights/ny/2/0/1.f32": "666e9e7032bc30c48ad07fb60ab1d362f8050a5dc41cfd3c84b4ab62c35214d3",
+    "heights/ny/2/0/2.f32": "a02061119aa8f5ce907e67632dd0462df0fd2674c41e4b98f1f52a6fb92e1fdf",
+    "heights/ny/2/0/3.f32": "7d67a360a69ebb4890ade93a5fe62ad40f00e682dd659631bdec9f3df052b415",
+    "heights/ny/2/1/0.f32": "68c5764c1397635f9666a4c34bcb56cfc230015b41fb8ee20754f59c05b7c161",
+    "heights/ny/2/1/1.f32": "72f87867dd0380004a03f2d7fbab1843b8741714a7b4d087647a41906098effa",
+    "heights/ny/2/1/2.f32": "711a43287c864adac3bbce13e5431f3c5435f7937222a88506d81519bf7d26f3",
+    "heights/ny/2/1/3.f32": "45c31fb87d42b947d7d99898695a9e772f21cee3ef1e07cd71d30a8cb2d6e0b3",
+    "heights/ny/2/2/0.f32": "a50584271b33822a6b22f0df943bca9b47d9a0f44a044769eaa062a088e71f41",
+    "heights/ny/2/2/1.f32": "b898d9206f531b71457518b2e80f84422a31471444fd7e2a80b21175b4842db1",
+    "heights/ny/2/2/2.f32": "60c71c2e8c3b7baf5bf3a9e3d53aa067e0c71c13af75a6f55fa4ac2a6f8197cc",
+    "heights/ny/2/2/3.f32": "d5192fedc26fea029d464b2bd2d67f9a140d92a591106506dd6ac9e3a61b7c42",
+    "heights/ny/2/3/0.f32": "29ba2c0bfbe8ad329f6c5d8d4e0b5060293dd639cdf6978cbc379abd424998ad",
+    "heights/ny/2/3/1.f32": "a3e016719aea0fc61562d26ea8085907ea0dc78baffc41f93d51930c300ff069",
+    "heights/ny/2/3/2.f32": "40fbad1ea796c9178d1363ef02ed54806706fad3d31778b0aada7c460a817a77",
+    "heights/ny/2/3/3.f32": "a8428edfbdc0320106e2fb5399be6422be87a532b893739582851c8d77afde9b",
+    "heights/nz/0/0/0.f32": "67bbd08965f9903d7d0126a3e3ac128117b791c443e636f4d86c1be516606b41",
+    "heights/nz/1/0/0.f32": "b1c9d2325e12b48257818976d308947fb6b62c6fa1dd15200c05a53548ad7e7b",
+    "heights/nz/1/0/1.f32": "b88e66eea3824bc1db3e71f3c2ea13c539b9414c4e6c047d6b901c04fa70d328",
+    "heights/nz/1/1/0.f32": "85b8c2e38df5ca875d0f722e72c001aab755e52448956953acb1ba4758c9277a",
+    "heights/nz/1/1/1.f32": "5e095424a0fcfa56649db0d2f7d7ecf7a88a3786fbeb7c6aef66284a36fab8fb",
+    "heights/nz/10/506/512.f32": "31235dd2f9211cf19856aec9ad60bd144a81324561a5a2be241b8df2733a331e",
+    "heights/nz/10/506/513.f32": "3cfea3790c72b8dae1db62b420250fa38da4bea76f3f7486afed6405f05384be",
+    "heights/nz/10/506/514.f32": "446185b5493feae72886afacd30098dbec92f14698dc7591a24fad6caff95133",
+    "heights/nz/10/507/514.f32": "f6324c5c1a8fe1e353e1dc94ce06defb2179502998ea60c0808b92a1d7d9d290",
+    "heights/nz/10/507/515.f32": "3919d5746cd4a0b5fe4b5c756904c1383558758364f34584173dab110b775ff0",
+    "heights/nz/10/508/515.f32": "ac504857c375cc1936d8353aa4ec6036fe7785ee755b985527c97fb22fe10f97",
+    "heights/nz/10/508/516.f32": "cd69bcf44111e383a1c91441b7ec25797bcd5f4885c3d31e78db259015ca266a",
+    "heights/nz/10/509/508.f32": "866308997126af188878eb134742bf76dec2bffe834c7745332197dbde5d0434",
+    "heights/nz/10/509/509.f32": "ba09d4fb9025e2ee6de28d11e29f72f5288d989eea248fc61bae22c8c5d11910",
+    "heights/nz/10/509/510.f32": "ea6266851a22a8e9cf86fb82ac26845abc64cb80a0b33cbb04adf8b5c6197e3d",
+    "heights/nz/10/509/511.f32": "d7e9b2d7b554d82b678105b6682639f75a0ac18904b0f7258ff0675e0228cdd0",
+    "heights/nz/10/509/512.f32": "3a77f7931ea09249da348ebcecc21f5c54aa07cd59997a1154ce90fcd61ccc19",
+    "heights/nz/10/509/513.f32": "7736957b046e07745b466be03d079f107911a997386a4c3086c854b0324452ff",
+    "heights/nz/10/509/516.f32": "cb49c3bdd076b7cd1d9f503b9c8c73100328768d034313128b2dc133d043ea1b",
+    "heights/nz/10/509/517.f32": "3f26011f3bdf958cd69f208038d1c2fb051d8a72e0a6b9cbe5eb4ac0954d1068",
+    "heights/nz/10/510/507.f32": "c3bd06e4016ea92365f03d924fdbf15464d386067ff8c2214017aed33cac2261",
+    "heights/nz/10/510/508.f32": "75ed4c70fc6b49bf551e34315858cd0ebf36f1c2fbbd3bdf5df25e8609d043d0",
+    "heights/nz/10/510/511.f32": "83841b9615264ddaedcd35c8d50714d4c95fdebe21d1891286b67fff52f0441f",
+    "heights/nz/10/510/513.f32": "146f99e5d34af47d4bf820c70e0c4e2db5892620e08f16dc4d500e6cb69ae18e",
+    "heights/nz/10/510/514.f32": "080fde764b766a496a31bd0ebe0426fd930a5866f31486e54c73d1b88ea1d711",
+    "heights/nz/10/510/516.f32": "20027fb32f8f87b4bec32b6c05e43db23223a9343efefce16c3d4c0298e3f949",
+    "heights/nz/10/510/517.f32": "ead6c9b9455fbc9a8d13924fe652b1f0b3a9e51195cda2ca5cac470099ddd973",
+    "heights/nz/10/511/513.f32": "89ce035a9f50f3cebf3648e298e7e5c2f9babbd22a71200e0ca938071e53b146",
+    "heights/nz/10/511/514.f32": "f6c7b741ab9d9bcd043d0084d30501f5506feeb674177d5444ecd4407fee4774",
+    "heights/nz/10/511/516.f32": "94b753b27411f79e317449fcc0720a8dcdd93585b8fc9c9982bd1f9ea5e65839",
+    "heights/nz/10/511/517.f32": "9ab4d5595fb32a39fc305058177b64cfc3deb1bb61a982ad095bbc04084e83a1",
+    "heights/nz/10/512/509.f32": "cc4f9ca5efa03f789d06cd5e3af7dde472d43f6c910637708a36f916f1aba772",
+    "heights/nz/10/512/513.f32": "9a823da2773237808aa2b6eb57db9aeb0f7870118d740cacebd356fe557696a7",
+    "heights/nz/10/512/517.f32": "235e0f29743107d41fb079d27590e7a4574f1751a16feec3c34f6bf66e40e2d6",
+    "heights/nz/10/512/518.f32": "649190683a0bbf60d689df3e1c3f9fd8e090bbf41a9fc3bbc0217e1d72ed9f5e",
+    "heights/nz/10/513/508.f32": "780001173eda3dc50476e21be2fa6e241a63abc28a93513d8156f9c719e2831f",
+    "heights/nz/10/513/509.f32": "0b5e9205579eb098fef26dc79779f449df60fb3161a3bdc1e063e26daf209299",
+    "heights/nz/10/513/512.f32": "1a360261f945b524751350c8e41298e57fe6fe269cbe2fb9785871715eabd3b8",
+    "heights/nz/10/513/513.f32": "c648138620df334cc197cd30117afb1314bd2ebd7612a32a5a5c32dc88d2b060",
+    "heights/nz/10/513/517.f32": "3533efa5ac3da73c134ab1eec71b55491895aca2ac8e373c24706118d56843c2",
+    "heights/nz/10/513/518.f32": "5b4878604d236050f0c1b76029d89170a70bd6a7f0e86d77666c2ec81e516afc",
+    "heights/nz/10/514/508.f32": "7d7859902f7d5c780621ffeda18bc4e283cfcb62e7a242eeda04949d18b5fbfa",
+    "heights/nz/10/514/517.f32": "729a7a6eb287bb1eca83e98742afcd22cc6d3b9cf32c8ac49522eb299abd9a09",
+    "heights/nz/10/515/504.f32": "694caaf44932a0da8379fe7d6c41a7d2f25c29238740ab9f000477196288e08f",
+    "heights/nz/10/515/505.f32": "9df19064ff861ad485b763cf8ac2140593ac91ad4c80e1831dace47d9f72d02b",
+    "heights/nz/10/515/506.f32": "bee5761eb780bfd89ea272250f9fa1ef8098ab510d55f366e5754b8cc1bd5341",
+    "heights/nz/10/515/507.f32": "faf70bf999b3ae3d9315f1b973eab795310f7bcc079bdcff52b367cc055c73ef",
+    "heights/nz/10/515/508.f32": "97aaa03b25c168550564b377f15b13dde9901627f935b432ab8cdcbf5d268071",
+    "heights/nz/10/515/509.f32": "993c1aaff3487c3c3a878355b70f381ce9f5d0bb4306f1b3c190bae2df6c7f64",
+    "heights/nz/10/515/517.f32": "8cc378aaaee4720c461931d49edc9e2646954fb87b2d4a7d48bfa8bfc4724fa5",
+    "heights/nz/10/516/509.f32": "206c8cb7242dfac043407df1a104ec19551283a2d7559a3555358477f08cb1d0",
+    "heights/nz/10/517/509.f32": "32340eeada48065042cff5797a0770743f02c2eb6e51eb118c8c90030727bc34",
+    "heights/nz/10/518/509.f32": "c87e54864935084f97b39848067ac32eea45b7fb3fdfc7b49e60d0642c3e8cf3",
+    "heights/nz/10/519/509.f32": "d5780401e979721d02c9e3baceefed487cc69528b2449349a19ecf1273daca70",
+    "heights/nz/11/1012/1025.f32": "5abd73010b593c93abb383f4734fa4fcf953e008ea0999a065aab5b5bebb3f7c",
+    "heights/nz/11/1012/1026.f32": "06518748fbc4ca2612298277cf3c88dcee8e0e51a693b3ffb2eee7c894e06fb1",
+    "heights/nz/11/1012/1027.f32": "acdb41ffde4a88b4f09b92bf400477c539e1ffe82f078172e1f73a31158c86ef",
+    "heights/nz/11/1013/1027.f32": "f6cc7454728f756deceae82ce2ac57c516cf785ba91c6bb3d1fa2c83efc24866",
+    "heights/nz/11/1013/1028.f32": "c762f6a7b95d87fd03b3a338fb839eb2bee9e9903fbe19933c73e3272d57dfe2",
+    "heights/nz/11/1014/1028.f32": "fcb4fb5fc8f6a320d79959f575d01736852f42a25a07b55bc7d580e1622846e2",
+    "heights/nz/11/1014/1029.f32": "ce66fb3e314908cf788947caa6fc0f5aa5214a0c331118f86b96c439effc03ef",
+    "heights/nz/11/1015/1029.f32": "98262349acc6a5d098372a483b5d8f2f61ce31bfb03306430d0a94e5d067e9f4",
+    "heights/nz/11/1015/1030.f32": "ede135b647093d17cf6ed3e455810f9f5a492aab029b319eb23ff25272e8cfaf",
+    "heights/nz/11/1015/1031.f32": "7c05fbfa387fd030252b0eaa4e38983e1dd42dc656195367e6c7aa04be5cedf3",
+    "heights/nz/11/1016/1030.f32": "0eaaf53d3c54d48734b01ac9f000188bbdc8025fbc341f35d9a1d8bc2a644327",
+    "heights/nz/11/1016/1031.f32": "c3d7f28888bc182fe728fbaf5afb859c156eae418d1fb9859511c30bd1198d27",
+    "heights/nz/11/1016/1032.f32": "1e32d116b444cf661b4b4efc26dd8df0cc5064adc4828d9bd76637843df1a027",
+    "heights/nz/11/1017/1031.f32": "7732ebd0d9e22b78d5bc0788884f2092730d3d9f3e290e77edd1c7d3957e5314",
+    "heights/nz/11/1017/1032.f32": "85752161738c36fb309b761d578c294599e23243bb06d1858e84ae8d2bcabfb0",
+    "heights/nz/11/1017/1033.f32": "1fd8b1bd276b21a70a1169c5eef71d17c8411350a1de00f72dd78d3f12da05d0",
+    "heights/nz/11/1018/1017.f32": "b8a472ffd909773a40ad1bdd8aad2cb01e90bc7268a17bcb756345856c67db6b",
+    "heights/nz/11/1018/1018.f32": "fe867dd311c4ee8625f2918618fd8220162127e9d3bdb0160e51eb47d9a52f3f",
+    "heights/nz/11/1018/1019.f32": "d85670a79a52de736e5a8b2f12c84633ffc2c43ee09b4010affc9ffec9dc69c2",
+    "heights/nz/11/1018/1020.f32": "7f75c1a2cc4c22c3e70763b37c9e1857109d16cfb29269dbb7ca28449d1cade7",
+    "heights/nz/11/1018/1021.f32": "f7506c6808ad34ed20a04563ecc484c13abc3eeedf640d3b5633b1852f2609c8",
+    "heights/nz/11/1018/1022.f32": "03769bd4744f7c77ddaac81ca6f7601282f3615f48bb168bb911c40953bd900c",
+    "heights/nz/11/1018/1023.f32": "b5525e7276189046d843d1b4acb5ca892d0273c6a9b4d0c16a015b436390674c",
+    "heights/nz/11/1018/1024.f32": "063757dd5e19531f36dd8e8d4673968491d64a3080726eb604d30b6c9dd8ef1c",
+    "heights/nz/11/1018/1032.f32": "f9f63d89291bd5e1e548c30bdc610a81828c3cb649e809f129e2a2a5c6a6f5d0",
+    "heights/nz/11/1018/1033.f32": "8460b0a1c51a01213bdb7c3c91ec5c2ed7b03d721ee8b521ba0d9a273bb7e103",
+    "heights/nz/11/1018/1034.f32": "1bc1405d2285b449caabb5fdd2df1a5239c2b4893e3bc09991032ec0e27d0ee6",
+    "heights/nz/11/1019/1016.f32": "306a497d7dc9a593359ff6cd50321e88bcbfd4284a6cfb7d17ae5d5f49b64920",
+    "heights/nz/11/1019/1017.f32": "18c280e4b301253865848c6bdb8ef9d60ed9edb844143b1ec672a9de6c3b2160",
+    "heights/nz/11/1019/1020.f32": "824043f1a015031ef7a9404b0ae08f9d1e78b3106368289757db653f41e2c956",
+    "heights/nz/11/1019/1021.f32": "d6446183122a7cb2f0f0920bcbccb8313f648637322d359331599e4b7a8c657a",
+    "heights/nz/11/1019/1022.f32": "1e83c030ce5864cd77739b7a568a2a62259c059d8a6a596d4b1dbccce14e9c1b",
+    "heights/nz/11/1019/1026.f32": "4cac65419ad4f964573914f2390e109c6f018b84beb7edbdb6e481afbe1ccd35",
+    "heights/nz/11/1019/1032.f32": "c8b048e49ed93f75027ecb50088bc6ee8a2c11fd1c650a88d6918a3947746074",
+    "heights/nz/11/1019/1033.f32": "e7687e443a5c68bb89612c241b21003986ed8019b0afb3c1f736f5cccf48c6c9",
+    "heights/nz/11/1019/1034.f32": "3c907145c3085e1e93f3276a7a908a1f37e1a658f9c2847d113548a708be4c53",
+    "heights/nz/11/1020/1015.f32": "52d2782875a5078229c2a56584ffc24ac42f5ef27c0e2c2dad198bb6be78df48",
+    "heights/nz/11/1020/1016.f32": "3f567ac22de1b222556accc029ebd489949587e2f54bff65a56b778617dc6d68",
+    "heights/nz/11/1020/1022.f32": "e6c694bbcf8dddf5b082d5ef3c9d170158de2c30adc272b0e9c449b2e7d2d145",
+    "heights/nz/11/1020/1023.f32": "6c8f1754c6c545b46103b089797f33283aa0f41330130d5cfce3fcc556c7d038",
+    "heights/nz/11/1020/1026.f32": "341ba6a05aa28b8274c771e483f2a3197899f96e34417e7f1258fdf95c59487a",
+    "heights/nz/11/1020/1027.f32": "fe40e7731e0ee9d3d40dde8b4fae0aa193ba895b048b26591543a687da6caf3d",
+    "heights/nz/11/1020/1033.f32": "86878cfba62cc3f1ba1cb09320e05f2e45585ba49a08ceb7d79ff51cf25fee09",
+    "heights/nz/11/1020/1034.f32": "b7083afcaa172841466d742def36f3f9ad4502edcfd0bf8f5214763f75959768",
+    "heights/nz/11/1020/1035.f32": "5b7c00f5be83de6c05ee61a6c2baedd6221b30a9fefaca6847bade25da8b5de9",
+    "heights/nz/11/1021/1027.f32": "ea14d1221050010c67913187c6f33ea05880d8ac69b33f672ca13b7566ae2bb7",
+    "heights/nz/11/1021/1028.f32": "2e9341121f53b12a3167eb142b16f20bcb8979fda06096d7577e95b6313d556e",
+    "heights/nz/11/1021/1033.f32": "cf7598ffbaedca3d9b8cfa55f305e899e75ba7440c1ba198a1bd52404c79533d",
+    "heights/nz/11/1021/1035.f32": "f4790b116a0c989b3768ff20fa0b0241dbe3a47bab5efe676e9873297611e6ab",
+    "heights/nz/11/1022/1027.f32": "efad744f9a1af07c8a750e480e8651613ff7b72cdaa3838306473ad29d8d1dae",
+    "heights/nz/11/1022/1028.f32": "9904fdd6a3e3f7f051ac31fc0001ebd08b5a827255b28a00716cbe4098e4f4e7",
+    "heights/nz/11/1022/1033.f32": "f7d2e57646147b981529a5d0038bbefbf2eac369d99fe0d33071ebd2bc83d9e8",
+    "heights/nz/11/1022/1035.f32": "248a2317517ae282a9582067981211c669bd16daf710e1695c60251806ffc0c1",
+    "heights/nz/11/1023/1027.f32": "f20bff33d1aadd30096054d7b1387d9f6b6586144ee663e64c2f4e543b7e5029",
+    "heights/nz/11/1023/1028.f32": "0cd6be0a8979a47b312e2b37063647854d42c52463cc087353206cc157c3d99d",
+    "heights/nz/11/1023/1033.f32": "44c90defd7d99595f6f87f8208b70ded43940ccb6b08c35e2e48109df2041bbd",
+    "heights/nz/11/1023/1035.f32": "af0305bcb939546d7a6d6c3c544a5cbb8375e6d82d12cb4a68ff626f1e1b9165",
+    "heights/nz/11/1024/1018.f32": "ff0a44d86d4b74273c985bba0e06f953344b13858d6326c04d4212bcffe39aab",
+    "heights/nz/11/1024/1027.f32": "f2ac45d725e148a8fca74179026ff13927dd35fda979443aac6aca20aa0fe9f4",
+    "heights/nz/11/1024/1035.f32": "a8a066e41fe4b4cd539b9e2ee8ef7fb2af083eb413838a7756d6555b455168e9",
+    "heights/nz/11/1024/1036.f32": "9f987104d23510df3fde3d8d8dae089c1ab8405fc211430c3bc0204988695daa",
+    "heights/nz/11/1025/1018.f32": "fdd458af4e800cd04c085276473778cbf8cb88ae2107bc103a9e6e3dad203047",
+    "heights/nz/11/1025/1026.f32": "5beaa9afc9b9bb60991eb1ec107626af790091f796289526107774fbb78f69b3",
+    "heights/nz/11/1025/1027.f32": "aad47dd0d6c9d212acae8c1998645224d16d3b14987cb85a90f2beb71cd3de92",
+    "heights/nz/11/1025/1036.f32": "9e91ceadb63d1b110a373f0e5129bf22d544fabaeaaaf0418aca835594450f14",
+    "heights/nz/11/1026/1017.f32": "fa0b7686ccb7a108fb7bc6df5bd95f77e4e780ed2e334822b68c4a2c6dcd0089",
+    "heights/nz/11/1026/1018.f32": "dd68611d67909fe82d645e20e38e75c33fe8cdfc4ec677c97799e2297ce611e5",
+    "heights/nz/11/1026/1025.f32": "da343e7d3fc272710390b62c0717c6477bcd6147bcf5067dbef11efea80b4888",
+    "heights/nz/11/1026/1026.f32": "c8ab72308a94d4849fd9a12f1ec5667f7e62db752f122e7eeca40e4148023ec8",
+    "heights/nz/11/1026/1035.f32": "6e0aa751c009c3593488d988f5f3cf99f9986a4ac6da3501d8a283f9708af04e",
+    "heights/nz/11/1026/1036.f32": "ea4cf79205793f644c5e22b44f6117e962babcbf39eb9a00f8ba8ec3bbb2f812",
+    "heights/nz/11/1027/1017.f32": "7f29b58cef82c89e527ec5ede59c9d42646ac9ef060170c4ee2e86d7bd002010",
+    "heights/nz/11/1027/1024.f32": "412c9e39181069399d0ba26a206844045ae9de4965584704ca9ff4b4a89be6b9",
+    "heights/nz/11/1027/1025.f32": "28a3b06fb36d0cd1b76b03a5cc2e8705ed32e3815fc34ba79cb90be0b538e8db",
+    "heights/nz/11/1027/1035.f32": "f61f76e961445d2ae1c42e75803a2f2958d9f5b792337e0a1ea0988eb4b4c56c",
+    "heights/nz/11/1028/1017.f32": "c12e1465cc1edfaee0066fa91215d08e5b044406a2df6458116f2e3fdea036ab",
+    "heights/nz/11/1028/1035.f32": "84fce5a4072e524bec85f47b4b259bc8571e97ca1307bdf641d33e93be88a041",
+    "heights/nz/11/1029/1017.f32": "175bcf1595c93782c1afaf0ab389429cfd5e347e8fab75fa329c7f99cdf9e71b",
+    "heights/nz/11/1029/1034.f32": "150e676ffa86c77c51d99dc7ce04eea8309aa2b24743bd8854b163f2ae41b07c",
+    "heights/nz/11/1029/1035.f32": "9591726bc049c99c8e6f741a5d2344b4059fee8f9a3eb418aad473f519965a31",
+    "heights/nz/11/1030/1015.f32": "bd64ade4e791d29f4e408c28b7d25fe7e424e40237e3ea80da1ec62ed2022648",
+    "heights/nz/11/1030/1016.f32": "12f160fdee197eaf66d17d8b06933eba0297f992a26775a9de7632e08554e619",
+    "heights/nz/11/1030/1017.f32": "cb881d4c5648ae13ce0d670a535f18a3faf98f5560bffd73222bd6dadef8bc15",
+    "heights/nz/11/1030/1034.f32": "b6db6fd808f9c5e9679dd008bb624de89601549b15385d39bae994b873b98f60",
+    "heights/nz/11/1031/1012.f32": "725cb3e7dd348bb7f574a2980f532e0d9141d616f90167897b9575b90905ab3a",
+    "heights/nz/11/1031/1013.f32": "d88149933fe16c6fb5d9bd55a440ab0fb5b99410dd81bfd990e4c08c8c49eeb1",
+    "heights/nz/11/1031/1014.f32": "cdea0580417bfac7599600b3ee3d481689e7d33a5af357f73d503d157111cec0",
+    "heights/nz/11/1031/1015.f32": "4b691f625500116e65fd4e0389a91b4f6474575df03564a62fbc7aaaf7760ee5",
+    "heights/nz/11/1031/1017.f32": "837e4c8f3f016092f9ca361cff2f0eb7b1b80c49d5fc865137746d7acb675fa5",
+    "heights/nz/11/1031/1018.f32": "7f0b07f5b080d25c86cb54a71f190b2f08c96fbf0a557087117f82a9915cafab",
+    "heights/nz/11/1032/1018.f32": "76076de4c6212dfd67dc8be9f2bd3845702f44562e5b372b05b72a2cdd63ddff",
+    "heights/nz/11/1033/1018.f32": "87d93d1a867b0ded1628775aa32d54bfd4e5e292489788e23677b0de9313a60c",
+    "heights/nz/11/1034/1018.f32": "f13f5736ee2846af70ef3e3dd00a503f38d94ad1f9da0cf21bbe14d08e02b10b",
+    "heights/nz/11/1035/1018.f32": "dd14a2aa43c3b99e346fe5aa0cadd7280b01085b26664c19d6e92e3c7900c0e9",
+    "heights/nz/11/1035/1019.f32": "f4ad2988b8cac53a4b62301ed6cab0944225c1efbf9e050081d8b824ead9f3b4",
+    "heights/nz/11/1036/1018.f32": "200df1d4ddf9e83e148a2888c0934d99b51cf02103b05c60daf95f32e77c3920",
+    "heights/nz/11/1036/1019.f32": "fba92ba009300d456fc226557375021ff48526b2e5739183862311ea4ad378c9",
+    "heights/nz/11/1037/1018.f32": "94085bdb782f81945f4c927a615bcd1bc3e2d8f2d888c520f041c2c4be5e1407",
+    "heights/nz/11/1037/1019.f32": "4e938ca7d17f5540a58dd81c5f9506e2001541c7e7cb336e56d5fc4a69e219fd",
+    "heights/nz/11/1038/1018.f32": "cadd878e643b71f715abb10c6dc62b16a332059acff686f35008b663aaa6c747",
+    "heights/nz/11/1039/1018.f32": "aeb4b1b68aa2b0b8f2de5eb6cbe485ffb67b4c590a43fc3394e8eda1406e7e5a",
+    "heights/nz/12/2038/2065.f32": "6bc24909eb51bed0a7aa0281b9216c851c98e578e3e5667954d589a4b3ab2cee",
+    "heights/nz/12/2039/2052.f32": "8d4b871de404a1535180490599cbfd2eda52ecf52bef70c9a98d3308659b25d8",
+    "heights/nz/12/2039/2053.f32": "31c040d8062fb58329ef8ced8866c1b0393f398be3a60da25e463b21dea2c556",
+    "heights/nz/12/2040/2045.f32": "2247baaf3c5a632acaa744f55b95febf38b105f36150d2c6f4bf038542de3496",
+    "heights/nz/12/2040/2046.f32": "fd52aa8c4b9a7adbc2339cd6c3b40fcca060954ab17e22c151bfd8634a612df9",
+    "heights/nz/12/2040/2053.f32": "fd44b8fc81826458ba74308ea4e30bc4e827d0e200a13fafac5ee588a9630bcf",
+    "heights/nz/12/2040/2054.f32": "974144217a022a4a80ede6de8cec772d58487ef3166cc274f0824899839b012d",
+    "heights/nz/12/2040/2066.f32": "6f034a35419eff880bcba851c0686a5f23c9a1e1c60bb4fd250e0fef7d67f1ce",
+    "heights/nz/12/2040/2069.f32": "4f727d7b38caa3e3897b520deaf5c1a6ff31bd3593114db3c41af3b9f0c115ed",
+    "heights/nz/12/2041/2054.f32": "62994a09263a0d95b405bd881b1ee05f665bc981a97b2122b8869dc3baa852cb",
+    "heights/nz/12/2041/2055.f32": "265099776439526291e7e80e03d0f1c992ec524b1e388d5b74056062f2a9e45e",
+    "heights/nz/12/2041/2066.f32": "0fc606623d991a5f0008df6c8b2bc7561a51dc364b3309d912772a0728d0ffd3",
+    "heights/nz/12/2042/2054.f32": "5b14fbf68b1e9b24a91b4902e8c3f9a2ae183b8b1368230dec4ea65a7a8b918d",
+    "heights/nz/12/2042/2055.f32": "f624de647b905d3420ae139be65e244dcef947b7bc20c4418881213a9c1d9781",
+    "heights/nz/12/2042/2066.f32": "64998b433fed0cd5c65f43ca0a1848ec96bf23bc19adaa0b4bb481e4b0386790",
+    "heights/nz/12/2042/2070.f32": "9a71c87c69ec51dcc4e5a58f2ea5cf6e3c9ca7e3e6149176c52a1c7b582d8a17",
+    "heights/nz/12/2043/2055.f32": "04afef0ed8382a8015445767fe86d2545a413088c6675f029eec1926d9681484",
+    "heights/nz/12/2043/2056.f32": "871d9c77367538bf40fd950c4f86ad65399fa558f2d90f25101e3367ebab0974",
+    "heights/nz/12/2043/2066.f32": "24fa15ee04efc97da27f1a66713cbfee253030d7639a9206cb4692c61aebe870",
+    "heights/nz/12/2043/2067.f32": "55d75ddb0c2e08c45bb95c59436ace7f08c4461bb3a7960f3b1ff52ac7a660e8",
+    "heights/nz/12/2043/2070.f32": "0a2523095991fe290e74653a05b5a81209d094bc422e183327bd80fd250ac6d4",
+    "heights/nz/12/2043/2071.f32": "839239b70504a26d562192d7b2a543caefd045cf6d28e8c0883973e4b693eb3c",
+    "heights/nz/12/2044/2055.f32": "4b612c7a70b48c9a3efbd2525d0a0549448066978afd1eb1ee874bb8ad0bcc0d",
+    "heights/nz/12/2044/2056.f32": "a95c9295a934d857c6fdd7255262a787b76719d39e6a3acfae8577654c50524a",
+    "heights/nz/12/2044/2067.f32": "5e9c2e95596690f93aaa7a1c84a4ddddc5f2c25de9a0a54b4ecb778a2b613630",
+    "heights/nz/12/2044/2071.f32": "5a7e8a58ea4161e976f54378d0b5d3c942f66a8f9816c7489868d1fd59dfeeec",
+    "heights/nz/12/2045/2055.f32": "9b7ea3d967b65ccd6b2682016e0b14fc13b612e2ca9de805d003e06d3b1b29e0",
+    "heights/nz/12/2045/2056.f32": "dd0f91c0bce391dad7681b3b0c066704cc7df54f98d4c174f3d7e82b86c1df0b",
+    "heights/nz/12/2045/2067.f32": "ae8e70b2f0f39b3e7149bd8d1ee90a560b8ba3930ff419028e8500b3a4458182",
+    "heights/nz/12/2045/2071.f32": "dab44ca9de76e945ca83ab41bdb78531b434108b632bcf58f5a42df0dd16092e",
+    "heights/nz/12/2046/2055.f32": "e4945d0b1c92799a95d80057221ccab204549e45bb45ad14ae63aca4a86a8244",
+    "heights/nz/12/2046/2056.f32": "e1c6079371231feadec24e55fc07c2e9200b7202994c5c39792d10728fbad8ee",
+    "heights/nz/12/2046/2067.f32": "3f90e89020a5685298ff8bb773125c3ce2f193ccdfaf0f61fe5fbdc4084493f9",
+    "heights/nz/12/2046/2071.f32": "f2cf4aa6582bd75bd98dafc91f2a0319766648e3ae2b0034a77d60ff2cd2aca3",
+    "heights/nz/12/2047/2055.f32": "36ed24c4bc376ae492f1491937a5ef3c31c74eb7b91c6239c0fda18f0ddddf82",
+    "heights/nz/12/2047/2056.f32": "f91b5f9b727373ecc9c4d3a11ec6e4cb0578e7d21340b2c034bbc25390553b8d",
+    "heights/nz/12/2047/2067.f32": "2e637fc2c131c9d501e12c556c5eb69c4469851c80ffd55d915653d767da70fe",
+    "heights/nz/12/2047/2071.f32": "202f617f70212066fdc51c67a0558eb2cfeba8b625562fb67e4ed0f42257e4f5",
+    "heights/nz/12/2048/2055.f32": "e1a75b2abc6d654305f318f631f0903eb8b269d913ff24406494aaa2f3e92984",
+    "heights/nz/12/2048/2071.f32": "a648bc9de278732323e2d1bc91c3daf699414b7f8e48b7e44ff267491623f857",
+    "heights/nz/12/2048/2072.f32": "876fb7d2a377ac1ff7528468c22f45b6fc206b259784d2ef5ccdcbf2e0fda86e",
+    "heights/nz/12/2049/2054.f32": "0328dd1b7ba323c064a85fa29489def3100c349523af0ef41eeb2491068254c3",
+    "heights/nz/12/2049/2055.f32": "3f770205ce652473e4a6089de3be58b895b1841ac4bf9e9eaa1b23fe56537485",
+    "heights/nz/12/2049/2072.f32": "64c56caec46cf581ff516611d1759bcddf2d553ba9f9f08d74ef8977c1d0f597",
+    "heights/nz/12/2050/2054.f32": "3aa2fba2eb0846f44fc1d46929669a431ecce105c0347e62b504efa779e2430c",
+    "heights/nz/12/2050/2072.f32": "5ed218ac31ca55a1662ae23ac9f1cefc7ac9e17ccc6bc241c25a9574e33ad0a2",
+    "heights/nz/12/2051/2053.f32": "7eca3427196d86093002e77b1136d89121b0be1421e5456faff95656873f1510",
+    "heights/nz/12/2051/2054.f32": "7a2392f14910b09312f564f5dcc1cf3945f5de52556177a36e6dd2d07deb230c",
+    "heights/nz/12/2051/2072.f32": "9bf0d5b058efe3382f224ceeafdbc9053aaeb3fac1ebe4d973e0af514e4f52b8",
+    "heights/nz/12/2052/2053.f32": "4a4ac2bca990bf538158341a4632c294411587c35a8542c9f3dcab1308a70511",
+    "heights/nz/12/2052/2071.f32": "ba98c77ad46718747775ca1750e24a27f61b65c3c41466ac8d63be79350c954e",
+    "heights/nz/12/2052/2072.f32": "c235b572b9cad060bfad3e3da213e587bcf03a53a519bb22315e2a49483fbcef",
+    "heights/nz/12/2053/2051.f32": "4653c5fd5eb969a161e061d092080e237f448ad63e001fdaf788c2bfc5d67b31",
+    "heights/nz/12/2053/2052.f32": "e97ffd95ef297a9a78d0a84a300299c902d3f916972c024d34a40e01cee8d244",
+    "heights/nz/12/2053/2053.f32": "5d9e12ae8e4aa6b3b6578822176cca98085c85be064fdf2b35d34b5c0dcabc89",
+    "heights/nz/12/2053/2071.f32": "bf049f64652bd4c76bd359ba19a5c3351d2fe300befce822ca6c1cd4223fb234",
+    "heights/nz/12/2054/2050.f32": "bdfd1955422e92a3c1e2a3fefabb3bf84fbaf6cc83f688258e63724c18404f4f",
+    "heights/nz/12/2054/2051.f32": "e97d8eaceaf441471265127ee6035fcb54dc4b1c52c216db6f97978788111d3e",
+    "heights/nz/12/2054/2071.f32": "86444a4699bb5a8267a291c563bf3eddd0ade202e80dcdf097f06d47f11da889",
+    "heights/nz/12/2055/2049.f32": "80259ee9bc2a2646c44dd9f5d382d6fae65b8078b3643566dccdb2a868fb8f83",
+    "heights/nz/12/2055/2050.f32": "5fec2eb26d9194de11adc07ee34c4c9c0a7861d5b6deec81801c0c68ca476432",
+    "heights/nz/12/2055/2071.f32": "c6de7c3176bb36a5c7dac080aba56cb34eaf38c06ef87e4c05fffec0ca6eed71",
+    "heights/nz/12/2056/2070.f32": "91766da3208a6546c69cb2bdc49d725d6a323111a7bedee02f64e5aca734ed3b",
+    "heights/nz/12/2056/2071.f32": "488cf23af739d378f4fb08a55416200c97d103abe21204029c207ffd9170eaf6",
+    "heights/nz/12/2057/2070.f32": "97f516dfdb7ebf1aaf84d697df2c863221eddfd347b63deecce7c0650da8590b",
+    "heights/nz/12/2058/2070.f32": "1236eb940c65598908782a05c0b2073e60aa2f72277da6945159fa52a4d1173c",
+    "heights/nz/12/2059/2069.f32": "4ee1b99413a614d0b3e0109612780185d0ee381501b3fbcd40e9aa4d2131abb4",
+    "heights/nz/12/2059/2070.f32": "74916b8c5761d705ff3ab3a90bfe09dd2159699c236ab6f52ba7f49f4d38f8b0",
+    "heights/nz/12/2060/2069.f32": "79d87d27921749d145875d86143c014dad7ca34e253ad8d9b663285b68c90ded",
+    "heights/nz/2/0/0.f32": "13a37cfb49eb7ab4449a0b994a5319c0cc3eee0abfbaf4ca6a83485b99f862df",
+    "heights/nz/2/0/1.f32": "02a06df58660af6b5b7875de800395285ce4997f0abed65e6ec0c1851e64c083",
+    "heights/nz/2/0/2.f32": "ef16f35e5b3f9c2940cad4709980660d0a65f9a6c9bf9bfd0f110e575d3fbfdb",
+    "heights/nz/2/0/3.f32": "24318473fb8f31ab03e1f837b90cea30f90e8b4b22304f93cb7275dec4bdd124",
+    "heights/nz/2/1/0.f32": "7a3fa655fdca4c0aaca13823d50f218404c43b30dc292cb5997bf79aaef739aa",
+    "heights/nz/2/1/1.f32": "339aeecf5884d2cbad454fccf3d97b0d3ff72d1eded0a2505bd020c408aa3a96",
+    "heights/nz/2/1/2.f32": "af91d4c2b57569104d455f5f8ecd608b728aef1c66195d820abc7bbe82273638",
+    "heights/nz/2/1/3.f32": "92a81d9798b79b3b56835e2aab7fafe582b54989198e126a4d62abbd4689c21a",
+    "heights/nz/2/2/0.f32": "f993ecc511e8d2800450a1942dbd8e666c33c81fb0c466093e9c8f6896d241a8",
+    "heights/nz/2/2/1.f32": "a2321cbf73ea0295059cfe527559236a7a504a344323635aeede4c1e1c5bb9af",
+    "heights/nz/2/2/2.f32": "c66dce40b18890813c02d7a6690806c750cbe0c2c199512be5a35e4a54a46b9b",
+    "heights/nz/2/2/3.f32": "d9e6fd396f4bd5afa4f1d799191e76c15226dfde90d14314b7f04f657ab62429",
+    "heights/nz/2/3/0.f32": "b7f91497ce876bf52aba085407ec24fcbc34fd2f702dc44769afb07310a2c1a0",
+    "heights/nz/2/3/1.f32": "875ed2a5f5e5ee0bad82f087788b393c4e434efca4470bbc55f58124e2d07a74",
+    "heights/nz/2/3/2.f32": "f3239253204d044a7a379eadc392aa586920a9dc9b54a3a8dfdf9809f06af4d0",
+    "heights/nz/2/3/3.f32": "50ba8f357949ebeb95a7127ea1b62d6b53b27b12c1f7112b93cf57bd2de26ed5",
+    "heights/nz/3/3/3.f32": "5ab79105df2ecc2827aee297db3217f4c1a89507fda83ced92163f8ca9cbf189",
+    "heights/nz/3/3/4.f32": "f27891522d68f5463e585b92c3ba4bd09840342eb5608afddf97fc6aeb42e1d9",
+    "heights/nz/3/4/3.f32": "6734058649d669e49565064cb1854a3a7312ab2afa5c18c3c4f286b9ec23720b",
+    "heights/nz/3/4/4.f32": "77cb97beb8b943968479403749860cc2cff4cafe5058b900cfd3bce98973bed4",
+    "heights/nz/4/7/7.f32": "d9f6d7671dc13dce4ab1684058ed44a4f598c1ad0e73f97e9da4230c3585974e",
+    "heights/nz/4/7/8.f32": "4acc0a31c203a2e46832ced3c1bb2b9189b6eb136b650ac3eb1f92eb534ec650",
+    "heights/nz/4/8/7.f32": "d8d6a0f88a520975f2d07117eefd8ce85457294d8b6bd3a80ff2cfcf67ff9bc8",
+    "heights/nz/4/8/8.f32": "fbd74fbbc4178e34d502bc6fb3c9ae7fcf35ec1ee67149dda63c50584445b04e",
+    "heights/nz/5/15/15.f32": "617260f7da33ae343604aa7902e8fd8c7b7e5e8e4cefc9e69abda86f702a3330",
+    "heights/nz/5/15/16.f32": "a1b5f2b34afae64de69e860c135a0d6a5abdaa14afa4eb0ec1f23a36cfd26fe5",
+    "heights/nz/5/16/15.f32": "3d0459a9b2d2b8858f61a7f21aec11694f4211adf3008bd5fe735b89861eede5",
+    "heights/nz/5/16/16.f32": "359ac0cd4afdda426ed443df169976fd547c3f881417dc20bf930adac5e43002",
+    "heights/nz/6/31/31.f32": "8832f2be0294a4ba615cf9d51641a91a40d25261bb91fdba9d9720637088abe8",
+    "heights/nz/6/31/32.f32": "4bf8fa0a5594a86c7e034231015403876524df1f84c5d8bcd1d761ce7bf0ca96",
+    "heights/nz/6/32/31.f32": "8270316a74bc3b8bb2f738d6bd91fcb76d6dcc3399fa20768b7615b5ff8941d8",
+    "heights/nz/6/32/32.f32": "95ba50b740b80795fb743c042f0ee8afa16c4a27b1f5fda2b2309b861e985140",
+    "heights/nz/7/63/63.f32": "b3d66b6a252c2b9c2b51fc1560007e4147f6d1b9ab40417fb288992db16f6051",
+    "heights/nz/7/63/64.f32": "dce392d70a564058bcdf3ca3d914bd83dca205edd15644fd26490b7984421d91",
+    "heights/nz/7/64/62.f32": "830f6d4eb367a57758d1961c30d550bf395c739e23d7b858d7fa495d8fe8f169",
+    "heights/nz/7/64/63.f32": "c55c624ccdc2cdc477aeee9b08ed58bf0f0c4e0892553472fc2e1702b72aad8b",
+    "heights/nz/7/64/64.f32": "40bd684e8d93f5b78cf45059fe4f7b9a2fa48fbe1283482ed26ce2dd9ff84620",
+    "heights/nz/8/126/128.f32": "37234d4b392282b1eb64cde2ad4233afc1ecfe5c1661d068b62ebd6b0d48f054",
+    "heights/nz/8/127/126.f32": "acc2167a99609655cd8ecb9fe8511455e45270e511768865a57382f2209af575",
+    "heights/nz/8/127/127.f32": "a59eb32fa3a667766aa1580360e3164a19d1a74d42e23cd94b07368d3080589c",
+    "heights/nz/8/127/128.f32": "6a0898bae2397f4c1643c8623f0e7b3ed8b959e3f30846b7effcae8d3e9041ac",
+    "heights/nz/8/127/129.f32": "b30aa681df0df8ede776b0d12c9a278e66419813f57c23bb0da92a3fc700dac5",
+    "heights/nz/8/128/124.f32": "1bf381863bec30575e3e186c2e4682b6748c82ed28c5fb15afe073cb05c95ed1",
+    "heights/nz/8/128/125.f32": "a0a8f0c2aa707f4ef6223d5479c98e0aed4a828e78761580e8dbf6002a34cdab",
+    "heights/nz/8/128/126.f32": "96577d59e875e4eaf1851990663d5cc50d6c2588b8065c42fd3fd60ae4454a82",
+    "heights/nz/8/128/127.f32": "b141444c09849294be373a6e152d4f782b0b2810845232b221e3e005a64265c1",
+    "heights/nz/8/128/128.f32": "a60dd39b815cceecb57ffa86327d6bd6578c59adbed52d646b36566744d824e3",
+    "heights/nz/8/128/129.f32": "6cb3abf31d220e4a775fbe22c6e255c3c7235fe7d312c546c644cb1133b2df5c",
+    "heights/nz/8/129/127.f32": "45707977ea136dbbca6cc0b4162bd7a9e501b8bcd15e6dbe4ca8fc2cc1515813",
+    "heights/nz/9/253/256.f32": "f767bad8d315a1848265196c7ea48ae29f82edf394e433f970dc5e2bb66cb578",
+    "heights/nz/9/253/257.f32": "7ec666978de38f4c773523279fd6d7ce8a01997a6917b41321886ffef8320fd1",
+    "heights/nz/9/254/254.f32": "b0832b16a2926e1a67c4c0ff2aa0bcaaf46a6739ccbbd6dcf6cfb37962e883a9",
+    "heights/nz/9/254/255.f32": "f1501617b27ded4f1f696ba868303c49cf09f2904815dac4c5633ef775ed3d7d",
+    "heights/nz/9/254/256.f32": "3e691f4c3573986281b6d32add2a4e613bd63fdbbfea593aefb882d0880a83ac",
+    "heights/nz/9/254/257.f32": "d9259a142d59dfe8e7fb947b26d15fba11e48e3488eed9923203772bc2495619",
+    "heights/nz/9/254/258.f32": "59bebe3f6763148be5b254cf9f15dad0238957adda3bc63e384febef74c3340c",
+    "heights/nz/9/255/253.f32": "c5ab6e4f3f78b8325b909645ca629735448263a5bd8aa32a87926ebe3977419d",
+    "heights/nz/9/255/254.f32": "12c4525f1d7fb495462c930707d0b4e22e004c3a76e5ca8691c14d07826ad336",
+    "heights/nz/9/255/255.f32": "255ac68bed3665b87408e03810fad276508d4d616362a00c12802812d5a33223",
+    "heights/nz/9/255/256.f32": "945da6215a4df45ef25dd8bbdce882da5411d8fc6ab1d774c84c0556b088b278",
+    "heights/nz/9/255/257.f32": "c9c4d17be15b69ee34ec21976ad3e56d3ffd9fecc88a6a1ad33645b18589c08a",
+    "heights/nz/9/255/258.f32": "4ac0edfaac85cbf67d6b64a2ddf42ff00c51363a4d2497e18a119c5af661acd3",
+    "heights/nz/9/256/254.f32": "c3c6293dc5a6e2ecfb8455940317d3f93b0ec1042f69575bdd01e041b4eef951",
+    "heights/nz/9/256/256.f32": "5112dde368e0dd0366fd9c1d04f6ade33f57b34dfa246b9f9a02a91e034a852f",
+    "heights/nz/9/256/258.f32": "58de04aac6b9369909d1ff57c2d3a7a1edc67d4067ab0703c2cbbde69a9e16c8",
+    "heights/nz/9/256/259.f32": "574f496ff73b279afe5aab052e6c431276d0a28d323f5d256cdea91cf32c2236",
+    "heights/nz/9/257/250.f32": "59525c521ee5008c4fdeae6b09628dfbb16ef178e345ba6c024a5750cb7c526a",
+    "heights/nz/9/257/251.f32": "5872bc824e43d8e04a7884e138d81f2fb00fd362ffa6f2fe9c1f497db8cb1fb1",
+    "heights/nz/9/257/252.f32": "8068454345412574de650827ca45bfcd8bc7bb57ec3f957dfea4c40618c0b216",
+    "heights/nz/9/257/253.f32": "3770441f7de0537d4113ecfd24c8fd1a9ef77f28a4ea28c53e376555c6727028",
+    "heights/nz/9/257/254.f32": "265cd79cba588184d22e9f580894bd0b76e352559530561f6486bf7d420a2cb4",
+    "heights/nz/9/257/258.f32": "2a99549533dae3fca96cb6cb546791bd659d718dd8457beab18f933cebe1808e",
+    "heights/nz/9/258/254.f32": "23bc3696bfd330dd48c7b608c6385dd55797e77f2869db118a1f4be4b8b0b659",
+    "heights/nz/9/259/254.f32": "601091d805445ed5aabdb40741ae3c500cb930f47dbe4fa21314da8983f67057",
+    "heights/px/0/0/0.f32": "8223482bf2e59b00d1560b48716d41af474f1fc8e96fa6680e89867b9cb0c66e",
+    "heights/px/1/0/0.f32": "6a703fda14692594e7d584418778ee1697e3477342bf58b7ceeeac08a3860606",
+    "heights/px/1/0/1.f32": "b3afbf1947e9fa6f44586f1e6d02011fb1c89d47351219e2fcd5603e01f43dd7",
+    "heights/px/1/1/0.f32": "cabd1b7208a3e78f6cc29bfb852646d69c953722118be712a2c3db86023a9682",
+    "heights/px/1/1/1.f32": "ca90fb39f3591acf8f3304ceb6cc3ee0517b90c1b05123a38bafaf6d909729f2",
+    "heights/px/2/0/0.f32": "8758f1f588a6b3bc834f787040408bdb0dbbe07f015dcb0a1d6dce1615c990c9",
+    "heights/px/2/0/1.f32": "c1f87ff972e9cf49c2360241a340d1e7a19b64155cc41fb0af0efc604ee4a55c",
+    "heights/px/2/0/2.f32": "f356f7ea2e742ebd8825a50b291017b7e3e9eca9df462b802624b7471bb45673",
+    "heights/px/2/0/3.f32": "990a03a71024dba9e9702c2ad1c9733b6e7b5d592829fa74951293df94b68e40",
+    "heights/px/2/1/0.f32": "2aeb8a13b5c75a4b3486f1a1303001c81c5fafbd86641313dfa6ea3508c1fb2b",
+    "heights/px/2/1/1.f32": "d2eed3134e15c635cec74f979c6472c37a1b1f634acb3bc72aedf7ee8d50a326",
+    "heights/px/2/1/2.f32": "fd71c1d3af21281a01d5ebdf4b528c81e27094bc466ce3faa5b795d8fe6692af",
+    "heights/px/2/1/3.f32": "62dbc4b99e56048e4b99305191fea7db2c47f1b1ae7b42e7737f13b561935f3a",
+    "heights/px/2/2/0.f32": "3b84df48584de226f8453eee790e7e247ca9b61aefa51d12c2c8208651643cda",
+    "heights/px/2/2/1.f32": "02c5447eeec17d47a26fc4dfcb8978fb14227f3845cc72d60695c20547d4739d",
+    "heights/px/2/2/2.f32": "56cddf83c78b96826a0844aa6c24408d30ef1455665caa3281ed2810a5b98e01",
+    "heights/px/2/2/3.f32": "d758759a9499ad8efcf0cc5b94e465d22fa2f898da378480e5b0a4fe1c1aea6e",
+    "heights/px/2/3/0.f32": "51c331dc3854dcd7ac3c97d0a4cbb2824ac1f868ec1544316cbb50456a15fb18",
+    "heights/px/2/3/1.f32": "1e0a86033d84e7aff86c45ca1f211d62a4fd69b1039bd1f086a91617b2516da8",
+    "heights/px/2/3/2.f32": "3875d977a99ea5b8771f916078df6426409456f964f6d31123697823c2324819",
+    "heights/px/2/3/3.f32": "718fc4565fec9c1ee718789b8d3a9665b517b156cdfb55e8212c8b906cd59186",
+    "heights/py/0/0/0.f32": "1df8ca66cfdb8e4f394b4f48a3e43cdc53f1dc0feb743b57e795e236a9b337da",
+    "heights/py/1/0/0.f32": "c426a0795244e20ad418999e1388156524d6b438f97d728f9123ad521c758ee9",
+    "heights/py/1/0/1.f32": "a0cbd51f55c929f8a82cfcc1ec5479539ca1ad2e958c8424a900a4cbb37206ca",
+    "heights/py/1/1/0.f32": "f462aa4a72ef48b8aebc414ca84d1da62d2342715847b25484c8eaf6e23f71f6",
+    "heights/py/1/1/1.f32": "b9d54c664fcf509ef8939536c6cfea5820e2ec723f07bfc160b49bbc8adaf849",
+    "heights/py/2/0/0.f32": "c39f158a16af1b3dff00bf770859c6144dad2fb444d9fbe2c9c010a8ad8a6733",
+    "heights/py/2/0/1.f32": "a727a7ee77155ed596257985346dbab35ebf916a54953d10102f4117b77f1828",
+    "heights/py/2/0/2.f32": "e0bf20d1a20b444b0decbc285b78ca30084f8eeab15a27d313d12f12f91ba40a",
+    "heights/py/2/0/3.f32": "cbda2a041e1dbf1b15f60951c2348c22d98e686848edf6e54593470fd422fbba",
+    "heights/py/2/1/0.f32": "76b2466cb62d18adfff80cfff9b4e23d1e7879d217122a62e345282fc542eb27",
+    "heights/py/2/1/1.f32": "fdc66033a896c76fa0aba0c49c4429c5c9f13ca3d7b2927b749d9209cb8aa2aa",
+    "heights/py/2/1/2.f32": "3465598127de6e762940dbdefbea0915c2a03b457634f5a3b3bf45dd1e072178",
+    "heights/py/2/1/3.f32": "d9ed4b8eaa652c52e9cc5bfbb27e8cffa605ccfe1a53d2c3d430ec0940d4f95d",
+    "heights/py/2/2/0.f32": "b3e9c2b16b3595831a18a04b5154d081a52f28dbb7f028fae8ddacf787d4d17c",
+    "heights/py/2/2/1.f32": "bbb3a6f984af5b6ce650f85dba307c17f322545ec8a07923da387392951119c7",
+    "heights/py/2/2/2.f32": "5a66eb12475067165281d87b71c4c16e444b66c57e402103a8edfcd0434615fe",
+    "heights/py/2/2/3.f32": "aebcf9ce6074206572e4aa0210ce92c73b5bb6943a176a9838cb6650ffa6e0cc",
+    "heights/py/2/3/0.f32": "c64dadc0f4c636194379ad1067afb5c1e636b038beea7b5dcd479c748306be44",
+    "heights/py/2/3/1.f32": "667d8344094f8e3438e6dcae35786a07db59eecabab64a80e69e5658f8c0a941",
+    "heights/py/2/3/2.f32": "6b2006f652428759f2b38d1bc0477db7148faf3ca261223484291aa1ec6ab5fb",
+    "heights/py/2/3/3.f32": "04aa1e7d967e6782aace5ff7b8ad327957df7cf8c0a611296abf4eb477611464",
+    "heights/pz/0/0/0.f32": "7a37fad722fb17b74871514d1bed2bea45b2f7d425a865bf13c632a13c4f7c4a",
+    "heights/pz/1/0/0.f32": "44679ee1ff5c845d2cb771db4c4c0666dc2560188c5014bc6f925aea76ebdc12",
+    "heights/pz/1/0/1.f32": "08c9d7f10e70a9229b3b57bae199622612227a2ec9ed4445da019f9fae9c8706",
+    "heights/pz/1/1/0.f32": "1ae01258b92df2d56e7c728ffa377cff8b17322833e3a79f94be5557bd4c503a",
+    "heights/pz/1/1/1.f32": "1827027fdb0d440fcb11b2deabf1b854bc3fdb8289b602fa675c0f30f55de3a9",
+    "heights/pz/2/0/0.f32": "28cfebf6053da50264535902de863c0d07f583e48d0b2eda328b956efff4b93d",
+    "heights/pz/2/0/1.f32": "94541acca8daf66ab358747ac2896ca01fda407370ea7d46e86f2873b8c70e34",
+    "heights/pz/2/0/2.f32": "59d6cc8e74c24b6fd94f7b241353ca279b7422b18099c38e759fdeb48de40549",
+    "heights/pz/2/0/3.f32": "29e09de9d6bb0ac73fe5eed2a8d1e42130c400ece3e09f5a11dbd0e5297662d1",
+    "heights/pz/2/1/0.f32": "9d4aa5c85f3aff054b2e6bdd9ed4d94f7340167d11be1a62cadd410864bd1320",
+    "heights/pz/2/1/1.f32": "1727b8431417dec2e9e5974bbd01b9b513031e933a459a86718c643e6b1da0f3",
+    "heights/pz/2/1/2.f32": "6742cb5997ab867560fae59990a4e333302809317b5d15db0466ae10025726fe",
+    "heights/pz/2/1/3.f32": "224ee7020223b6581175ffaf92db725c6cdd0c038d420c61d8550f532c317bb1",
+    "heights/pz/2/2/0.f32": "f58db3c4a3a5a81f30a7142888a41f02fe9105abd9c0bd602e2bcb644f9a153f",
+    "heights/pz/2/2/1.f32": "6569a8f127390a6da8ac41e2abc640d7115579f01f143e03e0b3f139560947b4",
+    "heights/pz/2/2/2.f32": "14a4d80f61d4ba8a065373855185e594169203a19d4068503ccd58438b5270c2",
+    "heights/pz/2/2/3.f32": "7c10cc33870de14dc9f948a7c4e12e86292b73d9363af4e4bc3c60ab58eb5815",
+    "heights/pz/2/3/0.f32": "c5ce6cd65e0ad50d077c55e046eb30e7661eba261a7d2c9505bd29374c65da31",
+    "heights/pz/2/3/1.f32": "a5a1ab2a05a2b87ddcae1d88aa3b0b7717fc675d40f47fca6d936d095246c5a6",
+    "heights/pz/2/3/2.f32": "6ace877996df1b2665b911695f4d69b60550fce07ed583b10e41d8f0e714d008",
+    "heights/pz/2/3/3.f32": "cdce6cb3daa5688979fc45d5d00248ed388c271df15e5fcc13c4e8ee528a8414"
+  }
+}

@@ -249,6 +249,7 @@ def parser() -> argparse.ArgumentParser:
     shape = p.add_mutually_exclusive_group(required=True)
     shape.add_argument('--sphere-radius-km', type=float)
     shape.add_argument('--ellipsoid-radii-km', type=float, nargs=3, metavar=('A', 'B', 'C'))
+    p.add_argument('--frame', help='Verified physical body-fixed frame (for example MOON_ME_DE421); never inferred from the body name')
     p.add_argument('--layer-id', help='Stable dataset identity; default uses body and input filename')
     p.add_argument('--attribution', default='User-supplied KML/KMZ placemarks')
     p.add_argument('--source-url', default='', help='Download URL for provenance (not fetched)')
@@ -306,6 +307,10 @@ def convert(args: argparse.Namespace) -> dict:
             },
         } for i, name in enumerate(names)],
     }
+    if getattr(args, 'frame', None) is not None:
+        if not args.frame.strip():
+            raise ValueError('frame must not be empty')
+        catalog['geographicCoordinates']['frame'] = args.frame.strip()
     output.parent.mkdir(parents=True, exist_ok=True)
     # Prepare everything before writing; don't overwrite a catalog with a bad archive.
     for name, data in zip(names, parts):

@@ -25,3 +25,14 @@ labels: enhancement
 ## Additional context
 
 <!-- Sketches, references, related catalogs/kernels. -->
+
+## Issue relationships
+
+<!-- Complete both fields before submitting. Native GitHub links are added automatically.
+Parent issue: one parent initiative #N, or None if independent/an initiative itself.
+Blocked by: only hard OPEN implementation prerequisites (#N, #M), or None.
+Do not put related-but-parallel issues in Blocked by. See docs/issue-dependencies.md. -->
+
+- Parent issue:
+- Blocked by:
+- Related (not blockers):

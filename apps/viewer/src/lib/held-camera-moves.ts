@@ -9,6 +9,9 @@ const MOVES: Record<CameraMoveId, { kind: 'dolly' | 'crane'; sign: 1 | -1 }> = {
   'cam:crane-down': { kind: 'crane', sign: -1 },
 };
 
+/** Fraction of the speed reference covered per second; the keys' Shift-free WASD rate is 1.0. */
+const HELD_MOVE_RATE = 0.55;
+
 const held = new Set<CameraMoveId>();
 let frame = 0;
 let lastFrameMs = 0;
@@ -46,8 +49,8 @@ function step(now: number): void {
   const dt = lastFrameMs ? Math.min((now - lastFrameMs) / 1000, 0.05) : 0;
   lastFrameMs = now;
   const controller = renderer.cameraController;
-  const range = controller.camera.position.distanceTo(controller.controls.target);
-  const amountKm = range * 0.55 * dt / renderer.scaleFactor;
+  // Recomputed every frame, so a mode change or descent while held re-scales at once.
+  const amountKm = controller.moveSpeedReference * HELD_MOVE_RATE * dt / renderer.scaleFactor;
 
   for (const id of held) {
     const move = MOVES[id];

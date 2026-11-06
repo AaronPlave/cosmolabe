@@ -250,7 +250,7 @@ export class EventCallout {
       padding: '4px 8px 5px', borderRadius: '2px',
       // Neutral and quiet: the glyph and leader carry event color and state.
       border: '1px solid rgba(190, 206, 216, 0.1)',
-      background: 'rgba(9, 13, 18, 0.8)',
+      background: 'rgba(9, 13, 18, 0.92)',
       whiteSpace: 'normal', overflowWrap: 'anywhere', boxSizing: 'border-box',
       maxWidth: 'min(360px, calc(100% - 16px))', willChange: 'transform',
     });

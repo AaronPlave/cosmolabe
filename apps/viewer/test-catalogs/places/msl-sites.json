@@ -1,31 +1,28 @@
 {
-  "name": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
+  "name": "Dingo Gap reconstruction; estimated PLACES site/drive origin",
   "geographicCoordinates": {
-    "latitude": "planetographic",
+    "latitude": "planetocentric",
     "longitudeDirection": "east",
     "longitudeDomain": "-180..180",
     "referenceShape": {
-      "kind": "ellipsoid",
-      "radiiKm": [
-        3396.19,
-        3396.19,
-        3376.2
-      ]
+      "kind": "sphere",
+      "radiusKm": 3396.19
     }
   },
   "geographicLayers": [
     {
       "id": "mission:msl-sites",
-      "name": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
+      "name": "Dingo Gap reconstruction; estimated PLACES site/drive origin",
       "body": "Mars",
       "source": "msl-sites.geojson",
       "display": {
         "visible": false
       },
       "provenance": {
-        "attribution": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
-        "sourceUrl": "https://github.com/NASA-AMMOS/3DTilesSampleData/tree/master/msl-dingo-gap",
-        "geometrySemantics": "point-anchor-not-feature-boundary"
+        "attribution": "NASA-AMMOS Landform sample / NASA/JPL PLACES",
+        "sourceUrl": "https://github.com/NASA-AMMOS/3DTilesSampleData/tree/76444abbb4faff1b05f46a09b81ca2c24602b333/msl-dingo-gap",
+        "geometrySemantics": "point-anchor-not-feature-boundary",
+        "registration": "Estimated site 26 drive 184 origin; absolute body-fixed accuracy unknown"
       }
     }
   ]

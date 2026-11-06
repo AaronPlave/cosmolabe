@@ -7,7 +7,8 @@
     "referenceShape": {
       "kind": "sphere",
       "radiusKm": 1737.4
-    }
+    },
+    "frame": "MOON_ME_DE421"
   },
   "geographicLayers": [
     {

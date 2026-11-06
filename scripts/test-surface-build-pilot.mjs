@@ -31,7 +31,7 @@ const target=[ground.xKm,ground.yKm,ground.zKm];
 const la=cp.lat*Math.PI/180,lo=cp.lon*Math.PI/180;
 const normal=[Math.cos(la)*Math.cos(lo),Math.cos(la)*Math.sin(lo),Math.sin(la)];
 const north=[-Math.sin(la)*Math.cos(lo),-Math.sin(la)*Math.sin(lo),Math.cos(la)];
-const browser=await chromium.launch({headless:true,args:[process.platform==='darwin'?'--use-angle=metal':'--use-angle=swiftshader','--ignore-gpu-blocklist','--enable-unsafe-swiftshader','--no-sandbox']});
+const browser=await chromium.launch({headless:true,args:[`--use-angle=${process.env.SURFACE_TEST_ANGLE??(process.platform==='darwin'?'metal':'swiftshader')}`,'--ignore-gpu-blocklist','--enable-unsafe-swiftshader','--no-sandbox']});
 const page=await browser.newPage({viewport:{width:1280,height:900},deviceScaleFactor:1});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 page.on('response',r=>{if((r.url().includes('/__surface-pilot/')||r.url().includes('/cube-imagery/')||r.url().includes('/cube-terrain/'))&&!r.ok())errors.push(`${r.status()} ${r.url()}`);});
@@ -42,6 +42,25 @@ if(!hosted)await page.route('**/__surface-pilot/**',async route=>{
   try { await route.fulfill({body:await readFile(file),contentType:({'.json':'application/json','.glb':'model/gltf-binary','.png':'image/png','.f32':'application/octet-stream'})[extname(file)]??'application/octet-stream'}); }
   catch(e){errors.push(e.message);await route.fulfill({status:404,body:'Missing pinned product file'});}
 });
+// Read the rendered WebGL frame synchronously, avoiding Chromium's compositor
+// screenshot stall with supersampled SwiftShader. Preserve full render density
+// and copy to CSS display size so the existing pixel thresholds retain scale.
+// These captures cover scene pixels; DOM controls are exercised separately.
+async function captureFrame(path) {
+  const image=await page.evaluate(()=>{
+    const r=window.renderer;r.stop();
+    try {
+      r.renderFrame();
+      const source=r.getContext().webglRenderer.domElement;
+      const display=document.createElement('canvas');
+      display.width=source.clientWidth;display.height=source.clientHeight;
+      display.getContext('2d').drawImage(source,0,0,display.width,display.height);
+      return display.toDataURL('image/png');
+    } finally {r.start();window.cosmo.setPlaying(false);}
+  });
+  const bytes=Buffer.from(image.split(',')[1],'base64');
+  await writeFile(path,bytes);return bytes;
+}
 try {
   await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero',process.env.CL_VIEWER_URL??'http://127.0.0.1:5174/').href,{waitUntil:'domcontentloaded',timeout:180000});
   await page.waitForFunction(()=>!!window.renderer&&!!window.cosmo,null,{timeout:180000});
@@ -62,7 +81,7 @@ try {
   const results=[];
   let hoverFootprint=null;
   for(const [name,height] of [['regional',synthetic?100:1],['native-detail',nativeHeight],['zoom-out',synthetic?1000:5],['restored-native',nativeHeight]]){
-    const state=await settle(height,'imagery-unlit');await page.screenshot({path:join(out,name+'.png')});results.push({name,heightKm:height,...state});
+    const state=await settle(height,'imagery-unlit');await captureFrame(join(out,name+'.png'));results.push({name,heightKm:height,...state});
     if(name==='regional'&&state.layers.at(-1).bounds){
       hoverFootprint=await page.evaluate(async()=>{
         const r=window.renderer,bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
@@ -78,7 +97,7 @@ try {
       assert(Math.abs(hoverFootprint.lat-(hoverFootprint.bounds[1]+hoverFootprint.bounds[3])/2)<1e-4,'hover footprint must preserve cube planetocentric latitude');
       assert(Math.abs(hoverFootprint.lon-(hoverFootprint.bounds[0]+hoverFootprint.bounds[2])/2)<1e-4,'hover footprint longitude must match source bounds');
       assert(hoverFootprint.projected&&Math.abs(hoverFootprint.projected[0])<1&&Math.abs(hoverFootprint.projected[1])<1&&hoverFootprint.projected[2]<1,'hover marker must be on the visible image, ahead of the camera');
-      const capture=await page.screenshot({path:join(out,'hover-footprint.png')});
+      const capture=await captureFrame(join(out,'hover-footprint.png'));
       const {data,info}=await sharp(capture).removeAlpha().raw().toBuffer({resolveWithObject:true});
       let yellowPixels=0;
       for(let i=0;i<data.length;i+=info.channels)if(data[i]>120&&data[i]>data[i+1]*1.1&&data[i+1]>data[i+2]*1.3)yellowPixels++;
@@ -94,14 +113,14 @@ try {
   assert(terrain.nativeFidelity[0].nativeGsdM>nativeLayer.nativeFidelity[0].nativeGsdM,'source-native imagery must exceed coarse physical source detail');
   const before=await snapshot();
   assert(await page.evaluate(id=>window.renderer.getBodyMesh('Mars').terrainManager.setImageryLayerOpacity(id,.35),nativeLayer.id),'native layer opacity control must succeed');
-  const faded=await settle(nativeHeight,'imagery-unlit');assert.equal(faded.layers.find(l=>l.id===nativeLayer.id).opacity,.35);await page.screenshot({path:join(out,'opacity.png')});assert.deepEqual(faded.geometryIds,before.geometryIds,'opacity changed physical terrain geometry');
+  const faded=await settle(nativeHeight,'imagery-unlit');assert.equal(faded.layers.find(l=>l.id===nativeLayer.id).opacity,.35);await captureFrame(join(out,'opacity.png'));assert.deepEqual(faded.geometryIds,before.geometryIds,'opacity changed physical terrain geometry');
   assert(await page.evaluate(id=>window.renderer.getBodyMesh('Mars').terrainManager.setImageryLayerVisible(id,false),nativeLayer.id),'optional native layer visibility control must succeed');
-  const hidden=await settle(nativeHeight,'imagery-unlit');await page.screenshot({path:join(out,'hidden.png')});assert.deepEqual(hidden.geometryIds,before.geometryIds,'visibility changed physical terrain geometry');
+  const hidden=await settle(nativeHeight,'imagery-unlit');await captureFrame(join(out,'hidden.png'));assert.deepEqual(hidden.geometryIds,before.geometryIds,'visibility changed physical terrain geometry');
   assert.equal(hidden.layers.find(l=>l.id===nativeLayer.id).visible,false);
   assert(hidden.imagery.maxDisplayedLevel<near.imagery.maxDisplayedLevel,'hiding native detail must reveal the coarser context');
   await page.evaluate(id=>{const tm=window.renderer.getBodyMesh('Mars').terrainManager;tm.setImageryLayerVisible(id,true);tm.setImageryLayerOpacity(id,1);},nativeLayer.id);
-  const restored=await settle(nativeHeight,'imagery-unlit');assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).visible,true);assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).opacity,1);assert.deepEqual(restored.geometryIds,before.geometryIds);await page.screenshot({path:join(out,'restored.png')});
-  const shaded=await settle(nativeHeight,'none');await page.screenshot({path:join(out,'shaded.png')});
+  const restored=await settle(nativeHeight,'imagery-unlit');assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).visible,true);assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).opacity,1);assert.deepEqual(restored.geometryIds,before.geometryIds);await captureFrame(join(out,'restored.png'));
+  const shaded=await settle(nativeHeight,'none');await captureFrame(join(out,'shaded.png'));
   let unavailableDtm=null;
   if(synthetic){
     const missing=report.plannerFeedback.requested.find(r=>r.regionId==='no-dtm');
@@ -124,7 +143,7 @@ try {
     await page.waitForTimeout(500);unavailableDtm.rendered=await snapshot();
     assert.equal(unavailableDtm.rendered.imagery.failedTiles,0);
     assert.equal(unavailableDtm.rendered.imagery.baseUncoveredBlocks,0,'coarse global context must cover no-DTM view');
-    await page.screenshot({path:join(out,'no-dtm-global-fallback.png')});
+    await captureFrame(join(out,'no-dtm-global-fallback.png'));
   }
   let layerFlight=null;
   if(hosted&&!synthetic&&(await snapshot()).layers.at(-1).bounds){
@@ -148,7 +167,7 @@ try {
     assert(layerFlight.projected&&Math.abs(layerFlight.projected[0])<.05&&Math.abs(layerFlight.projected[1])<.05&&layerFlight.projected[2]<1,'actual layer Fly button must land on the outlined image center');
     assert.equal(layerFlight.surfacePivot,true,'layer flight must retain a surface pivot');
     assert.equal(layerFlight.pick,'hit','layer flight must preserve physical surface access');
-    await page.screenshot({path:join(out,'fly-to-layer.png')});
+    await captureFrame(join(out,'fly-to-layer.png'));
     await page.evaluate(()=>window.renderer.getBodyMesh('Mars').showImageryFootprint(null));
   }
   assert.deepEqual(errors,[]);

@@ -6,7 +6,8 @@ import tempfile
 import unittest
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'surface-build'))
-from worker import prepare_imagery, reject_external_masks, valid_subset
+from worker import prepare_imagery, reject_external_masks, valid_subset, grid_alignment
+from validate_imagery import validate_large_native
 import cube_imagery as cube
 from osgeo import gdal,osr
 import numpy as np
@@ -14,6 +15,41 @@ import numpy as np
 gdal.UseExceptions()
 
 class RasterImageryTests(unittest.TestCase):
+    def test_original_ctx_grid_requires_explicit_independent_policy(self):
+        detail=(4577366.,1.,0.,1106618.,0.,-1.)
+        ctx=(4573663.250853,6.,0.,1109693.140188,0.,-6.)
+        with self.assertRaisesRegex(AssertionError,'grid alignment'):
+            grid_alignment(detail,ctx)
+        proof=grid_alignment(detail,ctx,independent=True)
+        self.assertFalse(proof['coincident'])
+        self.assertAlmostEqual(proof['maximumGridPhaseErrorM'],.250853)
+        self.assertEqual(proof['nativePixelRatio'],1/6)
+        hirise=(4577366.,.25,0.,1106618.,0.,-.25)
+        self.assertTrue(grid_alignment(detail,hirise)['coincident'])
+        shifted=(4577366.+.125,.25,0.,1106618.,0.,-.25)
+        with self.assertRaisesRegex(AssertionError,'grid alignment'):
+            grid_alignment(detail,shifted)
+
+    def test_native_window_reference_catches_shifted_large_source_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'original.tif'
+            y,x=np.mgrid[:1024,:1024]
+            self.create(source,(20+(x*.1+y*.15)%200).astype(np.uint8))
+            cube.R_KM=3396.19;tiles=[]
+            for xx,yy in [(65535,65535),(65536,65535),(65535,65536),(65536,65536)]:
+                key=f'px/17/{xx}/{yy}';tiles.append(key)
+                path=root/'tiles'/f'{key}.png';path.parent.mkdir(parents=True,exist_ok=True)
+                cube.write_image(str(path),cube.nac_tile(str(source),'px',17,xx,yy,128,2,4))
+            meta={'tileSize':128,'gutter':2,'maxLevel':17,'tiles':tiles,'generator':{'supersample':4}}
+            result=validate_large_native(gdal.Open(str(source)),meta,root/'imagery.json',None)
+            self.assertGreaterEqual(result['checkedPixels'],64)
+            self.assertLessEqual(result['maximumErrorDn'],.501)
+            self.assertGreater(result['checkedGutterPixels'],0)
+            path=root/'tiles'/f'{tiles[0]}.png';image=gdal.Open(str(path)).ReadAsArray().transpose(1,2,0)
+            image[66,66,0]=min(255,int(image[66,66,0])+5);cube.write_image(str(path),image)
+            with self.assertRaisesRegex(AssertionError,'registration'):
+                validate_large_native(gdal.Open(str(source)),meta,root/'imagery.json',None)
+
     def create(self,path,data,mask=None,external=False):
         srs=osr.SpatialReference();srs.ImportFromProj4('+proj=eqc +lat_ts=0 +lon_0=0 +R=3396190 +units=m +no_defs')
         h,w=data.shape

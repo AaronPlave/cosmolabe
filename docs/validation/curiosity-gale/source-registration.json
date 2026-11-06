@@ -1,0 +1,680 @@
+{
+  "version": 1,
+  "kind": "curiosity-registration-source-gate",
+  "productionReady": false,
+  "inputs": {
+    "dingo-scene.json": {
+      "file": "dingo-scene.json",
+      "bytes": 1208022,
+      "sha256": "d2bdbd649ec23c21b46fb20f9791436ef969a157b3f155ac0468f5eaed633923"
+    },
+    "dingo-tileset.json": {
+      "file": "dingo-tileset.json",
+      "bytes": 1780279,
+      "sha256": "0ad69c1820339ae4dc7c9775196d472057872e748c8438e9155493e957852ab9"
+    },
+    "localized_interp.csv": {
+      "file": "localized_interp.csv",
+      "bytes": 11755643,
+      "sha256": "09d4474e64aec6e788efdb4ec24a906f487fe1a58e26dd4431847c94d385faec"
+    },
+    "localized_pos.csv": {
+      "file": "localized_pos.csv",
+      "bytes": 349568,
+      "sha256": "d456ce9025ca71673af8b9f72a78dc508f5d963cbac74fa68eeac88a4c7c3a3b"
+    },
+    "telemetry.csv": {
+      "file": "telemetry.csv",
+      "bytes": 25402924,
+      "sha256": "f62f4a02de38ec4d586623ea057ca63c01c157d1380c32eb5feaa4a0693f39d7"
+    },
+    "dingo-root.b3dm": {
+      "file": "dingo-root.b3dm",
+      "bytes": 81428,
+      "sha256": "24da99a456f18c2d5396dfabd75112b0d75ad91ba68b47cb63c2428ec250a633"
+    },
+    "gale-dingo-dem-window.tif": {
+      "file": "gale-dingo-dem-window.tif",
+      "bytes": 641163,
+      "sha256": "0e82a5a8a6c1ce970ee3c1867009842f605546b7bd8f692568d2517ced7eb5c9"
+    },
+    "MEGA90N000EB.LBL": {
+      "file": "MEGA90N000EB.LBL",
+      "bytes": 3760,
+      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+    },
+    "MEGA90N000EB.IMG": {
+      "file": "MEGA90N000EB.IMG",
+      "bytes": 33177600,
+      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+    },
+    "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif": {
+      "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "bytes": 11384463908,
+      "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+    },
+    "spice-states.json": {
+      "file": "spice-states.json",
+      "bytes": 3597,
+      "sha256": "82dfb9fd2613473ae06c4c4a3605bc89286c5d1feb0355cdc249cee8fef6ea4e"
+    }
+  },
+  "sample": {
+    "revision": "76444abbb4faff1b05f46a09b81ca2c24602b333",
+    "frame": "sitedrive_0260184",
+    "axes": "north/east/down",
+    "units": "metres",
+    "rootTransform": "identity",
+    "otherTransforms": 0,
+    "tiles": 5149,
+    "boundingBox": [
+      -0.3787598655577966,
+      -0.24441157253806978,
+      2.4484314417710813,
+      130.5075034992322,
+      0.0,
+      0.0,
+      0.0,
+      129.61900203971072,
+      0.0,
+      0.0,
+      0.0,
+      8.237398097502282
+    ]
+  },
+  "registration": {
+    "version": "places-26-184-meg016-estimate-v1",
+    "bodyFixedFrame": "IAU_MARS",
+    "bodyFixedKmFromLocalMeters": [
+      -5.9381113471067184e-05,
+      5.4589843141643385e-05,
+      0.000996741607633948,
+      0.0,
+      -0.0006767826595591601,
+      -0.000736182879263047,
+      0.0,
+      0.0,
+      0.000733784106589238,
+      -0.0006745774361077761,
+      8.066081831529473e-05,
+      0.0,
+      -2488.3695347460966,
+      2287.5910308825714,
+      -273.53266599957334,
+      1.0
+    ],
+    "status": "estimated",
+    "uncertaintyKm": null,
+    "provenance": "docs/validation/curiosity-gale/source-registration.md"
+  },
+  "anchor": {
+    "row": {
+      "frame": "ROVER",
+      "site": "26",
+      "drive": "184",
+      "pose": "-1",
+      "landing_x": "-2198.119",
+      "landing_y": "-2037.296",
+      "landing_z": "-14.300",
+      "northing": "-274237.387",
+      "easting": "8144773.927",
+      "planetocentric_latitude": "-4.626550593",
+      "planetodetic_latitude": "-4.681256293",
+      "longitude": "137.407262581",
+      "elevation": "-4486.740",
+      "map_pixel_line": "10893.55",
+      "map_pixel_sample": "14943.71",
+      "dem_pixel_line": "2724.31",
+      "dem_pixel_sample": "3736.43",
+      "roll": "-2.870",
+      "pitch": "0.096",
+      "yaw": "-130.962",
+      "quat_s": "0.414884300",
+      "quat_v1": "-0.009631204",
+      "quat_v2": "0.023134844",
+      "quat_v3": "-0.909529030",
+      "sclk": "444369371",
+      "sol": "528"
+    },
+    "areoidRadiusM": 3395633.417068942,
+    "bodyFixedM": [
+      -2488369.5347460965,
+      2287591.0308825714,
+      -273532.66599957336
+    ],
+    "convention": "planetocentric radial; MEG016 radius + unchanged PLACES areoid elevation"
+  },
+  "relativeControls": {
+    "rows": [
+      {
+        "site": 26,
+        "drive": 184,
+        "sol": 528,
+        "cameras": 282,
+        "role": "origin",
+        "sampleTranslationNedM": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "placesTranslationNedM": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "residualNedM": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "normM": 0.0
+      },
+      {
+        "site": 26,
+        "drive": 190,
+        "sol": 532,
+        "cameras": 8,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          0.15982127571727076,
+          0.1836531312688445,
+          -0.002883174405599456
+        ],
+        "placesTranslationNedM": [
+          0.16200000000026193,
+          0.23400000000015098,
+          0.006000000000000227
+        ],
+        "residualNedM": [
+          -0.002178724282991179,
+          -0.05034686873130648,
+          -0.008883174405599683
+        ],
+        "normM": 0.05117093724047863
+      },
+      {
+        "site": 26,
+        "drive": 196,
+        "sol": 532,
+        "cameras": 8,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          0.33081515751330987,
+          0.37432991749889566,
+          -0.011953208249067869
+        ],
+        "placesTranslationNedM": [
+          0.3360000000002401,
+          0.47199999999998,
+          0.012000000000000455
+        ],
+        "residualNedM": [
+          -0.005184842486930241,
+          -0.09767008250108433,
+          -0.023953208249068325
+        ],
+        "normM": 0.10069798306225469
+      },
+      {
+        "site": 26,
+        "drive": 202,
+        "sol": 532,
+        "cameras": 8,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          0.5254669136024249,
+          0.5674050534398394,
+          -0.024519923674255276
+        ],
+        "placesTranslationNedM": [
+          0.5150000000003274,
+          0.7150000000001455,
+          0.017000000000001236
+        ],
+        "residualNedM": [
+          0.010466913602097505,
+          -0.14759494656030614,
+          -0.04151992367425651
+        ],
+        "normM": 0.15368060577837883
+      },
+      {
+        "site": 26,
+        "drive": 208,
+        "sol": 532,
+        "cameras": 26,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          0.715586314468571,
+          0.7553202426371927,
+          -0.04613244349710992
+        ],
+        "placesTranslationNedM": [
+          0.6960000000003674,
+          0.9550000000001546,
+          0.02000000000000135
+        ],
+        "residualNedM": [
+          0.01958631446820358,
+          -0.19967975736296195,
+          -0.06613244349711127
+        ],
+        "normM": 0.21125607517389253
+      },
+      {
+        "site": 26,
+        "drive": 232,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -1.992943148453772,
+          0.054346275885366856,
+          0.008878511226584842
+        ],
+        "placesTranslationNedM": [
+          -1.949999999999818,
+          0.2899999999999636,
+          0.23600000000000065
+        ],
+        "residualNedM": [
+          -0.04294314845395397,
+          -0.23565372411459676,
+          -0.2271214887734158
+        ],
+        "normM": 0.33009235427508715
+      },
+      {
+        "site": 26,
+        "drive": 244,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -3.261127525012005,
+          -0.3073852986395042,
+          -0.023418827962781788
+        ],
+        "placesTranslationNedM": [
+          -3.181999999999789,
+          -0.06199999999989814,
+          0.27800000000000047
+        ],
+        "residualNedM": [
+          -0.0791275250122161,
+          -0.24538529863960606,
+          -0.30141882796278224
+        ],
+        "normM": 0.396646467088092
+      },
+      {
+        "site": 26,
+        "drive": 256,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -3.122452268328407,
+          -0.25819876399230773,
+          -0.052722434698688675
+        ],
+        "placesTranslationNedM": [
+          -3.1099999999996726,
+          -0.06199999999989814,
+          0.28500000000000014
+        ],
+        "residualNedM": [
+          -0.012452268328734473,
+          -0.1961987639924096,
+          -0.3377224346986888
+        ],
+        "normM": 0.39077545582788353
+      },
+      {
+        "site": 26,
+        "drive": 262,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -3.139870965880436,
+          -1.1736983643503967,
+          -0.12210108801064229
+        ],
+        "placesTranslationNedM": [
+          -3.130999999999858,
+          -0.9619999999999891,
+          0.27300000000000146
+        ],
+        "residualNedM": [
+          -0.008870965880577675,
+          -0.21169836435040756,
+          -0.39510108801064375
+        ],
+        "normM": 0.4483299691649965
+      },
+      {
+        "site": 26,
+        "drive": 268,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -3.0736259423825976,
+          -2.0110264448030954,
+          -0.20879274034112968
+        ],
+        "placesTranslationNedM": [
+          -3.088999999999942,
+          -1.8099999999999454,
+          0.21700000000000053
+        ],
+        "residualNedM": [
+          0.015374057617344228,
+          -0.20102644480315002,
+          -0.42579274034113024
+        ],
+        "normM": 0.4711129916326066
+      },
+      {
+        "site": 26,
+        "drive": 274,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -2.904777608941792,
+          -2.7050246083888685,
+          -0.31530666324272594
+        ],
+        "placesTranslationNedM": [
+          -2.9420000000000073,
+          -2.5149999999998727,
+          0.15200000000000102
+        ],
+        "residualNedM": [
+          0.037222391058215454,
+          -0.19002460838899582,
+          -0.46730666324272696
+        ],
+        "normM": 0.505836313149356
+      },
+      {
+        "site": 26,
+        "drive": 280,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -2.8235234788756904,
+          -2.9309987246886373,
+          -0.3552692833683778
+        ],
+        "placesTranslationNedM": [
+          -2.868999999999687,
+          -2.7509999999999764,
+          0.12300000000000111
+        ],
+        "residualNedM": [
+          0.045476521123996694,
+          -0.17999872468866096,
+          -0.47826928336837893
+        ],
+        "normM": 0.5130391430259376
+      },
+      {
+        "site": 26,
+        "drive": 286,
+        "sol": 533,
+        "cameras": 6,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -2.781289559395826,
+          -3.0141338590910887,
+          -0.36044240653893656
+        ],
+        "placesTranslationNedM": [
+          -2.8359999999997854,
+          -2.83400000000006,
+          0.11500000000000021
+        ],
+        "residualNedM": [
+          0.054710440603959576,
+          -0.18013385909102864,
+          -0.47544240653893677
+        ],
+        "normM": 0.5113579191111072
+      },
+      {
+        "site": 26,
+        "drive": 292,
+        "sol": 533,
+        "cameras": 84,
+        "role": "held-out-relative-check",
+        "sampleTranslationNedM": [
+          -2.7750948564329807,
+          -3.047176264571816,
+          -0.36907747942339547
+        ],
+        "placesTranslationNedM": [
+          -2.8209999999999127,
+          -2.856999999999971,
+          0.120000000000001
+        ],
+        "residualNedM": [
+          0.04590514356693198,
+          -0.190176264571845,
+          -0.48907747942339647
+        ],
+        "normM": 0.5267552322393616
+      }
+    ],
+    "heldOutCount": 13,
+    "maxM": 0.5267552322393616,
+    "rmsM": 0.3903632422625018,
+    "absoluteAccuracyM": null,
+    "independentLandmarks": 0
+  },
+  "terrain": {
+    "windowSize": [
+      400,
+      400
+    ],
+    "geoTransform": [
+      8144573.492786024,
+      1.0,
+      0.0,
+      -274037.075189438,
+      0.0,
+      -1.0
+    ],
+    "allPixelsValid": true,
+    "gridSpacingM": 1,
+    "nativeSourceAtDingoGap": "unknown; mixed DEM has no per-pixel source index",
+    "anchorDemAreoidM": -4486.738386347504,
+    "anchorPlacesAreoidM": -4486.74,
+    "anchorBaseAreoidM": -4477.538601219988,
+    "baseMinusDemM": 9.199785127516407
+  },
+  "spice": [
+    {
+      "utc": "2014-01-29T12:00:00Z",
+      "positionBodyFixedM": [
+        -2488321.5391911245,
+        2287658.435935317,
+        -273610.0779528268
+      ],
+      "relativeToMeshOriginNedM": [
+        -76.3301129754714,
+        -82.10500514816853,
+        -16.495663733356544
+      ],
+      "distanceFromMeshOriginM": 113.31206881543105,
+      "radialDifferenceFromOriginM": 16.497516713570803
+    },
+    {
+      "utc": "2014-02-01T12:00:00Z",
+      "positionBodyFixedM": [
+        -2488307.3656202103,
+        2287676.7729409295,
+        -273583.343030371
+      ],
+      "relativeToMeshOriginNedM": [
+        -49.52293154958541,
+        -105.19682175575612,
+        -16.308592171958807
+      ],
+      "distanceFromMeshOriginM": 117.40895296104348,
+      "radialDifferenceFromOriginM": 16.31058542476967
+    },
+    {
+      "utc": "2014-02-05T12:00:00Z",
+      "positionBodyFixedM": [
+        -2488305.3323162235,
+        2287679.2231455627,
+        -273586.2093501629
+      ],
+      "relativeToMeshOriginNedM": [
+        -52.36689531510588,
+        -108.37672533724941,
+        -16.700638481956865
+      ],
+      "distanceFromMeshOriginM": 121.51838398149424,
+      "radialDifferenceFromOriginM": 16.70277459314093
+    },
+    {
+      "utc": "2014-02-08T12:00:00Z",
+      "positionBodyFixedM": [
+        -2488300.4330513584,
+        2287683.7079105685,
+        -273585.68603703333
+      ],
+      "relativeToMeshOriginNedM": [
+        -51.891388529745605,
+        -114.99407005729044,
+        -16.088746203852306
+      ],
+      "distanceFromMeshOriginM": 127.1817601163705,
+      "radialDifferenceFromOriginM": 16.09109294321388
+    }
+  ],
+  "physicalSites": [
+    {
+      "name": "origin",
+      "localNorthEastM": [
+        0,
+        0
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": -0.07465579445295728,
+      "meshRadiusM": 3391146.751724736,
+      "demRadiusM": 3391146.6786825946,
+      "baseRadiusM": 3391155.878467722,
+      "meshMinusDemM": 0.07304214135911025,
+      "meshMinusBaseM": -9.126742986162753
+    },
+    {
+      "name": "north-50m",
+      "localNorthEastM": [
+        50,
+        0
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": -1.1975944205078952,
+      "meshRadiusM": 3391147.875031969,
+      "demRadiusM": 3391147.086026924,
+      "baseRadiusM": 3391155.33523601,
+      "meshMinusDemM": 0.7890050447240355,
+      "meshMinusBaseM": -7.460204041277393
+    },
+    {
+      "name": "east-50m",
+      "localNorthEastM": [
+        0,
+        50
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": 2.162459864593753,
+      "meshRadiusM": 3391144.5149776842,
+      "demRadiusM": 3391144.0311334026,
+      "baseRadiusM": 3391155.129057791,
+      "meshMinusDemM": 0.48384428168083105,
+      "meshMinusBaseM": -10.614080106686743
+    },
+    {
+      "name": "2014-01-29T12:00:00Z",
+      "localNorthEastM": [
+        -76.3301129754714,
+        -82.10500514816853
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": 1.2683336434387045,
+      "meshRadiusM": 3391145.4105882887,
+      "demRadiusM": 3391145.2640385143,
+      "baseRadiusM": 3391157.6622013687,
+      "meshMinusDemM": 0.14654977419650095,
+      "meshMinusBaseM": -12.251613080159586
+    },
+    {
+      "name": "2014-02-01T12:00:00Z",
+      "localNorthEastM": [
+        -49.52293154958541,
+        -105.19682175575612
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": 0.19840914565911721,
+      "meshRadiusM": 3391146.4806530587,
+      "demRadiusM": 3391146.481421232,
+      "baseRadiusM": 3391157.484071625,
+      "meshMinusDemM": -0.0007681736924496363,
+      "meshMinusBaseM": -11.00341856610612
+    },
+    {
+      "name": "2014-02-05T12:00:00Z",
+      "localNorthEastM": [
+        -52.36689531510588,
+        -108.37672533724941
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": -0.08705335201821002,
+      "meshRadiusM": 3391146.7662584158,
+      "demRadiusM": 3391146.854935569,
+      "baseRadiusM": 3391157.503021794,
+      "meshMinusDemM": -0.08867715335600224,
+      "meshMinusBaseM": -10.736763377918578
+    },
+    {
+      "name": "2014-02-08T12:00:00Z",
+      "localNorthEastM": [
+        -51.891388529745605,
+        -114.99407005729044
+      ],
+      "coverage": "root-triangle",
+      "meshDownM": -0.18316327291432943,
+      "meshRadiusM": 3391146.862578965,
+      "demRadiusM": 3391146.90963153,
+      "baseRadiusM": 3391157.462293069,
+      "meshMinusDemM": -0.047052564905243344,
+      "meshMinusBaseM": -10.599714104042505
+    }
+  ],
+  "policy": {
+    "physicalQueryPolicy": "visual-only",
+    "overlapPolicy": "composite",
+    "picking": "global heightfield",
+    "clearance": "global heightfield",
+    "measurement": "global heightfield",
+    "fallback": "global heightfield remains active"
+  },
+  "limits": [
+    "Camera controls share PLACES/rover provenance and are not independent geodetic controls.",
+    "No adjustment of source geometry, terrain, SPICE positions or attitudes was fitted.",
+    "Source scene omits its absolute PLACES solution/version; the transform is an estimate.",
+    "A spherical radial tangent basis approximates local gravity; absolute orientation uncertainty is unknown.",
+    "SPICE positions differ from orbital localization. Relative origin differences are not terrain clearances.",
+    "Native 1m source-grid validity does not establish native HiRISE stereo data or physical accuracy.",
+    "Physical mesh comparisons use the coarse root, whose geometricError is 4.192m; fine LOD residuals remain unvalidated.",
+    "Gale inventory DTEEC_016520_1750_016375_1750_A01 at 138.43-138.57E does not cover this site.",
+    "Hosted cube/imagery, physical-site residuals and visual acceptance remain required."
+  ]
+}

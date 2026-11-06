@@ -107,6 +107,7 @@ describe('spiceFrame (arbitrary furnished frame)', () => {
     expect(mode.frameFault).toEqual({
       frameId: 'spice:LRO_SC_BUS',
       et: 123.456,
+      reason: 'CK gap 03:12 to 03:40 for -82000',
       message: 'Frame spice:LRO_SC_BUS unavailable at ET 123.456: CK gap 03:12 to 03:40 for -82000',
     });
     const healthy = new ScFixedMode();

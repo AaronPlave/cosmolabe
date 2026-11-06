@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CubeGridSurface, CubeSphereGridSource, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
+import { CubeGridSurface, CubeSphereGridSource, cubeTileMesh, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
 import { cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
 import { bodyFixedToGeodetic } from '../TerrainSampler.js';
 
@@ -33,10 +33,26 @@ function fixture(a = 100, c = 50, level = 2) {
 }
 
 describe('ellipsoidal cube physical surface', () => {
-  it('requires an explicit storage contract and disables the spherical horizon occluder', async () => {
+  it('requires an explicit storage contract and bounds the radial lattice for horizon occlusion', async () => {
     const { source, manifest } = fixture();
     await source.ready;
-    expect(new CubeGridSurface(source, '499', 'IAU_MARS').renderedInnerRadiusKm).toBe(0);
+    const surface = new CubeGridSurface(source, '499', 'IAU_MARS');
+    expect(surface.renderedInnerRadiusKm).toBe(0); // terrain draw policy stays unchanged
+    const inner = surface.radialRenderedInnerRadiusKm;
+    expect(inner).toBeGreaterThan(49);
+    expect(inner).toBeLessThan(50);
+    // Sample the Cartesian triangles, including their interiors, on all faces.
+    // The bound comes from radial offsets; it never treats them as datum heights.
+    for (const face of faces) {
+      const tile = source.sampler.getTile({ face, level: 0, x: 0, y: 0 })!;
+      const { positionsKm: p, indices } = cubeTileMesh(tile, 100);
+      for (let t = 0; t < indices.length; t += 3) for (const weights of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [.5, .5, 0], [.25, .25, .5]]) {
+        const position = [0, 1, 2].map(axis => weights.reduce((sum, w, k) => sum + w * p[3 * indices[t + k] + axis], 0));
+        expect(Math.hypot(...position)).toBeGreaterThan(inner);
+      }
+    }
+    manifest.renderedLatticeRoundingBoundKm = .001;
+    expect(new CubeGridSurface(source, '499', 'IAU_MARS').radialRenderedInnerRadiusKm).toBeCloseTo(inner - .001, 10);
     expect(source.sampler.sample(30, 0)).toBeNull(); // raw offsets cannot masquerade as datum heights
     delete manifest.geometry;
     expect(() => new CubeSphereGridSource(manifest, async () => new ArrayBuffer(0))).toThrow(/explicit radial-lattice/);

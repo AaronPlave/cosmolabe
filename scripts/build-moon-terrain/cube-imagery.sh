@@ -60,7 +60,7 @@ if [[ ${what} == all || ${what} == nac ]]; then
   NAC=/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif
   rm -rf "${DATA}/moon-imagery-cube-nac"
   GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR GDAL_HTTP_MAX_RETRY=5 GDAL_HTTP_RETRY_DELAY=2 GDAL_HTTP_TIMEOUT=60 GDAL_HTTP_CONNECTTIMEOUT=30 VSI_CACHE=TRUE VSI_CACHE_SIZE=200000000 \
-    ${PY} ../terrain/cube_imagery.py nac --source "${NAC}" --global-level 0 \
+    ${PY} ../terrain/cube_imagery.py nac --frame MOON_ME_DE421 --source "${NAC}" --global-level 0 \
       --region 'shackleton@-89.67,129.78:1=900,2=900,3=900,4=900,5=900,6=400,7=150,8=60,9=30,10=15,11=8,12=4,13=2' \
       --region 'south-pole@-90,0:7=150,8=60,9=30,10=15,11=8,12=4,13=2' \
       --out "${DATA}/moon-imagery-cube-nac"
@@ -89,7 +89,7 @@ if [[ ${what} == wac-nac ]]; then
   rm -rf "${DATA}/moon-imagery-cube-wac-nac"
   # Per worker: a 50 MB HTTP cache (×16 workers at 200 MB was several GB of RAM).
   GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR GDAL_HTTP_MAX_RETRY=5 GDAL_HTTP_RETRY_DELAY=2 GDAL_HTTP_TIMEOUT=60 GDAL_HTTP_CONNECTTIMEOUT=30 VSI_CACHE=TRUE VSI_CACHE_SIZE=50000000 \
-    ${PY} ../terrain/cube_imagery.py composite --workers "${WORKERS:-8}" --base "${WAC}" --detail "${NAC}" --global-level 6 \
+    ${PY} ../terrain/cube_imagery.py composite --frame MOON_ME_DE421 --workers "${WORKERS:-8}" --base "${WAC}" --detail "${NAC}" --global-level 6 \
       --region 'shackleton@-89.67,129.78:7=150,8=60,9=30,10=15,11=8,12=4,13=2' \
       --region 'south-pole@-90,0:7=150,8=60,9=45,10=45,11=20,12=4,13=2' \
       --out "${DATA}/moon-imagery-cube-wac-nac"

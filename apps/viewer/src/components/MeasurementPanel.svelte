@@ -17,13 +17,14 @@
   import { geometryFrameOptions } from '../lib/geometry-frames';
   import GeometryFramePicker from './GeometryFramePicker.svelte';
   import * as Select from '$lib/components/ui/select';
+  import { workspaceNode } from '../lib/workspace.svelte';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
   let openMenuId = $state<string | null>(null);
   let framePickerOpen = $state(false);
   $effect(() => { renderedMeasurements(); syncMeasurements(); });
-  $effect(() => { if (measurements.selectedId) document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }); });
+  $effect(() => { if (measurements.selectedId) workspaceNode().querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }); });
   const kind = $derived(measurements.draftKind);
   const bodies = $derived(vs.bodies.map(body => body.name).sort());
   const canCreate = $derived(draftReady(vs.et));
@@ -73,7 +74,7 @@
     <span class="ui-label">Geometry type</span>
     <Select.Root type="single" value={kind === 'vector-angle' ? 'angle' : kind} onValueChange={next => changeMeasurementKind(next as typeof kind)}>
       <Select.Trigger size="sm" class="ui-control mt-1 w-full rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Geometry type"><Select.Value>{kind === 'vector-angle' ? 'Angle' : kindLabels[kind]}</Select.Value></Select.Trigger>
-      <Select.Content align="start" class="geometry-kind-menu max-w-[calc(100vw-24px)] rounded border border-border-strong bg-surface-2 p-1">
+      <Select.Content align="start" class="geometry-kind-menu max-w-[calc(100cqw-24px)] rounded border border-border-strong bg-surface-2 p-1">
         {#each geometryTypes as option}
           <Select.Item value={option.kind} label={option.label} class="geometry-kind-option items-start rounded-sm px-2 py-2 pr-7 [&>span:last-child]:min-w-0 [&>span:last-child]:shrink [&>span:last-child]:whitespace-normal">
             <div class="flex min-w-0 flex-col gap-0.5"><span class="geometry-kind-label ui-body font-medium">{option.label}</span><span class="geometry-kind-description ui-helper whitespace-normal">{option.description}</span></div>

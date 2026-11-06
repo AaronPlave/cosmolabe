@@ -1,7 +1,7 @@
-import { geodeticToBodyFixed, type Place, type PlaceIndex } from '@cosmolabe/core';
+import { geodeticToBodyFixed, type Place, type PlaceIndex, type SurfaceViewPreset } from '@cosmolabe/core';
 import { formatLatitude, formatLongitude } from '@cosmolabe/three';
-import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget } from './viewer-state.svelte';
-import { navigationView, navigationRange } from './navigation-view.svelte';
+import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget, emit } from './viewer-state.svelte';
+import { navigationView, navigationRange, placeRangeKm } from './navigation-view.svelte';
 import { openTool } from './shell.svelte';
 
 export function isPlaceAvailable(place: Place): boolean {
@@ -33,35 +33,65 @@ export function setPlaceSourceEnabled(layerIds: readonly string[], enabled: bool
     if (!enabled || vs.hiddenPlaceLayers.includes(id)) labels?.hiddenLayers.add(id);
     else labels?.hiddenLayers.delete(id);
   }
+  emit('places', {});
   const target = vs.surfaceTarget?.place;
   if (target) { const place = vs.places?.byRef.get(target.ref); if (!place || !isPlaceAvailable(place)) releaseSurfaceTarget(); }
   const selected = vs.selectedPlaceRef && vs.places?.byRef.get(vs.selectedPlaceRef);
   if (selected && !isPlaceAvailable(selected)) selectPlace(null);
 }
 
-export function selectPlace(place: Place | null): void {
+/**
+ * The Gazetteer name (#191) a geographic feature is, when Places can show it.
+ * A viewport click or double-click on one is Places' (Navigate shows it, Fly
+ * goes through it); on any other feature, mission and user sites included,
+ * it is Surface layers'. One click never selects in both.
+ */
+export function viewportPlace(ref: { layerId: string; featureId: string; bodyName: string }): Place | undefined {
+  const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+  return place?.origin === 'nomenclature' && isPlaceAvailable(place) ? place : undefined;
+}
+
+/** `reveal: false` selects without opening the Navigate panel — a script or host selecting a place has not asked for chrome. */
+export function selectPlace(place: Place | null, { reveal = true }: { reveal?: boolean } = {}): void {
   if (place && !isPlaceAvailable(place)) return;
   vs.selectedPlaceRef = place?.ref ?? null;
+  emit('places', {});
   const renderer = getRenderer();
   if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
-  if (place) { vs.navigateMode = 'places'; openTool('navigate'); }
+  // The place is the one selection: Surface layers lets go of its own.
+  if (place) { renderer?.geographicVectors?.setSelected(null); if (reveal) { vs.navigateMode = 'places'; openTool('navigate'); } }
 }
 
 export function showPlaceBody(body: string, visible: boolean): void {
   vs.placeBodies = [...vs.placeBodies.filter(b => b !== body), ...(visible ? [body] : [])];
   getRenderer()?.placeNames.setBodyVisible(body, visible);
+  emit('places', {});
 }
 
 export function showPlaceDataset(layerId: string, visible: boolean): void {
   vs.hiddenPlaceLayers = [...vs.hiddenPlaceLayers.filter(id => id !== layerId), ...(!visible ? [layerId] : [])];
   const labels = getRenderer()?.placeNames;
   if (visible && !vs.excludedPlaceLayers.includes(layerId)) labels?.hiddenLayers.delete(layerId); else labels?.hiddenLayers.add(layerId);
+  emit('places', {});
+}
+
+export function placeFrameUnavailable(place: Place): string | null {
+  const frame = getRenderer()?.getBodyMesh(place.layer.body)?.body.rotation?.bodyFixedFrame;
+  return frame && frame !== place.layer.frame
+    ? `Place frame ${place.layer.frame} differs from the rendered surface frame ${frame}. Navigation is unavailable.` : null;
+}
+
+/** Why a place cannot be navigated to; null when it can. */
+export function placeNavigationProblem(place: Place): string | null {
+  if (!isPlaceAvailable(place)) return `${place.name}'s source is excluded from search, or no longer loaded.`;
+  if (place.feature.geometry.type !== 'Point') return `${place.name} has no point anchor.`;
+  return placeFrameUnavailable(place);
 }
 
 /** Places use exactly the coordinate panel's resolution, physical terrain
  * refinement, surface pivot and arc-flight path. Extent only guides framing. */
 export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: { source?: 'viewport-dblclick' } = {}): boolean {
-  if (!isPlaceAvailable(place) || place.feature.geometry.type !== 'Point') return false;
+  if (placeNavigationProblem(place)) return false;
   // A scene gesture has predictable framing; it must not inherit invalid or
   // unrelated form settings, nor overwrite the user's retained form choices.
   const viewport = options.source === 'viewport-dblclick';
@@ -71,11 +101,34 @@ export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: {
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg,
     latitude: 'planetocentric', longitudeDirection: 'east' }, {
     place: { ref: place.ref, name: place.name },
-    preset: viewport ? 'overhead' : navigationView.preset, animate: action === 'fly', rangeKm: range.km,
+    preset: viewport ? 'overhead' : navigationView.preset, animate: action === 'fly', rangeKm: range.km ?? ((viewport || navigationView.preset !== 'surface') ? placeRangeKm(place.diameterKm) : undefined),
   });
   if (!result.ok) return false;
   selectPlace(place);
   return true;
+}
+
+/**
+ * The control port's navigation to a place (scripts, hosts, agents): the
+ * same path as the Navigate panel, framed by the caller's view and the
+ * place's own extent — never the panel's retained form, which a script
+ * must not depend on — and selecting it without opening the panel.
+ */
+export function navigateToPlaceForControl(place: Place, opts: { animate: boolean; view?: SurfaceViewPreset }): { ok: true } | { ok: false; error: string } {
+  const problem = placeNavigationProblem(place);
+  if (problem) return { ok: false, error: problem };
+  const view = opts.view ?? 'overhead';
+  const fit = placeRangeKm(place.diameterKm);
+  const { latDeg, lonDeg } = placeNavigationCoordinates(place);
+  const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg, latitude: 'planetocentric', longitudeDirection: 'east' }, {
+    place: { ref: place.ref, name: place.name },
+    // A feature's extent frames it from above or at a slant; standing on the
+    // surface takes the view's own eye height.
+    preset: view, animate: opts.animate, rangeKm: view === 'surface' ? undefined : fit,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  selectPlace(place, { reveal: false });
+  return { ok: true };
 }
 
 /** Match Navigate and shared surface-point copying: planetocentric latitude,

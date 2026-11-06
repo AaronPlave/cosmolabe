@@ -60,6 +60,11 @@ def read_tile(config, cache, level, x, y):
         path = Path(entry['path'])
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
             raise ValueError(f'locked XYZ checksum mismatch: {key}')
+        if entry.get('unavailable'):
+            # Explicitly acquired failed response; no generated parent pixels
+            # masquerade as native coverage. Other independent layers supply
+            # runtime fallback. Staging verifies the failure declaration.
+            return None
         return decode(config, path, key)
     url = config['url'].replace('{z}', str(level)).replace('{x}', str(x)).replace('{y}', str(y))
     key = hashlib.sha256(url.encode()).hexdigest()
@@ -83,13 +88,14 @@ def read_tile(config, cache, level, x, y):
                 return None
             if attempt == 4:
                 raise
-        except (OSError, TimeoutError, RuntimeError, ValueError):
+        except (OSError, TimeoutError, RuntimeError, ValueError) as error:
             # Some source responses are truncated PNGs despite HTTP 200. Verify
             # decoding before trusting the disk cache; refetch on a later try.
             path.unlink(missing_ok=True)
             if attempt == 4:
                 if not config.get('allowSourceFallback') or level <= config.get('minZoom', 0):
-                    raise
+                    raise RuntimeError(f'Original XYZ response failed after 5 attempts: {url} '
+                                       f'({type(error).__name__}: {error})') from error
                 failure.write_text(json.dumps({'url': url, 'reason': 'HTTP 200 image decode failure after retries', 'sourceLevel': level, 'fallbackLevel': level - 1}))
                 return fallback(config, cache, level, x, y)
         time.sleep(2 ** attempt)
@@ -131,7 +137,23 @@ def decode(config, path, url):
     else:
         rgb = np.stack(arrays[:3], axis=-1)
         alpha = arrays[3] if len(arrays) >= 4 else np.full((dim, dim), 255, np.uint8)
+    # PNG grayscale/RGB tRNS may be exposed as a GDAL nodata mask rather
+    # than a separate alpha band. Preserve that original validity as well.
+    alpha = np.minimum(alpha, bands[0].GetMaskBand().ReadAsArray())
     return np.concatenate([rgb, alpha[..., None]], axis=-1).astype(np.uint8)
+
+
+def textured_content_digest(image):
+    """Identity of decoded nonuniform pixels, independent of PNG/JPEG encoding.
+
+    Uniform/transparent responses are not evidence of repeated geographic
+    features. A match is diagnostic only; a lock explicitly enables rejection
+    for observational sources that require distinct same-level image tiles.
+    """
+    valid = image[..., 3] > 0
+    if not np.any(valid) or np.max(np.ptp(image[valid, :3], axis=0)) < 16:
+        return None
+    return hashlib.sha256(np.ascontiguousarray(image).tobytes()).hexdigest()
 
 
 def sample(config, lon, lat, level, cache, read=read_tile):

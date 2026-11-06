@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { EmphasisClock, stepEmphasis } from './emphasisFade.js';
 import type { Body } from '@cosmolabe/core';
 import type { BodyMesh } from './BodyMesh.js';
+import type { ScreenRect } from './EventCallout.js';
+import { labelOverlaps } from './annotations/PersistentLabels.js';
 
 export interface LabelManagerOptions {
   /** Font size in pixels */
@@ -39,23 +41,29 @@ export interface LabelManagerOptions {
 type LabelSlot = 'right' | 'below' | 'above' | 'left';
 const ALTERNATE_SLOTS: readonly LabelSlot[] = ['below', 'above', 'left'];
 
-/** A screen rectangle in CSS pixels. */
-export interface LabelScreenRect {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
+/** A screen rectangle in CSS pixels — the same contract every annotation layer uses. */
+export type LabelScreenRect = ScreenRect;
+
+/**
+ * The renderer's backing store: drawing-buffer size in device pixels and the
+ * device-pixel ratio it was sized with. Labels are rasterized and placed on
+ * this grid so each texel lands on exactly one device pixel.
+ */
+export interface LabelDeviceViewport {
+  width: number;
+  height: number;
+  pixelRatio: number;
 }
 
 interface LabelEntry {
   sprite: THREE.Sprite;
   bodyMesh: BodyMesh;
   priority: number;
-  // The fontSize used when rasterizing this entry's canvas texture. The canvas
-  // is taller than this (texFontSize + 2·padding) for the glow margin; we need
-  // the raw em-square value to compute the sprite scale that puts the *text*
-  // at `this.fontSize` px on screen (rather than the padded sprite envelope).
-  texFontSize: number;
+  // Device-pixel ratio this entry's canvas texture was rasterized for. The
+  // canvas is drawn at exactly `fontSize · labelScale · texPixelRatio` px so
+  // that, once the sprite is snapped to the device-pixel grid, texture
+  // sampling is an identity copy (no minification, no sub-pixel smear).
+  texPixelRatio: number;
   // Scratch fields updated each frame by update() so the collision pass
   // doesn't reproject.
   screenX: number;
@@ -136,6 +144,12 @@ export class LabelManager {
   private _hoverPinned: string | null = null;
   private _globalVisible = true;
   private _reserved: LabelScreenRect[] = [];
+  private readonly _reservationSources = new Map<string, LabelScreenRect[]>();
+  private _contextRects: LabelScreenRect[] = [];
+  // Device-pixel ratio label textures are currently rasterized for. Kept in
+  // step with the renderer's backing store by update().
+  private _pixelRatio = LabelManager.windowPixelRatio();
+  private readonly _snapView = new THREE.Vector3();
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
     this.fontSize = options.fontSize ?? 12;
@@ -150,12 +164,10 @@ export class LabelManager {
     const name = bodyMesh.body.name;
     const color = this.labelColorString(bodyMesh.body);
 
-    // Oversample the canvas texture so the sprite stays crisp at any device
-    // pixel ratio. 4x covers DPR≤2 (the common retina case); the divide-by-2
-    // term bumps to 6x/8x on DPR=3/4 displays so dragging the window across
-    // monitors of different DPI doesn't soften the labels.
-    const textureFontSize = this.texFontSizePx();
-    const texture = this.createTextTexture(name, color, textureFontSize);
+    // Rasterize at the exact device-pixel size the text will occupy (see
+    // texFontSizePx). update() sizes the sprite to the canvas 1:1 and snaps it
+    // to the device-pixel grid, so the text is as sharp as browser-native HTML.
+    const texture = this.createTextTexture(name, color, this.texFontSizePx());
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
@@ -179,7 +191,7 @@ export class LabelManager {
       sprite,
       bodyMesh,
       priority: priorityFor(bodyMesh.body),
-      texFontSize: textureFontSize,
+      texPixelRatio: this._pixelRatio,
       screenX: 0,
       screenY: 0,
       widthPx: 0,
@@ -201,6 +213,12 @@ export class LabelManager {
   setLabelVisible(name: string, visible: boolean): void {
     const entry = this.labels.get(name);
     if (entry) entry.sprite.visible = visible && this._globalVisible;
+  }
+
+  /** The show/hide choice for one object's label; null when it has none. */
+  isLabelVisible(name: string): boolean | null {
+    const entry = this.labels.get(name);
+    return entry ? entry.sprite.visible : null;
   }
 
   setAllVisible(visible: boolean): void {
@@ -239,8 +257,21 @@ export class LabelManager {
    * example). Labels yield to them exactly as to a higher-priority label: an
    * ordinary label fades, a pinned one moves to another slot. CSS pixels.
    */
-  setReservedRects(rects: readonly LabelScreenRect[]): void {
-    this._reserved = rects.map((rect) => ({ ...rect }));
+  setReservedRects(rects: readonly LabelScreenRect[], source = 'event'): void {
+    this._reservationSources.set(source, rects.map(rect => ({ ...rect })));
+    this._reserved = [...this._reservationSources.values()].flat();
+  }
+
+  /** Contextual annotations yield to the same reservations and body-label boxes. */
+  beginContextAnnotations(obstacles: readonly LabelScreenRect[] = []): void { this._contextRects = [...this._reserved, ...this.getScreenRects(), ...obstacles]; }
+  getContextAnnotationRects(): readonly LabelScreenRect[] { return this._contextRects; }
+  canReserveContextRect(rect: LabelScreenRect): boolean {
+    return !this._contextRects.some(p => labelOverlaps(rect, p));
+  }
+  reserveContextRect(rect: LabelScreenRect): boolean {
+    if (!this.canReserveContextRect(rect)) return false;
+    this._contextRects.push(rect);
+    return true;
   }
 
   /** Boxes of the labels currently drawn, for placing other annotations around them. */
@@ -270,7 +301,7 @@ export class LabelManager {
 
   /** Baseline opacity all labels render at, so the hovered one (bumped to 1)
    *  stands out by getting brighter rather than by dimming the rest. */
-  private static readonly _baseLabelOpacity = 0.82;
+  private static readonly _baseLabelOpacity = 0.92;
 
   /**
    * Highlight a single label on hover (or pass null to clear). Opacity-only: the
@@ -308,14 +339,17 @@ export class LabelManager {
   }
 
   /**
-   * Rebuild every label's canvas texture at the current `window.devicePixelRatio`.
-   * Call this after the host renderer detects a DPR change (e.g. window dragged
-   * to a higher-DPI monitor) so labels stay crisp instead of being upscaled by
-   * the browser.
+   * Rebuild every label's canvas texture for a device-pixel ratio (default:
+   * the current `window.devicePixelRatio`). update() does this on its own
+   * whenever the renderer's backing-store ratio changes (window dragged to a
+   * monitor with a different DPI, browser zoom); hosts that drive labels
+   * without a device viewport may call it directly.
    */
-  refreshTextures(): void {
+  refreshTextures(pixelRatio = LabelManager.windowPixelRatio()): void {
+    this._pixelRatio = pixelRatio;
     const textureFontSize = this.texFontSizePx();
     for (const entry of this.labels.values()) {
+      if (entry.texPixelRatio === pixelRatio) continue;
       const mat = entry.sprite.material as THREE.SpriteMaterial;
       const oldMap = mat.map;
       mat.map = this.createTextTexture(
@@ -324,7 +358,7 @@ export class LabelManager {
         textureFontSize,
       );
       mat.needsUpdate = true;
-      entry.texFontSize = textureFontSize;
+      entry.texPixelRatio = pixelRatio;
       oldMap?.dispose();
     }
   }
@@ -342,8 +376,27 @@ export class LabelManager {
     }
   }
 
-  update(bodyMeshes: BodyMesh[], camera: THREE.Camera, rendererSize: { width: number; height: number }): void {
+  /**
+   * Per-frame layout. `rendererSize` is the canvas in CSS pixels; `device` is
+   * its drawing buffer. Without `device` the buffer is assumed to be
+   * `rendererSize × window.devicePixelRatio`.
+   */
+  update(
+    bodyMeshes: BodyMesh[],
+    camera: THREE.Camera,
+    rendererSize: { width: number; height: number },
+    device?: LabelDeviceViewport,
+  ): void {
     if (!this._globalVisible) return;
+
+    const pixelRatio = device?.pixelRatio ?? LabelManager.windowPixelRatio();
+    const deviceViewport: LabelDeviceViewport = device ?? {
+      width: Math.max(1, Math.floor(rendererSize.width * pixelRatio)),
+      height: Math.max(1, Math.floor(rendererSize.height * pixelRatio)),
+      pixelRatio,
+    };
+    // Re-rasterize when the backing store's DPR changed (monitor move, zoom).
+    if (pixelRatio !== this._pixelRatio) this.refreshTextures(pixelRatio);
 
     const emphasisDt = this._emphasisClock.tick();
     const emphasisSpan = 1 - LabelManager._baseLabelOpacity;
@@ -355,15 +408,22 @@ export class LabelManager {
     this.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
 
     // Labels render at a fixed pixel size regardless of FOV or viewport size.
-    // With sizeAttenuation=false, sprite.scale.y maps to on-screen pixel height
-    // as: pixelHeight = scale.y · (heightPx / 2) / tan(fov/2). Invert that to
-    // hit `fontSize * labelScale` exactly, so:
+    // With sizeAttenuation=false, a sprite's on-screen size in device pixels
+    // is scale · P[axis] · bufferSize / 2 (P = projection matrix diagonal).
+    // Invert that so the quad covers exactly the texture's canvas in device
+    // pixels — texel-for-pixel, so:
     //   - shrinking the window doesn't shrink the labels
     //   - changing FOV (zoom slider) doesn't shrink the labels
+    //   - sampling never minifies (4x-oversampled textures drawn at DPR 1
+    //     aliased differently at every sub-pixel offset — the intermittent
+    //     "blurry label" in issue #350).
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 60;
     const fovRad = (fov * Math.PI) / 180;
     const tanHalfFov = Math.tan(fovRad / 2);
     const heightPx = Math.max(rendererSize.height, 1);
+    const proj = camera.projectionMatrix.elements;
+    const pxPerScaleX = (Math.abs(proj[0]) * deviceViewport.width) / 2;
+    const pxPerScaleY = (Math.abs(proj[5]) * deviceViewport.height) / 2;
 
     const camPos = camera.position;
 
@@ -378,17 +438,12 @@ export class LabelManager {
         continue;
       }
 
-      // Rescale sprite so the text em-square lands at exactly
-      // `fontSize * labelScale` CSS pixels on screen — matching CSS sizing
-      // convention. The canvas is taller than the em-square by the glow
-      // padding; divide that out so we scale the *text*, not the padded sprite.
+      // Size the sprite to its canvas, one texel per device pixel. The text
+      // em-square was rasterized at `fontSize * labelScale` CSS pixels, so it
+      // lands at that size on screen — matching CSS sizing convention.
       const texture = mat.map!;
       const img = texture.image as { width: number; height: number };
-      const aspect = img.width / img.height;
-      const paddingFactor = img.height / entry.texFontSize; // ≈ 1.6 (canvas/em ratio)
-      const targetSpritePx = this.fontSize * this.labelScale * paddingFactor;
-      const height = (targetSpritePx * 2 * tanHalfFov) / heightPx;
-      sprite.scale.set(height * aspect, height, 1);
+      sprite.scale.set(img.width / pxPerScaleX, img.height / pxPerScaleY, 1);
 
       // Place the label outside the body's on-screen silhouette, measured in
       // **screen pixels** so it works for both planet-sized world bodies and
@@ -505,12 +560,9 @@ export class LabelManager {
       entry.boxCY = entry.screenY;
       // Collision bbox tracks the full sprite envelope on screen (text +
       // glow padding), so labels that look like they touch are flagged as
-      // overlapping. Sprite is `fontSize * paddingFactor` px tall; width
-      // follows from canvas aspect.
-      const labelHeightPx = this.fontSize * paddingFactor;
-      const labelWidthPx = labelHeightPx * aspect;
-      entry.heightPx = labelHeightPx;
-      entry.widthPx = labelWidthPx;
+      // overlapping: the canvas size, in CSS pixels.
+      entry.heightPx = img.height / entry.texPixelRatio;
+      entry.widthPx = img.width / entry.texPixelRatio;
       // Mark behind-camera labels as untouchable by the collision pass; their
       // bbox is meaningless.
       if (behind) {
@@ -527,6 +579,46 @@ export class LabelManager {
     if (!this.disableCollision) {
       this.runCollisionPass(camPos);
     }
+
+    for (const entry of this.labels.values()) {
+      const drawn = entry.sprite.visible && entry.widthPx > 0
+        && (entry.sprite.material as THREE.SpriteMaterial).opacity > 0;
+      if (drawn) this.snapToDevicePixels(entry, camera, deviceViewport);
+    }
+  }
+
+  /**
+   * Nudge a sprite (by < 1 device pixel) so its quad's top-left corner lands
+   * on an integer device pixel. Together with the 1:1 sprite size this makes
+   * every fragment sample exactly one texel center — the WebGL equivalent of
+   * the pixel snapping browsers apply to HTML text. Without it, a label at a
+   * half-pixel offset is bilinearly smeared across two pixels (visibly blurry),
+   * and the smear changes as the body moves.
+   */
+  private snapToDevicePixels(entry: LabelEntry, camera: THREE.Camera, device: LabelDeviceViewport): void {
+    const sprite = entry.sprite;
+    const img = (sprite.material as THREE.SpriteMaterial).map?.image as { width: number; height: number } | undefined;
+    if (!img) return;
+    const view = this._snapView.copy(sprite.position);
+    sprite.parent?.localToWorld(view);
+    view.applyMatrix4(camera.matrixWorldInverse);
+    const depth = -view.z;
+    if (!(depth > 0)) return;
+    const p = this._projected.copy(view).applyMatrix4(camera.projectionMatrix);
+    const anchorX = (p.x * 0.5 + 0.5) * device.width;
+    const anchorY = (-p.y * 0.5 + 0.5) * device.height;
+    const left = anchorX - sprite.center.x * img.width;
+    const top = anchorY - (1 - sprite.center.y) * img.height;
+    const dx = Math.round(left) - left;
+    const dy = Math.round(top) - top;
+    if (dx === 0 && dy === 0) return;
+    // At fixed view depth, a camera-right/up offset maps linearly to device
+    // pixels: Δpx = Δview · P[axis] · buffer / (2 · depth).
+    const proj = camera.projectionMatrix.elements;
+    const viewPerPxX = (2 * depth) / (proj[0] * device.width);
+    const viewPerPxY = (2 * depth) / (proj[5] * device.height);
+    sprite.position.addScaledVector(this.right, dx * viewPerPxX);
+    sprite.position.addScaledVector(this.up, -dy * viewPerPxY);
   }
 
   /**
@@ -583,8 +675,7 @@ export class LabelManager {
     const rate = LabelManager._fadeRate;
     // Reserved annotation areas outrank every label, pinned or not.
     const placed: LabelScreenRect[] = this._reserved.map((r) => ({ ...r }));
-    const overlaps = (r: LabelScreenRect) =>
-      placed.some((p) => r.x0 < p.x1 && r.x1 > p.x0 && r.y0 < p.y1 && r.y1 > p.y0);
+    const overlaps = (r: LabelScreenRect) => placed.some((p) => labelOverlaps(r, p));
     for (const entry of entries) {
       // Pinned labels (selected / event-involved bodies) are never hidden by
       // collision; when their default slot is taken they move to the first
@@ -842,9 +933,14 @@ export class LabelManager {
     this.labels.clear();
   }
 
-  /** Texture rasterization font size, oversampled for the current DPR (see addLabel). */
+  /** Texture rasterization font size: the on-screen text size in device pixels. */
   private texFontSizePx(): number {
-    return this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
+    return this.fontSize * this.labelScale * this._pixelRatio;
+  }
+
+  private static windowPixelRatio(): number {
+    const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
+    return Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
   }
 
   /** CSS color string for a body's label. */
@@ -857,28 +953,33 @@ export class LabelManager {
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    const font = `${fontSize}px monospace`;
-    ctx.font = font;
-    const metrics = ctx.measureText(text);
-
+    // Keep the original regular monospace typeface. One short,
+    // downward shadow supplies terrain contrast without thickening every edge.
+    // Shadow lengths are CSS px × the device-pixel ratio.
+    const px = this._pixelRatio;
+    const setup = () => {
+      ctx.font = `${fontSize}px monospace`;
+      ctx.textBaseline = 'top';
+    };
+    setup();
     const padding = Math.ceil(fontSize * 0.3);
-    canvas.width = Math.ceil(metrics.width) + padding * 2;
+    canvas.width = Math.ceil(ctx.measureText(text).width) + padding * 2;
     canvas.height = fontSize + padding * 2;
+    setup(); // resizing the canvas resets its state
 
-    // Re-set font after canvas resize
-    ctx.font = font;
-    ctx.textBaseline = 'top';
-
-    // Black glow for readability (like CSS text-shadow: 0 0 4px black)
-    ctx.shadowColor = 'black';
-    ctx.shadowBlur = fontSize * 0.15;
+    // Each pass draws only its shadow (the text itself lands off-canvas), so
+    // the fill is laid down once and its edges stay crisp.
+    const away = canvas.width + 64 * px;
+    const shadow = (shadowColor: string, blur: number, dx: number, dy: number) => {
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = blur * px;
+      ctx.shadowOffsetX = away + dx * px;
+      ctx.shadowOffsetY = dy * px;
+      ctx.fillText(text, padding - away, padding);
+    };
+    shadow('#000000b3', 1, 0, 1);
+    ctx.shadowColor = 'transparent';
     ctx.fillStyle = color;
-    // Multiple passes for stronger glow
-    ctx.fillText(text, padding, padding);
-    ctx.fillText(text, padding, padding);
-
-    // Final crisp pass
-    ctx.shadowBlur = 0;
     ctx.fillText(text, padding, padding);
 
     const texture = new THREE.CanvasTexture(canvas);

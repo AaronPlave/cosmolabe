@@ -1,3 +1,5 @@
+import type { GridSettings } from '@cosmolabe/control';
+import { setGridSettings, setDisplayOption, vs } from './viewer-state.svelte';
 /**
  * Camera view import/export — JSON download/upload of the current camera state.
  *
@@ -40,6 +42,8 @@ interface ExportedView extends ViewpointDefinition {
   mode?: string;
   /** Cosmolabe extension: simulation time at export, ISO 8601 UTC. */
   time?: string;
+  grid?: GridSettings;
+  showGrid?: boolean;
 }
 
 export function exportCameraView(renderer: UniverseRenderer): void {
@@ -59,6 +63,8 @@ export function exportCameraView(renderer: UniverseRenderer): void {
     center: cc.trackedBody?.body.name,
     mode: cc.mode,
     time: etToIso(renderer.timeController.et),
+    grid: vs.grid,
+    showGrid: vs.showGrid,
   };
 
   const blob = new Blob([JSON.stringify(view, null, 2)], { type: 'application/json' });
@@ -102,6 +108,8 @@ export function applyCameraView(renderer: UniverseRenderer, view: ExportedView):
     return;
   }
 
+  if (view.grid) setGridSettings(view.grid, { persist: false });
+  if (view.showGrid !== undefined) setDisplayOption('grid', view.showGrid, { persist: false });
   const cc = renderer.cameraController;
   const scale = renderer.scaleFactor;
 

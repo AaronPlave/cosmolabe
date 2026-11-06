@@ -20,6 +20,73 @@ export function solarDisplayExposure(distanceKm: number, radiusKm = SOLAR_RADIUS
   return 1 / solarIrradiance(Math.max(radiusKm, distanceKm), radiusKm)[0];
 }
 
+/**
+ * Scene presentation exposure for Sun, scattering shells and aerial perspective.
+ *
+ * "legacy-observer-adapted" preserves existing catalog appearance by
+ * normalizing to the camera's inverse-square solar irradiance. It is NOT a
+ * reproducible fixed-exposure capture and can brighten outer-system views.
+ * "fixed-reference" holds one multiplier for every observer and epoch.
+ *
+ * The physical source and LUT radiances are never multiplied by this value.
+ * Stars, unlit materials and generic bloom do not yet participate in this
+ * response: see issue #212's HDR compositor migration.
+ */
+export type SolarExposurePolicy =
+  | { mode: 'legacy-observer-adapted' }
+  | { mode: 'fixed-reference'; exposure?: number };
+
+export const DEFAULT_SOLAR_EXPOSURE_POLICY: SolarExposurePolicy =
+  { mode: 'legacy-observer-adapted' };
+
+/** Fixed 1 AU reference: the same RGB signal always maps to the same display RGB. */
+export const FIXED_REFERENCE_SOLAR_EXPOSURE = solarDisplayExposure(SOLAR_REFERENCE_DISTANCE_KM);
+
+export function resolveSolarDisplayExposure(
+  policy: SolarExposurePolicy,
+  observerDistanceKm: number,
+  solarRadiusKm = SOLAR_RADIUS_KM,
+): number {
+  if (policy.mode === 'legacy-observer-adapted') {
+    return solarDisplayExposure(observerDistanceKm, solarRadiusKm);
+  }
+  if (policy.mode !== 'fixed-reference') {
+    throw new Error('Unknown solar exposure policy');
+  }
+  const exposure = policy.exposure ?? FIXED_REFERENCE_SOLAR_EXPOSURE;
+  if (!Number.isFinite(exposure) || exposure <= 0) {
+    throw new Error('Fixed solar exposure must be finite and greater than zero');
+  }
+  return exposure;
+}
+
+/** Data attached to a reference screenshot/export; no camera-adaptation state. */
+export function solarExposureMetadata(policy: SolarExposurePolicy): {
+  mode: SolarExposurePolicy['mode'];
+  exposure: number | null;
+  response: 'reinhard-0.94';
+  radianceUnits: 'relative-solar-center';
+  referenceDistanceKm: number;
+} {
+  return {
+    mode: policy.mode,
+    exposure: policy.mode === 'fixed-reference'
+      ? resolveSolarDisplayExposure(policy, SOLAR_REFERENCE_DISTANCE_KM)
+      : null, // Legacy exposure changes with the observing camera and time.
+    response: 'reinhard-0.94',
+    radianceUnits: 'relative-solar-center',
+    referenceDistanceKm: SOLAR_REFERENCE_DISTANCE_KM,
+  };
+}
+
+/** CPU counterpart of SOLAR_DISPLAY_GLSL for fixed-exposure numeric regressions. */
+export function solarRadianceToDisplay(radiance: readonly number[], exposure: number): number[] {
+  return radiance.map(value => {
+    const x = Math.max(0, value) * exposure;
+    return 0.94 * x / (1 + x);
+  });
+}
+
 export function makeSolarDisplayUniforms() {
   return { uSolarExposure: { value: solarDisplayExposure(SOLAR_REFERENCE_DISTANCE_KM) } };
 }

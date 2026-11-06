@@ -9,10 +9,14 @@ import {
   toggleProbe, clearProbePin, navigateToSurfacePoint, showNextInstrument, applyViewPreset,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell, openTool } from './shell.svelte';
+import { shell, openTool, isToolAvailable } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
 import { shortcutFor } from './keymap';
+import { recordViewerLog } from './viewer-log.svelte';
+import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
+import { drawBody, startDrawing } from './geographic-editing.svelte';
+import { geographicFeatureName } from '@cosmolabe/core';
 
 export interface Command {
   id: string;
@@ -41,11 +45,11 @@ function getBuiltinCommands(): Command[] {
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: shortcutFor('cam:fly-to'), category: 'Camera', execute: () => flyToTracked() },
     { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
     { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
-    ...(center ? (['top', 'sun', 'velocity'] as const).map(preset => ({
+    ...(center ? (['top', 'sun', 'velocity'] as const).filter(preset => applyViewPreset(preset, center, { place: false }).ok).map(preset => ({
       id: `cam:preset:${preset}`,
       label: `${preset[0].toUpperCase()}${preset.slice(1)} view of ${center}`,
       category: 'Camera',
-      execute: () => { applyViewPreset(preset, center); },
+      execute: () => { const r = applyViewPreset(preset, center); if (!r.ok) recordViewerLog('warning', 'Camera view', `${preset} view of ${center} unavailable: ${r.reason}`); },
     })) : []),
     { id: 'cam:go-to-coordinates', label: 'Go to coordinates…', category: 'Camera', execute: () => { vs.navigateMode = 'coordinates'; openTool('navigate'); } },
     ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: shortcutFor('cam:escape'), category: 'Camera', execute: () => stopFlight() }] : []),
@@ -67,10 +71,34 @@ function getBuiltinCommands(): Command[] {
       ...(surfaceNavigable(vs.probePin) ? [{ id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin', verb: 'frame' }); } }] : []),
     ] : []),
 
+    // Surface layers
+    { id: 'layers:open', label: 'Surface layers', category: 'Inspect', execute: () => openTool('layers') },
+    ...(drawBody() ? [
+      { id: 'draw:polygon', label: `Draw a polygon on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('polygon') },
+      { id: 'draw:path', label: `Draw a path on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('line') },
+      { id: 'draw:point', label: `Place a point on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('point') },
+    ] : []),
+    ...geographicSelectionCommands(),
+
+    ...(isToolAvailable('ask') ? [{ id: 'ask:open', label: 'Ask Cosmolabe…', category: 'Inspect', execute: () => openTool('ask') }] : []),
+
     // Instrument
     { id: 'instr:open', label: 'Open instrument view', shortcut: shortcutFor('instr:open'), category: 'Display', execute: () => openTool('instrument') },
     // Sensor cycling is an explicit palette action, separate from open/focus.
     { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: () => showNextInstrument() },
+  ];
+}
+
+/** Actions on the selected geographic feature, named after it. */
+function geographicSelectionCommands(): Command[] {
+  const found = findFeature(geo.selected);
+  if (!found || !geo.selected) return [];
+  const ref = geo.selected;
+  const name = geographicFeatureName(found.feature);
+  return [
+    { id: 'layers:fly', label: `Fly to ${name}`, category: 'Inspect', execute: () => { goToFeature(ref); } },
+    { id: 'layers:frame', label: `Frame ${name}`, category: 'Inspect', execute: () => { goToFeature(ref, { cut: true }); } },
+    { id: 'layers:deselect', label: 'Clear surface feature selection', shortcut: 'Esc', category: 'Inspect', execute: () => { clearGeographicSelection(); } },
   ];
 }
 

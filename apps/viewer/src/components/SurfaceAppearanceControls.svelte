@@ -1,5 +1,6 @@
 <script lang="ts">
   import { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES, type SurfaceAppearanceSettings, type SurfaceBaseColor, type ElevationPalette } from '@cosmolabe/three';
+  import { setSurfaceAppearance } from '../lib/appearance-control';
   import { onDestroy } from 'svelte';
   import { appearancePick, startAppearancePick, cancelAppearancePick, validAppearanceBound } from '../lib/surface-appearance-pick.svelte';
   import { getRenderer, vs } from '../lib/viewer-state.svelte';
@@ -25,7 +26,7 @@
   let contourInterval = $derived.by(() => { void vs.frameTick; return bodyMesh?.surfaceContourIntervalKm; });
 
   function update(patch: Partial<SurfaceAppearanceSettings>) {
-    bodyMesh?.setSurfaceAppearance({ ...settings, ...patch });
+    setSurfaceAppearance(bodyName, patch);
     settings = bodyMesh?.surfaceAppearance ?? settings;
   }
   function enterBound(input: HTMLInputElement, bound: 'minKm' | 'maxKm') {

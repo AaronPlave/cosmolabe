@@ -23,14 +23,19 @@ export interface PersistentLabel extends LabelCandidate {
  * Ordinary omission fades; callers explicitly invalidate proven unsafe anchors.
  * A contested slot belongs to its incumbent until a challenger exceeds the
  * priority margin. A replacement reserves the slot while its predecessor fades,
- * then enters: competing names never crossfade over one another. */
+ * then enters: competing names never crossfade over one another.
+ * A name that loses only layout spacing (its painted text clear of the
+ * winner's) holds its opacity for a few frames before fading: a brief chain of
+ * handoffs during a zoom resolves without a blink however long frames take. */
 export class PersistentLabels {
   readonly states = new Map<string, PersistentLabel>();
   enters = 0;
   exits = 0;
   handoffs = 0;
   private lastAt: number | undefined;
-  constructor(readonly limit = 32, readonly fadeMs = 250, readonly takeoverMargin = 20) {}
+  /** Frames each spacing-only departure has held its opacity. */
+  private readonly held = new Map<string, number>();
+  constructor(readonly limit = 32, readonly fadeMs = 250, readonly takeoverMargin = 20, readonly spacingHoldFrames = 6) {}
 
   update(candidates: readonly LabelCandidate[], obstacles: readonly ScreenRect[], now: number,
     invalidated: ReadonlySet<string> = new Set()): PersistentLabel[] {
@@ -38,14 +43,15 @@ export class PersistentLabels {
     this.lastAt = now;
     for (const id of invalidated) {
       if (this.states.get(id)?.accepted) this.exits++;
-      this.states.delete(id);
+      this.states.delete(id); this.held.delete(id);
     }
     const items = new Map(candidates.filter(c => !invalidated.has(c.id)).map(c => [c.id, c]));
     for (const [id, old] of this.states) if (!items.has(id)) items.set(id, { ...old, eligibility: 0, selected: false });
     const sorted = [...items.values()].sort((a,b) => Number(!!b.selected) - Number(!!a.selected)
       || (b.priority + (this.states.get(b.id)?.accepted ? this.takeoverMargin : 0))
        - (a.priority + (this.states.get(a.id)?.accepted ? this.takeoverMargin : 0)) || a.id.localeCompare(b.id));
-    const occupied = obstacles.map(box => ({ box, hard: true }));
+    const occupied: { box: ScreenRect; hard: boolean; text?: ScreenRect }[] = obstacles.map(box => ({ box, hard: true }));
+    const spacingOnly = new Set<string>();
     const winners: PersistentLabel[] = [];
     for (const candidate of sorted) {
       const state = this.states.get(candidate.id) ?? { ...candidate, accepted: false, opacity: 0, targetOpacity: 0 };
@@ -59,16 +65,28 @@ export class PersistentLabels {
         if (wanted) this.enters++;
         else { this.exits++; if (collisions.length) this.handoffs++; }
       }
+      // Lost to a neighbour's spacing alone: no safety obstacle, still eligible,
+      // and the painted text clear of every winner it collides with.
+      const text = candidate.renderBox ?? candidate.box;
+      if (!wanted && (state.accepted || this.held.has(candidate.id)) && collisions.length && winners.length < this.limit
+        && collisions.every(r => !r.hard && r.text && !labelOverlaps(r.text, text))
+        && (candidate.selected || candidate.eligibility >= .75)) spacingOnly.add(candidate.id);
       state.accepted = !!wanted;
       state.targetOpacity = wanted ? 1 : 0;
       if (collisions.some(r => r.hard)) state.opacity = 0;
-      if (wanted) { winners.push(state); occupied.push({ box: candidate.box, hard: !!candidate.selected }); }
+      if (wanted) { winners.push(state); occupied.push({ box: candidate.box, hard: !!candidate.selected, text: candidate.renderBox ?? candidate.box }); }
       this.states.set(candidate.id, state);
     }
     const step = dt / this.fadeMs;
     // Departures own their pixels until completely transparent. Selected/safety
     // obstacles already evicted conflicting departures above.
-    for (const state of this.states.values()) if (!state.accepted) state.opacity = Math.max(0, state.opacity - step);
+    for (const state of this.states.values()) {
+      if (state.accepted) { this.held.delete(state.id); continue; }
+      const frames = spacingOnly.has(state.id) ? (this.held.get(state.id) ?? 0) + 1 : Infinity;
+      if (frames <= this.spacingHoldFrames) { this.held.set(state.id, frames); continue; }
+      this.held.delete(state.id);
+      state.opacity = Math.max(0, state.opacity - step);
+    }
     // If camera motion makes two previously separated visible footprints
     // intersect, keep the live owner (or strongest departure). There is no
     // non-overlapping fade path for an already intersecting pair.
@@ -84,12 +102,12 @@ export class PersistentLabels {
         && !other.accepted && labelOverlaps(state.renderBox ?? state.box, other.renderBox ?? other.box));
       if (!blocked) state.opacity = Math.min(1, state.opacity + step);
     }
-    for (const [id, state] of this.states) if (!state.accepted && state.opacity === 0) this.states.delete(id);
+    for (const [id, state] of this.states) if (!state.accepted && state.opacity === 0) { this.states.delete(id); this.held.delete(id); }
     return [...this.states.values()].filter(s => s.opacity > 0)
       .sort((a,b) => Number(!!b.selected) - Number(!!a.selected) || Number(b.accepted) - Number(a.accepted) || b.priority - a.priority || a.id.localeCompare(b.id))
       .slice(0, this.limit);
   }
-  clear(): void { this.states.clear(); this.lastAt = undefined; }
+  clear(): void { this.states.clear(); this.held.clear(); this.lastAt = undefined; }
 }
 
 /** Expensive work is scheduled, not turned into a visibility decision. The

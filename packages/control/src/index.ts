@@ -1,15 +1,34 @@
+export type { MeasurementDefinition, SpatialEndpoint, ReferenceVector, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 // The port
 export type {
   ViewerControl,
+  ScriptEventQuery, ScriptEventSearch, ScriptInstrument, ScriptBookmark,
+  ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptSurfacePolicy,
+  ScriptEventReference, ScriptEventProvenance, ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization, ScriptEventFocusReceipt,
+  ScriptSceneOptions, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSurfaceAppearance, ScriptReadiness, ScriptReadinessRequest,
+  ScriptActivity,
+  ScriptActivityFilter,
+  ScriptAvailability,
+  ScriptObjectState,
   ViewerSnapshotState,
+  ViewerState,
   CircleDirection,
   CoordinateNavigationOptions,
   FlightPath,
   SurfaceView,
   ScriptCamera,
+  ScriptViewComposition,
+  ScriptComposedObject,
   ScriptEventMap,
   ScriptEventName,
   ScriptFlight,
+  FlightOutcome,
+  ScriptScene,
+  ScriptPlace,
+  ScriptSurfaceData,
+  ScriptSurfaceProduct,
+  ScriptImagery,
+  ScriptImageryLayer,
   ScriptImage,
   ScriptTime,
   ScriptVec3,
@@ -39,11 +58,35 @@ export type { ScriptProblem, ScriptProblemKind } from './errors.js';
 
 // The vocabulary
 export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, FLIGHT_PATHS, SURFACE_VIEWS, LAYERS, verbUsage } from './verbs.js';
-export type { ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
+export type { OperationContract, ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
+export { registerVerb } from './verbs.js';
 export { suggest } from './suggest.js';
 
 // Editor support
 export { cursorContext, completionsAt, signatureAt } from './complete.js';
 export type { CursorContext, ScriptCompletion, CompletionNames, ScriptSignature } from './complete.js';
+export { ANGULAR_GRID_STEPS, DEFAULT_GRID_SETTINGS, normalizeGridSettings, gridBodyState } from './grid.js';
+export type { GridSettings } from './grid.js';
 export { applyViewState, decodeViewState, encodeViewState, validateViewState, viewStateAtEpoch, ViewStateError, MAX_VIEW_STATE_LENGTH, PORTABLE_POSE_MODES } from './view-state.js';
 export type { ViewStateV1, ViewCatalog, ViewTime } from './view-state.js';
+
+// Agent tools (#311)
+export type { AgentMetadataPolicy } from './agent-metadata.js';
+export { createCapabilityTools, CAPABILITY_VERSION, CAPABILITY_LIMITS } from './capabilities.js';
+export { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
+export type { CapabilityTools, CapabilityToolsOptions, CapabilityQuery, CapabilityPage, CapabilitySummary, CapabilityDescription, CapabilityEffect, CapabilityScope, OperationReceipt, OperationStatus } from './capabilities.js';
+export { createAgentTools, agentDefinitions } from './agent.js';
+export type {
+  AgentTools, AgentTask, AgentToolDef, AgentDefinition, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions, OperationOutcome, ResultFact, EventResultFact,
+} from './agent.js';
+export { runAgent, compactHistory, systemPrompt, escalateDestructive, AGENT_WIRE_VERSION, AgentTransportError, HOST_CHECK_PREFIX } from './agent-loop.js';
+export { checkAnswer, factSummary, statedDistancesKm, statedDates } from './answer-check.js';
+export { composeView } from './compose.js';
+export type { ComposeOutcome } from './compose.js';
+export { evaluate, parsePredicate, preconditionProblem, adopt, release, retireDomain, slotOf, PREDICATE_KINDS, STATE_DOMAINS } from './outcome.js';
+export type { Predicate, PredicateKind, StateDomain, GoalCheck, GoalReport, GoalStatus } from './outcome.js';
+export type {
+  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun, RequestResult, RequestStatus,
+  AgentWireRequest, AgentWireResponse,
+} from './agent-loop.js';
+export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

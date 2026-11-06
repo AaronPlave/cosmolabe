@@ -86,7 +86,7 @@ try {
   const flown = await pose();
   assert.ok(Math.hypot(...flown.position.map((v, i) => v - jezeroPose.position[i])) < 1e-8);
   await search('Alpha', 'Example mission site Alpha (synthetic)');
-  assert.match(await page.locator('body').innerText(), /mission\/user/);
+  assert.match(await page.locator('body').innerText(), /Mission \/ user site/);
   await search('Shack', 'Shackleton');
   await page.getByRole('button', { name: 'Jump to', exact: true }).click();
   await page.waitForTimeout(300);

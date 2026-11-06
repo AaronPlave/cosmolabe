@@ -3,7 +3,6 @@
   import type { PluginOverlay } from '@cosmolabe/three';
   import { vs, clearLookAt, getRenderer, stopFlight, releaseSurfaceTarget } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
-  import CameraVerbControls from './CameraVerbControls.svelte';
 
   const frameLabel = $derived.by(() => {
     if (vs.cameraMode === CameraModeName.FREE_ORBIT) return vs.surfaceTarget ? 'Surface orbit' : 'Free orbit';
@@ -40,8 +39,6 @@
     return result.outerHTML;
   }
 </script>
-
-<CameraVerbControls />
 
 <!-- View context belongs to the viewport rather than either panel dock. Keeping
      it top-centred gives tracking, look-at, a flight in progress and reference
@@ -268,6 +265,6 @@
     .target-narrow { display: inline; }
   }
 
-  .named-target { display: block; max-width: min(240px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .named-target { display: block; max-width: min(240px, 42cqw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 </style>

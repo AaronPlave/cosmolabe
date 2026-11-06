@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked, applyViewPreset, setViewFromDirection } from '../lib/viewer-state.svelte';
+  import { presentationControl } from '../lib/presentation-control';
+  import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
+  import { vs, setGridSettings, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -11,7 +14,6 @@
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
   import { shortcutFor } from '../lib/keymap';
-  import type { ViewPreset } from '@cosmolabe/core';
 
   interface Props {
     onClose: () => void;
@@ -25,21 +27,6 @@
   let selectedViewpoint = $state('');
   let vpCounter = $state(0);
   let recording = $state(false);
-  let vectorX = $state('0');
-  let vectorY = $state('0');
-  let vectorZ = $state('1');
-  let vectorFrame = $state('');
-
-  const viewCenter = $derived.by(() => {
-    void vs.frameTick;
-    return vs.trackedBodyName ?? vs.selectedBodyName ?? getRenderer()?.cameraController.originBody?.body.name ?? '';
-  });
-
-  function applyVectorView() {
-    const vector: [number, number, number] = [Number(vectorX), Number(vectorY), Number(vectorZ)];
-    if (!vector.every(Number.isFinite) || vector.every(value => value === 0)) return;
-    setViewFromDirection({ kind: 'vector', vector, ...(vectorFrame.trim() ? { frame: vectorFrame.trim() } : {}) }, viewCenter);
-  }
 
   $effect(() => {
     const r = getRenderer();
@@ -108,6 +95,67 @@
 
     <Separator class="my-1" />
 
+    <div class="px-3 py-1 space-y-2">
+      <div class="ui-section-label">Surface grid</div>
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.labels} onCheckedChange={() => setGridSettings({ labels: !vs.grid.labels })} class="h-3.5 w-3.5" />
+        <span>Coordinate labels</span>
+      </label>
+      <label class="ui-body flex items-center gap-2">
+        <span>Opacity</span>
+        <input aria-label="Grid opacity" aria-describedby="grid-opacity-help" type="range" class="fov-slider flex-1 min-w-0"
+          min="0" max="100" step="1" value={Math.round(vs.grid.opacity * 100)}
+          oninput={e => setGridSettings({ opacity: Number(e.currentTarget.value) / 100 })} />
+        <span class="ui-readout min-w-8 text-right">{Math.round(vs.grid.opacity * 100)}%</span>
+      </label>
+      <p id="grid-opacity-help" class="ui-meta text-text-secondary">Fades grid lines and coordinate labels together.</p>
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Target</span>
+        <select aria-label="Grid target" class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
+          onchange={e => setGridSettings({ scope: e.currentTarget.value as 'tracked' | 'bodies' | 'all', perBody: {} })}>
+          <option value="tracked">Tracked body</option><option value="bodies">Chosen bodies</option><option value="all">All eligible bodies</option>
+        </select>
+      </label>
+      {#if vs.grid.scope === 'bodies'}
+        <label class="ui-body block">Body names
+          <input class="ui-control w-full bg-surface-3 rounded px-1" aria-label="Grid body names" placeholder="Earth, Moon"
+            value={vs.grid.bodies.join(', ')} onchange={e => setGridSettings({ bodies: e.currentTarget.value.split(',').map(s => s.trim()).filter(Boolean) })} />
+        </label>
+      {/if}
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Density</span>
+        <select aria-label="Grid density" class="ui-control bg-surface-3 rounded" value={vs.grid.density}
+          onchange={e => setGridSettings({ density: e.currentTarget.value as 'auto' | 'manual' })}>
+          <option value="auto">Auto</option><option value="manual">Manual</option>
+        </select>
+      </label>
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center justify-between gap-2">Spacing (degrees)
+          <select aria-label="Grid angular spacing" class="ui-control w-18 bg-surface-3 rounded"
+            value={vs.grid.spacingDeg} onchange={e => setGridSettings({ spacingDeg: Number(e.currentTarget.value) })}>
+            {#each ANGULAR_GRID_STEPS as step}<option value={step}>{step}°</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center gap-2">
+          <Checkbox checked={vs.grid.minorLines} onCheckedChange={() => setGridSettings({ minorLines: !vs.grid.minorLines })} class="h-3.5 w-3.5" />
+          <span>Minor lines</span>
+        </label>
+      {:else}
+        <p class="ui-meta text-text-secondary">Major lines carry labels; lighter lines divide each cell.</p>
+      {/if}
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.coordinateFrame} onCheckedChange={() => setGridSettings({ coordinateFrame: !vs.grid.coordinateFrame })} class="h-3.5 w-3.5" />
+        <span>Labels at viewport border</span>
+      </label>
+      <p class="ui-meta text-text-secondary">In close overhead views, labels move to ticks where grid lines cross the screen border. Turn off for labels at fixed geographic sites on the surface. Zoomed-out views keep surface labels.</p>
+      <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
+        <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
+      </details>
+    </div>
+    <Separator class="my-1" />
+
     <!-- Lighting -->
     <div class="ui-body flex items-center gap-2 px-3 py-1">
       <span class="flex-1 text-text-primary">Lighting</span>
@@ -148,33 +196,6 @@
       </select>
     </div>
 
-    <Separator class="my-1" />
-    <div class="px-3 py-1">
-      <div class="ui-section-label mb-1">Vector views</div>
-      <div class="grid grid-cols-3 gap-1">
-        {#each ['top', 'sun', 'velocity'] as preset}
-          <button
-            class="ui-control h-7 rounded border border-border bg-surface-3 px-1 text-xs text-text-secondary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={!viewCenter}
-            title={viewCenter ? `${preset[0].toUpperCase()}${preset.slice(1)} view of ${viewCenter}` : 'Track or select a body first'}
-            onclick={() => applyViewPreset(preset as ViewPreset, viewCenter)}
-          >{preset[0].toUpperCase()}{preset.slice(1)}</button>
-        {/each}
-      </div>
-      <div class="mt-2 grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(5rem,1.3fr)] gap-1">
-        <input aria-label="View direction X" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorX} />
-        <input aria-label="View direction Y" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorY} />
-        <input aria-label="View direction Z" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorZ} />
-        <input aria-label="Direction reference frame" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" placeholder="Scene frame" bind:value={vectorFrame} />
-      </div>
-      <button
-        class="ui-control mt-1.5 h-7 w-full rounded border border-border bg-surface-3 text-xs text-text-secondary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={!viewCenter}
-        title={viewCenter ? `Set view from direction relative to ${viewCenter}` : 'Track or select a body first'}
-        onclick={applyVectorView}
-      >Set view from vector</button>
-    </div>
-
     <!-- Viewpoints -->
     {#if viewpoints.length > 0}
       <Separator class="my-1" />
@@ -199,7 +220,7 @@
             if (r) {
               vpCounter++;
               const name = `Saved ${vpCounter}`;
-              r.cameraController.saveViewpoint(name);
+              presentationControl.saveBookmark(name);
               viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
               selectedViewpoint = name;
             }

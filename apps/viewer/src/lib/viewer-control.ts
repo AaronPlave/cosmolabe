@@ -1,3 +1,13 @@
+import { spatialControl } from './spatial-control';
+import { validateViewState } from '@cosmolabe/control';
+import { presentationControl } from './presentation-control';
+import { eventControl, snapshotEventQueries } from './event-control';
+import { definitionEndpoints } from './measurement-link-state';
+import { setPlaceSourceEnabled, showPlaceDataset, selectPlace } from './places';
+import { analysisControl } from './analysis-control';
+import { getViewComposition } from './composition-control';
+import { getReadiness, waitUntilReady } from './readiness-control';
+import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImageryOpacity, moveImageryLayer } from './appearance-control';
 /**
  * The viewer's implementation of `ViewerControl`.
  *
@@ -19,6 +29,9 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { surfaceData } from './surface-data';
+import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
+import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
@@ -28,12 +41,16 @@ import {
   type ScriptEventMap,
   type ScriptEventName,
   type ScriptImage,
+  type ScriptImagery,
+  type ScriptPlace,
   type ScriptTime,
   type ViewerControl,
   type ViewerSnapshotState,
 } from '@cosmolabe/control';
 import {
   vs,
+  setGridSettings,
+  setBodyGridOption,
   applyViewpoint,
   bodyNames,
   circleCenter,
@@ -68,7 +85,18 @@ import {
   stopFlight,
   trackBody,
   untrack,
+  asHostTimeChange,
+  timeChangeCause,
+  getSceneUniverse,
+  setScrubberWindow,
+  extendTimelineBase,
+  sceneId,
 } from './viewer-state.svelte';
+import type { Place } from '@cosmolabe/core';
+import type { BodyMesh } from '@cosmolabe/three';
+import { navigateToPlaceForControl, placeNavigationCoordinates, placeNavigationProblem, searchPlaces } from './places';
+import type { StateAvailability } from '@cosmolabe/core';
+import type { ScriptAvailability } from '@cosmolabe/control';
 import { etToIso } from './camera-view-io';
 import { captureFilename, captureFrameDataUrl, downloadDataUrl, setVideoRecording } from './capture';
 
@@ -82,7 +110,19 @@ export interface ViewerControlDeps {
    * has to keep working for.
    */
   getSpice?: () => HeritageSpice | null;
+  /**
+   * This instance is an embedding host's: its clock changes notify as
+   * `cause: 'host'`, so the host can tell its own seeks from the viewer's.
+   */
+  host?: boolean;
 }
+
+/** Playback notifies at most this often; seeks notify at once. */
+const PLAYBACK_TIME_EVENT_MS = 250;
+
+const availabilityOf = (a: StateAvailability): ScriptAvailability => ({
+  available: a.available, reason: a.reason, message: a.message, sourceId: a.sourceId, classification: a.classification,
+});
 
 /**
  * Seconds past J2000 for a time a script asked for, or null if it cannot be read.
@@ -107,12 +147,60 @@ function resolveEpoch(when: ScriptTime, spice: HeritageSpice | null): number | n
   return Number.isNaN(et) ? null : et;
 }
 
+/** A place as the port reports it: plain data, nothing that reaches back into the index. */
+/** The source's attribute table for a place, flat and bounded: nothing nested, nothing long. */
+function placeFields(place: Place): Record<string, string | number | boolean> | undefined {
+  const table = place.feature.properties?.sourceFields;
+  if (!table || typeof table !== 'object' || Array.isArray(table)) return undefined;
+  const out: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(table)) {
+    if (Object.keys(out).length >= 16) break;
+    if (typeof value === 'string') out[key] = value.length > 200 ? `${value.slice(0, 200)}…` : value;
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function scriptPlace(place: Place): ScriptPlace {
+  const { latDeg, lonDeg } = placeNavigationCoordinates(place);
+  const source = place.layer.source;
+  const fields = placeFields(place);
+  return {
+    ref: place.ref, name: place.name, body: place.layer.body,
+    layer: { id: place.layer.id, name: place.layer.name }, feature: place.feature.id,
+    kind: place.kind, origin: place.origin, latitude: latDeg, longitude: lonDeg,
+    ...(place.diameterKm === undefined ? {} : { diameterKm: place.diameterKm }),
+    ...(fields ? { fields } : {}),
+    source: { kind: source.kind, identity: source.identity, ...(source.revision ? { revision: source.revision } : {}) },
+    unavailable: placeNavigationProblem(place),
+  };
+}
+
+function scriptImagery(bm: BodyMesh): ScriptImagery {
+  return {
+    body: bm.body.name,
+    surface: bm.surfaceTransitionState,
+    imageryOnly: bm.isImageryOnlySurface,
+    layers: bm.imageryLayers.map((l) => ({
+      id: l.id, name: l.name, attribution: l.attribution, description: l.description,
+      role: l.role, optional: l.optional, visible: l.visible, opacity: l.opacity,
+      bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
+      resolutionMeters: l.resolutionMeters, source: { ...l.source }, status: l.status,
+      view: l.view ? { ...l.view, minZoom: l.minZoom } : null,
+    })),
+  };
+}
+
+/** A point place, by ref, in the scene's index. */
+const placeByRef = (ref: string): Place | undefined =>
+  vs.places?.byRef.get(ref);
+
 function isFrameMode(value: string): value is CameraModeName {
   return (Object.values(CameraModeName) as string[]).includes(value);
 }
 
 /** Build a `ViewerControl` over the app's current renderer and state. */
-export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl {
+export function createViewerControl(deps: ViewerControlDeps = {}): Required<ViewerControl> {
   const spice = () => deps.getSpice?.() ?? null;
 
   const camera = (): ScriptCamera => {
@@ -131,6 +219,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     const r = getRenderer();
     const et = r?.timeController.et ?? vs.et;
     const tracked = r?.cameraController.trackedBody?.body.name ?? vs.trackedBodyName;
+    const allMeasurements = analysisControl.listMeasurements();
+    const portable = allMeasurements.filter(m => !definitionEndpoints(m).some(e => e.kind === 'surface-point' && e.point.terrainSample));
     return {
       time: et,
       timeText: etToIso(et),
@@ -139,8 +229,20 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       selected: vs.selectedBodyName,
       tracked,
       lookAt: r?.cameraController.lookAtBody?.body.name ?? vs.lookAtBodyName,
-      frame: { mode: vs.cameraMode, body: tracked ?? undefined },
+      frame: { mode: r?.cameraController.mode ?? vs.cameraMode, body: tracked ?? undefined },
       camera: camera(),
+      grid: vs.grid,
+      ...(portable.length ? { measurements: { version: 1 as const, items: portable, ...(portable.some(m => m.id === analysisControl.getSelectedMeasurement()) ? { selected: analysisControl.getSelectedMeasurement()! } : {}) } } : {}),
+      ...(vs.selectedPlaceRef && placeByRef(vs.selectedPlaceRef)?.layer.source.kind === 'catalog' ? { selectedPlace: vs.selectedPlaceRef } : {}),
+      eventQueries: snapshotEventQueries(),
+      eventSelection: eventControl.getEventSearch().selected,
+      bookmarks: presentationControl.listBookmarks(),
+      instrument: getRenderer()?.activeInstrumentView,
+      omitted: allMeasurements.length > portable.length ? ['Measurements with captured terrain sample provenance require the original product; omitted from portable snapshots.'] : [],
+      placeSources: [...new Map((vs.places?.places ?? []).filter(p => p.layer.source.kind === 'catalog').map(p => [p.layer.id, { id: p.layer.id, enabled: !vs.excludedPlaceLayers.includes(p.layer.id), labelsVisible: !vs.hiddenPlaceLayers.includes(p.layer.id) }])).values()],
+      imagery: bodyNames().flatMap(body => getRenderer()?.getBodyMesh(body)?.imageryLayers?.map((l, index) => ({ body, id: l.id, visible: l.visible, opacity: l.opacity, index })) ?? []),
+      geographic: analysisControl.listGeographicLayers().filter(l => !l.editable && getSceneUniverse()?.geographicLayers.get(l.id)?.source.kind === 'catalog').map(l => ({ id: l.id, visible: l.visible, style: l.style })),
+      appearance: bodyNames().flatMap(body => { const settings = getSurfaceAppearance(body)?.settings; return settings ? [{ body, settings }] : []; }),
       layers: {
         trajectories: vs.showTrajectories,
         labels: vs.showLabels,
@@ -155,7 +257,49 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     };
   };
 
+  /** Refuse a command read from a scene that is no longer the one bound (`ScriptScene`). */
+  const inScene = (expected: number | undefined) => {
+    if (expected !== undefined && expected !== sceneId()) {
+      throw new Error(`the scene changed since this was read (scene ${expected}, now ${sceneId()})`);
+    }
+  };
+
   return {
+    findTrajectoryExtrema: findViewerTrajectoryExtrema,
+    navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
+    selectPlace: (ref, opts) => {
+      inScene(opts?.scene);
+      if (!getRenderer()) return false;
+      if (ref === null) { selectPlace(null, { reveal: false }); return true; }
+      const place = placeByRef(ref);
+      if (!place) return false;
+      if (vs.excludedPlaceLayers.includes(place.layer.id)) throw new Error('The place source is excluded from search and selection');
+      selectPlace(place, { reveal: false }); return true;
+    },
+    listPlaceSources: () => [...new Map((vs.places?.places ?? []).map(p => [p.layer.id, { id: p.layer.id, body: p.layer.body, enabled: !vs.excludedPlaceLayers.includes(p.layer.id), labelsVisible: !vs.hiddenPlaceLayers.includes(p.layer.id) }])).values()],
+    setPlaceSourceEnabled: (id, enabled, opts) => {
+      inScene(opts?.scene);
+      if (typeof enabled !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
+      setPlaceSourceEnabled([id], enabled); return true;
+    },
+    showPlaceLabels: (id, visible, opts) => {
+      inScene(opts?.scene);
+      if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
+      showPlaceDataset(id, visible); return true;
+    },
+    ...analysisControl, ...spatialControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
+    listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
+    getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    selectActivity: (id, opts) => {
+      inScene(opts?.scene);
+      return selectActivity(id);
+    },
+    navigateActivity,
+    seekActivity: (id, edge, opts) => {
+      inScene(opts?.scene);
+      return deps.host ? asHostTimeChange(() => seekActivity(id, edge)) : seekActivity(id, edge);
+    },
     // ── Write: scene setup ──
     gotoObject: (name, opts) =>
       gotoObject(name, { animate: opts?.seconds !== undefined, duration: opts?.seconds }),
@@ -220,6 +364,32 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
 
     showLabel: (name, visible) => setLabelVisible(name, visible),
 
+    showBodyGrid: (name, visible) => {
+      if (!hasBody(name)) return false;
+      setBodyGridOption(name, 'visible', visible, { persist: false }); return true;
+    },
+    showBodyGridLabels: (name, visible) => {
+      if (!hasBody(name)) return false;
+      setBodyGridOption(name, 'labels', visible, { persist: false }); return true;
+    },
+    setGridScope: (scope, names) => {
+      const bodies = (names ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!['tracked', 'bodies', 'all'].includes(scope) || (scope === 'bodies' && (!bodies.length || bodies.some(n => !hasBody(n))))) return false;
+      setGridSettings({ scope, bodies, perBody: {} }, { persist: false }); return true;
+    },
+    setGridDensity: (density, spacingDeg) => {
+      if (!['auto', 'manual'].includes(density) || (spacingDeg !== undefined && (!Number.isFinite(spacingDeg) || spacingDeg < 0.001 || spacingDeg > 30))) return false;
+      if (density === 'manual' && spacingDeg === undefined) return false;
+      setGridSettings({ density, ...(spacingDeg === undefined ? {} : { spacingDeg }) }, { persist: false }); return true;
+    },
+    setGridOpacity: opacity => {
+      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
+      setGridSettings({ opacity }, { persist: false }); return true;
+    },
+    setGridLabels: labels => { setGridSettings({ labels }, { persist: false }); return true; },
+    setGridMinorLines: minorLines => { setGridSettings({ minorLines }, { persist: false }); return true; },
+    setGridCoordinateFrame: coordinateFrame => { setGridSettings({ coordinateFrame }, { persist: false }); return true; },
+
     setLayer: (layer, on) => {
       if (!isDisplayOption(layer)) return false;
       if (!getRenderer()) return false;
@@ -248,8 +418,13 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     setTime: (when) => {
       const et = resolveEpoch(when, spice());
       if (et === null) return false;
-      if (!getRenderer()) return false;
-      setTime(et);
+      const r = getRenderer();
+      if (!r) return false;
+      // Already there: a host echoing the viewer's own time back is a no-op,
+      // not a second seek.
+      if (r.timeController.et === et) return true;
+      if (deps.host) asHostTimeChange(() => setTime(et));
+      else setTime(et);
       return true;
     },
 
@@ -294,6 +469,30 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
 
     // ── Read ──
+    getObjectState: (name, opts) => {
+      const u = getSceneUniverse();
+      if (!u || !hasBody(name)) return undefined;
+      const et = opts?.time ? resolveEpoch(opts.time, spice()) : getRenderer()?.timeController.et ?? vs.et;
+      if (et === null) return undefined;
+      const frame = opts?.frame ?? 'ECLIPJ2000';
+      const center = opts?.center ?? u.getBody(name)?.activeParentAt(et) ?? null;
+      const s = u.stateIn(name, et, { frame, center: center ?? undefined });
+      return {
+        et, frame, center,
+        position: s.position, attitude: s.attitude,
+        positionAvailability: availabilityOf(s.availability.position),
+        attitudeAvailability: s.availability.attitude && availabilityOf(s.availability.attitude),
+      };
+    },
+    getTimelineWindow: () => ({ start: vs.scrubMin, end: vs.scrubMax }),
+    setTimelineWindow: (from, to) => {
+      const start = resolveEpoch(from, spice());
+      const end = resolveEpoch(to, spice());
+      if (start === null || end === null || !(end > start) || !getRenderer()) return false;
+      extendTimelineBase(start, end);
+      setScrubberWindow(start, end);
+      return true;
+    },
     getTime: () => getRenderer()?.timeController.et ?? vs.et,
     getRate: () => getRenderer()?.timeController.rate ?? vs.rate,
     isPlaying: () => getRenderer()?.timeController.playing ?? vs.playing,
@@ -304,9 +503,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       // animation frame, and a host polling for a landing must not see a
       // flight that has already ended.
       const flight = getRenderer()?.cameraController.flight;
-      return flight ? { target: flight.destination?.body.name ?? null, path: flight.path } : null;
+      return flight ? { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path } : null;
     },
     getCamera: camera,
+    getViewComposition,
     getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
     setCameraReference: (name) => {
       const r = getRenderer();
@@ -316,22 +516,143 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       r.cameraController.setOriginBody(body);
       return true;
     },
+    getScene: () => (getRenderer() ? { id: sceneId(), catalog: vs.catalogName, ready: vs.assetsReady } : null),
+
+    searchPlaces: (query, opts) => {
+      const limit = Math.max(1, Math.min(Math.floor(opts?.limit ?? 10) || 10, 100));
+      const activeBody = getRenderer()?.cameraController.focusBody?.body.name;
+      return searchPlaces(query, { body: opts?.body, limit, activeBody }).map(scriptPlace);
+    },
+    resolvePlace: (query, opts) => {
+      inScene(opts?.scene);
+      if (!query || typeof query.body !== 'string' || !['string', 'number'].includes(typeof query.feature)) throw new Error('Place resolution requires an exact body and feature ID');
+      const matches = (vs.places?.places ?? []).filter(p => p.layer.body === query.body &&
+        (query.layer === undefined || p.layer.id === query.layer) && p.feature.id === query.feature).map(scriptPlace);
+      return { status: matches.length === 0 ? 'missing' : matches.length > 1 ? 'ambiguous' : matches[0].unavailable ? 'unlinked' : 'available', matches };
+    },
+    getPlace: (ref) => {
+      const place = placeByRef(ref);
+      return place ? scriptPlace(place) : undefined;
+    },
+    getSelectedPlace: () => {
+      const place = vs.selectedPlaceRef ? placeByRef(vs.selectedPlaceRef) : undefined;
+      return place ? scriptPlace(place) : undefined;
+    },
+    gotoPlace: (ref, opts) => {
+      inScene(opts?.scene);
+      const place = placeByRef(ref);
+      if (!place) return false;
+      const result = navigateToPlaceForControl(place, { animate: opts?.animate ?? true, view: opts?.view });
+      if (!result.ok) throw new Error(result.error);
+      return true;
+    },
+
+    getSurfaceData: (name) => {
+      if (!hasBody(name)) return undefined;
+      const bm = getRenderer()?.getBodyMesh(name);
+      const body = bm?.body ?? getSceneUniverse()?.getBody(name);
+      return body ? surfaceData(body, bm, bm ? scriptImagery(bm).layers : []) : undefined;
+    },
+    getImagery: (name) => {
+      if (!hasBody(name)) return undefined;
+      const bm = getRenderer()?.getBodyMesh(name);
+      return bm ? scriptImagery(bm) : { body: name, surface: null, imageryOnly: false, layers: [] };
+    },
+    setImageryVisible, setImageryOpacity, moveImageryLayer,
+
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
+    getViewerState: () => {
+      const r = getRenderer();
+      return { ...snapshotState(), objects: bodyNames().map(name => ({ name, trajectory: r?.isTrajectoryVisible(name) ?? null, label: r?.isLabelVisible(name) ?? null })) };
+    },
+    getViewState: async () => (await import('./view-link')).captureViewState(),
+    restoreViewState: async (input, opts = {}) => {
+      inScene(opts.scene);
+      if (!input || JSON.stringify(input).length > 32768) throw new Error('Invalid bounded view state');
+      const expected = sceneId();
+      const { captureViewState, restoreView } = await import('./view-link');
+      inScene(opts.scene ?? expected);
+      const base = validateViewState(input);
+      const current = captureViewState();
+      if (JSON.stringify(base.catalog) !== JSON.stringify(current.catalog)) throw new Error('View state belongs to a different catalog');
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      const offLoad = onViewerEvent('load', abort), offUnload = onViewerEvent('unload', abort);
+      opts.signal?.addEventListener('abort', abort);
+      if (opts.signal?.aborted) abort();
+      try {
+        // Explicit envelopes replace their domains; absent optional analysis is preserved.
+        await restoreView({ ...(input as typeof current), ...base }, controller.signal, { preserveAbsent: true });
+        if (controller.signal.aborted || expected !== sceneId()) throw new Error('View restore cancelled or scene replaced');
+        return true;
+      } finally { offLoad(); offUnload(); opts.signal?.removeEventListener('abort', abort); }
+    },
 
     on: <K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void) => {
       switch (event) {
+        case 'probe':
+          return onViewerEvent('probe', () => (cb as (d: ScriptEventMap['probe']) => void)({ scene: sceneId() }));
+        case 'bookmarks':
+          return onViewerEvent('bookmarks', () => (cb as (d: ScriptEventMap['bookmarks']) => void)({ scene: sceneId() }));
+        case 'instruments':
+          return onViewerEvent('instrument', selected => (cb as (d: ScriptEventMap['instruments']) => void)({ scene: sceneId(), selected }));
+        case 'events':
+          return onViewerEvent('events', () => (cb as (d: ScriptEventMap['events']) => void)({ scene: sceneId() }));
+        case 'places':
+          return onViewerEvent('places', () => (cb as (d: ScriptEventMap['places']) => void)({ scene: sceneId(), selected: vs.selectedPlaceRef }));
+        case 'measurements':
+          return onViewerEvent('measurements', () => (cb as (d: ScriptEventMap['measurements']) => void)({ scene: sceneId(), selected: analysisControl.getSelectedMeasurement(), count: analysisControl.listMeasurements().length }));
+        case 'geographic':
+          return onViewerEvent('geographic', () => (cb as (d: ScriptEventMap['geographic']) => void)({ scene: sceneId(), selected: analysisControl.getSelectedGeographicFeature() }));
+        case 'surface':
+          return onViewerEvent('surface', ({ body }) => (cb as (d: ScriptEventMap['surface']) => void)({ scene: sceneId(), body }));
         case 'select':
           return onViewerEvent('select', (name) =>
             (cb as (d: ScriptEventMap['select']) => void)({ name }),
           );
-        case 'time':
-          return onViewerEvent('time', (et) => (cb as (d: ScriptEventMap['time']) => void)({ et }));
+        case 'time': {
+          // Seeks at once; playback coalesced to a few a second, trailing, so
+          // the last notification always carries the clock's current value.
+          const deliver = cb as (d: ScriptEventMap['time']) => void;
+          let latest: ScriptEventMap['time'] | null = null;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const flush = () => {
+            timer = undefined;
+            if (latest) deliver(latest);
+            latest = null;
+          };
+          const off = onViewerEvent('time', (et) => {
+            latest = { et, cause: timeChangeCause() };
+            if (latest.cause !== 'playback') {
+              clearTimeout(timer);
+              flush();
+            } else {
+              timer ??= setTimeout(flush, PLAYBACK_TIME_EVENT_MS);
+            }
+          });
+          return () => {
+            off();
+            clearTimeout(timer);
+          };
+        }
         case 'load':
           return onViewerEvent('load', (objects) =>
             (cb as (d: ScriptEventMap['load']) => void)({ objects }),
           );
+        case 'ready':
+          return onViewerEvent('ready', (objects) => (cb as (d: ScriptEventMap['ready']) => void)({ objects }));
+        case 'playback':
+          return onViewerEvent('playback', (p) => (cb as (d: ScriptEventMap['playback']) => void)({ ...p }));
+        case 'activities':
+          return onViewerEvent('activities', (count) => (cb as (d: ScriptEventMap['activities']) => void)({ count }));
+        case 'activitySelect':
+          return onViewerEvent('activitySelect', (id) => (cb as (d: ScriptEventMap['activitySelect']) => void)({ id }));
+        case 'cameraInput':
+          return onViewerEvent('cameraInput', () => (cb as (d: ScriptEventMap['cameraInput']) => void)({}));
+        case 'flightEnd':
+          return onViewerEvent('flightEnd', (end) => (cb as (d: ScriptEventMap['flightEnd']) => void)({ ...end }));
         default: {
           const unreachable: never = event;
           throw new Error(`unknown event ${String(unreachable)}`);

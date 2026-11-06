@@ -1,7 +1,11 @@
+import { datumRadiusAtLat } from './TerrainSampler.js';
+import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
-import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
-import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
+import { ContourOcclusion } from './ContourOcclusion.js';
+import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
+export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
+import { TrajectoryPlotFrame } from './TrajectoryPlotFrame.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -17,11 +21,20 @@ import {
   type GeometryEvent,
   type SpatialRelationship,
   type SpatialEndpoint,
+  type BodyFixedPosition,
+  type TerrainDatum,
+  geodeticToBodyFixed,
+  bodyFixedToSurfacePosition,
+  isSupportedGeodeticDatum,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
-import { patchLogDepthPrecision } from './LogDepth.js';
+import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
+import {
+  DEFAULT_SOLAR_EXPOSURE_POLICY, SOLAR_REFERENCE_DISTANCE_KM,
+  resolveSolarDisplayExposure, solarExposureMetadata, type SolarExposurePolicy,
+} from './SolarRadiometry.js';
 import { RingMesh } from './RingMesh.js';
 import { selectShadowOccluders } from './EclipseShadow.js';
 import {
@@ -33,7 +46,7 @@ import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } fro
 import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
-import { SensorFrustum, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
+import { SensorFrustum, sensorPointing, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
 import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
@@ -43,7 +56,7 @@ import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMa
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { geographicStatusPosition, geographicStatusText } from './geographic/GeographicStatus.js';
 import { PointProbeOverlay } from './PointProbe.js';
-import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
+import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -69,6 +82,7 @@ import { GeographicVectorLayer, sameGeographicFeature } from './geographic/Geogr
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 import { PlaceNames } from './geographic/PlaceNames.js';
 import type { PlaceAnchor } from './geographic/PlaceSurface.js';
+import { tileFade } from './geographic/TileFade.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -76,33 +90,6 @@ const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
-
-/**
- * World-space unit normal of the surface a ray hit, or null when the hit has
- * no face. The triangle's own: vertex normals are shading normals (terrain
- * blends them toward the sphere for lighting) and understate the slope.
- * Transformed by the normal matrix (inverse transpose), not as a direction:
- * an oblate or triaxial globe is a non-uniformly scaled sphere, and scaling
- * a normal like a direction tilts it the wrong way.
- */
-const _normalMatrix = new THREE.Matrix3();
-export function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
-  if (!hit.face) return null;
-  return hit.face.normal.clone().applyMatrix3(_normalMatrix.getNormalMatrix(hit.object.matrixWorld)).normalize();
-}
-
-/** The surface seen along a ray (`_castSurfaces`), in scene coordinates. */
-interface SurfaceRayHit {
-  worldPoint: THREE.Vector3;
-  /** From the ray's origin, scene units. */
-  distance: number;
-  bm: BodyMesh;
-  source: SurfaceHitSource;
-  normal: THREE.Vector3 | null;
-  /** On a cube-sphere skirt (#149): the wall under a mixed-LOD gap, not the surface. */
-  renderedSkirt: boolean;
-  tintHeightKm?: number;
-}
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
 export interface SurfacePickResult {
@@ -164,7 +151,7 @@ export interface UniverseRendererOptions {
    * boundary ray hits (default true). Disable only to diagnose the raw FOV.
    */
   clipSensorsToSurfaces?: boolean;
-  /** Antialias */
+  /** Enable hardware antialiasing at the display's native pixel density (default true). */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
   trajectoryFilter?: (body: Body) => boolean;
@@ -183,6 +170,9 @@ export interface UniverseRendererOptions {
    *  solar photospheres use a dedicated HDR source; other emissive bodies bloom.
    *  Default: disabled. */
   bloom?: BloomConfig;
+  /** Presentation exposure policy for Sun and atmosphere. Defaults to legacy
+   * camera-adapted behavior; fixed-reference is opt-in for repeatable captures. */
+  solarExposure?: SolarExposurePolicy;
   /** Deadline in ms for the initial asset set (the models and textures the
    *  catalog names up front, plus the worker-built trajectory caches its
    *  spacecraft need). Past it, `waitForInitialAssets()` resolves with whatever
@@ -299,6 +289,39 @@ export function eventLeadRequest(
   } : null;
 }
 
+/**
+ * How far an overlay point may sit off the drawn surface, in km: cached
+ * drawn-surface heights, float32 vertices and interpolation between them
+ * (about 0.35 m of float32 resolution at Mars' radius). The line of sight
+ * stops this far short of the point *along the surface normal*: that is,
+ * `OVERLAY_HEIGHT_TOLERANCE_KM / sin(angle to the surface)` along the ray,
+ * capped at grazing angles. A fraction of the whole distance would skip
+ * real terrain near a distant point (400 m at 100 km for 0.4%).
+ */
+export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
+/** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
+const OVERLAY_MIN_GRAZING_SINE = 0.03;
+/**
+ * Mid cross-fade (about 300 ms), a terrain tile and the LOD replacing it both
+ * draw, dithered, and differ by their LOD error: a point sampled on one can lie
+ * metres (Gale floor, close) to over a hundred metres under the other. A fading
+ * tile's own height at the point, measured down the normal from this far above,
+ * is that disagreement; the tile hides the point only beyond twice it (plus the
+ * height tolerance) along the line of sight, so a real ridge still hides it.
+ */
+const OVERLAY_FADING_PROBE_KM = 1;
+
+/** Whether the ray's first `length` units pass through the sphere. */
+function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
+  const oc = ray.origin.clone().sub(center);
+  const b = oc.dot(ray.direction), c = oc.lengthSq() - radius * radius;
+  if (c < 0) return true; // the camera is inside the sphere: below any surface
+  const disc = b * b - c;
+  if (disc < 0) return false;
+  const t = -b - Math.sqrt(disc);
+  return t > 0 && t < length;
+}
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -323,14 +346,19 @@ export class UniverseRenderer {
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly modelSurfaceDepth = new ModelSurfaceDepth();
+  private readonly overlaySurfaceDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false });
+  private readonly siteForegroundDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false, clipAtDistance: true });
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
+  private readonly trajectoryPlotFrames = new WeakMap<TrajectoryLine, TrajectoryPlotFrame>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkerPlacement>();
   private _eventPreview: { id: string; queryId: string } | null = null;
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
+  private _eventObservedEt: number | null = null;
+  private _eventObservedView: string | null = null;
   private _hoveredSceneEvent: string | null = null;
   /** Epoch under the pointer when the scene hover is on an interval span. */
   private _sceneEventHit: { id: string; queryId: string; et: number } | null = null;
@@ -351,7 +379,14 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
-  private _dprMediaQuery: MediaQueryList | null = null;
+  private _devicePixelObserver: ResizeObserver | null = null;
+  private _devicePixelBox: {
+    pixels: ResizeObserverSize;
+    cssWidth: number;
+    cssHeight: number;
+    dpr: number;
+  } | null = null;
+  private readonly _labelBufferSize = new THREE.Vector2();
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -377,6 +412,10 @@ export class UniverseRenderer {
    *  frame. The pick is cheap (label-only, against cached screen boxes). */
   private static readonly _hoverPickIntervalMs = 33;
   private instrumentView: InstrumentView | null = null;
+  private instrumentObservedEt: number | null = null;
+  private instrumentObservedPointing: import('./InstrumentView.js').InstrumentPointing = 'none';
+  private instrumentObservedUnavailable: string | null = null;
+  private instrumentRenderError: string | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
   /** Separate scene rendered last so the probe markers are never overdrawn by tileScene/models. */
@@ -393,6 +432,8 @@ export class UniverseRenderer {
   /** How long the last probe pick took, ms; a slow one spaces out the next. */
   private _probePickCostMs = 0;
   /** The last pin occlusion cast (`_pinOccluded`) and what it was cast for. */
+  /** BVH line of sight for overlays (`projectGeographicPositions` with `occlusion`). */
+  private readonly overlayOcclusion = new ContourOcclusion();
   private readonly _pinOcclusion = {
     point: null as SurfacePoint | null,
     view: new THREE.Matrix4(),
@@ -416,7 +457,6 @@ export class UniverseRenderer {
   /** Camera pose at the last probe hover pick. */
   private readonly _probePickView = new THREE.Matrix4();
   private readonly _surfaceRaycaster = new THREE.Raycaster();
-  private readonly _surfaceTileRaycaster = new THREE.Raycaster();
   /** Label boxes the event annotation and probe callouts reserve this frame. */
   /** Boxes the probe's callouts occupied in the last frame they were placed. */
   private probeCalloutRects: ScreenRect[] = [];
@@ -433,6 +473,7 @@ export class UniverseRenderer {
   private bloomEffect: BloomEffect | null = null;
   private sunGlareEffect: SunGlareEffect | null = null;
   private readonly solarSources = new Map<THREE.Mesh, SunVisual>();
+  private solarExposurePolicy: SolarExposurePolicy = DEFAULT_SOLAR_EXPOSURE_POLICY;
   /** Current global show-sensors state — applied to every sensor frustum. */
   private _sensorsVisible = true;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
@@ -476,21 +517,50 @@ export class UniverseRenderer {
     this.scaleFactor = options.scaleFactor ?? 1e-6;
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
+    this.setSolarExposurePolicy(options.solarExposure ?? DEFAULT_SOLAR_EXPOSURE_POLICY);
 
     // Renderer
     patchLogDepthPrecision();
+    patchLogDepthCoverage();
+    // The viewer's backdrop or a previous scene may have used this canvas's
+    // context. Three creates default 3D textures before resetting unpack state;
+    // flags left by a 2D upload make that initialization invalid in WebGL2.
+    const context = canvas.getContext('webgl2', { alpha: false, antialias: options.antialias ?? true });
+    context?.pixelStorei(context.UNPACK_FLIP_Y_WEBGL, 0);
+    context?.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
+      context: context ?? undefined,
       antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });
+    // Document the existing default explicitly: physical display shaders own
+    // their Reinhard response; a second renderer tone curve would double-map
+    // Sun/atmosphere/AP. This is not yet a scene-wide HDR compositing pipeline.
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-    // Watch for devicePixelRatio changes — fires when the window is dragged
-    // across monitors with different DPI scaling. Without this, the WebGL
-    // backing store stays at the original DPR and the browser upscales it
-    // (blurry), and label canvas textures stay sized for the original DPR.
-    this._watchDevicePixelRatio();
+    // The backing store follows the canvas's device-pixel box (see
+    // _syncBackingStore), which only a ResizeObserver reports.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._devicePixelObserver = new ResizeObserver(([entry]) => {
+        const pixels = entry?.devicePixelContentBoxSize?.[0];
+        this._devicePixelBox = pixels ? {
+          pixels,
+          // clientWidth/clientHeight are integer CSS pixels too. Keep the
+          // observed content size paired with its device-pixel measurement.
+          cssWidth: Math.round(entry.contentRect.width),
+          cssHeight: Math.round(entry.contentRect.height),
+          dpr: window.devicePixelRatio,
+        } : null;
+      });
+      try {
+        this._devicePixelObserver.observe(canvas, { box: 'device-pixel-content-box' });
+      } catch {
+        // Not supported (Safari): fall back to the rounded CSS size × DPR.
+      }
+    }
     // Shadow maps for small mesh-on-terrain shadows (helicopter, drones, etc.).
     // Driven by the model-shadow DirectionalLight set up alongside the sun
     // PointLight; planet/moon eclipse shadows go through the analytical
@@ -545,7 +615,7 @@ export class UniverseRenderer {
       name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
-    this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor);
+    this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor, (feature) => this.events.emit('geographic:select', feature));
     this.placeNames = new PlaceNames(universe, this.labelContainer);
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
@@ -792,8 +862,14 @@ export class UniverseRenderer {
   }
 
 
+  /** Whether the main view's streaming counters describe its current camera, epoch and source configuration. */
+  surfaceViewIsCurrent(body: string): boolean {
+    return this.bodyMeshes.get(body)?.surfaceViewIsCurrent(this.camera, this.renderer, this.timeController.et) ?? false;
+  }
+
   /** Render a single frame at current time */
   renderFrame(): void {
+    this._syncBackingStore();
     const et = this.timeController.et;
     const canvasHeight = this.renderer.domElement.clientHeight;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
@@ -851,7 +927,11 @@ export class UniverseRenderer {
 
       bm.scale.setScalar(1); // Always real scale
 
-      if (bm.hasModel) {
+      if (bm.hasModel && !bm.attitudeAvailable) {
+        // Position known, attitude not: the marker, never a model at a held attitude.
+        bm.setModelVisible(false);
+        bm.mesh.visible = true;
+      } else if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
         // Surface-locked bodies (rovers, landers): always show the model at full
@@ -928,6 +1008,16 @@ export class UniverseRenderer {
       const parentName = tl.body.parentName;
       const centerName = arcCenter ?? parentName;
 
+      const plotFrame = this.trajectoryPlotFrames.get(tl);
+      if (plotFrame) {
+        tl.update(et, this.scaleFactor, undefined, this.camera);
+        if (!tl.visible) continue;
+        const center = centerName ? this.absolutePositionOf(centerName, et) : [0, 0, 0];
+        if (!center.every(Number.isFinite)) { tl.visible = false; continue; }
+        plotFrame.place(tl, [center[0] - originAbsPos[0], center[1] - originAbsPos[1], center[2] - originAbsPos[2]], this.scaleFactor, et);
+        continue;
+      }
+
       // Object3D at origin — all offset is baked into vertices via vertexOffset
       tl.position.set(0, 0, 0);
 
@@ -935,7 +1025,7 @@ export class UniverseRenderer {
         // vertexOffset = (centerAbs - originAbs) in km, so vertices become origin-relative
         const centerAbsNow = this.absolutePositionOf(centerName, et);
         // Skip if center position is NaN (SPICE kernel out of coverage)
-        if (isNaN(centerAbsNow[0])) continue;
+        if (isNaN(centerAbsNow[0])) { tl.visible = false; continue; }
         const vertOff: [number, number, number] = [
           centerAbsNow[0] - originAbsPos[0],
           centerAbsNow[1] - originAbsPos[1],
@@ -983,6 +1073,7 @@ export class UniverseRenderer {
         tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, undefined, vertOff);
       }
       } catch (err) {
+        tl.visible = false; // Missing transforms must not leave a previously oriented surface trail visible.
         console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
       }
     }
@@ -999,26 +1090,24 @@ export class UniverseRenderer {
     for (const sf of this.sensorFrustums.values()) {
       // A sensor is drawn only while its own body is: an instrument does not
       // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
-      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      const sensorBody = this.bodyMeshes.get(sf.body.name);
+      // Nor is a sensor drawn while its spacecraft's supplied attitude is missing.
+      const carrier = sf.body.parentName ? this.bodyMeshes.get(sf.body.parentName) : undefined;
+      sf.present = (sensorBody?.present ?? true) && sensorBody?.attitudeAvailable !== false && carrier?.attitudeAvailable !== false;
       if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
-      // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
-      let spiceRot: number[] | undefined;
-      if (sf.spiceFovFrame && spiceInst) {
-        try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
-        } catch {
-          // CK data may not cover this time — fall back to target-pointing
-        }
-      }
+      const pointing = sensorPointing(this.universe, sf, et, spiceInst);
+      sf.pointingUnavailable = pointing.unavailable ?? null;
+      // A sensor that cannot be truthfully pointed is not drawn pointing somewhere.
+      if (pointing.unavailable) { sf.present = false; continue; }
+      const spiceRot = pointing.rotation;
       let clip: SensorFovClipper | undefined;
       if (clipping && sf.visible) {
         if (!clippingReady) {
           clipping.begin(et, originAbsPos, this.bodyMeshes.values(), this.absolutePositionOf);
           clippingReady = true;
         }
-        clip = clipping.clipperFor(sf.body.name, spiceRot ? 'spice' : 'target');
+        clip = clipping.clipperFor(sf.body.name, pointing.from);
       }
       sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot, clip);
     }
@@ -1032,12 +1121,14 @@ export class UniverseRenderer {
       const parentName = line.body.parentName;
       const centerName = arcCenter ?? parentName;
       const center = centerName ? this.absolutePositionOf(centerName, et) : null;
-      if (center && !center.every(Number.isFinite)) {
+      if (!line.visible || (center && !center.every(Number.isFinite))) {
         markers.visible = false;
+        markers.update(this.scaleFactor, [0, 0, 0], () => [NaN, NaN, NaN], null);
         continue;
       }
       markers.visible = this.bodyMeshes.get(markers.body.name)?.visible ?? true;
-      const vertexOffset: [number, number, number] = centerName
+      const framedPlot = this.trajectoryPlotFrames.has(line);
+      const vertexOffset: [number, number, number] = framedPlot ? [0, 0, 0] : centerName
         ? [
             center![0] - originAbsPos[0],
             center![1] - originAbsPos[1],
@@ -1112,6 +1203,29 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    // Streaming can expose a coarse triangle above the previous selection.
+    // Account for that newly selected surface before this frame is drawn, and
+    // before view-dependent transport/labels consume the final camera.
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.hasTerrain || bm.hasSurfaceTiles) {
+        bm.updateMatrixWorld(true);
+        const dist = bm.position.distanceTo(this.camera.position);
+        const realSceneRadius = bm.displayRadius * this.scaleFactor;
+        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
+        if (bm.hasTerrain) {
+          bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+          bm.observeSurfaceView(this.camera, this.renderer, et);
+        }
+        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
+      }
+    }
+    if (this.clampCameraAboveSurfaces({ cubeOnly: true, resetCorrection: false })) {
+      const distance = this.camera.position.distanceTo(this.cameraController.controls.target);
+      this.camera.near = Math.max(1e-12, distance * 1e-8);
+      this.camera.far = Math.max(1e6, distance * 1e6);
+      this.camera.updateProjectionMatrix();
+      this.camera.updateMatrixWorld();
+    }
     // View transport must use the final current-frame camera, after tracking,
     // surface clamping, and refreshed eclipse occluders.
     const maxSkyBrightness = this.updateAtmospheres(this.camera);
@@ -1122,10 +1236,12 @@ export class UniverseRenderer {
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
+      const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this.labelManager.update(
         bodyMeshArr,
         this.camera,
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
       );
 
       // Apply occlusion fade to sensor frustum labels
@@ -1145,7 +1261,7 @@ export class UniverseRenderer {
     for (const [mesh, solar] of this.solarSources) {
       const center = mesh.getWorldPosition(new THREE.Vector3());
       const owner = mesh.parent as BodyMesh;
-      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight, owner.displayRadius);
+      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight, owner.displayRadius, this.fixedSolarExposure());
       solar.selectAtmosphere(this.camera, center, atmospheres);
       if (!this.bloomEffect?.enabled) solar.uniforms.resolvedWeight.value = 1;
     }
@@ -1167,6 +1283,11 @@ export class UniverseRenderer {
       ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
       ...(this._screenOccluders?.() ?? []),
     ];
+    this.syncBodyGrids();
+    this.labelManager?.beginContextAnnotations(contourLabelObstacles);
+    const gridViewport = { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight };
+    for (const bm of bodyMeshArr) bm.updateGrid(this.camera, gridViewport, this.labelManager, bodyMeshArr);
+    contourLabelObstacles.push(...(this.labelManager?.getContextAnnotationRects() ?? []));
     this.placeNames.update(this.camera, this.bodyMeshes, this.scaleFactor,
       this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
       contourLabelObstacles, world => {
@@ -1180,14 +1301,7 @@ export class UniverseRenderer {
       }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.hasTerrain || bm.hasSurfaceTiles) {
-        bm.updateMatrixWorld(true);
-        const dist = bm.position.distanceTo(this.camera.position);
-        const realSceneRadius = bm.displayRadius * this.scaleFactor;
-        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, contourLabelObstacles);
-        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
-      }
+      if (bm.hasTerrain) bm.updateTerrainLabels(this.camera, this.renderer, contourLabelObstacles);
     }
 
     // Count every pass in this frame, including the early instrument feed.
@@ -1235,6 +1349,20 @@ export class UniverseRenderer {
       }
     }
 
+    // Fading terrain may not write depth; one-sided tiles also leave no depth
+    // from below. Rebuild physical cube depth from both sides for overlays,
+    // borrowing the exact selected geometry without changing color or buffers.
+    const cubeDepthMeshes: THREE.Mesh[] = [];
+    for (const bm of this.bodyMeshes.values()) {
+      const group = bm.terrainCubeStats ? bm.terrainTileGroup : null;
+      if (group?.visible) group.traverseVisible(object => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh && (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(m => !m.depthWrite)) cubeDepthMeshes.push(mesh);
+      });
+    }
+    this.overlaySurfaceDepth.update(cubeDepthMeshes, this.camera.position);
+    if (cubeDepthMeshes.length) this.renderer.render(this.overlaySurfaceDepth.scene, this.camera);
+
     // Preserve body/solar depth: analysis overlays in front remain visible,
     // while trajectories and sensor frustums behind the Sun remain occluded.
     const overlayMask = this.camera.layers.mask;
@@ -1254,6 +1382,7 @@ export class UniverseRenderer {
       let hasVisibleTiles = false;
       let minTileDist = Infinity;
       let maxTileDist = 0;
+      let foregroundLimit = Infinity;
 
       for (const bm of this.bodyMeshes.values()) {
         if (!bm.hasSurfaceTiles) continue;
@@ -1267,6 +1396,8 @@ export class UniverseRenderer {
             hasVisibleTiles = true;
             if (d < minTileDist) minTileDist = d;
             if (d > maxTileDist) maxTileDist = d;
+            foregroundLimit = Math.min(foregroundLimit, overlay.foregroundDistanceTo(
+              this.camera.position, bm.position, bm.mesh.quaternion, this.scaleFactor));
           }
         }
       }
@@ -1277,12 +1408,11 @@ export class UniverseRenderer {
         const savedFar = this.camera.far;
 
         // Tight near/far for full depth precision on small surface geometry
-        this.camera.near = Math.max(1e-10, minTileDist * 0.01);
+        this.camera.near = Math.max(1e-10, Math.min(savedNear, minTileDist * 0.01));
         this.camera.far = Math.max(maxTileDist * 10, minTileDist * 1000);
         this.camera.position.set(0, 0, 0);
         this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
-
         // Apply camera-relative transforms: body center offset from saved camera pos
         for (const bm of this.bodyMeshes.values()) {
           if (!bm.hasSurfaceTiles) continue;
@@ -1295,9 +1425,26 @@ export class UniverseRenderer {
           }
         }
 
-        // Render only the tile scene (separate from main scene) with cleared depth
+        // Rebuild proven foreground planetary relief in this pass's logarithmic/CRR
+        // depth space. Only terrain beyond the nearest site envelope is cleared;
+        // close ridges must still hide distant reconstructed pixels.
         this.renderer.clearDepth();
+        const foreground: THREE.Mesh[] = [];
+        for (const bm of this.bodyMeshes.values()) {
+          if (!bm.visible) continue;
+          const collect = (group: THREE.Object3D) => group.traverseVisible(object => {
+            if ((object as THREE.Mesh).isMesh) foreground.push(object as THREE.Mesh);
+          });
+          if (bm.mesh.visible) collect(bm.mesh);
+          for (const mesh of bm.getDskMeshes()) if (mesh.visible) collect(mesh);
+          if (bm.terrainTileGroup?.visible) collect(bm.terrainTileGroup);
+        }
+        this.siteForegroundDepth.clipDistance.value = foregroundLimit;
+        this.siteForegroundDepth.update(foreground, savedPos, Infinity, savedPos);
+        this.renderer.render(this.siteForegroundDepth.scene, this.camera);
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(savedPos);
         this.renderer.render(this.tileScene, this.camera);
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(null);
         this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
@@ -1307,16 +1454,19 @@ export class UniverseRenderer {
         this.camera.far = savedFar;
         this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
+        for (const bm of this.bodyMeshes.values()) {
+          if (bm.hasSurfaceTiles) bm.updateSurfaceTileTransforms();
+        }
       }
     }
 
     this.geographicVectors.end();
-    const vectorText = geographicStatusText(this.geographicVectors.status, this.geographicVectors.diagnostics.length);
+    const vectorText = geographicStatusText(this.geographicVectors.diagnostics.length);
     if (this.geographicStatus.textContent !== vectorText) {
       this.geographicStatus.textContent = vectorText;
       this.geographicStatus.style.display = vectorText ? '' : 'none';
     }
-    this.geographicStatus.title = 'Body rendering mode only; terrain coverage at individual features is not assessed. Vectors follow the displayed triangles, including fallback surfaces. Drawing is not a terrain elevation measurement; source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
+    this.geographicStatus.title = this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
     if (vectorText) {
       const position = geographicStatusPosition(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
         this.geographicStatus.offsetWidth, this.geographicStatus.offsetHeight, this._screenOccluders?.() ?? []);
@@ -1348,9 +1498,19 @@ export class UniverseRenderer {
       const savedNear = this.camera.near;
       const savedFar = this.camera.far;
 
-      const surfaceDistance = this.modelSurfaceDepth.update(
-        [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes()), this.camera.position, minModelDist,
-      );
+      // Visual reconstructions occlude models with their actual selected
+      // triangles, while remaining excluded from every physical query API.
+      const modelOccluders = [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes());
+      for (const bm of this.bodyMeshes.values()) {
+        for (const overlay of bm.getSurfaceOverlays()) {
+          if (!overlay.group.visible) continue;
+          overlay.group.traverseVisible(object => {
+            const mesh = object as THREE.Mesh;
+            if (mesh.isMesh) modelOccluders.push(mesh);
+          });
+        }
+      }
+      const surfaceDistance = this.modelSurfaceDepth.update(modelOccluders, this.camera.position, minModelDist);
       // Include foreground physical plates in the tight linear depth range.
       this.camera.near = Math.max(1e-15, Math.min(minModelDist, surfaceDistance) * 0.1);
       this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
@@ -1403,6 +1563,10 @@ export class UniverseRenderer {
     if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
+    this._probeObservedEt = et;
+    this._probeObservedView = this.viewObservationSignature();
+    this._eventObservedEt = et;
+    this._eventObservedView = this.viewObservationSignature();
 
     // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
     // Skip when an instrument PiP fully covers the canvas.
@@ -1430,8 +1594,10 @@ export class UniverseRenderer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    // A resize can be the first sign of a DPR change (window moved between
+    // monitors); fit the backing store to the device pixels the browser uses now.
+    this._syncBackingStore();
     this.instrumentView?.onResize();
-    this.bloomEffect?.setSize(width, height);
     this.events.emit('renderer:resize', { width, height });
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
@@ -1471,21 +1637,35 @@ export class UniverseRenderer {
       const sf = this.sensorFrustums.get(iv.sensorName!);
       if (!sf) return;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      let spiceRot: number[] | undefined;
-      if (sf.spiceFovFrame && spiceInst) {
-        try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
-        } catch { /* no CK coverage */ }
+      const pointing = sensorPointing(this.universe, sf, et, spiceInst);
+      const unavailable = pointing.unavailable ?? (sf.present ? null : `${sf.body.name} or its spacecraft has no state or attitude at this time.`);
+      if (unavailable) {
+        iv.markUnavailable(unavailable);
+        this.instrumentObservedEt = et;
+        this.instrumentObservedPointing = iv.pointing;
+        this.instrumentObservedUnavailable = iv.unavailableReason;
+        this.instrumentRenderError = null;
+        return;
       }
-      iv.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
+      iv.update(et, this.scaleFactor, originRelResolver, targetBody, pointing.rotation, pointing.from === 'attitude' ? 'attitude' : 'spice');
       // The terrain draw cull is the main camera's.
       for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
       // The instrument has its own observer position and may be inside a
       // different shell. Refresh its sky lookup and surface transport too.
-      this.renderInstrumentScene();
-      // The main passes still to come want the main camera's cull back.
-      if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+      try {
+        this.renderInstrumentScene();
+      } finally {
+        // A failed feed must also restore the main camera's terrain cull.
+        if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+      }
+      // Publish only after a successful draw. The clock has an independent RAF:
+      // a later clock tick makes this receipt stale, not physically unpointable.
+      this.instrumentObservedEt = et;
+      this.instrumentObservedPointing = iv.pointing;
+      this.instrumentObservedUnavailable = iv.unavailableReason;
+      this.instrumentRenderError = null;
     } catch (err) {
+      this.instrumentRenderError = 'Instrument frame could not be rendered.';
       console.warn('[Cosmolabe] Instrument view render error:', err);
     }
   }
@@ -1530,6 +1710,7 @@ export class UniverseRenderer {
             atm.shellRadius * this.scaleFactor,
             camera === this.instrumentView?.camera ? 'instrument' : 'main',
             renderSkyView,
+            this.fixedSolarExposure(),
           );
           const b = atm.getDaytimeSkyBrightness();
           if (b > maxSkyBrightness) maxSkyBrightness = b;
@@ -1563,21 +1744,67 @@ export class UniverseRenderer {
     return maxSkyBrightness;
   }
 
-  private _watchDevicePixelRatio(): void {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
-    this._dprMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    this._dprMediaQuery.addEventListener('change', this._onDprChange);
+  /**
+   * Keep the WebGL backing store at exactly the canvas's device-pixel size, at
+   * the browser's current devicePixelRatio. Run every frame and on resize, so a
+   * monitor move, zoom or display-scaling change is never missed.
+   *
+   * Three sizes the buffer `floor(cssSize × dpr)`. At a fractional DPR that is
+   * up to a pixel short of the box the browser composites into (1388 for
+   * 1111 × 1.25 = 1388.75 → 1389), and the compositor then stretches the whole
+   * canvas, smearing every label by up to half a pixel. The buffer is fitted
+   * to the device-pixel content box the browser reports instead, or to the
+   * rounded product where it reports none.
+   */
+  private _syncBackingStore(): void {
+    if (typeof window === 'undefined') return;
+    const dpr = window.devicePixelRatio;
+    if (Number.isFinite(dpr) && dpr > 0 && dpr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(dpr);
+    const pr = this.renderer.getPixelRatio();
+    const canvas = this.renderer.domElement;
+    const observed = this._devicePixelBox;
+    // A frame can resize before ResizeObserver delivers the new measurement.
+    // Even a one-pixel-old box passes the DPR tolerance below, so only use an
+    // observation made for the current CSS size and DPR.
+    const box = observed?.cssWidth === canvas.clientWidth
+      && observed.cssHeight === canvas.clientHeight && observed.dpr === pr
+      ? observed.pixels : null;
+    // Emulated DPRs (devtools, CDP) report the box in CSS pixels; trust it only
+    // when it agrees with the DPR.
+    const fit = (reported: number | undefined, css: number) =>
+      reported !== undefined && Math.abs(reported - css * pr) < 1.5 ? reported : Math.round(css * pr);
+    const width = fit(box?.inlineSize, canvas.clientWidth);
+    const height = fit(box?.blockSize, canvas.clientHeight);
+    if (width >= 1 && height >= 1 && (width !== canvas.width || height !== canvas.height)) {
+      // The quarter pixel keeps three's floor()/round() of size × ratio on
+      // `width` despite floating-point error. Leaves the CSS size alone.
+      this.renderer.setDrawingBufferSize((width + 0.25) / pr, (height + 0.25) / pr, pr);
+    }
+    this.bloomEffect?.setSize(); // no-op unless the buffer changed
   }
 
-  private _onDprChange = (): void => {
-    const dpr = window.devicePixelRatio;
-    this.renderer.setPixelRatio(dpr);
-    this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
-    this.labelManager?.refreshTextures();
-    // Rebind the media query against the new DPR so the next monitor change fires.
-    this._watchDevicePixelRatio();
-  };
+  /**
+   * Fixed mode freezes the HDR-to-display solar response across camera moves
+   * and time seeking. Legacy catalogs continue to use observer normalization.
+   * This does not calibrate detector imagery or the non-solar material pipeline.
+   */
+  setSolarExposurePolicy(policy: SolarExposurePolicy): void {
+    // Validate before mutating, so a bad external configuration cannot poison a frame.
+    resolveSolarDisplayExposure(policy, SOLAR_REFERENCE_DISTANCE_KM);
+    this.solarExposurePolicy = policy.mode === 'fixed-reference'
+      ? { mode: 'fixed-reference', exposure: policy.exposure }
+      : { mode: 'legacy-observer-adapted' };
+  }
+
+  getSolarExposureMetadata(): ReturnType<typeof solarExposureMetadata> {
+    return solarExposureMetadata(this.solarExposurePolicy);
+  }
+
+  private fixedSolarExposure(): number | undefined {
+    return this.solarExposurePolicy.mode === 'fixed-reference'
+      ? resolveSolarDisplayExposure(this.solarExposurePolicy, SOLAR_REFERENCE_DISTANCE_KM)
+      : undefined;
+  }
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
@@ -1603,6 +1830,136 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /**
+   * Height (km above the datum, along the geodetic normal) of the surface
+   * actually drawn at each position: the globe's facets or the resident
+   * terrain tiles, whichever is visible. Geographic vectors drape on those same
+   * triangles, and a geodetic position is the same latitude/longitude anywhere
+   * along its normal, so an overlay placed at this height sits exactly on the
+   * drawn feature, even where a coarse globe mesh lies below the ellipsoid.
+   * Null where nothing drawn is hit. Surface tile overlays are not consulted.
+   */
+  renderedSurfaceHeightsKm(bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum): (number | null)[] {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return positions.map(() => null);
+    const targets: THREE.Object3D[] = [];
+    if (bm.mesh.visible) targets.push(bm.mesh);
+    if (bm.terrainTileGroup?.visible) targets.push(bm.terrainTileGroup);
+    const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const toWorld = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor));
+    const shape = datum.referenceShape;
+    // From above any relief (Olympus Mons is ~22 km) down the normal, to well below the datum.
+    const aboveKm = 40 + 0.01 * (shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0]);
+    const ray = new THREE.Raycaster();
+    const origin = new THREE.Vector3(), direction = new THREE.Vector3();
+    const visible = (hit: THREE.Intersection) => {
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      return true;
+    };
+    return positions.map((position) => {
+      const top = geodeticToBodyFixed({ ...position, heightKm: aboveKm }, datum);
+      const ground = geodeticToBodyFixed({ ...position, heightKm: 0 }, datum);
+      origin.set(top.xKm, top.yKm, top.zKm).applyMatrix4(toWorld);
+      direction.set(ground.xKm, ground.yKm, ground.zKm).applyMatrix4(toWorld).sub(origin).normalize();
+      ray.set(origin, direction);
+      ray.far = 2 * aboveKm * this.scaleFactor;
+      const hit = ray.intersectObjects(targets, true).find(visible);
+      return hit ? aboveKm - hit.distance / this.scaleFactor : null;
+    });
+  }
+
+  /**
+   * Canvas CSS-pixel positions of geodetic points on a body, for host overlays
+   * such as a selected feature's callout, labels or edit handles. A 2D
+   * position sits on the datum (height 0), or on the resident CPU terrain
+   * sample when `sampleTerrain` is set and that terrain shares the datum's
+   * reference shape.
+   *
+   * `inFront` is false behind the camera's near plane. `facing` is false where
+   * the body hides the point: cheaply, when the line from the camera passes
+   * through a sphere safely inside the body (so a point higher than a low
+   * camera, on a crater rim or a slope, is never rejected); and with
+   * `occlusion`, when that line first meets the surface actually drawn (globe
+   * facets or terrain tiles). Use `occlusion` for the few overlays shown, not
+   * for choosing among many candidates. Null for a body that is not drawn.
+   */
+  projectGeographicPositions(
+    bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum, options: { sampleTerrain?: boolean; occlusion?: boolean } = {},
+  ): { x: number; y: number; facing: boolean; inFront: boolean }[] | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const canvas = this.renderer.domElement;
+    const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const toWorld = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor));
+    const toView = this.camera.matrixWorldInverse;
+    const terrain = options.sampleTerrain ? bm.terrainDatum : null;
+    const sameShape = terrain && JSON.stringify(terrain.referenceShape) === JSON.stringify(datum.referenceShape);
+    const shape = datum.referenceShape;
+    // Below any drawn surface: the lowest radius less 1% (Hellas is ~8 km deep on Mars, ~0.25%).
+    const inner = 0.99 * (shape.kind === 'sphere' ? shape.radiusKm : Math.min(...shape.radiiKm)) * this.scaleFactor;
+    const center = bm.position, eye = this.camera.position;
+    const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
+    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
+    const above = new THREE.Ray();
+    const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
+    return positions.map((position) => {
+      const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
+      const p = geodeticToBodyFixed({ ...position, heightKm }, datum);
+      world.set(p.xKm, p.yKm, p.zKm).applyMatrix4(toWorld);
+      toPoint.copy(world).sub(eye);
+      const distance = toPoint.length();
+      ray.set(eye, toPoint.divideScalar(distance || 1));
+      let facing = !segmentHitsSphere(ray, distance, center, inner);
+      if (facing && surfaces.length) {
+        // Stop just short of the point, which lies on the drawn surface itself:
+        // by the height tolerance along the normal, however far away it is.
+        const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
+        normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
+        const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
+        const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
+        facing = !surfaces.some((mesh) => {
+          if (!tileFade(mesh.material)) return this.overlayOcclusion.intersects(mesh, ray, far);
+          above.origin.copy(world).addScaledVector(normal, OVERLAY_FADING_PROBE_KM * this.scaleFactor); above.direction.copy(normal).negate();
+          const t = this.overlayOcclusion.firstHit(mesh, above, 2 * OVERLAY_FADING_PROBE_KM * this.scaleFactor);
+          const disagreement = t === null ? 0 : Math.abs(OVERLAY_FADING_PROBE_KM * this.scaleFactor - t);
+          return this.overlayOcclusion.intersects(mesh, ray, Math.max(0, far - 2 * disagreement / sine));
+        });
+      }
+      const inFront = view.copy(world).applyMatrix4(toView).z < -near;
+      world.project(this.camera);
+      return { x: (world.x + 1) / 2 * canvas.clientWidth, y: (1 - world.y) / 2 * canvas.clientHeight, facing, inFront };
+    });
+  }
+
+  /**
+   * Identifies the surface a body is drawn with now: which globe and terrain
+   * tile meshes are visible. It changes when terrain refines or retires tiles
+   * (or a fade ends), so callers caching drawn-surface heights
+   * (`renderedSurfaceHeightsKm`) know to sample again. Computed at most once
+   * per rendered frame. Null for a body that is not drawn.
+   */
+  drawnSurfaceKey(bodyName: string): string | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const frame = this.renderer.info.render.frame;
+    const cached = this._surfaceKeys.get(bodyName);
+    if (cached && cached.frame === frame) return cached.key;
+    let count = 0, sum = 0, mix = 0;
+    for (const mesh of this.drawnSurfaceMeshes(bm)) { count++; sum += mesh.id; mix = (mix * 31 + mesh.id) >>> 0; }
+    const key = `${count}:${sum}:${mix}`;
+    this._surfaceKeys.set(bodyName, { frame, key });
+    return key;
+  }
+  private readonly _surfaceKeys = new Map<string, { frame: number; key: string }>();
+
+  /** The meshes of a body's surface as drawn this frame: globe facets and visible terrain tiles. */
+  private drawnSurfaceMeshes(bm: BodyMesh): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    const roots = [bm.mesh, bm.terrainTileGroup].filter((o): o is THREE.Object3D => !!o && o.visible);
+    for (const root of roots) root.traverseVisible((o) => { if (o instanceof THREE.Mesh && o.geometry instanceof THREE.BufferGeometry) meshes.push(o); });
+    return meshes;
   }
 
   /** Show or clear the selected event's observer/occulter/background geometry. */
@@ -1691,10 +2048,11 @@ export class UniverseRenderer {
     selected: Pick<GeometryEvent, 'id' | 'queryId'> | null = null,
     selectedAnnotation = '',
   ): void {
+    this._eventObservedEt = null;
     this._selectedEvent = selected;
     this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
-      this._markerScene.remove(markers);
+      markers.removeFromParent();
       markers.dispose();
     }
     this.eventMarkerGroups.clear();
@@ -1730,7 +2088,8 @@ export class UniverseRenderer {
       // Span strokes retrace this line's drawn vertices — trail, live head
       // sample, and future lead — so they reach the body while the event is
       // underway and follow the lead when it is still ahead.
-      const markers = new EventMarkers(body, { path: () => line.drawnPath() });
+      const markers = new EventMarkers(body, { sampleAvailable: t => line.sampleAvailableAt(t), depthTest: this.trajectoryPlotFrames.has(line), path: () => line.drawnPath(),
+        transform: () => this.trajectoryPlotFrames.has(line) ? line.matrixWorld : undefined });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1755,9 +2114,32 @@ export class UniverseRenderer {
       }
       markers.visible = this.bodyMeshes.get(body.name)?.visible ?? true;
       this.eventMarkerGroups.set(lineKey, { markers, line, events: lineEvents });
-      this._markerScene.add(markers);
+      (this.trajectoryPlotFrames.has(line) ? this.scene : this._markerScene).add(markers);
     }
     this.refreshEventLineColors();
+  }
+
+  private viewObservationSignature(): string {
+    return [...this.camera.position.toArray(), ...this.camera.quaternion.toArray(), ...this.camera.projectionMatrix.elements,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight, !!this.instrumentView?.fullScreen].join(',');
+  }
+
+  /** Native event draw state at the reported epoch and current camera/viewport.
+   * A clock tick alone does not erase the preceding frame; strict consumers
+   * still compare observedEt with their requested epoch. */
+  getEventVisualization() {
+    const selected = this._selectedEvent;
+    let markerGroups = 0, visibleGlyphs = 0, visibleSpans = 0;
+    if (selected) for (const group of this.eventMarkerGroups.values()) {
+      if (!group.events.some(e => e.id === selected.id && e.queryId === selected.queryId)) continue;
+      markerGroups++;
+      const visible = group.markers.visibilityFor(selected.id, selected.queryId);
+      visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
+    }
+    const observedEt = this._eventObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
+    return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
+      markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
+      occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };
   }
 
   /**
@@ -2054,6 +2436,10 @@ export class UniverseRenderer {
   setInstrumentView(sensorName: string | null, options?: InstrumentViewOptions): void {
     // An explicit choice replaces whatever the Instrument camera mode activated.
     this.instrumentModeSensor = null;
+    this.instrumentObservedEt = null;
+    this.instrumentObservedPointing = 'none';
+    this.instrumentObservedUnavailable = null;
+    this.instrumentRenderError = null;
     if (options?.surface !== undefined) this.setInstrumentViewSurface(options.surface);
     if (sensorName == null) {
       if (!this.instrumentView?.active) return;
@@ -2127,8 +2513,13 @@ export class UniverseRenderer {
     fov: [number, number] | null;
     /** Rendered image extent, degrees (coverage plus a small margin for SPICE boundaries). */
     viewFov: [number, number];
-    pointing: 'spice' | 'target' | 'none';
+    pointing: import('./InstrumentView.js').InstrumentPointing;
+    /** Why the instrument has no pointing (`pointing === 'unavailable'`). */
+    pointingUnavailable: string | null;
     imageRect: import('./InstrumentView.js').Rect | null;
+    observedEt: number | null;
+    fresh: boolean;
+    renderError: string | null;
   } | null {
     const iv = this.instrumentView;
     if (!iv?.active) return null;
@@ -2139,7 +2530,11 @@ export class UniverseRenderer {
       target: sf?.targetName ?? null,
       fov: iv.fov,
       viewFov: iv.viewFov,
-      pointing: iv.pointing,
+      observedEt: this.instrumentObservedEt,
+      fresh: this.instrumentObservedEt === this.timeController.et && this.instrumentRenderError === null,
+      renderError: this.instrumentRenderError,
+      pointing: this.instrumentObservedPointing,
+      pointingUnavailable: this.instrumentObservedUnavailable,
       imageRect: iv.imageRect,
     };
   }
@@ -2206,19 +2601,43 @@ export class UniverseRenderer {
     }
   }
 
-  /** Toggle lat/lon grid lines on bodies (excludes spacecraft, instruments, barycenters).
-   *  Equator is highlighted in yellow, prime meridian in red.
-   *  Works with triaxial ellipsoids. */
+  private _gridVisible = false;
+  private _gridSettings: GridSettings = normalizeGridSettings(DEFAULT_GRID_SETTINGS);
+
+  get gridSettings(): GridSettings { return normalizeGridSettings(this._gridSettings); }
+  setGridSettings(settings: Partial<GridSettings>): void {
+    this._gridSettings = normalizeGridSettings({ ...this._gridSettings, ...settings });
+    this.syncBodyGrids();
+  }
+
+  /** Existing optional-body path is retained and stored before catalog loading. */
   showBodyGrid(show: boolean, bodyName?: string): void {
-    const excluded = new Set(['spacecraft', 'instrument', 'barycenter']);
     if (bodyName) {
-      const bm = this.bodyMeshes.get(bodyName);
-      if (bm && !excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-    } else {
-      for (const bm of this.bodyMeshes.values()) {
-        if (!excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-      }
+      this._gridSettings = normalizeGridSettings({ ...this._gridSettings, perBody: {
+        ...this._gridSettings.perBody, [bodyName]: { ...this._gridSettings.perBody[bodyName], visible: show },
+      } });
+      if (show) this._gridVisible = true;
+    } else this._gridVisible = show;
+    this.syncBodyGrids();
+  }
+
+  showBodyGridLabels(show: boolean, bodyName?: string): void {
+    this.setGridSettings(bodyName ? { perBody: { ...this._gridSettings.perBody,
+      [bodyName]: { ...this._gridSettings.perBody[bodyName], labels: show } } } : { labels: show });
+  }
+
+  private syncBodyGrids(): void {
+    const tracked = (this.cameraController.trackedBody ?? this.cameraController.originBody)?.body.name ?? null;
+    for (const [name, bm] of this.bodyMeshes) {
+      const state = gridBodyState(this._gridSettings, this._gridVisible, name, tracked);
+      bm.showGrid(state.visible, state.labels, this._gridSettings);
+      bm.setGridAnnotationScene(this._markerScene);
     }
+  }
+
+  /** Host measurements/probe callouts share the renderer's annotation reservations. */
+  setAnnotationReservedRects(rects: readonly { x0: number; y0: number; x1: number; y1: number }[], source = 'host'): void {
+    this.labelManager?.setReservedRects(rects, source);
   }
 
   /**
@@ -2344,6 +2763,17 @@ export class UniverseRenderer {
     }
   }
 
+  /** Whether one object's trajectory is shown; null when it draws none. */
+  isTrajectoryVisible(name: string): boolean | null {
+    const lines = [...this.trajectoryLinesOf(name)];
+    return lines.length ? lines.every(l => l.isUserVisible) : null;
+  }
+
+  /** Whether one object's label is shown; null when it has none. */
+  isLabelVisible(name: string): boolean | null {
+    return this.labelManager?.isLabelVisible(name) ?? null;
+  }
+
   /** Show or hide **one object's** label. Silent when the object has none. */
   setLabelVisible(name: string, visible: boolean): void {
     this.labelManager?.setLabelVisible(name, visible);
@@ -2457,10 +2887,52 @@ export class UniverseRenderer {
   get probePin(): SurfacePoint | null { return this._probe.pinned; }
 
   /** Pin (or clear, with null) a surface point. Emits `probe:pin` when it changes. */
-  setProbePin(point: SurfacePoint | null): void {
+  private _probePinRefines = true;
+  private _probeObservedEt: number | null = null;
+  private _probeObservedView: string | null = null;
+  private _probePlacedEt: number | null = null;
+  setProbePin(point: SurfacePoint | null, options: { refine?: boolean } = {}): void {
+    this._probePinRefines = options.refine !== false;
+    this._probeObservedEt = null;
+    this._probePlacedEt = point ? this.timeController.et : null;
     if (point === this._probe.pinned) return;
     this._probe.setPin(point);
     this.events.emit('probe:pin', point);
+  }
+
+  /** Observed native pin state; draw-enabled is not an unoccluded-pixels guarantee. */
+  getProbeVisualization() {
+    const sameView = this._probeObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen;
+    return { observedEt: sameView ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: sameView && this._probeObservedEt !== null && this._probe.pinnedVisible };
+  }
+
+  /** Body-fixed radial projection, independent of camera pixels. Reference
+   * points remain fixed to the declared shape; rendered/terrain points use the
+   * exact same authoritative surface cast and conversion as Point Probe. */
+  projectSurfacePoint(bodyName: string, latDeg: number, lonDeg: number, policy: 'reference' | 'rendered' | 'terrain'): SurfacePoint | null {
+    if (!['reference', 'rendered', 'terrain'].includes(policy)) return null;
+    const bm = this.bodyMeshes.get(bodyName), radii = bm?.body.radii;
+    if (!bm || !radii || !radii.every(r => Number.isFinite(r) && r > 0)
+      || radii[0] !== radii[1] || radii[2] > radii[0] || !Number.isFinite(latDeg) || Math.abs(latDeg) > 90 || !Number.isFinite(lonDeg)) return null;
+    const referenceShape: TerrainDatum['referenceShape'] = radii[0] === radii[2]
+      ? { kind: 'sphere', radiusKm: radii[0] } : { kind: 'ellipsoid', radiiKm: [...radii] };
+    const datum = { referenceShape, verticalDatum: referenceShape.kind === 'sphere' ? 'reference-sphere' as const : 'ellipsoid' as const,
+      heightConvention: 'radial' as const, origin: 'body-shape' as const };
+    const r = datumRadiusAtLat(datum, latDeg), lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
+    const fixed: [number, number, number] = [r * Math.cos(lat) * Math.cos(lon), r * Math.cos(lat) * Math.sin(lon), r * Math.sin(lat)];
+    if (policy === 'reference') return { placement: 'semantic', bodyName, frame: bm.bodyFixedFrame, source: 'ellipsoid', bodyFixedPositionKm: fixed,
+      latDeg, lonDeg, latitudeKind: 'planetocentric', resolution: { surfaceKm: 0, latDeg: 0, lonDeg: 0 },
+      hit: { heightKm: 0, datum }, ...resolveSurfaceAltitude('ellipsoid', { heightKm: 0, datum }) };
+    if (!bm.visible) return null;
+    const center = bm.getWorldPosition(new THREE.Vector3());
+    const direction = new THREE.Vector3(fixed[0], fixed[2], -fixed[1]).normalize().applyQuaternion(bm.mesh.quaternion);
+    const span = (Math.max(...radii) * 2 + 30) * this.scaleFactor;
+    const ray = new THREE.Raycaster(center.clone().addScaledVector(direction, span), direction.clone().negate(), 0, span * 2);
+    const hit = castRenderedSurfaces(ray, [bm], this.scaleFactor);
+    if (!hit || hit.renderedSkirt || hit.annotationBlocker) return null;
+    const point = this._surfacePointFromHit(hit, () => ({ surfaceKm: 0, latDeg: 0, lonDeg: 0 }));
+    if (!point || policy === 'terrain' && (point.source !== 'terrain' || !point.terrainSample?.describesHit)) return null;
+    return { ...point, placement: 'semantic' };
   }
 
   /** @deprecated Use `setProbePin(result?.point ?? null)`. */
@@ -2567,10 +3039,9 @@ export class UniverseRenderer {
 
   /**
    * Whether rendered surface lies between the camera and the pinned point:
-   * a ray from the camera to the pin, against the same globes, terrain and
-   * overlays the probe picks from, so a ridge hides it and terrain rising
-   * into view past the horizon does not. Overlays draw over the main scene,
-   * so where the ray meets one, the overlay alone decides.
+   * a ray from the camera to the pin, against the same authoritative globes
+   * and terrain the probe picks from, so a ridge hides it and terrain rising
+   * into view past the horizon does not. Visual-only sites do not move pins.
    *
    * The pin sits on the surface as rendered (`_refinePin` re-seats it as
    * terrain refines), so only a hit within a fixed physical distance of it
@@ -2668,8 +3139,8 @@ export class UniverseRenderer {
 
   /**
    * Re-seat the pin on the surface as it is rendered now. A pin placed from
-   * far off sits on the coarse terrain loaded then; as finer tiles (or an
-   * overlay) arrive, the surface at its spot moves — by kilometres in
+   * far off sits on the coarse terrain loaded then; as finer terrain tiles
+   * arrive, the surface at its spot moves — by kilometres in
    * places — and the pin would float above it or sink into it, and read the
    * coarse height. A short radial ray through the pin finds the surface there
    * now; when it differs, the pin and its reading move to it (same place,
@@ -2680,7 +3151,7 @@ export class UniverseRenderer {
     const state = this._pinRefine;
     // DSK plates are a stable body-fixed surface, not a streamed heightfield.
     // A radial recast can hit another lobe of a concave shape and move the pin.
-    if (!pin || pin.source === 'dsk') return;
+    if (!pin || pin.source === 'dsk' || this._probePinRefines === false) return;
     const now = performance.now();
     // A pin its own refined surface now covers is re-seated at once.
     const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden
@@ -2711,6 +3182,7 @@ export class UniverseRenderer {
     const restated = point.source !== pin.source || heightChanged ||
       point.terrainSample?.tileId !== pin.terrainSample?.tileId;
     if (moved <= UniverseRenderer._pinRefineEpsKm && !restated) return;
+    point.placement = pin.placement;
     this._probe.setPin(point, true);
     this.events.emit('probe:pin', point);
   }
@@ -2830,148 +3302,18 @@ export class UniverseRenderer {
   }
 
   /**
-   * Cast `_surfaceRaycaster`'s ray against every rendered surface: globe
-   * meshes and terrain tiles in the main scene, and the camera-relative
-   * surface overlays. Returns the surface seen along it: an overlay hit wins
-   * over the main scene, because overlays draw over it.
+   * Cast against authoritative globe, DSK and rendered terrain surfaces.
+   * Site reconstructions are visual-only: their triangles must never become
+   * probe points, measurement endpoints, navigation pivots or refined pins.
+   * Visual composition and model occlusion use separate rendering passes.
    */
   private _castSurfaces(): SurfaceRayHit | null {
-    const raycaster = this._surfaceRaycaster;
-
-    // Broad phase. Terrain tiles and surface overlays can be hundreds of
-    // meshes, and this runs at hover rate while probing; a body whose
-    // true-scale surface the ray cannot reach skips them all. The globe mesh
-    // is one object (and may be enlarged to a minimum on-screen size), so it
-    // is always left to the raycaster's own bounding test.
-    const reachable = new Set<BodyMesh>();
-    const center = new THREE.Vector3();
-    const reach = new THREE.Sphere();
-    for (const bm of this.bodyMeshes.values()) {
-      if (!bm.visible || (!bm.terrainTileGroup && bm.getSurfaceOverlays().length === 0)) continue;
-      bm.getWorldPosition(center);
-      // Room for relief above the datum (Olympus Mons is ~22 km) and overlay offsets.
-      const radiusKm = bm.displayRadius * 1.01 + 30;
-      if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
-    }
-
-    // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
-    // ignores ancestor visibility, so a hidden body is skipped here.
-    const mainTargets: THREE.Object3D[] = [];
-    for (const bm of this.bodyMeshes.values()) {
-      if (!bm.visible) continue;
-      if (bm.mesh.visible) mainTargets.push(bm.mesh);
-      mainTargets.push(...bm.getDskMeshes());
-      const tg = bm.terrainTileGroup;
-      if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
-    }
-    const visible = (hit: THREE.Intersection) => {
-      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible && !isDrawnCubeImagerySource(object)) return false;
-      return true;
-    };
-    // Three raycasts cached hidden meshes too. A point pick must follow the
-    // currently visible LOD rather than a nearer, inactive cached tile.
-    const mainHits = raycaster.intersectObjects(mainTargets, true).filter(visible);
-
-    // tileScene: surface tile overlays use camera-relative rendering (CRR).
-    // Apply CRR transforms (camera at origin) before raycasting, then restore.
-    const tileRaycaster = this._surfaceTileRaycaster;
-    tileRaycaster.ray.origin.copy(raycaster.ray.origin).sub(this.camera.position);
-    tileRaycaster.ray.direction.copy(raycaster.ray.direction);
-    tileRaycaster.far = raycaster.far;
-    const tileTargets: THREE.Object3D[] = [];
-    const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
-    const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
-    for (const bm of this.bodyMeshes.values()) {
-      if (!reachable.has(bm)) continue;
-      for (const overlay of bm.getSurfaceOverlays()) {
-        if (overlay.group.visible) {
-          // Save current LOD transform
-          savedGroupState.push({
-            overlay,
-            pos: overlay.group.position.clone(),
-            quat: overlay.group.quaternion.clone(),
-            scale: overlay.group.scale.clone(),
-          });
-          // Apply CRR transform for raycasting
-          overlay.setCameraRelativeTransform(
-            bm.position, bm.mesh.quaternion, this.scaleFactor, this.camera.position,
-          );
-          tileTargets.push(overlay.group);
-          overlayBodyMap.set(overlay.group, bm);
-        }
-      }
-    }
-    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true).filter(visible) : [];
-    // The overlay's normal is only valid under the transform it was hit with.
-    const tileNormal = tileHits[0] ? surfaceNormalWorld(tileHits[0]) : null;
-    // Restore LOD transforms
-    for (const { overlay, pos, quat, scale } of savedGroupState) {
-      overlay.group.position.copy(pos);
-      overlay.group.quaternion.copy(quat);
-      overlay.group.scale.copy(scale);
-      overlay.group.updateMatrixWorld(true);
-    }
-
-
-    // Pick the closest hit
-    let bestWorldPoint: THREE.Vector3 | null = null;
-    let bestBm: BodyMesh | null = null;
-    let bestDist = Infinity;
-    let tintHeightKm: number | undefined;
-    let renderedSkirt = false;
-    let source: SurfaceHitSource = 'ellipsoid';
-    let bestNormal: THREE.Vector3 | null = null;
-
-    if (mainHits.length > 0) {
-      const hit = mainHits[0];
-      if (hit.distance < bestDist) {
-        bestDist = hit.distance;
-        bestWorldPoint = hit.point.clone();
-        tintHeightKm = surfaceTintHeightAtHit(hit);
-        const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
-        renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
-        bestNormal = surfaceNormalWorld(hit);
-        if (hit.object.userData.dskSurface) source = 'dsk';
-        for (const bm of this.bodyMeshes.values()) {
-          let obj: THREE.Object3D | null = hit.object;
-          const terrain = bm.terrainTileGroup;
-          while (obj) {
-            if (terrain && obj === terrain) source = 'terrain';
-            if (obj === bm) { bestBm = bm; break; }
-            obj = obj.parent;
-          }
-          if (bestBm) break;
-        }
-      }
-    }
-
-    if (tileHits.length > 0) {
-      // CRR tile hits ALWAYS take priority over globe/terrain hits.
-      // Surface tiles render on top (depth cleared), so they're what the user sees.
-      const hit = tileHits[0];
-      bestWorldPoint = hit.point.clone().add(this.camera.position);
-      bestBm = null;
-      renderedSkirt = false;
-      bestDist = hit.distance;
-      bestNormal = tileNormal;
-      source = 'surface-overlay';
-      tintHeightKm = undefined;
-      let obj: THREE.Object3D | null = hit.object;
-      while (obj) {
-        const bm = overlayBodyMap.get(obj);
-        if (bm) { bestBm = bm; break; }
-        obj = obj.parent;
-      }
-    }
-
-    if (!bestWorldPoint || !bestBm) return null;
-    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm };
+    return castRenderedSurfaces(this._surfaceRaycaster, [...this.bodyMeshes.values()], this.scaleFactor);
   }
 
   /**
-   * Surface discovery: the rendered surface under an NDC position, as a
-   * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
-   * overlays are all candidates; overlays win because they draw on top.
+   * Surface discovery: the authoritative surface under an NDC position, as a
+   * `SurfacePoint`. Visual-only reconstructions never participate.
    */
   private _discoverSurface(ndcX: number, ndcY: number, sampleTerrain = true): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
     // Reused: this runs every frame the pointer moves while probing.
@@ -3027,13 +3369,13 @@ export class UniverseRenderer {
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const terrainPosition = isDsk ? null : bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const coordinates = isDsk ? null : bm.surfaceCoordinates;
+    const terrainPosition = coordinates ? bodyFixedToSurfacePosition({ xKm: ecefX, yKm: ecefY, zKm: ecefZ }, coordinates) : null;
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
     // The rendered intersection is the point. Decoded CPU terrain at the
     // same place is its own record, and becomes the point's altitude only
-    // when the terrain is the surface that was hit (an overlay hit sits over
-    // the global terrain product, not on it).
+    // when the terrain is the surface that was hit.
     const terrainSample = isDsk || !sampleTerrain ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const resolution = resolutionAt(r, latDeg);
     // An irregular plate surface does not define a spherical altitude datum.
@@ -3044,16 +3386,16 @@ export class UniverseRenderer {
       const radii = bm.body.radii;
       // Equal radii are a sphere, whatever field they came in.
       const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-      // The hit height is measured against the terrain datum when the body has
-      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
-      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
+      // The hit uses the grid/probe coordinate reference. A decoded terrain
+      // sample keeps its independent physical datum and provenance below.
+      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum && isSupportedGeodeticDatum(terrainDatum)
         ? { ...terrainDatum, origin: 'terrain' }
         : {
             referenceShape: radii && oblate
               ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
               : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
             verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
-            heightConvention: 'radial',
+            heightConvention: coordinates?.datum.heightConvention ?? 'radial',
             origin: 'body-shape',
           };
       hit.heightKm = hitHeightKm;
@@ -3068,11 +3410,12 @@ export class UniverseRenderer {
 
     const point: SurfacePoint = {
       bodyName: bm.body.name,
+      frame: bm.bodyFixedFrame,
       bodyFixedPositionKm: [ecefX, ecefY, ecefZ],
       source: ray.source,
       latDeg,
       lonDeg,
-      latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
+      latitudeKind: coordinates?.latitudeType ?? 'planetocentric',
       resolution,
       hit,
       ...resolveSurfaceAltitude(ray.source, hit, sample),
@@ -3245,7 +3588,7 @@ export class UniverseRenderer {
       // must NOT be clamped; for them surfaceLock only governs visibility.
       const traj = bm.body.trajectory;
       if (!(traj instanceof WaypointTrajectory)) continue;
-      if (traj.useAbsoluteAlt) continue;
+      if (traj.useAbsoluteAlt || bm.body.surfaceTrajectory) continue;
       const lockSpec = bm.body.geometryData.surfaceLock;
       // "aboveTerrain" mode: trajectory altitude is height above local terrain.
       // Renderer samples terrain at the body's lat/lon and offsets the body
@@ -3407,10 +3750,13 @@ export class UniverseRenderer {
    */
   get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
   private _cameraClampCorrectionKm = 0;
+  private _pendingCubeCameraClamp: { body: BodyMesh; focus: BodyMesh; requested: THREE.Vector3;
+    clamped: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
-  private clampCameraAboveSurfaces(): void {
+  private clampCameraAboveSurfaces({ cubeOnly = false, resetCorrection = true }: { cubeOnly?: boolean; resetCorrection?: boolean } = {}): boolean {
     const cam = this.camera.position;
-    this._cameraClampCorrectionKm = 0;
+    if (resetCorrection) this._cameraClampCorrectionKm = 0;
+    let pushed = false;
     const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
 
     // When the camera is tracking OR flying to a surface-locked body
@@ -3426,6 +3772,32 @@ export class UniverseRenderer {
       ? focus.body.parentName
       : null;
 
+    // A cold cut to an absolute rover pose can encounter a coarse resident
+    // triangle kilometres above the eventual ground. Keep the camera safe
+    // while loading, then recover the requested pose if it has stayed parked.
+    // Any camera/target input cancels this reservation. Never move the rover
+    // or its site mesh, and never recover below either physical or drawn ground.
+    const pending = this._pendingCubeCameraClamp;
+    if (resetCorrection && pending) {
+      const bm = pending.body;
+      const inv = bm.mesh.quaternion.clone().invert();
+      const local = (p: THREE.Vector3) => p.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv);
+      const parked = focus === pending.focus && this.bodyMeshes.get(bm.body.name) === bm
+        && local(cam).distanceTo(pending.clamped) < 1e-7
+        && local(this.cameraController.controls.target).distanceTo(pending.target) < 1e-7;
+      if (!parked) this._pendingCubeCameraClamp = null;
+      else {
+        const p = pending.requested;
+        const nav = bm.terrainNavigationSurface({ xKm: p.x, yKm: -p.z, zKm: p.y });
+        if (nav?.radiusKm != null) {
+          const restored = p.clone().setLength(Math.max(p.length(), nav.radiusKm + MARGIN_KM));
+          cam.copy(restored).applyQuaternion(bm.mesh.quaternion).multiplyScalar(this.scaleFactor).add(bm.position);
+          pending.clamped.copy(restored);
+          if (nav.settled) this._pendingCubeCameraClamp = null;
+        }
+      }
+    }
+
     // DEBUG: enable with window.__clampDebug = true
     if (typeof window !== 'undefined' && (window as any).__clampDebug) {
       console.log(`[clamp] focus=${focus?.body.name ?? 'null'} surfaceLock=${focus?.body.geometryData?.surfaceLock ?? false} skip=${skipParentName ?? 'none'}`);
@@ -3433,7 +3805,8 @@ export class UniverseRenderer {
 
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
-      if (skipParentName && bm.body.name === skipParentName) continue;
+      if (cubeOnly && !bm.terrainCubeStats) continue;
+      if (skipParentName && bm.body.name === skipParentName && !bm.terrainCubeStats) continue;
 
       const toBody = _clampTmpVec.copy(cam).sub(bm.position);
       const dist = toBody.length();
@@ -3442,6 +3815,7 @@ export class UniverseRenderer {
       // Base clamp: reference sphere
       let clampRadiusKm = bm.displayRadius;
       let hasTerrainSample = false;
+      let transientCubeClamp = false;
 
       // Terrain-aware clamp: query actual elevation at camera position
       if (bm.hasTerrain) {
@@ -3461,6 +3835,8 @@ export class UniverseRenderer {
           const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
           if (!terrainPosition) continue;
           const latDeg = terrainPosition.latDeg;
+          const cubeNavigation = bm.terrainNavigationSurface(bodyFixedPoint);
+          transientCubeClamp = cubeNavigation != null && !cubeNavigation.settled;
 
           // Sample terrain every 5 frames, use cached value between samples.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
@@ -3469,7 +3845,13 @@ export class UniverseRenderer {
           const bodyName = bm.body.name;
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
-          if (!cached || frame - cached.frame >= 5) {
+          if (cubeNavigation?.radiusKm != null) {
+            // A finer independent CPU grid may be below a still-drawn coarse
+            // triangle. Keep the eye above both; never mutate the CPU field to
+            // match transient visual LOD. No five-frame cache across LOD swaps.
+            clampRadiusKm = cubeNavigation.radiusKm;
+            hasTerrainSample = true;
+          } else if (!cached || frame - cached.frame >= 5) {
             const sample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
             if (sample) {
               const elev = sample.elevationKm;
@@ -3494,12 +3876,23 @@ export class UniverseRenderer {
         if (typeof window !== 'undefined' && (window as any).__clampDebug) {
           console.log(`[clamp] PUSH on ${bm.body.name}: dist=${dist.toExponential(3)} surfaceR=${surfaceR.toExponential(3)} hasTerrain=${hasTerrainSample}`);
         }
+        if (transientCubeClamp && focus && bm.body.name === skipParentName) {
+          const inv = bm.mesh.quaternion.clone().invert();
+          const requested = cam.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv);
+          if (!this._pendingCubeCameraClamp) this._pendingCubeCameraClamp = {
+            body: bm, focus, requested, clamped: requested.clone(),
+            target: this.cameraController.controls.target.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv),
+          };
+          this._pendingCubeCameraClamp.clamped.copy(requested).setLength(surfaceR / this.scaleFactor);
+        }
         // Push camera out to just above surface along the same direction
         this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
+        pushed = true;
       }
     }
+    return pushed;
   }
 
   /** Position attached visuals relative to their parent body each frame. */
@@ -3581,8 +3974,8 @@ export class UniverseRenderer {
     this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
-    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
-    this._dprMediaQuery = null;
+    this._devicePixelObserver?.disconnect();
+    this._devicePixelObserver = null;
     // Clean up custom visuals
     for (const [bodyName, obj] of this._customVisuals) {
       const body = this.universe.getBody(bodyName);
@@ -3601,6 +3994,8 @@ export class UniverseRenderer {
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
     this.modelSurfaceDepth.dispose();
+    this.overlaySurfaceDepth.dispose();
+    this.siteForegroundDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -3834,7 +4229,7 @@ export class UniverseRenderer {
       if (body.geometryType === 'Globe' && body.geometryData?.surfaceTiles) {
         const tiles = body.geometryData.surfaceTiles as SurfaceTileConfig[];
         for (const tileCfg of tiles) {
-          const overlay = bm.addSurfaceTiles(tileCfg, this.renderer);
+          const overlay = bm.addSurfaceTiles(tileCfg);
           this.tileScene.add(overlay.group);
 
           console.log(`[Cosmolabe] Initialized surface tiles "${tileCfg.name}" on ${body.name}`);
@@ -3931,7 +4326,13 @@ export class UniverseRenderer {
             trajOpts.staticOrbit = true;
           }
 
+          const plotFrame = plotCfg?.frame ? new TrajectoryPlotFrame(this.universe, body.frame, plotCfg.frame,
+            body.parentName, t => body.stateAt(t).position, body.trajectory.startTime ?? this.timeController.et) : null;
+          if (plotFrame) trajOpts.fixedResolver = plotFrame.resolve;
+          if (plotCfg?.sampleInterval) trajOpts.cacheResampleInterval = plotCfg.sampleInterval;
+          if (body.surfaceTrajectory) trajOpts.sampleAvailable = t => this.universe.trajectoryPlacementAvailable(body, t);
           const tl = new TrajectoryLine(body, trajOpts);
+          if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
           tl.layers.set(OVERLAY_LAYER);
           tl.traverse(c => c.layers.set(OVERLAY_LAYER));
           this.trajectoryLines.set(body.name, tl);
@@ -3940,7 +4341,7 @@ export class UniverseRenderer {
           // Build trajectory cache for long-duration spacecraft trails.
           // Skip for natural bodies — their smooth orbits work fine with legacy sampling.
           if (this.shouldBuildCache(body, trajOpts)) {
-            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory) {
+            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory && !plotFrame) {
               // Async: hide trail until cache is ready, build in worker
               tl.setUserVisible(false);
               this.dispatchAsyncCacheBuild(body, tl, trajOpts);
@@ -4118,25 +4519,20 @@ export class UniverseRenderer {
       const arcDuration = arc.endTime - arc.startTime;
       const arcCenterName = arc.centerName;
 
-      // Resolver returns positions relative to the arc's center body, in
-      // the world frame (EclipticJ2000). The trail's Object3D position is
-      // set to the center body's absolute world position each frame, so we
-      // only emit relative world-frame coords here — keeps vertices near
-      // origin for Float32 precision.
-      //
-      // The arc's frame goes through the frame registry: an inertial frame
-      // (EME2000, TEME, …) is rotated into ECLIPJ2000, and a body-fixed arc
-      // (Waypoints, FixedSpherical) is lifted out of the center body's
-      // rotating frame first.
-      //
-      // Without this, body-fixed arcs (MoonFall hoppers, Ingenuity, ground
-      // stations) draw their trail in the parent's body-fixed frame —
-      // visually static against the inertial sky while the body marker
-      // rotates with the parent. Result: trail offset from label/marker by
-      // the parent's rotation since some reference time.
+      // Body-fixed arcs describe a path attached to their source frame. Sample
+      // that path once locally and orient it at the rendered epoch, just like
+      // the marker. Inertial arcs retain historical-epoch world-frame trails.
+      // An explicit plot frame always wins (including an inertial opt-out).
       const arcFrame = body.arcFrame(arc);
       const arcCenterBodyName = arcCenterName ?? body.parentName;
-      const arcResolver = (_name: string, t: number): [number, number, number] => {
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
+      const sourceFrame = this.universe.resolveFrame(arcFrame, arcCenterBodyName);
+      const plotFrameName = plotCfg.frame ??
+        (this.universe.frames.get(sourceFrame)?.kind === 'body-fixed' ? arcFrame : undefined);
+      const plotFrame = plotFrameName ? new TrajectoryPlotFrame(this.universe, arcFrame, plotFrameName,
+        arcCenterBodyName, t => arc.trajectory.stateAt(t).position, Math.max(arc.startTime, arc.trajectory.startTime ?? -Infinity)) : null;
+      const resolveArc = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
         return this.universe.toWorldFrame(
           [state.position[0], state.position[1], state.position[2]],
@@ -4144,12 +4540,15 @@ export class UniverseRenderer {
           arcCenterBodyName,
           t,
         );
-      };
+      });
+
+      const sampleAvailable = body.surfaceTrajectory
+        ? (t: number) => this.universe.trajectoryPlacementAvailable(body, t, { frame: arcFrame, centerName: arcCenterBodyName }) : undefined;
+      const arcResolver: PositionResolver = (name, t) => sampleAvailable && !sampleAvailable(t)
+        ? [NaN, NaN, NaN] : resolveArc(name, t);
 
       // An arc's own trajectoryPlot overrides the body's field by field: a
       // cruise arc can keep years of trail while the orbit phase keeps days.
-      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
-      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -4179,8 +4578,12 @@ export class UniverseRenderer {
         trailDuration: trailDur,
         leadDuration: 0,
         minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
-        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
+        maxTime: plotFrame ? Math.min(arc.endTime, arc.trajectory.endTime ?? Infinity, body.existsUntil ?? Infinity)
+          : isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
+        sampleAvailable,
+        activeOnly: !!plotFrame && this.universe.frames.get(plotFrame.frame)?.kind === 'body-fixed',
+        cacheResampleInterval: plotCfg.sampleInterval,
         fadeFraction: plotCfg?.fade ?? 1.0,
         color: plotColor(plotCfg.color),
         opacity: plotCfg.opacity,
@@ -4189,6 +4592,7 @@ export class UniverseRenderer {
         // line doesn't appear as a faceted polygon at high eccentricity.
         numKeySamples: arc.numKeySamples,
       });
+      if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
       // Tag with arc center name so the update loop can position it correctly
       (tl as any)._arcCenterName = arcCenterName;
       tl.layers.set(OVERLAY_LAYER);
@@ -4217,13 +4621,9 @@ export class UniverseRenderer {
         const trajStart = coverStart != null && i > 0 ? Math.max(coverStart, arc.startTime) : coverStart;
         const trajEnd = coverEnd != null && !isLastArc ? Math.min(coverEnd, arc.endTime) : coverEnd;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
-          // Cache must store samples in the SAME frame the trail's runtime
-          // resolver produces, otherwise cached samples and live tail
-          // samples don't agree and the trail draws offset from the marker.
-          // Specifically: for body-fixed arcs the runtime resolver applies
-          // the parent's rotation conjugate (body-fixed → inertial) +
-          // alignment to ECLIPJ2000; the cache MUST do the same. Calling
-          // arcResolver here routes through that exact pipeline.
+          // Cached vertices and the live head must share coordinates: local
+          // anchored plot coordinates for framed paths, historical world
+          // coordinates otherwise. Reuse the exact runtime resolver.
           const cacheResolver = (t: number): [number, number, number] => {
             try {
               return arcResolver(body.name, t);
@@ -4234,6 +4634,7 @@ export class UniverseRenderer {
           const t0 = performance.now();
           const cache = TrajectoryCache.build(cacheResolver, trajStart, trajEnd, {
             maxPoints: 100_000,
+            ...(plotCfg.sampleInterval ? { coarseInterval: plotCfg.sampleInterval, minInterval: Math.min(30, plotCfg.sampleInterval / 4) } : {}),
             coverageWindows: [{ start: trajStart, end: trajEnd }],
           });
           if (cache.count > 0) {
@@ -4325,11 +4726,13 @@ export class UniverseRenderer {
     // (TEME, a CK frame), so each sample rotates at its own epoch.
     const frames = this.universe.frames;
     const srcFrame = this.universe.resolveFrame(body.frame, body.parentName);
-    if (frames.sameFrame(srcFrame, WORLD_FRAME)) return;
+    if (frames.sameFrame(srcFrame, WORLD_FRAME) && !body.surfaceTrajectory) return;
     const p = cache.positions;
     for (let i = 0; i < cache.count; i++) {
       const j = i * 3;
-      const a = frames.transform([p[j], p[j + 1], p[j + 2]], srcFrame, WORLD_FRAME, cache.times[i]);
+      const a = this.universe.trajectoryPlacementAvailable(body, cache.times[i])
+        ? this.universe.toWorldFrame([p[j], p[j + 1], p[j + 2]], srcFrame, body.parentName, cache.times[i])
+        : [NaN, NaN, NaN];
       p[j] = a[0];
       p[j + 1] = a[1];
       p[j + 2] = a[2];
@@ -4447,7 +4850,7 @@ export class UniverseRenderer {
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
     const resolver = (t: number): [number, number, number] => {
       try {
-        return this.universe.relativePositionInWorld(body.name, t);
+        return tl.positionAt(t, (_name, epoch) => this.universe.relativePositionInWorld(body.name, epoch));
       } catch {
         return [NaN, NaN, NaN];
       }
@@ -4505,6 +4908,7 @@ export class UniverseRenderer {
     const t0 = performance.now();
     const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
       maxPoints: 100_000,
+      ...(body.trajectoryPlot?.sampleInterval ? { coarseInterval: body.trajectoryPlot.sampleInterval, minInterval: Math.min(30, body.trajectoryPlot.sampleInterval / 4) } : {}),
       coverageWindows,
     });
     if (cache.count === 0) return false;

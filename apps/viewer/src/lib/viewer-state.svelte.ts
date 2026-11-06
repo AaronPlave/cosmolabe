@@ -1,3 +1,4 @@
+import { normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 /**
  * Reactive viewer state — bridges UniverseRenderer ↔ Svelte reactivity.
  *
@@ -6,12 +7,13 @@
  * whose properties are mutated. We use the latter.
  */
 import {
-  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
+  etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
   resolveViewpoint, presetViewpoint,
-  type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset, type ViewDirection, type ViewPreset, type ViewpointDefinition,
+  type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type ViewDirection, type ViewPreset, type ViewpointDefinition,
 } from '@cosmolabe/core';
-import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
@@ -22,8 +24,13 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
-import { navigateToPlace, selectPlace } from './places';
-import { clearViewerFault, recordViewerFault, recordViewerLog } from './viewer-log.svelte';
+import { workspaceNode } from './workspace.svelte';
+import { clearViewerFault, recordViewerFault, recordViewerLog, setViewerFault } from './viewer-log.svelte';
+import { navigateToPlace, selectPlace, viewportPlace } from './places';
+import { setCatalogActivities } from './analysis.svelte';
+import { activityEvent } from './mission-activities';
+import type { MissionActivity } from '@cosmolabe/core';
+import { resettable } from './session.svelte';
 
 // ── Exported types ──
 
@@ -60,12 +67,51 @@ export function isDisplayOption(value: string): value is DisplayOption {
 
 /** Events the app publishes, independent of which renderer is mounted. */
 export interface ViewerEventMap {
+  probe: Record<string, never>;
+  places: Record<string, never>;
+  measurements: Record<string, never>;
+  geographic: Record<string, never>;
+  instrument: string | null;
+  events: Record<string, never>;
+  bookmarks: Record<string, never>;
+  surface: { body: string };
+  unload: Record<string, never>;
   /** The selection changed; null when it cleared. */
   select: string | null;
   /** Scene time moved. */
   time: number;
   /** A scene finished loading; the payload is its object list. */
   load: readonly string[];
+  /** The scene's initial models, textures and trails settled; its object list. */
+  ready: readonly string[];
+  /** Playback started, stopped or changed rate. */
+  playback: { playing: boolean; rate: number };
+  /** The scene's mission activities changed (catalog load or host update). */
+  activities: number;
+  /** The selected activity changed; null when none is selected. */
+  activitySelect: string | null;
+  /** The person navigated the camera, including between flights. */
+  cameraInput: Record<string, never>;
+  /** A camera flight ended, and how. */
+  flightEnd: { id: number; target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
+}
+
+/** Why the clock last moved: a host's `setTime`, the viewer (scrubber, keys, scripts), or playback. */
+export type TimeChangeCause = 'host' | 'viewer' | 'playback';
+let _hostTimeChange = false;
+let _timeCause: TimeChangeCause = 'viewer';
+/** The cause of the time change being notified right now. */
+export function timeChangeCause(): TimeChangeCause { return _timeCause; }
+/** Run a time change on a host's behalf, so its notification says so. */
+export function asHostTimeChange<T>(fn: () => T): T {
+  _hostTimeChange = true;
+  try { return fn(); } finally { _hostTimeChange = false; }
+}
+let _lastPlayback: { playing: boolean; rate: number } | null = null;
+function notifyPlayback(playing: boolean, rate: number) {
+  if (_lastPlayback && _lastPlayback.playing === playing && _lastPlayback.rate === rate) return;
+  _lastPlayback = { playing, rate };
+  emit('playback', { playing, rate });
 }
 
 // ── Single reactive state object ──
@@ -91,12 +137,16 @@ export const vs = $state({
 
   // Scene
   bodies: [] as BodyEntry[],
+  activities: [] as MissionActivity[],
+  activityMetadataAvailable: false,
   kernelCount: 0,
+  kernelRevision: 0,
 
   // Display
   showTrajectories: true,
   showLabels: true,
   showGrid: false,
+  grid: normalizeGridSettings(),
   showAxes: false,
   showSensors: true,
   showSensorLabels: true,
@@ -124,6 +174,10 @@ export const vs = $state({
   loadingProgress: 0,
   loadingLabel: '',
   loadingDetail: '',
+  /** Stage count beside the status (`9 / 21`); never truncated. */
+  loadingCount: '',
+  /** Measured figures beside the detail (`135.7 MB / 263.2 MB`); never truncated. */
+  loadingFigures: '',
   showLoading: false,
   /** The catalog the load in flight is for — what the loading screen names. */
   loadingCatalog: '',
@@ -168,6 +222,7 @@ export const vs = $state({
    */
   surfaceTarget: null as SurfaceTargetInfo | null,
 });
+resettable(vs);
 
 /** What the view context shows about a surface navigation target. */
 export interface SurfaceTargetInfo {
@@ -229,10 +284,13 @@ export function formatBytes(bytes: number): string {
 
 export function setSceneLoaded(v: boolean) { vs.sceneLoaded = v; }
 export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null = null) {
+  const became = v && !vs.assetsReady;
   vs.assetsReady = v;
   vs.assetSummary = summary;
+  if (became) emit('ready', vs.bodies.map((b) => b.name));
 }
-export function setKernelCount(v: number) { vs.kernelCount = v; }
+/** Changes even when a replacement kernel set has the same file count. */
+export function setKernelCount(v: number) { vs.kernelCount = v; vs.kernelRevision++; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
@@ -293,10 +351,12 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+export function setLoadingState(opts: { label?: string; detail?: string; count?: string; figures?: string; progress?: number; show?: boolean; catalog?: string }) {
   if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
+  if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
   if (opts.show !== undefined) vs.showLoading = opts.show;
 }
@@ -324,7 +384,7 @@ export function onViewerEvent<K extends keyof ViewerEventMap>(
   return () => void set.delete(cb as (data: never) => void);
 }
 
-function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
+export function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
   for (const cb of _eventListeners.get(event) ?? []) {
     try {
       (cb as (d: ViewerEventMap[K]) => void)(data);
@@ -355,6 +415,8 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
+  vs.loadingFigures = '';
   vs.showLoading = true;
 }
 
@@ -362,11 +424,13 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
 export function setPhaseProgress(
   phase: LoadPhase,
   fraction: number,
-  opts: { label?: string; detail?: string } = {},
+  opts: { label?: string; detail?: string; count?: string; figures?: string } = {},
 ) {
   vs.loadingProgress = loadProgress.set(phase, fraction);
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
+  if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   vs.showLoading = true;
 }
 
@@ -375,6 +439,8 @@ export function endLoad() {
   loadProgress.finish();
   vs.loadingProgress = loadProgress.value;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
+  vs.loadingFigures = '';
   vs.showLoading = false;
 }
 
@@ -411,6 +477,7 @@ function syncTimeState() {
   vs.playing = tc.playing;
   vs.rateText = rateLabel(tc.rate);
   vs.timeText = etToUtcString(tc.et);
+  notifyPlayback(tc.playing, tc.rate);
 }
 
 function syncPlaceSelection(tracked: string | null | undefined) {
@@ -460,7 +527,7 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
     if (now - cachedAt < 250) return cached;
     cachedAt = now;
     const origin = canvas().getBoundingClientRect();
-    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+    cached = [...workspaceNode().querySelectorAll<HTMLElement>('[data-scene-occluder]')]
       .map((element) => element.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => ({
@@ -473,10 +540,24 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
   };
 }
 
+/** Counts scenes bound; see `sceneId`. */
+let _sceneId = 0;
+/**
+ * Which scene is bound: changes with every `bindRenderer`, a reload of the
+ * same catalog included, so IDs read from one scene are not taken for
+ * another's.
+ */
+export function sceneId(): number { return _sceneId; }
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
+  _sceneId++;
   _renderer = renderer;
   _universe = universe;
+  renderer.cameraController.onCameraInput = () => emit('cameraInput', {});
+  renderer.cameraController.onFlightEnd = (flight, outcome) =>
+    emit('flightEnd', { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path, outcome });
+  if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
   vs.catalogName = vs.loadingCatalog || null;
   const syncPlaces = () => {
     vs.places = renderer.placeNames?.index ?? null;
@@ -487,13 +568,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   };
   syncPlaces();
   _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  // Other features are Surface layers' (geographic-layers.svelte.ts).
   _unsubscribers.push(renderer.events.on('geographic:click', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
-    if (!place) return;
-    selectPlace(place);
+    const place = viewportPlace(ref);
+    if (place) selectPlace(place);
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+    const place = viewportPlace(ref);
     if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
   }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
@@ -501,7 +582,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // A pinned point belongs to the scene it was probed in; the mode carries over.
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
-  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; emit('probe', {}); }));
   // An instrument belongs to the scene it was chosen in.
   vs.instrumentSensor = null;
 
@@ -509,6 +590,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // instrument view, so a sensor chosen anywhere else — a script, the console —
   // shows in the window, and clearing it closes the window.
   _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    emit('instrument', sensor);
+
     if (sensor == null) {
       closeTool('instrument');
     } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
@@ -522,12 +605,14 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.showTrajectories = prefs.showTrajectories;
   vs.showLabels = prefs.showLabels;
   vs.showGrid = prefs.showGrid;
+  vs.grid = prefs.grid;
   vs.showAxes = prefs.showAxes;
   vs.showSensors = prefs.showSensors;
   vs.showSensorLabels = prefs.showSensorLabels;
   vs.lightingMode = prefs.lightingMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
   renderer.setLabelsVisible(prefs.showLabels);
+  renderer.setGridSettings(prefs.grid);
   renderer.showBodyGrid(prefs.showGrid);
   renderer.showBodyAxes(prefs.showAxes);
   renderer.setSensorLabelsVisible(prefs.showSensorLabels);
@@ -545,13 +630,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // scene, so no `assets:ready` can be missed.
   vs.assetsReady = false;
   vs.assetSummary = null;
-  setPhaseProgress('assets', 0, { label: 'Loading models, textures & trajectories...', detail: '' });
+  setPhaseProgress('assets', 0, { label: 'Loading models and textures', detail: '', count: '', figures: '' });
   _unsubscribers.push(renderer.events.on('assets:progress', (p) => {
     // `total` still grows as nested assets are discovered, so this is a floor on
     // real progress, not a countdown — which is why setPhaseProgress clamps the
     // bar monotonic and nothing here claims 100% before 'assets:ready'.
     setPhaseProgress('assets', p.total > 0 ? p.settled / p.total : 0, {
-      detail: p.total > 0 ? `${p.settled} / ${p.total} assets` : '',
+      count: p.total > 0 ? `${p.settled} / ${p.total}` : '',
     });
   }));
   _unsubscribers.push(renderer.events.on('assets:ready', (summary) => {
@@ -580,13 +665,17 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     endLoad();
   }
 
+  _lastPlayback = null;
   const unsub = renderer.timeController.onTimeChange((newEt: number) => {
     vs.et = newEt;
     vs.timeText = etToUtcString(newEt);
     vs.playing = renderer.timeController.playing;
     vs.rate = renderer.timeController.rate;
     vs.rateText = rateLabel(renderer.timeController.rate);
+    _timeCause = _hostTimeChange ? 'host' : renderer.timeController.playing ? 'playback' : 'viewer';
+    notifyPlayback(vs.playing, vs.rate);
     emit('time', newEt);
+    _timeCause = 'viewer';
   });
   _unsubscribers.push(unsub);
 
@@ -594,7 +683,6 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // (e.g. body mesh positions) can re-derive once per render, even while
   // playback is paused.
   let rafId = 0;
-  let lastFrameFaultId: string | null = null;
   const tick = () => {
     vs.frameTick++;
     // The controller changes what it tracks on its own between calls — a
@@ -604,13 +692,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // for the length of the flight.
     const cc = renderer.cameraController;
     const frameFault = cc.frameFault;
-    if (frameFault) {
-      if (lastFrameFaultId !== frameFault.frameId) recordViewerFault('Camera frame', frameFault.message);
-      lastFrameFaultId = frameFault.frameId;
-    } else {
-      lastFrameFaultId = null;
-      clearViewerFault('Camera frame');
-    }
+    if (frameFault) setViewerFault('Camera frame', `${frameFault.frameId}|${frameFault.reason}`, frameFault.message);
+    else clearViewerFault('Camera frame');
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) {
       vs.trackedBodyName = focus;
@@ -634,10 +717,21 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
 }
 
 export function unbindRenderer() {
+  vs.activities = [];
+  vs.activityMetadataAvailable = false;
+  setCatalogActivities([]);
   for (const unsub of _unsubscribers) unsub();
   _unsubscribers = [];
+  if (_renderer) {
+    _renderer.cameraController.onFlightEnd = null;
+    _renderer.cameraController.onCameraInput = null;
+  }
   _renderer = null;
   _universe = null;
+  if (vs.selectedBodyName !== null) selectBody(null);
+  vs.probePin = null;
+  vs.instrumentSensor = null;
+  vs.note = null;
   vs.surfaceTarget = null;
   _terrainAnchor = null;
   vs.places = null;
@@ -657,6 +751,7 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+  emit('unload', {});
 }
 
 /**
@@ -672,11 +767,17 @@ export function showNextInstrument() {
   if (sensors.length === 0) return;
   const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
   vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  _renderer?.setInstrumentView(vs.instrumentSensor);
   openTool('instrument'); // raise it, so the change is seen
 }
 
 export function getRenderer(): UniverseRenderer | null {
   return _renderer;
+}
+
+/** The scene's universe, or null with no scene. */
+export function getSceneUniverse(): Universe | null {
+  return _universe;
 }
 
 // ── Commands ──
@@ -729,6 +830,10 @@ export function setTime(newEt: number) {
   );
   if (!next) {
     initScrubberRange();
+    // A seek outside everything the scene's data spans (a host following a
+    // live feed, an activity beyond the trajectories) extends the timeline to
+    // it rather than leaving the playhead off the end.
+    extendTimelineBase(newEt, newEt);
     return;
   }
   vs.scrubMin = next.min;
@@ -951,6 +1056,35 @@ export function frameBody(name?: string): boolean {
   return true;
 }
 
+/** Fit a pair using the existing frame/orbit-target ownership. No animation can
+ * reassert the pose after a person takes over. World positions are refreshed
+ * after changing floating origin; no scientific/body coordinates are altered. */
+export function frameBodyPair(target: string, observer: string): boolean {
+  if (!_renderer?.getBodyMesh(target) || !_renderer.getBodyMesh(observer)) return false;
+  if (!frameBody(target)) return false;
+  const r = _renderer, a = navigableMesh(target)!, b = navigableMesh(observer)!;
+  const cc = r.cameraController;
+  if (cc.mode !== CameraModeName.FREE_ORBIT) cc.setMode(CameraModeName.FREE_ORBIT);
+  r.refreshBodyPose(target); r.refreshBodyPose(observer);
+  const pa = a.position.clone(), pb = b.position.clone();
+  const axis = pb.clone().sub(pa), separation = axis.length();
+  if (!Number.isFinite(separation)) return false;
+  if (separation === 0) return true;
+  axis.normalize();
+  const center = pa.clone().add(pb).multiplyScalar(.5);
+  const direction = cc.camera.position.clone().sub(cc.controls.target);
+  direction.addScaledVector(axis, -direction.dot(axis));
+  if (direction.lengthSq() < 1e-20) direction.crossVectors(axis, Math.abs(axis.y) < .9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0));
+  direction.normalize();
+  // Leave margin around the pair for the ordinary docked inspection panels.
+  const radius = separation / 2 + Math.max(a.displayRadius, b.displayRadius) * r.scaleFactor;
+  const halfFov = Math.min(cc.camera.fov * Math.PI / 360, Math.atan(Math.tan(cc.camera.fov * Math.PI / 360) * cc.camera.aspect));
+  cc.camera.position.copy(center).addScaledVector(direction, 2 * radius / Math.sin(halfFov));
+  cc.controls.target.copy(center); cc.camera.lookAt(center); cc.camera.updateMatrixWorld(true);
+  cc.syncOrbitTargetFromCamera(); syncCameraState();
+  return true;
+}
+
 /**
  * Fly: animate to the view `frameBody` would cut to, then track the body.
  * `path` defaults to `DEFAULT_FLIGHT_PATH`; `seconds` to the path's own
@@ -1041,6 +1175,62 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
     target: view.target.multiplyScalar(_renderer.scaleFactor),
     up: view.up,
   }, { path: 'arc', duration: 1.5 });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
+}
+
+/**
+ * Look straight down at a surface area: `northSpanDeg` of latitude by
+ * `eastSpanDeg` of longitude around a centre, fitted to the view with north up.
+ * Over a pole there is no north; the 0° meridian runs down the screen over the
+ * north pole and up it over the south, as polar stereographic maps draw them.
+ *
+ * `datum` places the camera for bodies without streamed terrain (a reference
+ * globe); `minSpanKm` keeps a point from putting the camera on the ground.
+ * `seconds: 0` cuts rather than flies.
+ */
+export function flyOverSurface(
+  bodyName: string,
+  area: { latDeg: number; lonDeg: number; northSpanDeg: number; eastSpanDeg: number },
+  opts: { datum?: TerrainDatum; minSpanKm?: number; seconds?: number } = {},
+): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const pole = Math.abs(area.latDeg) >= 90 - 1e-9;
+  const minSpan = opts.minSpanKm ?? 0;
+  const heightKm = Math.max(minSpan, area.northSpanDeg * rad * bm.displayRadius);
+  const widthKm = Math.max(minSpan, pole ? heightKm : area.eastSpanDeg * rad * bm.displayRadius * Math.cos(area.latDeg * rad));
+  // Measured from the ground where it is resident, so a high plateau does not swallow the camera.
+  const groundKm = bm.sampleTerrain(area.latDeg, area.lonDeg)?.elevationKm ?? 0;
+  const altitudeKm = groundKm + 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  let position = bm.geodeticOffsetKm(area.latDeg, area.lonDeg, altitudeKm, new THREE.Vector3());
+  if (!position && opts.datum) {
+    const p = geodeticToBodyFixed({ latDeg: area.latDeg, lonDeg: area.lonDeg, heightKm: altitudeKm }, opts.datum);
+    // Body-fixed is Z-up; the mesh frame is Y-up with -Z toward +90° lon.
+    position = new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+  }
+  if (!position) return false;
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: opts.seconds ?? 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    // North in the mesh frame; over a pole, toward the 180° meridian (north)
+    // or the 0° meridian (south).
+    up: pole ? new THREE.Vector3(area.latDeg > 0 ? -1 : 1, 0, 0) : new THREE.Vector3(0, 1, 0),
+  });
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.
   vs.trackedBodyName = bodyName;
@@ -1366,13 +1556,21 @@ export function applyViewpoint(name: string, opts: { animate?: boolean } = {}): 
   return true;
 }
 
-function applySemanticViewpoint(definition: ViewpointDefinition, center: string): boolean {
-  if (!_renderer) return false;
-  const body = center ? _renderer.getBodyMesh(center) : undefined;
-  if (!center || !body) return false;
+/** The outcome of a one-shot semantic view, with the reason when it could not be placed. */
+export type ViewResult = { ok: true } | { ok: false; reason: string };
 
+/** The body a semantic view is relative to unless one is named. */
+export function viewCenterName(): string {
+  return vs.trackedBodyName ?? vs.selectedBodyName ?? _renderer?.cameraController.originBody?.body.name ?? '';
+}
+
+function semanticView(definition: ViewpointDefinition, center: string, place: boolean): ViewResult {
+  if (!_renderer) return { ok: false, reason: 'No scene is loaded.' };
+  const body = center ? _renderer.getBodyMesh(center) : undefined;
+  if (!center || !body) return { ok: false, reason: 'Select or track an object first.' };
   try {
     const resolved = resolveViewpoint(_renderer.getContext().universe, definition, vs.et);
+    if (!place) return { ok: true };
     const scale = _renderer.scaleFactor;
     _renderer.cameraController.establishView({
       position: new THREE.Vector3(...resolved.eye).multiplyScalar(scale),
@@ -1380,39 +1578,32 @@ function applySemanticViewpoint(definition: ViewpointDefinition, center: string)
       up: new THREE.Vector3(...resolved.up),
     }, { origin: body, track: body });
     syncCameraState();
-    return true;
+    return { ok: true };
   } catch (error) {
-    recordViewerFault('Camera viewpoint', error instanceof Error ? error.message : String(error));
-    return false;
+    // Not an application fault: the reason belongs beside the control that asked.
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
   }
 }
 
-/** Apply a semantic direction as a camera relationship to the current center. */
-export function setViewFromDirection(direction: ViewDirection, centerName?: string): boolean {
-  if (!_renderer) return false;
-  const center = centerName
-    ?? vs.trackedBodyName
-    ?? vs.selectedBodyName
-    ?? _renderer.cameraController.originBody?.body.name;
-  const body = center ? _renderer.getBodyMesh(center) : undefined;
-  if (!center || !body) return false;
+function viewDistanceKm(center: string): number {
+  const body = _renderer?.getBodyMesh(center);
+  if (!_renderer || !body) return 1;
   const rangeKm = _renderer.camera.position.distanceTo(_renderer.cameraController.controls.target) / _renderer.scaleFactor;
-  const distance = Math.max(rangeKm, body.displayRadius * 3, 1);
-  return applySemanticViewpoint({ name: `${center}: vector view`, center, distance, from: direction }, center);
+  return Math.max(rangeKm, body.displayRadius * 3, 1);
 }
 
-/** The named vector-derived views are ordinary semantic viewpoints, not modes. */
-export function applyViewPreset(preset: ViewPreset, centerName?: string): boolean {
-  if (!_renderer) return false;
-  const center = centerName
-    ?? vs.trackedBodyName
-    ?? vs.selectedBodyName
-    ?? _renderer.cameraController.originBody?.body.name;
-  const body = center ? _renderer.getBodyMesh(center) : undefined;
-  if (!center || !body) return false;
-  const rangeKm = _renderer.camera.position.distanceTo(_renderer.cameraController.controls.target) / _renderer.scaleFactor;
-  const distance = Math.max(rangeKm, body.displayRadius * 3, 1);
-  return applySemanticViewpoint(presetViewpoint(preset, center, distance), center);
+/** Place the camera along a direction from `centerName`, as a one-shot free-orbit view. */
+export function setViewFromDirection(direction: ViewDirection, centerName = viewCenterName(), opts: { place?: boolean } = {}): ViewResult {
+  return semanticView({ name: `${centerName}: vector view`, center: centerName, distance: viewDistanceKm(centerName), from: direction }, centerName, opts.place !== false);
+}
+
+/**
+ * One-shot Top (orbital normal), Sun or Velocity view of `centerName`. It is an
+ * ordinary semantic viewpoint, not a locked-frame mode: the camera ends in free
+ * orbit. `place: false` only checks whether the view exists now.
+ */
+export function applyViewPreset(preset: ViewPreset, centerName = viewCenterName(), opts: { place?: boolean } = {}): ViewResult {
+  return semanticView(presetViewpoint(preset, centerName, viewDistanceKm(centerName)), centerName, opts.place !== false);
 }
 
 /** Vertical field of view, in degrees. */
@@ -1485,6 +1676,7 @@ export function setCameraPose(
   // frame otherwise turns the camera on the next frame by the rotation since
   // the last one drawn — after a seek in the same script, hours of it.
   if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
+  cc.syncOrbitTargetFromCamera();
   return true;
 }
 
@@ -1650,6 +1842,17 @@ export function lookAtBody(name: string) {
  * or an embed host driving the view should not silently rewrite what the person
  * chose in the Display panel and will see again on their next visit.
  */
+/** UI and scripts use the same state operation. Scripts opt out of local preferences. */
+export function setGridSettings(settings: Partial<GridSettings>, opts: { persist?: boolean } = {}): void {
+  vs.grid = normalizeGridSettings({ ...vs.grid, ...settings });
+  _renderer?.setGridSettings(vs.grid);
+  if (opts.persist !== false) savePrefs({ grid: vs.grid });
+}
+export function setBodyGridOption(name: string, key: 'visible' | 'labels', value: boolean, opts: { persist?: boolean } = {}): void {
+  setGridSettings({ perBody: { ...vs.grid.perBody, [name]: { ...vs.grid.perBody[name], [key]: value } } }, opts);
+  if (key === 'visible' && value) setDisplayOption('grid', true, opts);
+}
+
 export function setDisplayOption(
   option: DisplayOption,
   value: boolean,
@@ -1756,4 +1959,32 @@ export function syncBodies(universe: Universe) {
     parentName: b.parentName,
   }));
   emit('load', vs.bodies.map(b => b.name));
+  // Scene listeners first invalidate the old catalog's searches/selection.
+  // Publish this catalog's activities afterwards so that reset cannot erase them.
+  syncActivities(universe);
+}
+
+function syncActivities(universe: Universe) {
+  vs.activities = [...universe.activities.list()];
+  vs.activityMetadataAvailable = universe.activities.available;
+  setCatalogActivities(vs.activities.map(activityEvent));
+  emit('activities', vs.activities.length);
+}
+
+/**
+ * Grow the timeline's full range to include [min, max], padded a little, and
+ * the visible window with it when it was showing the whole range. Never
+ * shrinks: data that arrives later only ever extends what can be navigated.
+ */
+export function extendTimelineBase(min: number, max: number) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+  if (min >= vs.scrubBaseMin && max <= vs.scrubBaseMax) return;
+  const pad = Math.max(5, Math.min((max - min) * 0.05, 3600));
+  const whole = vs.scrubMin === vs.scrubBaseMin && vs.scrubMax === vs.scrubBaseMax;
+  vs.scrubBaseMin = Math.min(vs.scrubBaseMin, min - pad);
+  vs.scrubBaseMax = Math.max(vs.scrubBaseMax, max + pad);
+  if (whole) {
+    vs.scrubMin = vs.scrubBaseMin;
+    vs.scrubMax = vs.scrubBaseMax;
+  }
 }

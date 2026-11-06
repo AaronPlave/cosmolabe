@@ -22,8 +22,9 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin, Aperture } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture, MessageCircleQuestionMark } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
+import { resettable } from './session.svelte';
 
 /**
  * What a rail icon is. Taken from a concrete icon rather than written as
@@ -41,7 +42,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -78,6 +79,11 @@ export interface ToolDef {
   dock: 'left' | 'right';
   /** Panel width in px at the desktop layout; ignored when compact. */
   width: number;
+  /**
+   * Offered only when something enables it (`enableTool`): the Ask prompt
+   * exists only where a deployment or host configured a model.
+   */
+  optional?: boolean;
 }
 
 /**
@@ -89,12 +95,18 @@ export const TOOLS: readonly ToolDef[] = [
   // A place on a body by latitude and longitude (#190). A panel, not a
   // dialog: it stays beside the scene for trying the next place or view.
   { id: 'navigate', label: 'Navigate', icon: MapPin,  presentation: 'panel',  dock: 'left',  width: 288 },
+  // Imagery and vector layers per body, in one place (#198).
+  { id: 'layers',  label: 'Surface layers', icon: Layers, presentation: 'panel', dock: 'left', width: 340 },
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // The view from a physical instrument (#192): a second camera, not a
   // replacement for the main one, so it is a window like any other tool.
   { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440 },
-  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right',  width: 380 },
+  // Natural-language control (#311), only where a model is configured. Cmd/Ctrl-K
+  // stays the command palette; Script remains the deterministic way to author
+  // the same actions.
+  { id: 'ask', label: 'Ask Cosmolabe', icon: MessageCircleQuestionMark, presentation: 'panel', dock: 'right', width: 360, optional: true },
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380 },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];
@@ -214,7 +226,32 @@ export const shell = $state({
    * swallowed its clicks.
    */
   chromeBottom: 0,
+
+  /**
+   * Measured height of the compact sheet, in px; 0 when none shows. Tools
+   * floating over the scene (the Draw bar) sit above it rather than over it.
+   */
+  sheetHeight: 0,
+
+  /** Optional tools switched on for this session; see `ToolDef.optional`. */
+  enabledTools: [] as ToolId[],
 });
+resettable(shell);
+
+/** Offer an optional tool. */
+export function enableTool(id: ToolId) {
+  if (!shell.enabledTools.includes(id)) shell.enabledTools.push(id);
+}
+
+/** Whether the rail, palette and shortcuts offer `id`. */
+export function isToolAvailable(id: ToolId): boolean {
+  return !toolDef(id).optional || shell.enabledTools.includes(id);
+}
+
+/** The tools this session offers, in table order. */
+export function availableTools(): ToolDef[] {
+  return TOOLS.filter((t) => isToolAvailable(t.id));
+}
 
 // ── Open / close ──
 
@@ -224,6 +261,7 @@ export function isToolOpen(id: ToolId): boolean {
 
 /** Opens `id`, or raises it to the top of the stack if already open. */
 export function openTool(id: ToolId) {
+  if (!isToolAvailable(id)) return;
   closeToolSilently(id);
   shell.openTools.push(id);
   shell.panels[id].minimized = false;
@@ -236,8 +274,21 @@ function closeToolSilently(id: ToolId) {
   if (i >= 0) shell.openTools.splice(i, 1);
 }
 
+/** Work that ends with a tool, registered by the module that owns it. */
+const closeHandlers: { id: ToolId; end: () => void }[] = [];
+
+/**
+ * Run `end` whenever `id` closes, by any path — its button, Escape, the rail
+ * or `closeAllTools`. Minimizing is not closing.
+ */
+export function onToolClose(id: ToolId, end: () => void) {
+  closeHandlers.push({ id, end });
+}
+
 export function closeTool(id: ToolId) {
+  const wasOpen = isToolOpen(id);
   closeToolSilently(id);
+  if (wasOpen) for (const handler of closeHandlers) if (handler.id === id) handler.end();
   // Minimizing is a view state and closing resets it, so reopening a panel does
   // not hand it back collapsed. Its float rect survives: where the user put an
   // instrument is a preference, not a transient.

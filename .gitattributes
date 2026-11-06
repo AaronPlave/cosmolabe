@@ -1,6 +1,6 @@
 # git-lfs tiering.
 #
-# Extensions below are reliably large in this repo (kernels, GPU textures,
+# Extensions below are reliably large in this repo (GPU textures,
 # spacecraft .glb meshes), so route them through LFS. Mixed-size formats
 # (.png/.jpg/.obj/.cmod/.gltf) are NOT LFS-routed by default — most files in
 # those formats are small enough that LFS is overhead. Specific large files
@@ -11,10 +11,16 @@
 #   - If the format is variable-size, leave it as a regular blob and add a
 #     path rule only if the specific file is multi-MB.
 
-# Always-large data formats
-*.bsp filter=lfs diff=lfs merge=lfs -text
-*.bc filter=lfs diff=lfs merge=lfs -text
-*.bpc filter=lfs diff=lfs merge=lfs -text
+# Mission-specific kernels are fetched / R2-hosted. Small scientific fixtures are Git
+# binaries; shared DE440s and the full-size numerical/attitude oracles need LFS.
+*.bsp -text
+*.bc -text
+*.bpc -text
+apps/viewer/test-catalogs/kernels/de440s.bsp filter=lfs diff=lfs merge=lfs -text
+kernels/test-data/de425s.bsp filter=lfs diff=lfs merge=lfs -text
+kernels/test-data/cassini/04183_04185ra.bc filter=lfs diff=lfs merge=lfs -text
+# Preserve the byte-pinned upstream clock, including its original whitespace.
+kernels/test-data/msl/MSL_76_SCLKSCET.00012.tsc -text -whitespace
 *.tif filter=lfs diff=lfs merge=lfs -text
 *.gz filter=lfs diff=lfs merge=lfs -text
 
@@ -44,3 +50,11 @@ apps/viewer/test-catalogs/textures/moon-normal-16k.jpg filter=lfs diff=lfs merge
 # the ~1 MB threshold above, and small enough that a plain blob is cheaper for
 # every clone and CI run than an LFS round-trip. `-filter` overrides *.bsp.
 kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp -filter -diff -merge -text
+
+# Small reproducibility inventories must survive a plain clone and offline CI.
+docs/validation/ingenuity-jezero/evidence/*-responses.json.gz -filter -diff -merge -text
+# Bounded Curiosity source evidence and response inventories are small fixtures.
+docs/validation/curiosity-gale/evidence/*.gz -filter -diff -merge -text
+docs/validation/curiosity-gale/evidence/*.tif -filter -diff -merge -text
+# Preserve byte-exact public PDS evidence, including its original whitespace.
+docs/validation/ingenuity-jezero/evidence/flight-12-pds-label.xml -text -whitespace

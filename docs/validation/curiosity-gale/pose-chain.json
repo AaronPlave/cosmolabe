@@ -1,0 +1,604 @@
+{
+  "version": 1,
+  "kernels": [
+    {
+      "name": "naif0012.tls",
+      "bytes": 5257,
+      "sha256": "678e32bdb5a744117a467cd9601cd6b373f0e9bc9bbde1371d5eee39600a039b"
+    },
+    {
+      "name": "pck00011.tpc",
+      "bytes": 131226,
+      "sha256": "3dff7b1dbeceaa01f25467767d3fa25816051c85d162d1edf04acb310ee28bb1"
+    },
+    {
+      "name": "msl/msl.tf",
+      "bytes": 203973,
+      "sha256": "e9f923e335b786db8b635dc1429bcd5aa88e1985bc507b28c63dc67d23f1328e"
+    },
+    {
+      "name": "msl/msl_tp_ops120808_iau2000_v1.tf",
+      "bytes": 3324,
+      "sha256": "2546ec4d608a86b8789be7a8b571a96fd57b4413d7cd36e6047b58b755c59a14"
+    },
+    {
+      "name": "msl/MSL_76_SCLKSCET.00012.tsc",
+      "bytes": 6871,
+      "sha256": "ff2830a817b9c17e8c4487075b5a543cda719f932777a909c422204f13acf68c"
+    },
+    {
+      "name": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+      "bytes": 7168,
+      "sha256": "0dc0443caac69d0550b6233346fa4c505e1be378354d2bb676e1a32668f1f250"
+    },
+    {
+      "name": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+      "bytes": 2709504,
+      "sha256": "7d351e251845bda6368da4a94d547c28b4bd7f4d12db0ac36cb3a1730a12d6cf"
+    },
+    {
+      "name": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+      "bytes": 477184,
+      "sha256": "635760c093c736661479cc1a6862cb7058d6566a646ed2e36ab0ec9bf060b0ff"
+    },
+    {
+      "name": "msl/msl_surf_rover_tlm_0449_0583_v1.bc",
+      "bytes": 334848,
+      "sha256": "77f39b4bca8299dff3115a912fd0dc55b3428a15631fa3883b1b94331006f7db"
+    }
+  ],
+  "frame": "IAU_MARS",
+  "center": "499",
+  "abcorr": "NONE",
+  "originalSelection": "catalog order: telemetry loaded after localized",
+  "alternative": "same existing localized SPK loaded last; separate source solution, no fitted offsets",
+  "placesAnchor": {
+    "frame": "ROVER",
+    "site": "26",
+    "drive": "184",
+    "pose": "-1",
+    "landing_x": "-2198.119",
+    "landing_y": "-2037.296",
+    "landing_z": "-14.300",
+    "northing": "-274237.387",
+    "easting": "8144773.927",
+    "planetocentric_latitude": "-4.626550593",
+    "planetodetic_latitude": "-4.681256293",
+    "longitude": "137.407262581",
+    "elevation": "-4486.740",
+    "map_pixel_line": "10893.55",
+    "map_pixel_sample": "14943.71",
+    "dem_pixel_line": "2724.31",
+    "dem_pixel_sample": "3736.43",
+    "roll": "-2.870",
+    "pitch": "0.096",
+    "yaw": "-130.962",
+    "quat_s": "0.414884300",
+    "quat_v1": "-0.009631204",
+    "quat_v2": "0.023134844",
+    "quat_v3": "-0.909529030",
+    "sclk": "444369371",
+    "sol": "528"
+  },
+  "rows": [
+    {
+      "utc": "2014-01-29T12:00:00Z",
+      "et": 444268867.1847237,
+      "telemetryPositionKm": {
+        "x": -2488.3215391911244,
+        "y": 2287.658435935317,
+        "z": -273.6100779528268
+      },
+      "telemetryChain": [
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 441350517.1322672,
+          "endEt": 444283604.7247601,
+          "target": -76,
+          "center": -76525,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "MSL wrt site 25"
+        },
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76525,
+          "center": -76900,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "LS-to-25 -2171.900 -1955.424 -28.395"
+        },
+        {
+          "kernel": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76900,
+          "center": 499,
+          "frameId": 10014,
+          "type": 8,
+          "segmentId": "LS"
+        }
+      ],
+      "roverToBody": [
+        0.4388791053519604,
+        0.5860750854098441,
+        0.6811028741293832,
+        0.4654055726859798,
+        0.5001357576026606,
+        -0.7302478188122494,
+        -0.7686239547387903,
+        0.637479582597793,
+        -0.05326347691097244
+      ],
+      "localizedPositionKm": {
+        "x": -2488.383479295,
+        "y": 2287.571538036,
+        "z": -273.558289111
+      },
+      "localizedChain": [
+        {
+          "kernel": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+          "startEt": 444012669.44999856,
+          "endEt": 469586695.3998472,
+          "target": -76,
+          "center": 499,
+          "frameId": 10014,
+          "type": 9,
+          "segmentId": "MARS -to- ROVER, LOCALIZED"
+        }
+      ],
+      "localizedRoverToBody": [
+        0.4388791053519604,
+        0.5860750854098441,
+        0.6811028741293832,
+        0.4654055726859798,
+        0.5001357576026606,
+        -0.7302478188122494,
+        -0.7686239547387903,
+        0.637479582597793,
+        -0.05326347691097244
+      ],
+      "telemetryGroundComparison": {
+        "planetocentricLatDeg": -4.6278402356653405,
+        "eastLonDeg": 137.4058708292338,
+        "roverOriginRadiusM": 3391163.1745856553,
+        "areoidRadiusM": 3395633.36973542,
+        "demAreoidElevationM": -4488.105762635419,
+        "signedRadialOriginMinusDemM": 17.91061287053435,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "localizedGroundComparison": {
+        "planetocentricLatDeg": -4.626986091186238,
+        "eastLonDeg": 137.40766580541893,
+        "roverOriginRadiusM": 3391145.826885364,
+        "areoidRadiusM": 3395633.3926213286,
+        "demAreoidElevationM": -4487.380535842523,
+        "signedRadialOriginMinusDemM": -0.18520012204680825,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "solutionSeparationM": 118.6166325249046,
+      "attitudeMatrixMaxDifference": 0.0
+    },
+    {
+      "utc": "2014-02-01T12:00:00Z",
+      "et": 444528067.1848007,
+      "telemetryPositionKm": {
+        "x": -2488.3073656202105,
+        "y": 2287.6767729409294,
+        "z": -273.583343030371
+      },
+      "telemetryChain": [
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 444283604.7247601,
+          "endEt": 445884405.44301397,
+          "target": -76,
+          "center": -76526,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "MSL wrt site 26"
+        },
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76526,
+          "center": -76900,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "LS-to-26 -2249.814 -2131.080 -29.270"
+        },
+        {
+          "kernel": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76900,
+          "center": 499,
+          "frameId": 10014,
+          "type": 8,
+          "segmentId": "LS"
+        }
+      ],
+      "roverToBody": [
+        0.5485977127695342,
+        0.36103645573819954,
+        0.7541175154921379,
+        0.5214649768749106,
+        0.5572821358701581,
+        -0.6461508329584075,
+        -0.6535402263341444,
+        0.7477227418421843,
+        0.11745583806316962
+      ],
+      "localizedPositionKm": {
+        "x": -2488.369383574,
+        "y": 2287.5908919009994,
+        "z": -273.532649405
+      },
+      "localizedChain": [
+        {
+          "kernel": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+          "startEt": 444012669.44999856,
+          "endEt": 469586695.3998472,
+          "target": -76,
+          "center": 499,
+          "frameId": 10014,
+          "type": 9,
+          "segmentId": "MARS -to- ROVER, LOCALIZED"
+        }
+      ],
+      "localizedRoverToBody": [
+        0.5485977127695342,
+        0.36103645573819954,
+        0.7541175154921379,
+        0.5214649768749106,
+        0.5572821358701581,
+        -0.6461508329584075,
+        -0.6535402263341444,
+        0.7477227418421843,
+        0.11745583806316962
+      ],
+      "telemetryGroundComparison": {
+        "planetocentricLatDeg": -4.627387311085204,
+        "eastLonDeg": 137.405479403755,
+        "roverOriginRadiusM": 3391162.9876543665,
+        "areoidRadiusM": 3395633.397738608,
+        "demAreoidElevationM": -4486.91635121719,
+        "signedRadialOriginMinusDemM": 16.5062669756544,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "localizedGroundComparison": {
+        "planetocentricLatDeg": -4.626550593392789,
+        "eastLonDeg": 137.40726258108816,
+        "roverOriginRadiusM": 3391146.4710488957,
+        "areoidRadiusM": 3395633.4170689224,
+        "demAreoidElevationM": -4486.7383904059425,
+        "signedRadialOriginMinusDemM": -0.20762962074877578,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "solutionSeparationM": 117.43774208045673,
+      "attitudeMatrixMaxDifference": 0.0
+    },
+    {
+      "utc": "2014-02-05T12:00:00Z",
+      "et": 444873667.1848999,
+      "telemetryPositionKm": {
+        "x": -2488.3053323162235,
+        "y": 2287.679223145563,
+        "z": -273.5862093501629
+      },
+      "telemetryChain": [
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 444283604.7247601,
+          "endEt": 445884405.44301397,
+          "target": -76,
+          "center": -76526,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "MSL wrt site 26"
+        },
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76526,
+          "center": -76900,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "LS-to-26 -2249.814 -2131.080 -29.270"
+        },
+        {
+          "kernel": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76900,
+          "center": 499,
+          "frameId": 10014,
+          "type": 8,
+          "segmentId": "LS"
+        }
+      ],
+      "roverToBody": [
+        0.45903319053512515,
+        -0.11579330127914572,
+        0.8808407582338709,
+        0.8651151527671816,
+        -0.16733782192398758,
+        -0.47283593963059956,
+        0.20214920835798364,
+        0.9790760770913629,
+        0.023360925230557855
+      ],
+      "localizedPositionKm": {
+        "x": -2488.367197294,
+        "y": 2287.592744464,
+        "z": -273.53544663800005
+      },
+      "localizedChain": [
+        {
+          "kernel": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+          "startEt": 444012669.44999856,
+          "endEt": 469586695.3998472,
+          "target": -76,
+          "center": 499,
+          "frameId": 10014,
+          "type": 9,
+          "segmentId": "MARS -to- ROVER, LOCALIZED"
+        }
+      ],
+      "localizedRoverToBody": [
+        0.45903319053512515,
+        -0.11579330127914572,
+        0.8808407582338709,
+        0.8651151527671816,
+        -0.16733782192398758,
+        -0.47283593963059956,
+        0.20214920835798364,
+        0.9790760770913629,
+        0.023360925230557855
+      ],
+      "telemetryGroundComparison": {
+        "planetocentricLatDeg": -4.627435361358867,
+        "eastLonDeg": 137.4054255017228,
+        "roverOriginRadiusM": 3391163.379843535,
+        "areoidRadiusM": 3395633.396294627,
+        "demAreoidElevationM": -4486.541397265923,
+        "signedRadialOriginMinusDemM": 16.52494617395132,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "localizedGroundComparison": {
+        "planetocentricLatDeg": -4.626598185377295,
+        "eastLonDeg": 137.40721438176905,
+        "roverOriginRadiusM": 3391146.342118043,
+        "areoidRadiusM": 3395633.415177485,
+        "demAreoidElevationM": -4486.922194127064,
+        "signedRadialOriginMinusDemM": -0.15086531492306676,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "solutionSeparationM": 117.82483094095555,
+      "attitudeMatrixMaxDifference": 0.0
+    },
+    {
+      "utc": "2014-02-08T12:00:00Z",
+      "et": 445132867.18497145,
+      "telemetryPositionKm": {
+        "x": -2488.3004330513586,
+        "y": 2287.6837079105685,
+        "z": -273.5856860370333
+      },
+      "telemetryChain": [
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 444283604.7247601,
+          "endEt": 445884405.44301397,
+          "target": -76,
+          "center": -76526,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "MSL wrt site 26"
+        },
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76526,
+          "center": -76900,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "LS-to-26 -2249.814 -2131.080 -29.270"
+        },
+        {
+          "kernel": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76900,
+          "center": 499,
+          "frameId": 10014,
+          "type": 8,
+          "segmentId": "LS"
+        }
+      ],
+      "roverToBody": [
+        0.7222837137039679,
+        0.05944593552377471,
+        0.6890373122463743,
+        0.6909678859913156,
+        -0.10450874266928886,
+        -0.7152910619002426,
+        0.029489276808640677,
+        0.9927457395805773,
+        -0.11656019516934495
+      ],
+      "localizedPositionKm": {
+        "x": -2488.361633341,
+        "y": 2287.5972389000003,
+        "z": -273.5348774579999
+      },
+      "localizedChain": [
+        {
+          "kernel": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+          "startEt": 444012669.44999856,
+          "endEt": 469586695.3998472,
+          "target": -76,
+          "center": 499,
+          "frameId": 10014,
+          "type": 9,
+          "segmentId": "MARS -to- ROVER, LOCALIZED"
+        }
+      ],
+      "localizedRoverToBody": [
+        0.7222837137039679,
+        0.05944593552377471,
+        0.6890373122463743,
+        0.6909678859913156,
+        -0.10450874266928886,
+        -0.7152910619002426,
+        0.029489276808640677,
+        0.9927457395805773,
+        -0.11656019516934495
+      ],
+      "telemetryGroundComparison": {
+        "planetocentricLatDeg": -4.627427327241044,
+        "eastLonDeg": 137.40531333167402,
+        "roverOriginRadiusM": 3391162.768161885,
+        "areoidRadiusM": 3395633.3984749857,
+        "demAreoidElevationM": -4486.488885666194,
+        "signedRadialOriginMinusDemM": 15.85857256543477,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "localizedGroundComparison": {
+        "planetocentricLatDeg": -4.626590036877815,
+        "eastLonDeg": 137.4070944655163,
+        "roverOriginRadiusM": 3391145.2453252953,
+        "areoidRadiusM": 3395633.4165787664,
+        "demAreoidElevationM": -4487.829249898084,
+        "signedRadialOriginMinusDemM": -0.3420035730860036,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "solutionSeparationM": 117.48990145636796,
+      "attitudeMatrixMaxDifference": 0.0
+    },
+    {
+      "utc": "2014-01-30T16:05:36.470",
+      "et": 444370003.6545424,
+      "role": "exact PLACES site26 drive184 SCLK",
+      "telemetryPositionKm": {
+        "x": -2488.3073656202105,
+        "y": 2287.6767729409294,
+        "z": -273.583343030371
+      },
+      "telemetryChain": [
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 444283604.7247601,
+          "endEt": 445884405.44301397,
+          "target": -76,
+          "center": -76526,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "MSL wrt site 26"
+        },
+        {
+          "kernel": "msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76526,
+          "center": -76900,
+          "frameId": -76910,
+          "type": 9,
+          "segmentId": "LS-to-26 -2249.814 -2131.080 -29.270"
+        },
+        {
+          "kernel": "msl/msl_ls_ops120808_iau2000_v1.bsp",
+          "startEt": 31579200,
+          "endEt": 3155716800,
+          "target": -76900,
+          "center": 499,
+          "frameId": 10014,
+          "type": 8,
+          "segmentId": "LS"
+        }
+      ],
+      "roverToBody": [
+        0.5486337742269821,
+        0.3546655902149952,
+        0.7571085132891493,
+        0.5217384833486928,
+        0.5623625535031377,
+        -0.6415117406645309,
+        -0.653291616944885,
+        0.7469676549455667,
+        0.123488403077609
+      ],
+      "localizedPositionKm": {
+        "x": -2488.369383574,
+        "y": 2287.590891901,
+        "z": -273.5326494049999
+      },
+      "localizedChain": [
+        {
+          "kernel": "msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+          "startEt": 444012669.44999856,
+          "endEt": 469586695.3998472,
+          "target": -76,
+          "center": 499,
+          "frameId": 10014,
+          "type": 9,
+          "segmentId": "MARS -to- ROVER, LOCALIZED"
+        }
+      ],
+      "localizedRoverToBody": [
+        0.5486337742269821,
+        0.3546655902149952,
+        0.7571085132891493,
+        0.5217384833486928,
+        0.5623625535031377,
+        -0.6415117406645309,
+        -0.653291616944885,
+        0.7469676549455667,
+        0.123488403077609
+      ],
+      "telemetryGroundComparison": {
+        "planetocentricLatDeg": -4.627387311085204,
+        "eastLonDeg": 137.405479403755,
+        "roverOriginRadiusM": 3391162.9876543665,
+        "areoidRadiusM": 3395633.397738608,
+        "demAreoidElevationM": -4486.91635121719,
+        "signedRadialOriginMinusDemM": 16.5062669756544,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "localizedGroundComparison": {
+        "planetocentricLatDeg": -4.626550593392788,
+        "eastLonDeg": 137.40726258108813,
+        "roverOriginRadiusM": 3391146.471048896,
+        "areoidRadiusM": 3395633.4170689224,
+        "demAreoidElevationM": -4486.738390405772,
+        "signedRadialOriginMinusDemM": -0.20762962045319,
+        "convention": "same epoch and same planetocentric ray; positive outward; not wheel clearance"
+      },
+      "solutionSeparationM": 117.43774208014872,
+      "attitudeMatrixMaxDifference": 0.0
+    }
+  ],
+  "groundInputs": [
+    {
+      "file": "gale-dingo-dem-window.tif",
+      "bytes": 641163,
+      "sha256": "0e82a5a8a6c1ce970ee3c1867009842f605546b7bd8f692568d2517ced7eb5c9"
+    },
+    {
+      "file": "MEGA90N000EB.LBL",
+      "bytes": 3760,
+      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+    },
+    {
+      "file": "MEGA90N000EB.IMG",
+      "bytes": 33177600,
+      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+    }
+  ],
+  "conclusion": "Catalog SPK precedence selects telemetry. The existing separately evaluated NAIF localized position product follows PLACES localized_interp and agrees with the orbital DEM here; it shares provenance and does not establish independent absolute accuracy. No fit or viewer transform change is required to represent either source."
+}

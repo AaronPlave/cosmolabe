@@ -255,7 +255,11 @@ def raster_open(path):
         # A global cylindrical raster wraps in longitude: windows then cross the antimeridian instead of spanning the globe.
         x0, x1 = (tr.TransformPoint(lon, 0.0)[0] for lon in (-180.0, 180.0))
         period = x1 - x0 if abs(abs(x1 - x0) - ds.RasterXSize * gt[1]) < 2 * gt[1] else None
-        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period, premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
+        eqc_zero = srs.GetAttrValue('PROJECTION') == 'Equirectangular' and srs.GetLinearUnits() == 1 and all(
+            abs(srs.GetProjParm(key, 0)) < 1e-14 for key in
+            ['central_meridian', 'latitude_of_origin', 'standard_parallel_1', 'false_easting', 'false_northing'])
+        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period,
+                          eqc_zero=eqc_zero, radius_m=a, premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
     return _SRC[path]
 
 
@@ -279,8 +283,14 @@ def raster_tile(path, face, L, x, y, T, g, ss):
     d = directions(face, U, V)
     lon, lat = lonlat(d)
     shape = lon.shape
-    pts = np.array(src['tr'].TransformPoints(np.column_stack([lon.ravel(), lat.ravel()]).tolist()))[:, :2]
-    px, py = pts[:, 0], pts[:, 1]
+    if src['eqc_zero']:
+        # Exact spherical zero-origin EQC, independently checked against GDAL
+        # and native-window registration tests. Avoid constructing tens of
+        # millions of Python point lists for each full-resolution mission tile.
+        px, py = np.radians(lon.ravel())*src['radius_m'], np.radians(lat.ravel())*src['radius_m']
+    else:
+        pts = np.array(src['tr'].TransformPoints(np.column_stack([lon.ravel(), lat.ravel()]).tolist()))[:, :2]
+        px, py = pts[:, 0], pts[:, 1]
     gt = src['gt']
     if src['period']:  # unwrap about the tile centre, so a tile across the antimeridian reads two narrow windows
         u0, v0, size = tile_rect(L, x, y)
@@ -573,7 +583,7 @@ def cmd_xyz(args):
     if 'lockedTiles' in identity_config:
         # Local response bindings are not source identities. Content pins survive
         # relocation to a different worker/cache directory.
-        identity_config['lockedTiles'] = {key: {'sha256': entry['sha256']} for key, entry in source['lockedTiles'].items()}
+        identity_config['lockedTiles'] = {key: {'sha256': entry['sha256'], **({'unavailable': entry['unavailable']} if entry.get('unavailable') else {})} for key, entry in source['lockedTiles'].items()}
     run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': identity_config,
          'adapterSha256': hashlib.sha256(open(os.path.join(os.path.dirname(__file__), 'cube_xyz.py'), 'rb').read()).hexdigest()})
 
@@ -586,7 +596,7 @@ def cmd_nac(args):
             'attribution': 'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'url': args.source}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner',
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
                     'registrationErrorKm': None,
                     'resampling': f'bilinear from the overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; nodata 0 → alpha',
                     'footprint': 'LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S); transparent elsewhere'}
@@ -603,7 +613,7 @@ def cmd_composite(args):
                            'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'base': os.path.basename(args.base), 'detail': args.detail}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': None,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner', 'registrationErrorKm': None,
                     'resampling': f'each source bilinear from its overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; '
                                   'detail composited over base by its coverage (nodata 0 → base)',
                     'footprint': f'global (base, levels 0–{args.global_level}); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)'}
@@ -725,6 +735,8 @@ def main():
     sub.choices['fixture'].add_argument('--body', default='Moon')
     sub.choices['fixture'].add_argument('--frame')
     sub.choices['nac'].add_argument('--source', required=True)
+    for name in ['nac', 'composite']:
+        sub.choices[name].add_argument('--frame', required=True, help='Audited physical lunar frame realization')
     sub.choices['xyz'].add_argument('--source', required=True, help='XYZ source JSON; explicit latitudeConvention and disk cache required')
     sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
     sub.choices['xyz'].add_argument('--body', required=True)

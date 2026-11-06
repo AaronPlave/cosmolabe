@@ -1,0 +1,13 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "selectedActivity": "ingenuity:flight:12",
+  "tracked": "Ingenuity",
+  "playing": false,
+  "answerVisible": true,
+  "followUpVisible": true,
+  "transport": "Real Sonnet 5.5; see current-acceptance.json",
+  "errors": []
+}

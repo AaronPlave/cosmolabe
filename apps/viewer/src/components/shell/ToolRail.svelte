@@ -22,13 +22,19 @@
    * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
-  import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check, Activity, AlertTriangle } from 'lucide-svelte';
+  import * as Popover from '$lib/components/ui/popover';
+  import CameraControls from './CameraControls.svelte';
+  import KeyboardHelp from './KeyboardHelp.svelte';
+  import ViewerLogPanel from './ViewerLogPanel.svelte';
+  import { viewerLog } from '../../lib/viewer-log.svelte';
+  import { availableTools, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { shortcutFor } from '../../lib/keymap';
   import { onDestroy } from 'svelte';
   import { copyViewLink } from '../../lib/view-link';
   import { ef } from '../../lib/event-finder.svelte';
-  import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
+  import { vs, selectBody } from '../../lib/viewer-state.svelte';
+  import { workspace } from '../../lib/workspace.svelte';
 
   interface Props {
     probeActive: boolean;
@@ -64,6 +70,10 @@
   }
 
   const compact = $derived(shell.layout === 'compact');
+  // Popovers open beside the vertical rail, above the compact bottom row.
+  const side = $derived(compact ? 'top' : 'right');
+  const faulted = $derived(viewerLog.activeFaultId !== null);
+  const popoverClass = 'p-2.5 w-[min(22rem,calc(100cqw-16px))]';
 
   function hint(tool: ToolDef): string {
     const id = tool.id === 'instrument' ? 'instr:open' : `tool:${tool.id}`;
@@ -95,18 +105,20 @@
 </script>
 
 {#snippet buttons()}
-  <button
-    class="rail-btn"
-    aria-haspopup="dialog"
-    aria-expanded={shell.catalogBrowserOpen}
-    aria-label="Open catalog"
-    title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
-    onclick={() => (shell.catalogBrowserOpen = true)}
-  >
-    <FolderOpen size={16} />
-  </button>
+  {#if workspace.ui.catalogBrowser}
+    <button
+      class="rail-btn"
+      aria-haspopup="dialog"
+      aria-expanded={shell.catalogBrowserOpen}
+      aria-label="Open catalog"
+      title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
+      onclick={() => (shell.catalogBrowserOpen = true)}
+    >
+      <FolderOpen size={16} />
+    </button>
 
-  <div class="rail-divider" class:horizontal={compact}></div>
+    <div class="rail-divider" class:horizontal={compact}></div>
+  {/if}
 
   <button
     class="rail-btn"
@@ -119,7 +131,7 @@
 
   <div class="rail-divider" class:horizontal={compact}></div>
 
-  {#each TOOLS as tool (tool.id)}
+  {#each availableTools() as tool (tool.id)}
     {@const Icon = tool.icon}
     {@const s = toolState(tool)}
     <button
@@ -146,9 +158,18 @@
     <Crosshair size={16} />
   </button>
 
-  <button class="rail-btn" aria-label="Camera mode" title="Camera mode (M)" onclick={() => cycleCamera()}>
-    <Camera size={16} />
-  </button>
+  <Popover.Root>
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <button {...props} class="rail-btn" aria-label="Camera views and moves" title={`Camera views and moves (${shortcutFor('cam:cycle')} cycles mode)`}>
+          <Camera size={16} />
+        </button>
+      {/snippet}
+    </Popover.Trigger>
+    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
+      <CameraControls />
+    </Popover.Content>
+  </Popover.Root>
 
   <button
     class="rail-btn"
@@ -160,25 +181,45 @@
     <Info size={16} />
   </button>
 
-  <button
-    class="rail-btn"
-    aria-label="Copy view link"
-    title="Copy view link"
-    disabled={shareBusy || !vs.assetsReady || vs.showLoading || ef.running || ef.restoring}
-    onclick={copyLink}
-  >
-    {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
-  </button>
+  <!-- A view link addresses this viewer's page; an embedding host's page is not one. -->
+  {#if !workspace.embedded}
+    <button
+      class="rail-btn"
+      aria-label="Copy view link"
+      title="Copy view link"
+      disabled={shareBusy || !vs.assetsReady || vs.showLoading || ef.running || ef.restoring}
+      onclick={copyLink}
+    >
+      {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
+    </button>
+  {/if}
 
-  <button
-    class="rail-btn"
-    aria-pressed={shell.shortcutsOpen}
-    aria-label="Keyboard shortcuts"
-    title="Keyboard shortcuts (?)"
-    onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
-  >
-    <Keyboard size={16} />
-  </button>
+  <Popover.Root bind:open={shell.shortcutsOpen}>
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <button {...props} class="rail-btn" aria-label="Keyboard shortcuts" title={`Keyboard shortcuts (${shortcutFor('help:toggle')})`}>
+          <Keyboard size={16} />
+        </button>
+      {/snippet}
+    </Popover.Trigger>
+    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
+      <KeyboardHelp />
+    </Popover.Content>
+  </Popover.Root>
+
+  <!-- Subdued while quiet; red, with a dot, while something is failing now. -->
+  <Popover.Root bind:open={viewerLog.open}>
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <button {...props} class="rail-btn" class:faulted aria-label={faulted ? 'Viewer status: fault active' : 'Viewer status'} title={faulted ? 'Fault active — open viewer status' : 'Viewer status'}>
+          {#if faulted}<AlertTriangle size={16} />{:else}<Activity size={16} />{/if}
+        </button>
+      {/snippet}
+    </Popover.Trigger>
+    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
+      <ViewerLogPanel />
+    </Popover.Content>
+  </Popover.Root>
 {/snippet}
 
 <nav
@@ -207,7 +248,7 @@
 </nav>
 
 {#if shareStatus}
-  <div class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role={shareError ? 'alert' : 'status'}>
+  <div class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100cqw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role={shareError ? 'alert' : 'status'}>
     <span class="min-w-0 break-words">{shareStatus}</span>
     <button aria-label="Dismiss link message" class="text-text-muted hover:text-text-primary" onclick={() => { shareStatus = ''; }}>&times;</button>
   </div>
@@ -292,6 +333,7 @@
     color: var(--color-text-secondary);
     opacity: 0.72;
   }
+  .rail-btn.faulted { color: var(--color-error); }
   .rail-btn :global(svg) {
     stroke-width: 1.75;
   }

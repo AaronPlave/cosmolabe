@@ -7,10 +7,11 @@
   import NavigationActions from './NavigationActions.svelte';
   import { navigationRange } from '../lib/navigation-view.svelte';
   import { vs, resolveCoordinateTarget } from '../lib/viewer-state.svelte';
-  import { navigateToPlace, selectPlace, placeCoordinates, placeCategory, placeDiameter, searchPlaces, isPlaceAvailable, placeNavigationCoordinates } from '../lib/places';
+  import { navigateToPlace, selectPlace, placeCoordinates, placeCategory, placeDiameter, searchPlaces, isPlaceAvailable, placeFrameUnavailable, placeNavigationCoordinates } from '../lib/places';
   import { formatLatitude, formatLongitude } from '@cosmolabe/three';
   import { shell, minimizePanel } from '../lib/shell.svelte';
   const place = $derived(vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : undefined);
+  const frameError = $derived.by(() => { void vs.frameTick; return place ? placeFrameUnavailable(place) : null; });
   const bodies = $derived([...new Set(vs.places?.places.filter(isPlaceAvailable).map(p => p.layer.body) ?? [])]);
   let query = $state('');
   let filtersOpen = $state(false);
@@ -66,14 +67,14 @@
   let navError = $state('');
   async function copySource() {
     if (!place) return;
-    await copyText(JSON.stringify({ref:place.ref,provenance:place.layer.definition.provenance,datum:place.layer.datum,source:place.layer.source.identity,fields},null,2), 'Source details copied');
+    await copyText(JSON.stringify({ref:place.ref,frame:place.layer.frame,provenance:place.layer.definition.provenance,datum:place.layer.datum,source:place.layer.source.identity,fields},null,2), 'Source details copied');
   }
   async function copy() {
     if (!place) return;
     await copyText(placeCoordinates(place), 'Coordinates copied');
   }
   function navigate(action: 'fly' | 'jump') {
-    navError = !range.ok ? range.error : place && navigateToPlace(place, action) ? '' : 'The place body is unavailable or hidden.';
+    navError = frameError ?? (!range.ok ? range.error : place && navigateToPlace(place, action) ? '' : 'The place body is unavailable or hidden.');
     if (!navError && shell.layout === 'compact') minimizePanel('navigate');
   }
 </script>
@@ -92,7 +93,7 @@
     <Popover.Trigger class="ui-control flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-1 text-left text-text-secondary hover:bg-surface-3" title={filterSummary || 'Filter places and choose ordering'}>
       <ChevronDown size={13} class="shrink-0" /><span class="shrink-0 whitespace-nowrap text-xs">Filters and sort</span>{#if filterSummary}<span class="min-w-0 flex-1 truncate text-right text-xs text-text-muted">{filterSummary}</span>{/if}
     </Popover.Trigger>
-    <Popover.Portal><Popover.Content side="bottom" align="start" sideOffset={4} class="w-64 max-w-[calc(100vw-32px)] p-3 ui-body space-y-2">
+    <Popover.Portal><Popover.Content side="bottom" align="start" sideOffset={4} class="w-64 max-w-[calc(100cqw-32px)] p-3 ui-body space-y-2">
   <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Type</span>
     <select aria-label="Search place type" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={kind}>
       <option value="">All types</option>{#each kinds as [value, label]}<option {value}>{label}</option>{/each}
@@ -159,6 +160,7 @@
           {#if place.layer.definition.provenance?.sourceSha256}
             <dt class="text-text-secondary">Archive SHA-256</dt><dd>{String(place.layer.definition.provenance.sourceSha256)}</dd>
           {/if}
+          <dt class="text-text-secondary">Frame</dt><dd>{place.layer.frame}</dd>
           <dt class="text-text-secondary">Reference</dt><dd>{JSON.stringify(place.layer.datum.referenceShape)} · geodetic latitude</dd>
           <dt class="text-text-secondary">Label anchor</dt><dd>Rendered surface when available; otherwise a supported terrain sample or the declared reference shape. Explicit source heights are preserved.</dd>
           <dt class="text-text-secondary">Place reference</dt><dd>{place.ref}</dd>
@@ -168,7 +170,8 @@
         </dl>
       </details>
       </div>
-      <div class="mt-2 shrink-0 border-t border-border pt-2"><NavigationActions disabled={!target?.ok || !range.ok} onJump={() => navigate('jump')} /></div>
+      {#if frameError}<p class="text-xs text-text-muted">{frameError}</p>{/if}
+      <div class="mt-2 shrink-0 border-t border-border pt-2"><NavigationActions disabled={!!frameError || !target?.ok || !range.ok} onJump={() => navigate('jump')} /></div>
     </form>
   {/key}{/if}
   {#each [...vs.placeFailures, ...(vs.places?.diagnostics ?? [])] as message}

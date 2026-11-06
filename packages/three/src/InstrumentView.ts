@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { SensorFrustum } from './SensorFrustum.js';
 import type { Body } from '@cosmolabe/core';
 
+/** How the instrument camera was pointed: SPICE attitude, host attitude + mounting, aimed at the target, not at all, or refused. */
+export type InstrumentPointing = 'spice' | 'attitude' | 'target' | 'none' | 'unavailable';
+
 export interface InstrumentViewOptions {
   /** Width of the PiP viewport in pixels. Default 320. */
   width?: number;
@@ -105,7 +108,8 @@ export class InstrumentView {
   private outline: FovOutline | null = null;
   private color: string;
   private layout: { surface: Rect; fit: Rect; image: Rect; clip: Rect } | null = null;
-  private _pointing: 'spice' | 'target' | 'none' = 'none';
+  private _pointing: InstrumentPointing = 'none';
+  private _unavailableReason: string | null = null;
   private _fov: [number, number] = [0, 0];
   private _fovKnown = false;
   private _viewFov: [number, number] = [0, 0];
@@ -197,7 +201,14 @@ export class InstrumentView {
   /** Angular extent of the rendered image, degrees — the coverage plus padding when drawn from a SPICE boundary. */
   get viewFov(): [number, number] { return this._viewFov; }
   /** How the camera was pointed on the last update: SPICE attitude, aimed at the target, or not at all. */
-  get pointing(): 'spice' | 'target' | 'none' { return this._pointing; }
+  get pointing(): InstrumentPointing { return this._pointing; }
+  /** Why the instrument cannot be pointed (`pointing === 'unavailable'`); nothing is rendered then. */
+  get unavailableReason(): string | null { return this._unavailableReason; }
+  /** No truthful pointing this frame: say why, and render nothing. */
+  markUnavailable(reason: string): void {
+    this._pointing = 'unavailable';
+    this._unavailableReason = reason;
+  }
   /**
    * Where the image sits inside the surface on the last rendered frame, in the
    * surface's CSS pixels — offsets are the letterbox/pillarbox bars. Null when
@@ -392,8 +403,11 @@ export class InstrumentView {
     resolvePos: (name: string, et: number) => [number, number, number],
     targetBody?: Body,
     spiceRotation?: number[],
+    /** Where `spiceRotation` came from: SPICE, or the host-supplied spacecraft attitude and the catalog mounting. */
+    rotationSource: 'spice' | 'attitude' = 'spice',
   ): void {
     if (!this.sensor || !this._active) return;
+    this._unavailableReason = null;
 
     // Position: same as the sensor frustum (already in scene coordinates)
     this.camera.position.copy(this.sensor.position);
@@ -417,7 +431,7 @@ export class InstrumentView {
       }
 
       _lookTarget.copy(this.camera.position).addScaledVector(boresight, 0.001);
-      this._pointing = 'spice';
+      this._pointing = rotationSource;
       // Up = instrument +Y in J2000 = 2nd column of R
       this.camera.up.set(r[1], r[4], r[7]).normalize();
       this.camera.lookAt(_lookTarget);

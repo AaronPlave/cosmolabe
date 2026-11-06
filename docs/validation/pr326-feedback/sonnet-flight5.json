@@ -1,0 +1,64 @@
+{
+  "verifiedHead": "5a1cfb1ff512dbd847b88533d50acab165122eaf",
+  "kind": "historical real-provider acceptance; summarized from original receipt",
+  "prompt": "Show Flight 5, navigate to its landing location, and tell me what imagery is available.",
+  "answer": "Flight 5 is selected, and the clock is paused at its start, 2021-05-07 19:23:21 UTC (estimated timing). The camera is at Airfield B, which is selected as the place. The record links Flight 5 to Airfield B by \"name match\", not a direct reference. Airfield B is an estimated NASA/JPL MMGIS waypoint, not official nomenclature.\n\nMars has four imagery layers, all visible and in view with status ok. The base is Global Viking. The overlays are Global CTX, Jezero CTX and Jezero HiRISE.",
+  "initialPlaying": true,
+  "finalState": {
+    "selectedObject": null,
+    "selectedActivity": "ingenuity:flight:5",
+    "selectedPlace": "Airfield B",
+    "tracked": "Mars",
+    "playing": false,
+    "timeEt": 673687471,
+    "rangeKm": 0.5000000000005411
+  },
+  "association": "name match; not a direct reference",
+  "timing": "estimated",
+  "proxy": {
+    "provider": "anthropic",
+    "requestedModel": "claude-sonnet-5-5",
+    "answeredModels": [
+      "claude-sonnet-5-5",
+      "claude-sonnet-5-5",
+      "claude-sonnet-5-5",
+      "claude-sonnet-5-5",
+      "claude-sonnet-5-5"
+    ],
+    "fallback": "unknown in API metadata; fallback disabled in proxy config",
+    "rounds": [
+      {
+        "uncachedInput": 4,
+        "cacheRead": 0,
+        "cacheWrite": 6445,
+        "output": 75
+      },
+      {
+        "uncachedInput": 2,
+        "cacheRead": 6445,
+        "cacheWrite": 3600,
+        "output": 219
+      },
+      {
+        "uncachedInput": 2,
+        "cacheRead": 10045,
+        "cacheWrite": 3382,
+        "output": 147
+      },
+      {
+        "uncachedInput": 2,
+        "cacheRead": 13427,
+        "cacheWrite": 326,
+        "output": 130
+      },
+      {
+        "uncachedInput": 2,
+        "cacheRead": 13753,
+        "cacheWrite": 4400,
+        "output": 189
+      }
+    ]
+  },
+  "errors": [],
+  "note": "Raw nested tool dumps and resource paths removed. This does not claim a new provider run after metadata projection."
+}

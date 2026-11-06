@@ -32,6 +32,8 @@ export interface CursorContext {
   readonly quoted: boolean;
   /** Inside a comment or a vector literal — nowhere a completion belongs. */
   readonly inert: boolean;
+  /** The arguments before the one under the cursor, unquoted. */
+  readonly args?: readonly string[];
 }
 
 /**
@@ -87,7 +89,13 @@ export function cursorContext(line: string, column: number): CursorContext {
   const verbName = starts.length > 0 && tokenIndex > 0 ? firstWord(text) : undefined;
   const verb = verbName ? VERBS.get(verbName) : undefined;
   const argIndex = tokenIndex - 1;
+  const tokenText = (k: number) => {
+    const raw = text.slice(starts[k].at, k + 1 < starts.length ? starts[k + 1].at : text.length).trim();
+    return starts[k].quoted ? raw.slice(1, raw.endsWith('"') ? -1 : undefined).replace(/\\(["\\])/g, '$1') : raw;
+  };
+  const args = starts.slice(1, Math.max(1, tokenIndex)).map((_, k) => tokenText(k + 1));
   return {
+    args,
     verb,
     argIndex,
     param: verb && argIndex >= 0 ? verb.params[argIndex] : undefined,
@@ -109,7 +117,7 @@ export interface ScriptCompletion {
   readonly insert: string;
   /** What the list shows. */
   readonly label: string;
-  readonly kind: 'verb' | 'object' | 'viewpoint' | 'value';
+  readonly kind: 'verb' | 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery' | 'event-query' | 'event-result' | 'instrument' | 'measurement' | 'geographic-layer' | 'geographic-feature' | 'value';
   /** The verb's usage line, or the parameter a value is for. */
   readonly detail?: string;
   /** One-line help, for a verb. */
@@ -118,8 +126,19 @@ export interface ScriptCompletion {
 
 /** Names only the running viewer knows. */
 export interface CompletionNames {
+  readonly eventQueries?: readonly string[];
+  readonly eventResults?: (query: string) => readonly string[];
+  readonly instruments?: readonly string[];
+  readonly measurements?: readonly string[];
+  readonly geographicLayers?: readonly string[];
+  readonly geographicFeatures?: (layer: string) => readonly string[];
+  readonly activities?: readonly string[];
   readonly objects?: readonly string[];
   readonly viewpoints?: readonly string[];
+  /** Place refs. */
+  readonly places?: readonly string[];
+  /** Imagery layer IDs, by body. */
+  readonly imagery?: (body: string) => readonly string[];
 }
 
 const BOOLEANS = ['on', 'off'];
@@ -158,10 +177,26 @@ export function completionsAt(ctx: CursorContext, names: CompletionNames = {}): 
       return ctx.quoted ? [] : values(param.values ?? [], 'value');
     case 'boolean':
       return ctx.quoted ? [] : values(BOOLEANS, 'value');
+    case 'event-query': return values(names.eventQueries ?? [], 'event-query');
+    case 'event-result': return values(names.eventResults?.(ctx.args?.[0] ?? '') ?? [], 'event-result');
+    case 'instrument': return values(names.instruments ?? [], 'instrument');
+    case 'measurement': return values(names.measurements ?? [], 'measurement');
+    case 'geographic-layer': return values(names.geographicLayers ?? [], 'geographic-layer');
+    case 'geographic-feature': return values(names.geographicFeatures?.(ctx.args?.[0] ?? '') ?? [], 'geographic-feature');
+    case 'activity':
+      return values(names.activities ?? [], 'activity');
     case 'object':
       return values(names.objects ?? [], 'object');
     case 'viewpoint':
       return values(names.viewpoints ?? [], 'viewpoint');
+    case 'place':
+      return values(names.places ?? [], 'place');
+    case 'imagery': {
+      // The layer belongs to the body named earlier on the line.
+      const bodyIndex = ctx.verb?.params.findIndex((p) => p.type === 'object') ?? -1;
+      const body = bodyIndex >= 0 ? ctx.args?.[bodyIndex] : undefined;
+      return body && names.imagery ? values(names.imagery(body), 'imagery') : [];
+    }
     default:
       return [];
   }

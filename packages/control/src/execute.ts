@@ -50,8 +50,38 @@ function refusalMessage(spec: VerbSpec, statement: Statement, host: ViewerContro
     const viewpoints = safeList(() => host.listViewpoints());
     return `${spec.name}: no viewpoint named ${JSON.stringify(target)}${suggestionSuffix(target, viewpoints)}`;
   }
+  if (target !== undefined && spec.resolvesName === 'activity') return `${spec.name}: no activity with ID ${JSON.stringify(target)}`;
+  if (target !== undefined && spec.resolvesName === 'place') {
+    // A name typed where a ref belongs is the usual mistake: offer the refs
+    // the name finds, rather than a spelling suggestion among refs.
+    const found = safeRead(() => host.searchPlaces?.(target, { limit: 3 }) ?? []);
+    const hint = found.length ? ` (matching places: ${found.map((p) => `${p.name} on ${p.body} = ${JSON.stringify(p.ref)}`).join('; ')})` : '';
+    return `${spec.name}: no place with ref ${JSON.stringify(target)}${hint}`;
+  }
+  if (target !== undefined && spec.resolvesName === 'imagery') {
+    const body = statement.args[spec.params.findIndex((p) => p.type === 'object')];
+    if (typeof body === 'string' && !safeList(() => host.listObjects()).includes(body)) {
+      return `${spec.name}: no object named ${JSON.stringify(body)}${suggestionSuffix(body, safeList(() => host.listObjects()))}`;
+    }
+    const layers = typeof body === 'string' ? safeRead(() => host.getImagery?.(body)?.layers ?? []) : [];
+    const layer = layers.find((l) => l.id === target);
+    if (layer && !layer.optional) return `${spec.name}: ${JSON.stringify(target)} is the base layer and stays on`;
+    if (layer) return `${spec.name}: the viewer refused ${statement.text.trim().slice(spec.name.length).trim()}`;
+    const ids = layers.map((l) => l.id);
+    // No near miss: name the layers that do exist, so the next try can be right.
+    const hint = suggestionSuffix(target, ids) || ` (layers: ${ids.join(', ')})`;
+    return `${spec.name}: ${ids.length ? `no imagery layer ${JSON.stringify(target)} on ${body}${hint}` : `${body} has no streamed imagery`}`;
+  }
   const args = statement.text.trim().slice(spec.name.length).trim();
   return `${spec.name}: the viewer refused${args ? ` ${args}` : ''}`;
+}
+
+function safeRead<T>(read: () => readonly T[]): readonly T[] {
+  try {
+    return read();
+  } catch {
+    return [];
+  }
 }
 
 function safeList(read: () => readonly string[]): readonly string[] {
@@ -107,6 +137,7 @@ export async function execute(
   host: ViewerControl,
   opts: ExecuteOptions = {},
 ): Promise<ExecutionReport> {
+  const boundScene = host.getScene?.()?.id;
   const images: ScriptImage[] = [];
   let ran = 0;
   let recording = false;
@@ -164,6 +195,9 @@ export async function execute(
       }
     }
 
+    if (boundScene !== undefined && host.getScene?.()?.id !== boundScene) {
+      throw abort(statement, { kind: 'failed', line: statement.line, verb: spec.name, message: 'the scene was replaced or disposed during this script', text: statement.text });
+    }
     opts.onStatement?.(statement);
 
     // An optional method the host did not implement is a capability it does not
@@ -182,7 +216,7 @@ export async function execute(
 
     let result: unknown;
     try {
-      result = await untilSettledOrAborted(spec.invoke(host, statement.args), opts.signal);
+      result = await untilSettledOrAborted(spec.invoke(host, statement.args, opts.signal), opts.signal);
     } catch (err) {
       if (err === CANCELLED) {
         // `abort` stops a recording this script started — now, not when the

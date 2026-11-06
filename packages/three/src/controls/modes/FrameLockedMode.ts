@@ -43,6 +43,9 @@ export interface FrameLockedModeOptions {
 export interface CameraFrameFault {
   frameId: string;
   et: number;
+  /** Why, without the epoch: constant while the same failure continues. */
+  reason: string;
+  /** The full text, naming the epoch. */
   message: string;
 }
 
@@ -120,20 +123,19 @@ export class FrameLockedMode implements ICameraMode {
   update(ctx: CameraModeContext): void {
     const bm = ctx.bodyMeshes.get(this.bodyName);
     if (!bm || !this.source) {
-      this._frameFault = {
-        frameId: this.source?.frameId ?? `body:${this.bodyName}`,
-        et: ctx.et,
-        message: !bm ? `Body "${this.bodyName}" is not loaded.` : 'No orientation source is available.',
-      };
+      const reason = !bm ? `Body "${this.bodyName}" is not loaded.` : 'No orientation source is available.';
+      this._frameFault = { frameId: this.source?.frameId ?? `body:${this.bodyName}`, et: ctx.et, reason, message: reason };
       return;
     }
 
     const curQuat = this.source.orientation(ctx, _curQ);
     if (!curQuat) {
+      const reason = this.source.fault ?? 'orientation data unavailable.';
       this._frameFault = {
         frameId: this.source.frameId,
         et: ctx.et,
-        message: `Frame ${this.source.frameId} unavailable at ET ${ctx.et.toFixed(3)}: ${this.source.fault ?? 'orientation data unavailable.'}`,
+        reason,
+        message: `Frame ${this.source.frameId} unavailable at ET ${ctx.et.toFixed(3)}: ${reason}`,
       };
       return;
     }

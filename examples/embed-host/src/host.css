@@ -1,0 +1,15 @@
+/* Deliberately opinionated host styles: Cosmolabe must neither change these
+   nor be changed by them (its workspace lives in a shadow root). */
+* { box-sizing: content-box; }
+body { margin: 0; font: 15px/1.6 Georgia, 'Times New Roman', serif; color: #1d2733; background: #f4f1ea; }
+h1 { font-size: 22px; margin: 0; letter-spacing: 0.02em; }
+h2 { font-size: 15px; margin: 16px 0 4px; }
+header { display: flex; align-items: center; gap: 24px; padding: 10px 16px; background: #fffaf0; border-bottom: 2px solid #c9b98f; }
+button { font: inherit; background: rgb(255, 105, 180); border: 2px solid #7a3b5c; border-radius: 0; padding: 2px 10px; color: #2a0f1d; }
+main { display: flex; gap: 16px; padding: 16px; }
+#viewer { flex: 1; height: 620px; min-width: 0; border: 1px solid #c9b98f; }
+#viewer.narrow { flex: none; width: 600px; height: 480px; }
+aside { width: 340px; }
+pre { white-space: pre-wrap; font-size: 12px; }
+#events { font-size: 11px; max-height: 260px; overflow: auto; }
+.host-footer { padding: 0 16px 24px; }

@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createLockedSurfacePlan } from '../packages/core/dist/surface-plan/index.js';
-import { compileBuild, inspectBindings, hashFile, buildInputs, identity as contentIdentity } from './surface-build/plan.mjs';
+import { compileBuild, inspectBindings, hashFile, buildInputs, jsonFile, identity as contentIdentity } from './surface-build/plan.mjs';
 import { buildInventory } from './data-hosting/lib/publish.mjs';
 import { runBuildCli } from './build-surface.mjs';
 import { createFixture } from './surface-build/fixture.mjs';
-import { executeBuild, publishLocalFixture, readCompleted } from './surface-build/run.mjs';
+import { executeBuild, publishLocalFixture, readCompleted, sameInventory } from './surface-build/run.mjs';
 import { publicationPlan, publishBuild, catalogCandidate, applyCatalogCandidate } from './surface-build/publication.mjs';
 import { publishedFeedback } from './surface-build/report.mjs';
 import { createLocalStorage } from './data-hosting/lib/storage.mjs';
@@ -37,6 +37,26 @@ beforeAll(async () => { temp = await mkdtemp(join(tmpdir(), 'surface-build-test-
 afterAll(async () => { await rm(temp, { recursive: true, force: true }); });
 
 describe('finite locked surface build planning', () => {
+  it('compares full response inventories beyond ordinary JSON limits and rejects altered or reordered entries', () => {
+    const entries = Array.from({ length: 10_000 }, (_, i) => ({ path: `${String(i).padStart(5, '0')}/${'x'.repeat(200)}.png`, size: i, sha256: 'a'.repeat(64), gzip: false }));
+    expect(() => contentIdentity(entries)).toThrow(/exceeds/);
+    const copy = structuredClone(entries);
+    expect(sameInventory(entries, copy)).toBe(true);
+    copy[9999].sha256 = 'b'.repeat(64);
+    expect(sameInventory(entries, copy)).toBe(false);
+    expect(sameInventory(entries, [...entries].reverse())).toBe(false);
+    expect(sameInventory(entries, entries.slice(1))).toBe(false);
+  });
+  it('reads a bounded large completion receipt without relaxing ordinary JSON or inventory verification', async () => {
+    const directory=join(temp,'large-completion');await mkdir(directory);
+    const dag={buildId:'a'.repeat(64),lockIdentity:'sha256:'+'b'.repeat(64)};
+    const path=join(directory,'complete.json');
+    await writeFile(path,JSON.stringify({...dag,inventory:[],report:{diagnostic:'x'.repeat(3*1024*1024)}}));
+    await expect(jsonFile(path)).rejects.toThrow(/JSON exceeds/);
+    expect((await readCompleted(directory,dag)).report.diagnostic.length).toBe(3*1024*1024);
+    await writeFile(join(directory,'unexpected.txt'),'tampered cache');
+    await expect(readCompleted(directory,dag)).rejects.toThrow(/content changed/);
+  });
   it('produces a stable DAG with independent imagery, physical source fidelity and honest unknown resources', async () => {
     const a = await compileBuild(fixture), b = await compileBuild(fixture);
     expect(a).toEqual(b);
@@ -58,6 +78,16 @@ describe('finite locked surface build planning', () => {
     await expect(compileBuild(lock)).rejects.toThrow(/unsupported generator/);
   });
   it('refuses version-only pins, silent bias removal, unknown transforms and mismatched resampling', async () => {
+    for (const ids of [['missing'], ['base'], ['detail-image'], ['detail-image','detail-image']]) {
+      const independent = await relock(v => { v.processing.parameters.gates.independentImageGrids = ids; });
+      await expect(compileBuild(independent)).rejects.toThrow(/independent image grids/);
+    }
+    for (const ids of [['base'], ['not-selected'], ['context', 'context']]) {
+      const distinct = await relock(v => { v.processing.parameters.gates.distinctImageTiles = ids; });
+      await expect(compileBuild(distinct)).rejects.toThrow(/distinct image tiles/);
+    }
+    const distinct = await relock(v => { v.processing.parameters.gates.distinctImageTiles = ['context']; });
+    expect((await compileBuild(distinct)).buildId).not.toBe((await compileBuild(fixture)).buildId);
     const versionOnly = await relock(v => { v.sources[0].asset.version = 'v1'; delete v.sources[0].asset.checksum; });
     await expect(compileBuild(versionOnly)).rejects.toThrow(/requires SHA-256/);
     const bias = await relock(v => { v.processing.fusion = 'residual-plane'; });
@@ -108,6 +138,23 @@ describe('finite locked surface build planning', () => {
     const bound = await relock(v => { convert(v); for (const s of v.selections.filter(s => s.channel === 'elevation'))
       s.transformations[0].areoid.label.checksum.value = 'a'.repeat(64); });
     expect((await inspectBindings(bound, { 'datum:areoid-label': file }, temp)).at(-2).state).toBe('checksum-mismatch');
+  });
+  it('retains all 73 mission controls while preserving fixture and real-profile bounds', async () => {
+    const controls = n => Array.from({length:n}, (_,i) => ({lat:i/100,lon:0,heightM:1000,toleranceM:1}));
+    const small = await relock(v => { v.processing.parameters.gates.controls=controls(65); });
+    await expect(compileBuild(small)).rejects.toThrow(/1\.\.64/);
+    const mission = n => relock(v => {
+      convert(v);
+      v.processing.parameters.profile='bounded-real-mars';
+      v.processing.parameters.toolchain={python:'controlled',gdal:'controlled',numpy:'controlled'};
+      v.processing.parameters.terrain.fusionAsset=datumAsset('c');
+      v.processing.parameters.gates.controls=controls(n);
+    });
+    const lock=await mission(73);
+    expect(lock.processing.parameters.gates.controls).toHaveLength(73);
+    expect((await compileBuild(lock)).products).toHaveLength(3);
+    await expect(compileBuild(await mission(128))).resolves.toBeDefined();
+    await expect(compileBuild(await mission(129))).rejects.toThrow(/1\.\.128/);
   });
   it('checks content hashes even when a source has the correct byte count and never writes on dry-run', async () => {
     const dir = join(temp, 'bindings');

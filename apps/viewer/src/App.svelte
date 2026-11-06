@@ -4,6 +4,15 @@
   import LoadingScreen from './components/LoadingScreen.svelte';
   import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
+  import GeographicCallout from './components/GeographicCallout.svelte';
+  import GeographicLabels from './components/GeographicLabels.svelte';
+  import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
+  import DrawToolbar from './components/DrawToolbar.svelte';
+  import {
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature, undoDelete,
+  } from './lib/geographic-editing.svelte';
+  import './lib/geographic-styles.svelte';
+  import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
@@ -17,10 +26,11 @@
   import {
     shell, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
-    isToolOpen, openTool,
+    isToolOpen, openTool, setLayout, COMPACT_MAX_WIDTH, enableTool,
   } from './lib/shell.svelte';
+  import { askAvailable } from './lib/ask/ask.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
-  import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer, isSessionDisposed } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
   import { queueScript, fetchScript } from './lib/script-demo.svelte';
   import { restoreView } from './lib/view-link';
@@ -36,10 +46,16 @@
   import { cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
   import { heldCameraBindingForCode, matchKeyBinding } from './lib/keymap';
   import { startHeldCameraMove, stopHeldCameraMove, stopAllHeldCameraMoves } from './lib/held-camera-moves';
-  import FaultStatus from './components/shell/FaultStatus.svelte';
-  import { recordViewerFault, recordViewerLog } from './lib/viewer-log.svelte';
+  import FaultToast from './components/shell/FaultToast.svelte';
+  import { isIncidentalRuntimeError, recordViewerFault, recordViewerLog } from './lib/viewer-log.svelte';
+  import { workspace, setWorkspaceRoot, toWorkspace, workspaceNode } from './lib/workspace.svelte';
+  import { BitsConfig } from 'bits-ui';
+  import type { CatalogFetcher } from '@cosmolabe/core';
 
   let canvas: HTMLCanvasElement;
+  let rootEl = $state<HTMLDivElement>() as HTMLDivElement;
+  const embedded = workspace.embedded;
+  const ui = workspace.ui;
   let commandPaletteOpen = $state(false);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null; surfacePoint: SurfacePoint | null } | null>(null);
@@ -48,8 +64,9 @@
 
   // The window title carries the current catalog, so the identity costs the
   // scene nothing (#94: no persistent header).
+  // The page is the host's when embedded: its title is not ours to set.
   $effect(() => {
-    document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+    if (!embedded) document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
   });
 
   // Closing the Instrument view window — X, Escape, the rail, Display's Off —
@@ -133,11 +150,11 @@
    * canvas. A load stops it the moment it begins, so it never competes with
    * one for the GPU. Skipped in test mode, whose captures are of catalogs.
    */
-  const TEST_MODE = new URLSearchParams(location.search).has('test');
+  const TEST_MODE = !embedded && new URLSearchParams(location.search).has('test');
   let heroReady = $state(false);
   $effect(() => {
     const home = !vs.showLoading && !vs.assetsReady;
-    if (home && !TEST_MODE && !getCurrentRenderer()) {
+    if (home && !TEST_MODE && !embedded && !getCurrentRenderer()) {
       startHero(canvas, () => (heroReady = true));
     } else {
       stopHero();
@@ -150,14 +167,23 @@
   // it for drag detection. Instead: suppress native contextmenu, detect on pointerup.
   let rightClickStart = { x: 0, y: 0 };
 
+  /** Size everything to the workspace root — the window standalone, the host element embedded. */
   function onResize() {
-    if (!canvas) return;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    resize(window.innerWidth, window.innerHeight);
-    // A floating panel must not be stranded off-screen by a window that shrank
-    // under it — there would be no header left to drag it back by.
-    reclampFloats({ width: window.innerWidth, height: window.innerHeight });
+    if (!canvas || !rootEl) return;
+    const width = rootEl.clientWidth;
+    const height = rootEl.clientHeight;
+    // A hidden host element measures 0×0; keep the last real size until it shows.
+    if (width === 0 || height === 0) return;
+    workspace.width = width;
+    workspace.height = height;
+    canvas.width = width;
+    canvas.height = height;
+    resize(width, height);
+    // A floating panel must not be stranded off-screen by a workspace that
+    // shrank under it — there would be no header left to drag it back by.
+    reclampFloats({ width, height });
+    // Embedded, the host element's width decides the layout, not the window's.
+    if (embedded) setLayout(width <= COMPACT_MAX_WIDTH ? 'compact' : 'desktop');
   }
 
   function onDocDragOver(e: DragEvent) { e.preventDefault(); }
@@ -197,7 +223,8 @@
     const hit = renderer.pickScene(screenX, screenY, 'probe');
     const surfacePoint = hit?.kind === 'surface' ? hit.point : null;
 
-    contextMenu = { x: e.clientX, y: e.clientY, bodyName, surfacePoint };
+    const at = toWorkspace(e.clientX, e.clientY);
+    contextMenu = { x: at.x, y: at.y, bodyName, surfacePoint };
   }
 
   /** Suppress native context menu on the canvas */
@@ -206,6 +233,7 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if (!ui.shortcuts) return;
     const binding = matchKeyBinding(e);
     if (binding?.id === 'search:open') {
       e.preventDefault();
@@ -217,10 +245,10 @@
     if (commandPaletteOpen) return;
     // Likewise the catalog browser, which also handles its own Escape and
     // marks it handled, so the Escape does not go on to dismiss a panel too.
-    if (shell.catalogBrowserOpen || e.defaultPrevented) return;
+    if ((ui.catalogBrowser && shell.catalogBrowserOpen) || e.defaultPrevented) return;
 
     // Transient controls own Escape before focus or scene dismissal.
-    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
+    if (e.key === 'Escape' && workspaceNode().querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content], [popover]:popover-open')) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
@@ -234,6 +262,23 @@
 
     const renderer = getRenderer();
     if (!renderer) return;
+
+    // Undo a delete, which ended the selection and with it the editing keys.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && edits.deleted && !edits.tool && !editingFeature()) {
+      e.preventDefault(); undoDelete(); return;
+    }
+    // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
+    if (edits.tool || editingFeature()) {
+      const mod = e.ctrlKey || e.metaKey;
+      // Undo and redo apply to the layer being drawn into or edited.
+      const layerId = editingFeature()?.layerId ?? edits.target;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(layerId); else undo(layerId); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(layerId); return; }
+      if (!mod && e.key === 'Enter' && edits.tool) { e.preventDefault(); finishDraft(); return; }
+      if (!mod && e.key === 'Backspace' && removeLastVertex()) { e.preventDefault(); return; }
+      if (!mod && e.key === 'Delete' && deleteSelectedVertex()) { e.preventDefault(); return; }
+      if (e.key === 'Escape' && cancelDrawing()) return;
+    }
 
     if (!binding) return;
     if (binding.id.startsWith('cam:dolly-') || binding.id.startsWith('cam:crane-')) {
@@ -271,6 +316,7 @@
         else if (vs.flight) stopFlight();
         else if (vs.probeActive) setProbeActive(false);
         else if (measurements.selectedId) selectMeasurement(null);
+        else if (geo.selected) clearGeographicSelection();
         else if (ef.selectedId) clearSelection();
         else if (dismissTopSurface()) return;
         else if (dismissGeographicContext()) return;
@@ -531,18 +577,72 @@
     }
   }
 
+  /**
+   * A load an embedding host asked for (`embed.ts`). No URL, history or
+   * catalog sources: the host decides what is on screen. Resolves once the
+   * scene's initial models, textures and trails settle; rejects when the load
+   * fails, leaving up the scene that was there.
+   */
+  export async function loadForHost(entryUrl: string, name: string, fetcher?: CatalogFetcher): Promise<void> {
+    const loadToken = ++loadGeneration;
+    catalogs.loadError = null;
+    loadInFlight = true;
+    try {
+      await loadCatalogUrl(canvas, entryUrl, name, fetcher);
+      await getCurrentRenderer()?.waitForInitialAssets();
+    } catch (err) {
+      // A load whose session was disposed has no screen to report to (a later
+      // session's stores are not its own).
+      if (loadToken === loadGeneration && !isSessionDisposed(err)) catalogs.loadError = `Couldn't load ${name}: ${err instanceof Error ? err.message : String(err)}`;
+      throw err;
+    } finally {
+      if (loadToken === loadGeneration) loadInFlight = false;
+    }
+  }
+
   onMount(() => {
+    setWorkspaceRoot(rootEl);
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(rootEl);
+    onResize();
+    // Embedded, input is the workspace's only while it has focus or the
+    // pointer: the host page keeps its keys, and its right-clicks.
+    // (Typed as an element: the window takes the same listeners.)
+    const input = (embedded ? rootEl : window) as HTMLElement;
+    input.addEventListener('keydown', onKeydown);
+    input.addEventListener('keyup', onKeyup);
+    window.addEventListener('blur', stopAllHeldCameraMoves);
+    // Capture phase so we see right-clicks before CameraController stops propagation
+    input.addEventListener('pointerdown', onWindowPointerDown, true);
+    input.addEventListener('pointerup', onWindowPointerUp);
+    const stopInput = () => {
+      resizeObserver.disconnect();
+      input.removeEventListener('keydown', onKeydown);
+      input.removeEventListener('keyup', onKeyup);
+      window.removeEventListener('blur', stopAllHeldCameraMoves);
+      input.removeEventListener('pointerdown', onWindowPointerDown, true);
+      input.removeEventListener('pointerup', onWindowPointerUp);
+    };
+    if (embedded) {
+      return () => {
+        loadGeneration++;
+        stopInput();
+        setWorkspaceRoot(null);
+      };
+    }
+    // Standalone only: an embedded workspace must not log its host page's errors.
     const onRuntimeError = (event: ErrorEvent) => {
+      if (isIncidentalRuntimeError({ message: event.message, filename: event.filename, stack: event.error?.stack })) return;
       const location = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : '';
       recordViewerFault('Runtime error', `${event.message || 'Uncaught browser error'}${location}`);
     };
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isIncidentalRuntimeError({ message: event.reason?.message, stack: event.reason?.stack })) return;
       const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
       recordViewerFault('Unhandled rejection', reason);
     };
     window.addEventListener('error', onRuntimeError);
     window.addEventListener('unhandledrejection', onUnhandledRejection);
-    onResize();
     // Visual-regression / deep-link entry: `?catalog=<name>` auto-loads a demo
     // (combine with `?test=1` for deterministic offscreen capture — see
     // scripts/visual-regression.mjs).
@@ -559,29 +659,43 @@
       }
     });
     window.addEventListener('popstate', onPopState);
-    window.addEventListener('resize', onResize);
+    // The standalone viewer owns the page, drops included.
+    document.addEventListener('dragover', onDocDragOver);
+    document.addEventListener('drop', onDocDrop);
     const stopLayoutWatch = watchLayout();
-    // Capture phase so we see right-clicks before CameraController stops propagation
-    window.addEventListener('pointerdown', onWindowPointerDown, true);
-    window.addEventListener('pointerup', onWindowPointerUp);
+    if (askAvailable()) enableTool('ask');
     return () => {
       viewRestore?.abort();
       stopHero();
       stopLayoutWatch();
-      window.removeEventListener('resize', onResize);
+      stopInput();
       window.removeEventListener('popstate', onPopState);
       window.removeEventListener('error', onRuntimeError);
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
-      window.removeEventListener('pointerdown', onWindowPointerDown, true);
-      window.removeEventListener('pointerup', onWindowPointerUp);
+      document.removeEventListener('dragover', onDocDragOver);
+      document.removeEventListener('drop', onDocDrop);
+      setWorkspaceRoot(null);
     };
   });
 </script>
 
-<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} onblur={stopAllHeldCameraMoves} />
-<svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
-
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={!!measurements.pendingPickSlot} style={shellVars}>
+<!-- Embedded, the root is the containing block for every page-level layer
+     (floating panels, callouts, portalled popovers), so they stay inside the
+     workspace and move with the host page; it takes focus so its shortcuts
+     apply only while it is in use. `container-type` makes cq units the
+     workspace's, which the standalone page's root equals the viewport for. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  bind:this={rootEl}
+  class="cosmolabe-root relative w-full h-full overflow-hidden"
+  class:cosmolabe-embedded={embedded}
+  class:cursor-crosshair={!!measurements.pendingPickSlot}
+  style={shellVars}
+  tabindex={embedded ? -1 : undefined}
+  role={embedded ? 'application' : undefined}
+  aria-label={embedded ? 'Cosmolabe mission visualization' : undefined}
+>
+<BitsConfig defaultPortalTo={embedded ? rootEl : undefined}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" oncontextmenu={onCanvasContextMenu}></canvas>
@@ -591,7 +705,7 @@
        reads as a broken scene rather than a loading one. -->
   {#if vs.showLoading}
     <LoadingScreen />
-  {:else if !vs.assetsReady}
+  {:else if !vs.assetsReady && ui.homeScreen}
     <HomeScreen
       backdrop={heroReady}
       onSelect={selectCatalog}
@@ -603,7 +717,7 @@
   <!-- One catalog browser for both entry points: the home screen's Browse and
        the rail's folder button. It sits over whichever is up, and a load
        covers it with the loading screen only once a catalog is chosen. -->
-  {#if !vs.showLoading}
+  {#if !vs.showLoading && ui.catalogBrowser}
     <CatalogBrowser
       onSelect={selectCatalog}
       onFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
@@ -613,68 +727,78 @@
   {#if !loading && catalogs.loadError}
     <!-- A switch that failed before touching the scene leaves it up; say so
          over it, briefly and out of the way, rather than only in the console. -->
-    <div class="load-notice shell-surface pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role="alert">
+    <div class="load-notice shell-surface pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[min(32rem,calc(100cqw-2rem))] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role="alert">
       <span class="min-w-0 break-words">{catalogs.loadError}</span>
       <button class="shrink-0 text-text-muted hover:text-text-primary" aria-label="Dismiss" onclick={() => (catalogs.loadError = null)}>&times;</button>
     </div>
   {/if}
 
   {#if !uiHidden}
-    <FaultStatus />
+    <FaultToast />
   {/if}
 
   {#if !loading && !uiHidden}
     <ViewportHud />
     <KeyboardHelp />
+    <GeographicLabels />
+    <GeographicCallout />
+    <GeographicEditOverlay />
+    <DrawToolbar />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time
          — the scene is the point, and a phone has room for it and one
          instrument. -->
-    {#if compact}
-      <PanelDock side="sheet">
-        <ToolPanels dock="all" />
-        {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
+    {#if ui.analysisPanels}
+      {#if compact}
+        <PanelDock side="sheet">
+          <ToolPanels dock="all" />
+          {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
+            <BodyInfoPanel />
+          {/if}
+          {#if shell.activeSheet === 'probe' || fallbackSheet === 'probe'}
+            <ProbePanel />
+          {/if}
+        </PanelDock>
+      {:else}
+        <PanelDock side="left">
+          <ToolPanels dock="left" />
+        </PanelDock>
+        <PanelDock side="right">
           <BodyInfoPanel />
-        {/if}
-        {#if shell.activeSheet === 'probe' || fallbackSheet === 'probe'}
-          <ProbePanel />
-        {/if}
-      </PanelDock>
-    {:else}
-      <PanelDock side="left">
-        <ToolPanels dock="left" />
-      </PanelDock>
-      <PanelDock side="right">
-        <BodyInfoPanel />
-        <ToolPanels dock="right" />
-        <ProbePanel width={240} />
-      </PanelDock>
+          <ToolPanels dock="right" />
+          <ProbePanel width={240} />
+        </PanelDock>
+      {/if}
     {/if}
 
-    {#if compact}
+    {#if compact && (ui.timeline || ui.toolRail)}
       <!-- One bar, not two: the rail and the transport share a box so the
            chrome costs the scene one strip instead of a third of the screen. -->
       <div
         bind:clientHeight={shell.chromeBottom}
         class="compact-dock shell-surface pointer-events-auto absolute inset-x-2 bottom-2 z-20 overflow-hidden rounded-md border backdrop-blur-md"
       >
-        <TimelineDock inline />
-        <div class="shell-divider mx-2 border-t"></div>
+        {#if ui.timeline}<TimelineDock inline />{/if}
+        {#if ui.timeline && ui.toolRail}<div class="shell-divider mx-2 border-t"></div>{/if}
+        {#if ui.toolRail}
+          <ToolRail
+            inline
+            probeActive={vs.probeActive}
+            onToggleProbe={toggleProbe}
+            onOpenSearch={() => commandPaletteOpen = true}
+          />
+        {/if}
+      </div>
+    {:else if !compact}
+      {#if ui.toolRail}
         <ToolRail
-          inline
           probeActive={vs.probeActive}
           onToggleProbe={toggleProbe}
           onOpenSearch={() => commandPaletteOpen = true}
         />
-      </div>
-    {:else}
-      <ToolRail
-        probeActive={vs.probeActive}
-        onToggleProbe={toggleProbe}
-        onOpenSearch={() => commandPaletteOpen = true}
-      />
-      <TimelineDock />
+      {/if}
+      {#if ui.timeline}<TimelineDock />{/if}
     {/if}
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />
@@ -689,10 +813,18 @@
       />
     {/if}
   {/if}
+</BitsConfig>
 </div>
 
 <style>
   .compact-dock {
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
+  }
+  .cosmolabe-root {
+    container-type: size;
+  }
+  .cosmolabe-embedded {
+    contain: layout paint;
+    outline: none;
   }
 </style>

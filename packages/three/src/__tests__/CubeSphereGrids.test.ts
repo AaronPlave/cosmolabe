@@ -48,6 +48,23 @@ describe('cube-sphere CPU grid source', () => {
     expect(source.coverage(0, 0)).toMatchObject({ state: 'finest', availableLevel: 0 });
   });
 
+  for (const lattice of [false, true]) it(`reads resident annotation heights without requesting finer CPU grids (lattice=${lattice})`, async () => {
+    const data = manifest();
+    if (lattice) data.geometry = { kind: 'radial-lattice', referenceRadiusKm: R };
+    let requests = 0;
+    const source = new CubeSphereGridSource(data, async () => {
+      requests++; return new Float32Array(W * W).fill(100).buffer;
+    }, { residentLevel: 0 });
+    await source.ready; const initial = requests;
+    for (let i = 0; i < 20; i++) expect(source.sampleResident(-90, i)?.tileId).toBe('nz/0/0/0');
+    await Promise.resolve();
+    expect(requests).toBe(initial);
+    expect(source.coverage(-90, 0)).toMatchObject({ state: 'parent-fallback', residentLevel: 0 });
+    await source.request(-90, 0);
+    expect(source.sampleResident(-90, 0)?.tileId).toBe('nz/2/2/2');
+    source.dispose();
+  });
+
   it('loads the tile chain a query asks for, independently of any renderer', async () => {
     const { source, fetched } = fixtureSource();
     await source.ready;
@@ -239,6 +256,21 @@ describe('cube grid CPU triangles and ray queries', () => {
     expect(hit).toMatchObject({ kind: 'hit', tileId: 'nz/1/1/1' });
     if (hit.kind !== 'hit') throw new Error('expected a hit');
     expect(Math.hypot(hit.position.xKm, hit.position.yKm, hit.position.zKm) - R).toBeLessThan(0.05);
+  });
+
+  it('ends an exhausted bounded ray after rejecting a superseded ancestor hit', async () => {
+    const source = new CubeSphereGridSource(manifest(), async uri => {
+      const level = Number(uri.split('/')[2]);
+      return new Float32Array(W * W).fill(level === 0 ? 300 : 100).buffer;
+    }, { residentLevel: 2 });
+    await source.ready;
+    const surface = new CubeGridSurface(source, 'Moon', 'MOON_ME_DE421');
+    // The coarse 300 m surface lies at the inclusive end of the ray, but the
+    // finest 100 m surface owning this point is beyond it. Advancing past the
+    // rejected coarse hit must end the query, never reverse its interval.
+    expect(surface.intersectRay({ origin: { xKm: 0, yKm: 0, zKm: -(R + 1) }, direction: [0, 0, 1],
+      nearKm: 0, farKm: 0.7000000005 }, { maxMeshErrorKm: 0.001 }).kind).toBe('unavailable');
+    source.dispose();
   });
 
   it('keeps closed mixed-level edges queryable without reviving superseded interiors', async () => {

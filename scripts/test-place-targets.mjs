@@ -168,7 +168,9 @@ try {
   await search.focus();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.ok(await page.getByRole('list',{name:'Named places'}).evaluate(el=>el.clientHeight>30));
   await page.screenshot({path:`${out}/places-filters-focus-compact.png`});
+  // Display must open in the desktop dock, not a compact sheet that remounts it.
   await page.setViewportSize({width:1440,height:900});
+  await page.waitForFunction(()=>window.sh.shell.layout==='desktop');
   checks.push('body/type/origin filters combine, empty matches explain filters, unavailable types reset, focus ring fits scroll clip');
   // Display names each logical source once; one source toggle affects all chunks.
   await page.evaluate(()=>window.sh.openTool('display'));
@@ -184,7 +186,7 @@ try {
   await page.getByText('Name sources',{exact:true}).evaluate(el=>{el.closest('.instrument-body').scrollTop=185;});
   await page.screenshot({path:`${out}/display-compact.png`});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>window.sh.closeTool('display'));
+  await page.setViewportSize({width:1440,height:900});await page.waitForFunction(()=>window.sh.shell.layout==='desktop');await page.evaluate(()=>window.sh.closeTool('display'));
   checks.push('logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display');
   // The master explains disabled datasets while retaining separate body intent.
   await page.evaluate(()=>window.sh.openTool('display'));
@@ -212,9 +214,10 @@ try {
   checks.push('hidden-but-searchable status; master preserves hidden datasets; logical Moon restoration and mixed/body-off states');
 
   // Exercise real clipboard -> Coordinates for both Mars hemispheres, using
-  // every common view preset; compare actual camera eyes and orientations.
+  // every common view preset at the same explicit range; compare actual camera eyes and orientations.
+  // Auto Places fits the feature extent; a pasted coordinate carries no extent.
   await page.context().grantPermissions(['clipboard-read','clipboard-write']);
-  for(const [name,preset,range] of [['Jezero','overhead',''],['Hellas','oblique','200'],['Jezero','surface','100']]) {
+  for(const [name,preset,range] of [['Jezero','overhead','72'],['Hellas','oblique','200'],['Jezero','surface','100']]) {
     await page.evaluate(async({name,preset,range})=>{
       window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');
       window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;window.nv.navigationView.framing=(range ? 'custom' : 'auto');
@@ -243,12 +246,32 @@ try {
     await page.waitForFunction(()=>!window.s.vs.flight);
     const namedFly=await page.evaluate(()=>window.renderer.camera.position.toArray());for(let i=0;i<3;i++)assert.ok(Math.abs(namedFly[i]-coord.eye[i])<1e-6);
   }
-  checks.push('north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent for overhead, oblique and surface');
+  checks.push('north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent at explicit ranges for overhead, oblique and surface');
+  await page.evaluate(() => {
+    const place=window.s.vs.places.search('Jezero',{body:'Mars'}).find(p=>p.name==='Jezero');
+    window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.nv.navigationView.framing='auto';
+    window.p.navigateToPlace(place,'jump');window.autoJezero=place;
+  });
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const automatic = await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()}));
+  const fit=await page.evaluate(() => {
+    const place=window.autoJezero,c=window.p.placeNavigationCoordinates(place);
+    if(!Number.isFinite(place.diameterKm))throw new Error('Jezero has no diameter');
+    const fit=Math.max(5,place.diameterKm*1.5);
+    window.s.goToCoordinates({bodyName:'Mars',...c,latitude:'planetocentric',longitudeDirection:'east'},{preset:'overhead',animate:false,rangeKm:fit});
+    return fit;
+  });
+  assert.ok(Number.isFinite(fit));
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const fitted=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()}));
+  for(const key of ['eye','q'])for(let i=0;i<automatic[key].length;i++)assert.ok(Math.abs(automatic[key][i]-fitted[key][i])<1e-6,'Jezero Auto retains diameter-based feature fitting');
+  assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget.place??null),null,'coordinate target has no named feature association');
+  checks.push('Jezero named Auto matches explicit diameter-based feature fit after camera updates');
   for(const [preset,range] of [['surface','100'],['oblique','invalid'],['overhead','8000']]) {
     const expected=await page.evaluate(({preset,range})=>{
       window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;window.nv.navigationView.framing=(range ? 'custom' : 'auto');
       const c=window.arena.feature.geometry.coordinates;
-      window.s.goToCoordinates({bodyName:'Mars',...c,latitude:'planetographic',longitudeDirection:'east'},{preset:'overhead',animate:false});
+      window.s.goToCoordinates({bodyName:'Mars',...c,latitude:'planetographic',longitudeDirection:'east'},{preset:'overhead',animate:false,rangeKm:window.nv.placeRangeKm(window.arena.diameterKm)});
       const expected={eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()};
       window.s.frameBody('Moon'); // retained manual range can belong to another body
       window.s.goToCoordinates({bodyName:'Mars',...c,latitude:'planetographic',longitudeDirection:'east'},{preset:'overhead',animate:false,rangeKm:200});
@@ -263,7 +286,7 @@ try {
     for(const key of ['eye','q'])for(let i=0;i<expected[key].length;i++)assert.ok(Math.abs(expected[key][i]-actual[key][i])<1e-6,`Viewport ${preset}/${range}: ${key}`);
     assert.equal(actual.preset,preset);assert.equal(actual.range,range);
   }
-  checks.push('actual viewport label double-click ignores Surface/100m, invalid input and another body range, preserves form choices, lands at automatic overhead');
+  checks.push('actual viewport label double-click ignores Surface/100m, invalid input and another body range, preserves form choices, lands at feature-fitted overhead');
 
   await page.evaluate(()=>{window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.nv.navigationView.framing='auto';window.p.navigateToPlace(window.arena,'jump');});
   await browsePlaces();await search.fill('');

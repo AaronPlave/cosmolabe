@@ -27,12 +27,12 @@ function manifest(): CubeGridManifest {
   };
 }
 
-function serve(): string[] {
+function serve(grid = manifest()): string[] {
   const requested: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     const url = String(input);
     requested.push(url);
-    if (url.endsWith('cpu-grids.json')) return new Response(JSON.stringify(manifest()));
+    if (url.endsWith('cpu-grids.json')) return new Response(JSON.stringify(grid));
     const level = Number(url.split('/heights/')[1].split('/')[1]);
     return new Response(new Float32Array(W * W).fill(100 * (level + 1)).buffer);
   }));
@@ -48,6 +48,60 @@ const make = (radiusKm = R) => new TerrainManager(
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('TerrainManager with cube-sphere CPU grids', () => {
+  it('declares the audited lunar frame on CPU hits without rewriting the legacy manifest', async () => {
+    const grid = manifest(); grid.coordinates = { frame: 'IAU_MOON' };
+    grid.source.version = 'cube-fused-79895697c6b6-g3-m12-b6747ec9d';
+    serve(grid);
+    const tm = new TerrainManager({ type: '3dtiles', url: `${BASE}tileset.json`, frame: 'MOON_ME_DE421', bodyId: 'Moon',
+      datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' }, cubeSphere: { cpuGrids: `${BASE}cpu-grids.json`, residentLevel: 0 } }, R, NO_RENDERER);
+    await vi.waitFor(() => expect(tm.frameAvailability.kind).toBe('available'));
+    await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
+    const hit = tm.intersectSurfaceRay({ origin: { xKm: 0, yKm: 0, zKm: -(R + 10) }, direction: [0, 0, 1], nearKm: 0, farKm: 20 }, { maxMeshErrorKm: 1 });
+    expect(hit).toMatchObject({ kind: 'hit', metadata: { bodyId: 'Moon', frame: 'MOON_ME_DE421' } });
+    expect(grid.coordinates.frame).toBe('IAU_MOON');
+    tm.dispose();
+  });
+
+  it('withholds mismatched lunar terrain and CPU queries with an explicit frame diagnostic', async () => {
+    const grid = manifest(); grid.coordinates = { frame: 'IAU_MOON' }; serve(grid);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tm = new TerrainManager({ type: '3dtiles', url: `${BASE}tileset.json`, frame: 'MOON_ME_DE421',
+      datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' }, cubeSphere: { cpuGrids: `${BASE}cpu-grids.json`, residentLevel: 0 } }, R, NO_RENDERER);
+    await vi.waitFor(() => expect(tm.frameAvailability.reason).toContain('does not match rendered frame'));
+    expect(tm.frameAvailability.kind).toBe('unavailable');
+    expect(tm.sample(-90, 0)).toBeNull(); tm.dispose();
+  });
+
+  it('keeps cube terrain opaque from either camera side without changing physical buffers', () => {
+    serve();const tm=make(),tiles=(tm as unknown as {tiles:{dispatchEvent(e:unknown):void}}).tiles;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(10,10),new THREE.MeshStandardMaterial()),scene=new THREE.Group();scene.add(mesh);
+    const positions=mesh.geometry.attributes.position.array.slice(),indices=mesh.geometry.index!.array.slice();
+    tiles.dispatchEvent({type:'load-model',scene,tile:{}});
+    expect(mesh.material.side).toBe(THREE.DoubleSide);
+    const cast=new THREE.Raycaster(new THREE.Vector3(0,0,-1),new THREE.Vector3(0,0,1));
+    expect(cast.intersectObject(mesh)).toHaveLength(2);
+    expect(mesh.geometry.attributes.position.array).toEqual(positions);expect(mesh.geometry.index!.array).toEqual(indices);tm.dispose();
+  });
+
+  it('keeps navigation above independent coarse rendering, then releases the stale visual radius after refinement', async () => {
+    serve();const tm=make();
+    await vi.waitFor(()=>expect(tm.cubeStats?.residentTiles).toBe(6));
+    const tiles=(tm as unknown as {tiles:{group:THREE.Group;visibleTiles:Set<unknown>}}).tiles;
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,-5,-5,0,5,-5,0,0,5],3));
+    g.setIndex([0,1,2]);g.userData.surfaceTriangles=1;
+    const mesh=new THREE.Mesh(g);mesh.position.x=R*1000+300;
+    const scene=new THREE.Group();scene.add(mesh);tiles.group.add(scene);
+    const tile={engineData:{scene}};tiles.visibleTiles.add(tile);
+    const point={xKm:R+10,yKm:0,zKm:0};
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.3,6),
+      physicalRadiusKm:expect.closeTo(R+.1,6),renderedRadiusKm:expect.closeTo(R+.3,6),settled:false});
+    mesh.position.x=R*1000+100;
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.1,6),settled:true});
+    tiles.visibleTiles.delete(tile);
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.1,6),renderedRadiusKm:null,settled:false});
+    tm.dispose();
+  });
+
   it('answers CPU samples from the grids, explicitly unloaded until they arrive', async () => {
     const requested = serve();
     const tm = make();

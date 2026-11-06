@@ -65,6 +65,39 @@ describe('persistent annotation arbitration', () => {
     }
     expect(l.states.has('old')).toBe(false);
   });
+  it('holds a spacing-only departure through a short handoff chain, however long frames take', () => {
+    // Zooming out, a neighbour's growing spacing evicts a name; two frames later
+    // a third name's spacing evicts that neighbour and the slot is free again.
+    // At 100 ms frames a plain fade empties the name in that time: a blink.
+    const l=new PersistentLabels();
+    const old={...candidate('old',31),box:{x0:100,y0:100,x1:300,y1:220},renderBox:{x0:180,y0:150,x1:220,y1:170}};
+    const neighbour={...candidate('neighbour',96),box:{x0:100,y0:230,x1:300,y1:350},renderBox:{x0:180,y0:280,x1:220,y1:300}};
+    settle(l,[old,neighbour]);const state=l.states.get('old');
+    const close={...neighbour,box:{...neighbour.box,y0:210}};
+    for (let frame=0;frame<3;frame++) {
+      l.update([old,close],[],1000+frame*100);
+      expect(state?.accepted).toBe(false);expect(state?.opacity).toBe(1);
+    }
+    l.update([old],[],1300,new Set(['neighbour']));
+    expect(l.states.get('old')).toBe(state);expect(state?.accepted).toBe(true);expect(state?.opacity).toBe(1);
+  });
+
+  it('fades a lasting spacing-only departure after its hold, and hides painted overlap at once', () => {
+    const l=new PersistentLabels(32,250,20,6);
+    const old={...candidate('old',31),box:{x0:100,y0:100,x1:300,y1:220},renderBox:{x0:180,y0:150,x1:220,y1:170}};
+    const higher={...candidate('higher',96),box:{x0:100,y0:210,x1:300,y1:330},renderBox:{x0:180,y0:280,x1:220,y1:300}};
+    settle(l,[old]);
+    let at=1000;
+    for (let frame=0;frame<6;frame++) l.update([old,higher],[],at+=100);
+    expect(l.states.get('old')?.opacity).toBe(1);
+    for (let frame=0;frame<4;frame++) l.update([old,higher],[],at+=100);
+    expect(l.states.has('old')).toBe(false);
+    // Painted text overlapping the winner is never held: it fades from the first frame.
+    const m=new PersistentLabels();settle(m,[old]);
+    m.update([old,{...higher,renderBox:old.renderBox}],[],2000);
+    expect(m.states.get('old')?.opacity).toBeLessThan(1);
+  });
+
   it('reserves a bounded render slot for selection ahead of old fading states', () => {
     const l=new PersistentLabels(1);settle(l,[candidate('old')]);
     const selected={...candidate('new'),selected:true,box:{x0:200,y0:0,x1:300,y1:20}};

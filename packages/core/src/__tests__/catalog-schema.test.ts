@@ -75,6 +75,11 @@ describe('shipped catalogs', () => {
 });
 
 describe('validateCatalog', () => {
+  it('recognizes the parsed surface plot frame, sampling and timeline settings', () => {
+    expect(validateCatalog(withItem({ trajectoryPlot: {
+      frame: 'BodyFixed', sampleInterval: '0.05s', timelineLabel: 'Flight',
+    } }))).toEqual([]);
+  });
   it('names the key, the node, the path and the fix for a misspelled field', () => {
     const [d, ...rest] = validateCatalog(withItem({
       trajectory: { type: 'Keplerian', semiMajorAxis: 7000, eccentrcity: 0.01 },

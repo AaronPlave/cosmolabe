@@ -33,6 +33,14 @@ function fixture(collisionLon = -90) {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('optional geographic name annotations', () => {
+  it('requires a matching declared frame before seating a place on the surface', () => {
+    const f = fixture(), place = f.names.index.places[0];
+    Object.assign(f.body.body, { rotation: { bodyFixedFrame: 'MOON_ME_DE421' } });
+    expect(place.layer.frame).toBe('IAU_MOON');
+    expect(placeAnchor(place, f.body)).toBeNull();
+    place.layer.frame = 'MOON_ME_DE421';
+    expect(placeAnchor(place, f.body)?.offsetKm.length()).toBeCloseTo(1);
+  });
   it('defaults off, rejects backside points and deterministically resolves colliding names', () => {
     const f = fixture(); f.update(); expect(f.names.metrics.drawn).toBe(0);
     f.names.setBodyVisible('Moon', true); f.update();

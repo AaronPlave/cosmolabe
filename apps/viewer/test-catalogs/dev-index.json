@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "name": "Developer examples and fixtures",
+  "description": "Opt-in local discovery, including scenes requiring generated assets. Not advertised by public Pages.",
+  "catalogs": [
+    {
+      "id": "planetary-places",
+      "name": "Mars and Moon places",
+      "catalog": "./planetary-places.json",
+      "description": "USGS/IAU named places: search, Fly/Jump and optional geographic names",
+      "group": "Technical examples"
+    },
+    {
+      "id": "earth-moon",
+      "name": "Earth + Moon",
+      "catalog": "./earth-moon.json",
+      "description": "Keplerian orbits, no kernels",
+      "group": "Technical examples"
+    },
+    {
+      "id": "inner-planets-keplerian",
+      "name": "Inner Planets",
+      "catalog": "./inner-planets-keplerian.json",
+      "description": "Sun \u2192 Mars via Keplerian fallback",
+      "group": "Technical examples"
+    },
+    {
+      "id": "base/inner-planets",
+      "name": "Inner Planets",
+      "catalog": "./base/inner-planets.json",
+      "description": "Mercury \u2192 Mars + moons, NAIF de440s",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "base/outer-planets",
+      "name": "Outer Planets",
+      "catalog": "./base/outer-planets.json",
+      "description": "Jupiter \u2192 Neptune + major moons",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "base/jupiter-system",
+      "name": "Jupiter System",
+      "catalog": "./base/jupiter-system.json",
+      "description": "Jupiter + Galileans (L1 analytical)",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "base/saturn-system",
+      "name": "Saturn System",
+      "catalog": "./base/saturn-system.json",
+      "description": "Saturn + rings + major moons (TASS17)",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "base/small-bodies",
+      "name": "Small Bodies",
+      "catalog": "./base/small-bodies.json",
+      "description": "Dwarf planets, main belt, NEAs, comet 67P",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "base/main-belt-300",
+      "name": "Main Belt \u00d7 300",
+      "catalog": "./base/main-belt-300.json",
+      "description": "Bulk SPK import: 300 numbered asteroids (no trails \u2014 pending swarm plugin)",
+      "group": "Reusable libraries"
+    },
+    {
+      "id": "solar-system",
+      "name": "Analytical Solar System + sample arc",
+      "catalog": "./solar-system.json",
+      "description": "Legacy Builtin/Keplerian planets, Ceres and synthetic Explorer arcs; differs from the SPICE library.",
+      "group": "Technical examples"
+    },
+    {
+      "id": "sensor-demo",
+      "name": "Sensor Frustums",
+      "catalog": "./sensor-demo.json",
+      "description": "FOV cones from spacecraft instruments",
+      "group": "Technical examples"
+    },
+    {
+      "id": "arrokoth-dsk",
+      "name": "Arrokoth (DSK)",
+      "catalog": "./arrokoth-dsk.json",
+      "description": "A SPICE DSK plate model drawn natively \u2014 New Horizons' MU69 shape",
+      "group": "Technical examples"
+    },
+    {
+      "id": "oem-ingest",
+      "name": "CCSDS OEM Ingest",
+      "catalog": "./oem-ingest.json",
+      "description": "Cassini at Saturn flown from a text ephemeris \u2014 no spacecraft SPK",
+      "group": "Technical examples"
+    },
+    {
+      "id": "ingenuity-analysis-tour",
+      "name": "Ingenuity Analysis Tour",
+      "catalog": "./ingenuity-jezero.json",
+      "script": "./ingenuity-analysis-tour.cosmo",
+      "description": "Reproducible Flight 5 scene: place, surface navigation, imagery, measurement and layer controls, with explicit readiness",
+      "group": "Technical examples"
+    },
+    {
+      "id": "moon-imagery-apollo15",
+      "name": "Apollo 15 imagery",
+      "catalog": "./moon-imagery-apollo15.json",
+      "description": "Streamed global + Hadley Rille NAC lunar imagery, no terrain \u2014 no SPICE",
+      "group": "Technical examples"
+    },
+    {
+      "id": "mars-imagery-jezero",
+      "name": "Jezero imagery",
+      "catalog": "./mars-imagery-jezero.json",
+      "description": "Streamed global + regional Mars imagery, no terrain \u2014 no SPICE",
+      "group": "Technical examples"
+    },
+    {
+      "id": "atmosphere-earth-dusk",
+      "name": "Atmosphere validation: Earth dusk",
+      "catalog": "./atmosphere-earth-dusk.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-earth-eclipse",
+      "name": "Atmosphere validation: Earth orbital eclipse",
+      "catalog": "./atmosphere-earth-eclipse.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-earth-textured",
+      "name": "Atmosphere validation: Earth (textured)",
+      "catalog": "./atmosphere-earth-textured.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-earth-twilight",
+      "name": "Atmosphere validation: Earth twilight",
+      "catalog": "./atmosphere-earth-twilight.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-earth",
+      "name": "Atmosphere validation: Earth",
+      "catalog": "./atmosphere-earth.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-mars-textured",
+      "name": "Atmosphere validation: Mars (textured)",
+      "catalog": "./atmosphere-mars-textured.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-mars",
+      "name": "Atmosphere validation: Mars",
+      "catalog": "./atmosphere-mars.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "atmosphere-saturn-shadow",
+      "name": "Atmosphere validation: Saturn cloud deck and shadows",
+      "catalog": "./atmosphere-saturn-shadow.json",
+      "group": "Atmosphere regression",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "experiments/mars-surface-build-pilot",
+      "name": "Real Mars surface build pilot",
+      "catalog": "./experiments/mars-surface-build-pilot.json",
+      "group": "Surface experiments",
+      "description": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed."
+    },
+    {
+      "id": "experiments/mars-terrain-cube-jezero",
+      "name": "Mars cube foundation: bounded Jezero (#245)",
+      "catalog": "./experiments/mars-terrain-cube-jezero.json",
+      "group": "Surface experiments",
+      "description": "Local-only product; build assets before loading."
+    },
+    {
+      "id": "experiments/moon-terrain-cube-imagery-adoption",
+      "name": "Moon terrain: cube sphere + NAC, adoption check (#149)",
+      "catalog": "./experiments/moon-terrain-cube-imagery-adoption.json",
+      "group": "Surface experiments",
+      "description": "The initial production configuration under evaluation: full-lattice cube-sphere terrain with the main-view draw cull (default for cube products), LROC NAC cube imagery, and a nadir-pointing orbiter sensor over Shackleton for main/instrument view switching. Driven by scripts/capture-cube-imagery.mjs --experiments adoption; experimental, not listed in the catalog index."
+    },
+    {
+      "id": "experiments/moon-terrain-cube-imagery-grid",
+      "name": "Moon terrain: cube sphere + diagnostic grid fixture (#149 imagery experiment)",
+      "catalog": "./experiments/moon-terrain-cube-imagery-grid.json",
+      "group": "Surface experiments",
+      "description": "Synthetic diagnostic imagery: graticules, face edges and bullseye markers, draped by CubeImageryLayer at its own levels on the cube-sphere terrain (scripts/build-moon-terrain/cube.sh). Build the imagery with scripts/build-moon-terrain/cube-imagery.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "experiments/moon-terrain-cube-imagery-nac",
+      "name": "Moon terrain: cube sphere + LROC NAC south-pole mosaic (#149 imagery experiment)",
+      "catalog": "./experiments/moon-terrain-cube-imagery-nac.json",
+      "group": "Surface experiments",
+      "description": "LROC NAC South Pole controlled mosaic (1 m source), cube-face pyramid, draped by CubeImageryLayer at its own levels on the cube-sphere terrain (scripts/build-moon-terrain/cube.sh). Build the imagery with scripts/build-moon-terrain/cube-imagery.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "experiments/moon-terrain-cube-imagery-registration",
+      "name": "Moon terrain: cube sphere + registration fixture (#149 imagery experiment)",
+      "catalog": "./experiments/moon-terrain-cube-imagery-registration.json",
+      "group": "Surface experiments",
+      "description": "Synthetic texel-coordinate encoding for registration read-back, draped by CubeImageryLayer at its own levels on the cube-sphere terrain (scripts/build-moon-terrain/cube.sh). Build the imagery with scripts/build-moon-terrain/cube-imagery.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "experiments/moon-terrain-cube",
+      "name": "Moon terrain: cube sphere (#149 experiment)",
+      "catalog": "./experiments/moon-terrain-cube.json",
+      "group": "Surface experiments",
+      "description": "Gnomonic cube-sphere 3D Tiles of the fused LOLA field, with CPU height grids. Build: scripts/build-moon-terrain/cube.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "experiments/moon-terrain-geographic",
+      "name": "Moon terrain: geographic baseline (#48)",
+      "catalog": "./experiments/moon-terrain-geographic.json",
+      "group": "Surface experiments",
+      "description": "Geographic quantized-mesh pyramid of the same fused field. Build: scripts/build-moon-terrain/fused.sh (~11 GB). Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "experiments/moon-terrain-polar",
+      "name": "Moon terrain: polar cap baseline (#145)",
+      "catalog": "./experiments/moon-terrain-polar.json",
+      "group": "Surface experiments",
+      "description": "Square-tile south-polar cap of the same fused field (no CPU sampler). Build: scripts/build-moon-terrain/polar.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md."
+    },
+    {
+      "id": "fixtures/mission-activities",
+      "name": "Concurrent activity fixture",
+      "catalog": "./fixtures/mission-activities.json",
+      "group": "Advanced examples",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "geographic-vectors-earth-countries",
+      "name": "Geographic vectors \u00b7 Natural Earth countries",
+      "catalog": "./geographic-vectors-earth-countries.json",
+      "group": "Geographic regression",
+      "description": "Natural Earth 1:110m Admin 0 countries 5.1.1, WGS84 geodetic degrees. All 177 source features, including Antarctica and islands. Cyan boundaries/fills; click for gold. Use Display \u2192 Viewpoint to change scale."
+    },
+    {
+      "id": "geographic-vectors-earth-overlay-comparison",
+      "name": "Geographic backend comparison \u00b7 Natural Earth",
+      "catalog": "./geographic-vectors-earth-overlay-comparison.json",
+      "group": "Geographic regression",
+      "description": "Same shared geographic layer and WGS84 imagery-only tile geometry for both vector and upstream raster overlay comparison. See /geographic-compare.html."
+    },
+    {
+      "id": "geographic-vectors-gpu-bench",
+      "name": "Geographic vector GPU benchmark",
+      "catalog": "./geographic-vectors-gpu-bench.json",
+      "group": "Geographic regression",
+      "description": "Reproducible scenes for the geographic vector pass's GPU cost (scripts/benchmark-geographic-gpu.mjs): one point, one small polygon and 200 annotations at Jezero, close and whole-disk views."
+    },
+    {
+      "id": "geographic-vectors-jezero-dense",
+      "name": "Geographic vectors \u00b7 dense Jezero on measured terrain",
+      "catalog": "./geographic-vectors-jezero-dense.json",
+      "group": "Geographic regression",
+      "description": "Synthetic 160-vertex polygon and 1,600 targets concentrated around Jezero, draped on the local measured terrain pyramid. Cyan marks should all draw; click a target to highlight it in gold. Requires data/mars-terrain-fused/."
+    },
+    {
+      "id": "geographic-vectors-jezero-terrain",
+      "name": "Geographic vectors \u00b7 measured Jezero",
+      "catalog": "./geographic-vectors-jezero-terrain.json",
+      "group": "Geographic regression",
+      "description": "Synthetic registration points, traverse and polygon with a hole on measured terrain. Requires the local terrain pyramid; this is not surveyed geology. Use the saved detail, close, regional and orbit viewpoints to compare LOD transitions."
+    },
+    {
+      "id": "geographic-vectors-mars-streamed",
+      "name": "Geographic vectors on streamed Mars terrain",
+      "catalog": "./geographic-vectors-mars-streamed.json",
+      "group": "Geographic regression",
+      "description": "A modest set of wide regional polygons and lines around Gale crater over streamed MOLA/HRSC terrain with Viking/CTX imagery (network), for LOD-transition correctness and broad-area GPU cost (scripts/test-geographic-streamed-lod.mjs, scripts/test-geographic-close-zoom.mjs, scripts/benchmark-geographic-gpu.mjs)."
+    },
+    {
+      "id": "geographic-vectors-shackleton-terrain",
+      "name": "Geographic vectors \u00b7 measured Shackleton",
+      "catalog": "./geographic-vectors-shackleton-terrain.json",
+      "group": "Geographic regression",
+      "description": "Synthetic registration points, traverse and polygon with a hole on measured terrain. Requires the local terrain pyramid; this is not surveyed geology. Use the saved detail, close, regional and orbit viewpoints to compare LOD transitions."
+    },
+    {
+      "id": "geographic-vectors",
+      "name": "Geographic vectors \u00b7 synthetic validation",
+      "catalog": "./geographic-vectors.json",
+      "group": "Geographic regression",
+      "description": "Synthetic Jezero science/traverse/regions and lunar polar regions on reference globes. Coordinates are validation fixtures, not surveyed geology or terrain measurements. The surface status identifies the reference-globe fallback."
+    },
+    {
+      "id": "io-volcanos",
+      "name": "Io Volcanic Features (FixedSpherical + ParticleSystem Demo)",
+      "catalog": "./io-volcanos.json",
+      "group": "Advanced examples",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    },
+    {
+      "id": "mars-cube-imagery-experiment",
+      "name": "Mars independent cube imagery (bounded validation)",
+      "catalog": "./mars-cube-imagery-experiment.json",
+      "group": "Surface experiments",
+      "description": "Local-only product; build assets before loading."
+    },
+    {
+      "id": "rotation-demo",
+      "name": "Rotation Models Demo",
+      "catalog": "./rotation-demo.json",
+      "group": "Advanced examples",
+      "description": "Developer example / regression scene; see test-catalogs/README.md for asset prerequisites."
+    }
+  ]
+}

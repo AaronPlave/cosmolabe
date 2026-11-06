@@ -34,6 +34,9 @@ jobs:
       - name: Check for stale git-lfs pointers
         run: bash scripts/check-lfs-pointers.sh
 
+      - name: Validate catalog discovery and dependency inventory
+        run: npm run check:catalogs > /tmp/catalog-inventory.json
+
       - name: Purity lint (core and control import no renderer)
         run: npm run lint:purity
 
@@ -83,6 +86,15 @@ jobs:
           npm test -- --exclude scripts/surface-build.test.mjs
           npx vitest run --project scripts scripts/surface-build.test.mjs --testNamePattern '^finite locked surface build planning'
 
+      - name: Replay MoonFall clearance against pinned hosted CPU terrain
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          DATA_BASE_URL: ${{ vars.DATA_BASE_URL }}
+        run: |
+          MOONFALL_GRIDS=$(node --input-type=module -e "import {loadDatasets,remotePrefix,joinUrl} from './scripts/data-hosting/lib/datasets.mjs'; console.log(joinUrl(process.env.DATA_BASE_URL, remotePrefix(loadDatasets().datasets['cube-terrain/moon-terrain-cube']) + 'cpu-grids.json'))")
+          export MOONFALL_GRIDS
+          npx vitest run --project scripts scripts/moonfall-clearance.test.mjs scripts/trajectory-extrema.test.mjs
+
       - name: Planetary nomenclature converter regressions
         run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
 
@@ -97,6 +109,7 @@ jobs:
       browser: ${{ steps.filter.outputs.browser }}
       stars: ${{ steps.filter.outputs.stars }}
       geographic: ${{ steps.filter.outputs.geographic }}
+      embed: ${{ steps.filter.outputs.embed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,7 +203,20 @@ jobs:
             stars:
               - 'scripts/test-starfield-webgl.mjs'
               - 'scripts/capture-starfield-calibration.mjs'
+              - 'scripts/test-sun-viewer-gpu.mjs'
+              - 'scripts/test-sun-terrain-gpu.mjs'
+              - 'scripts/test-site-mesh-depth-gpu.mjs'
+            # The embeddable workspace and its reference host (docs/embedding.md).
+            embed:
+              - 'apps/viewer/src/**'
+              - 'apps/viewer/vite.embed.config.ts'
+              - 'apps/viewer/rollup.dts.config.mjs'
+              - 'packages/control/**'
+              - 'examples/embed-host/**'
+              - 'scripts/test-embed-*.mjs'
             geographic:
+              - 'apps/viewer/src/components/LoadingScreen.svelte'
+              - 'scripts/test-loading-layout.mjs'
               - 'scripts/test-geographic*.mjs'
               - 'scripts/test-place*.mjs'
               - 'scripts/test-planetary-places.mjs'
@@ -216,7 +242,8 @@ jobs:
     if: needs.changes.outputs.surface == 'true'
     name: Surface build executor
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Full-density SwiftShader acceptance plus rebuilds takes about 15 minutes.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -257,6 +284,26 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  embed:
+    name: Embeddable workspace and reference host
+    needs: changes
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.embed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+      - name: Build packages and the embeddable workspace
+        run: npm run build:embed
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Installed package in an independent host project
+        run: node scripts/test-embed-package.mjs
+      - name: Reference host acceptance (fixtures, sync, coverage, isolation, lifecycle)
+        run: node scripts/test-embed-host.mjs
+
   stars:
     name: Targeted StarField WebGL and viewer
     needs: changes
@@ -276,6 +323,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: StarField readback and normal-viewer calibration
         run: bash scripts/ci/run-viewer-smoke.sh stars pr
+      - name: Site mesh and solar depth GPU regressions
+        run: |
+          node scripts/test-sun-viewer-gpu.mjs
+          node scripts/test-sun-terrain-gpu.mjs
+          node scripts/test-site-mesh-depth-gpu.mjs /tmp/site-mesh-depth
       - name: Upload StarField evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -285,6 +337,8 @@ jobs:
             /tmp/starfield-webgl/
             /tmp/starfield-viewer/
             /tmp/viewer-smoke-vite.log
+            /tmp/site-mesh-depth/
+            work/sun-rendering/
           if-no-files-found: ignore
           retention-days: 7
 

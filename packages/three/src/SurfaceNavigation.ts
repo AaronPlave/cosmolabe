@@ -47,6 +47,8 @@ export function terrainGroundRadius(bm: BodyMesh): (p: readonly number[]) => num
   return (p) => {
     if (!bm.hasTerrain) return null;
     const point = { xKm: p[0], yKm: p[1], zKm: p[2] };
+    const cube = bm.terrainNavigationSurface(point);
+    if (cube?.radiusKm != null) return cube.radiusKm;
     const sample = bm.sampleTerrainBodyFixed(point);
     const position = bm.terrainBodyFixedToGeodetic(point);
     if (!sample || !position || position.heightKm === undefined) return null;

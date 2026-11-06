@@ -341,6 +341,25 @@ describe('upstream resolution from the real fetch scripts', () => {
     expect(resolved).toBeGreaterThan(50);
   });
 
+  it('keeps removed viewer binary kernels reproducible from their registry fetch scripts', () => {
+    const datasets = loadDatasets().datasets;
+    for (const path of [
+      'kernels/cassini/040629AP_SCPSE_04179_04185.bsp',
+      'kernels/cassini/04183_04185ra.bc',
+      'kernels/europa-clipper/ref_trj_scpse.bsp',
+      'kernels/msl/mar099s.bsp',
+      'kernels/msl/msl_ls_ops120808_iau2000_v1.bsp',
+      'kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp',
+      'kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp',
+      'kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc',
+    ]) {
+      const match = matchDataset(path, datasets);
+      expect(match, path).toBeDefined();
+      const texts = match.ds.fetchScripts.map(script => readFileSync(join(ROOT, script), 'utf8'));
+      expect(resolveUpstream(match.rest, texts), path).toMatch(/^https:\/\//);
+    }
+  });
+
   it('parses each shape of fetch script', () => {
     const m = upstreamFromScript(`
 NAIF="https://example.org/k"

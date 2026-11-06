@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { createReadStream, readFileSync, existsSync, cpSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { gunzipSync } from 'zlib';
+import { loadDatasets, remotePrefix } from '../../scripts/data-hosting/lib/datasets.mjs';
+import { createDevCatalogResolver } from '../../scripts/data-hosting/lib/dev-catalogs.mjs';
+import { createDevAssetFallback } from '../../scripts/data-hosting/lib/dev-assets.mjs';
 
 function normalizeBase(raw: string | undefined): string {
   if (!raw) return '/';
@@ -37,11 +40,7 @@ const fusedTerrainPlugin = {
       const match = cleanUrl.match(/\/((?:mars|moon)-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
       const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
-      if (!existsSync(filePath)) {
-        res.statusCode = 404;
-        res.end();
-        return;
-      }
+      if (!existsSync(filePath)) return next();
       try {
         const gzipped = readFileSync(filePath);
         const decompressed = gunzipSync(gzipped);
@@ -61,6 +60,20 @@ const testCatalogsPlugin = {
   name: 'test-catalogs-static-files',
   configureServer(server: any) {
     const route = `${server.config.base}test-catalogs/`.replace(/\\/g, '/');
+    const hostedRoute = `${route}__hosted/`;
+    const datasets = loadDatasets().datasets;
+    const resolveCatalog = createDevCatalogResolver({
+      datasets,
+      baseUrl: process.env.DATA_BASE_URL,
+      hostedBaseUrl: hostedRoute,
+      mode: process.env.DEV_DATA_MODE ?? 'auto',
+      log: (message: string) => server.config.logger.info(message),
+    });
+    const fallback = createDevAssetFallback({
+      datasets,
+      baseUrl: process.env.DATA_BASE_URL || 'https://data.aaronplave.com',
+      mode: process.env.DEV_DATA_MODE || 'auto',
+    });
     const contentTypes: Record<string, string> = {
       '.json': 'application/json; charset=utf-8',
       '.cosmo': 'text/plain; charset=utf-8',
@@ -75,7 +88,7 @@ const testCatalogsPlugin = {
       '.gz': 'application/gzip',
       '.terrain': 'application/octet-stream',
     };
-    server.middlewares.use((req: any, res: any, next: any) => {
+    server.middlewares.use(async (req: any, res: any, next: any) => {
       if (!req.url) return next();
       let pathname: string;
       try {
@@ -86,6 +99,19 @@ const testCatalogsPlugin = {
         return;
       }
       if (!pathname.startsWith(route)) return next();
+      // Hosted catalog choices bypass local files for the whole product. Keep
+      // them same-origin so arbitrary development ports need no CDN CORS rule.
+      if (pathname.startsWith(hostedRoute)) {
+        const hostedPath = pathname.slice(hostedRoute.length);
+        for (const ds of Object.values(datasets)) {
+          if (!ds.build || ds.localOnly) continue;
+          const prefix = remotePrefix(ds);
+          if (hostedPath.startsWith(prefix) && fallback(req, res, ds.catalogPrefix + hostedPath.slice(prefix.length))) return;
+        }
+        res.statusCode = 404;
+        res.end('Not found');
+        return;
+      }
       const filePath = path.resolve(TEST_CATALOGS_DIR, pathname.slice(route.length));
       if (!filePath.startsWith(`${TEST_CATALOGS_DIR}${path.sep}`)) {
         res.statusCode = 403;
@@ -95,7 +121,9 @@ const testCatalogsPlugin = {
       let stat;
       try {
         stat = statSync(filePath);
-      } catch {
+      } catch (error: any) {
+        if ((error.code === 'ENOENT' || error.code === 'ENOTDIR') &&
+          fallback(req, res, path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/'))) return;
         res.statusCode = 404;
         res.end('Not found');
         return;
@@ -103,6 +131,25 @@ const testCatalogsPlugin = {
       if (!stat.isFile()) {
         res.statusCode = 404;
         res.end('Not found');
+        return;
+      }
+      // Product manifests and other assets stay byte-for-byte local. Only
+      // catalog documents are resolved. Direct missing-asset requests retain the
+      // existing pinned proxy fallback (including its local-only mode).
+      const relative = path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/');
+      if (relative.endsWith('.json') && !/^(data|kernels|textures|models)\//.test(relative)) {
+        try {
+          const json = JSON.parse(readFileSync(filePath, 'utf8'));
+          const body = JSON.stringify(await resolveCatalog(json, relative));
+          res.setHeader('Content-Type', contentTypes['.json']);
+          res.setHeader('Content-Length', String(Buffer.byteLength(body)));
+          res.setHeader('Cache-Control', 'no-cache');
+          res.end(req.method === 'HEAD' ? undefined : body);
+        } catch (error: any) {
+          res.statusCode = 503;
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(`Development catalog unavailable: ${error.message}`);
+        }
         return;
       }
       res.setHeader('Content-Type', contentTypes[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream');
@@ -178,6 +225,8 @@ export default defineConfig({
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
+        // The embeddable build's output (npm run build:embed) is not app source.
+        '**/dist-embed/**',
         '**/test-catalogs/data/mars-terrain-fused/**',
         // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
         '**/test-catalogs/data/mars-terrain/**',

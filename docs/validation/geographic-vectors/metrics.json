@@ -21,6 +21,38 @@
       "pass": true
     },
     {
+      "name": "localized polygon and 1600 targets retained",
+      "pass": true
+    },
+    {
+      "name": "localized overflow pages visible",
+      "pass": true
+    },
+    {
+      "name": "overflow page selection string:target-0",
+      "pass": true
+    },
+    {
+      "name": "overflow page selection string:target-1599",
+      "pass": true
+    },
+    {
+      "name": "detailed localized polygon fill and independent hole",
+      "pass": true
+    },
+    {
+      "name": "localized polygon selection preserves hole silhouette",
+      "pass": true
+    },
+    {
+      "name": "pathological density diagnosed without partial drawing or GPU resources",
+      "pass": true
+    },
+    {
+      "name": "translucent fill blended once through an LOD cross-fade",
+      "pass": true
+    },
+    {
       "name": "polar cap, holes and seam",
       "pass": true
     },
@@ -35,32 +67,188 @@
   ],
   "metrics": [
     {
+      "name": "localized dense layer, desktop viewport, no finish/readback",
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": [
+        640,
+        480
+      ],
+      "pixelRatio": 1,
+      "restyles": 0,
+      "drawCalls": 9,
+      "shadedPixels": 308321,
+      "drawPages": 9,
+      "batches": 1,
+      "surfaceMeshes": 1,
+      "offsetVertices": 0,
+      "textureBytes": 2637824,
+      "baseline": {
+        "frames": 120,
+        "cpuSubmissionMs": {
+          "median": 0.10000000009313226,
+          "p95": 0.20000000018626451,
+          "average": 0.12500000001164152
+        },
+        "frameIntervalMs": {
+          "median": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "average": 16.66583333333334
+        }
+      },
+      "vectors": {
+        "frames": 120,
+        "cpuSubmissionMs": {
+          "median": 0.2999999998137355,
+          "p95": 0.6000000000931323,
+          "average": 0.2991666666775321
+        },
+        "frameIntervalMs": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "average": 16.66583333333333
+        }
+      }
+    },
+    {
+      "name": "localized dense layer, mobile viewport on desktop GPU, no finish/readback",
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": [
+        390,
+        844
+      ],
+      "pixelRatio": 2,
+      "restyles": 0,
+      "drawCalls": 9,
+      "shadedPixels": 308321,
+      "drawPages": 9,
+      "batches": 1,
+      "surfaceMeshes": 1,
+      "offsetVertices": 0,
+      "textureBytes": 2637824,
+      "baseline": {
+        "frames": 120,
+        "cpuSubmissionMs": {
+          "median": 0.09999999962747097,
+          "p95": 0.10000000009313226,
+          "average": 0.055000000004656616
+        },
+        "frameIntervalMs": {
+          "median": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "average": 16.665833333333346
+        }
+      },
+      "vectors": {
+        "frames": 120,
+        "cpuSubmissionMs": {
+          "median": 0.2999999998137355,
+          "p95": 1.3999999999068677,
+          "average": 0.4633333333108264
+        },
+        "frameIntervalMs": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "average": 16.66583333333333
+        }
+      }
+    },
+    {
+      "name": "7000 coincident targets: overload safely omitted",
+      "restyles": 0,
+      "drawCalls": 0,
+      "shadedPixels": 0,
+      "drawPages": 0,
+      "batches": 0,
+      "surfaceMeshes": 0,
+      "offsetVertices": 0,
+      "textureBytes": 0,
+      "diagnostics": [
+        {
+          "layerId": "science",
+          "code": "vector-render-budget",
+          "message": "Geographic group needs 28 render pages; limit is 16. Entire group omitted from drawing and picking. Filter or simplify the source data."
+        }
+      ]
+    },
+    {
+      "name": "fill opacity through an LOD cross-fade",
+      "settled": {
+        "covered": 144300,
+        "doubled": 0
+      },
+      "crossFading": {
+        "covered": 144300,
+        "doubled": 0
+      },
+      "drawn": {
+        "restyles": 0,
+        "drawCalls": 5,
+        "shadedPixels": 308321,
+        "drawPages": 1,
+        "batches": 1,
+        "surfaceMeshes": 5,
+        "offsetVertices": 0,
+        "textureBytes": 34016,
+        "diagnostics": [],
+        "status": [
+          {
+            "bodyName": "Mars",
+            "layerIds": [
+              "science"
+            ],
+            "features": 1,
+            "primitives": 6,
+            "bodySurfaceMode": "terrain-streaming",
+            "featureTerrainCoverage": "not-assessed",
+            "accuracy": "rendered-triangles; source uncertainty unknown"
+          }
+        ],
+        "style": {
+          "version": 1,
+          "polygon": {
+            "fillColor": "#56b4e9",
+            "fillOpacity": 0.4,
+            "outlineOpacity": 0
+          }
+        }
+      }
+    },
+    {
       "name": "dense index 4900 features",
-      "milliseconds": 886.3000000000466,
+      "milliseconds": 92.20000000018626,
       "features": 4900,
       "diagnostics": 0,
+      "restyles": 1,
+      "drawCalls": 0,
+      "shadedPixels": 0,
+      "drawPages": 1,
       "batches": 1,
       "surfaceMeshes": 0,
       "offsetVertices": 0,
-      "textureBytes": 1130496
+      "textureBytes": 2359296
     },
     {
-      "name": "dense full frame with GPU finish/readback, software GPU",
-      "milliseconds": 2672.1000000000154
+      "name": "dense full frame with GPU finish/readback (not runtime cost)",
+      "milliseconds": 146.51666666660458
     },
     {
       "name": "hidden rebuild and full frame",
-      "milliseconds": 307.19999999995343,
+      "milliseconds": 20.299999999813735,
       "features": 0
     },
     {
       "name": "hidden vector update average (100 iterations)",
-      "milliseconds": 0.0019999999995343387,
+      "milliseconds": 0.0010000000009313225,
+      "restyles": 1,
+      "drawCalls": 0,
+      "shadedPixels": 0,
+      "drawPages": 0,
       "batches": 0,
       "surfaceMeshes": 0,
       "offsetVertices": 0,
       "textureBytes": 0
     }
   ],
+  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
   "errors": []
 }

@@ -1,0 +1,15 @@
+{
+  "name": "cosmolabe-embed-host-example",
+  "private": true,
+  "type": "module",
+  "description": "Framework-free host embedding the complete Cosmolabe workspace with two externally supplied spacecraft",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cosmolabe/viewer": "file:../../apps/viewer"
+  }
+}

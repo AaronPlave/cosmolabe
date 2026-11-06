@@ -56,9 +56,17 @@ try {
   const result = await page.evaluate(async () => {
     const { THREE, Universe, UniverseRenderer, wrapFadeMaterial } = await import('/bundle.js');
     const universe = new Universe();
+    // Explicit synthetic ECLIPJ2000 -> body orientation, not mission SPICE.
+    const site = { name: 'regression-site', url: '/site.json', sourceVersion: 'synthetic-v1',
+      registration: { version: 'enu-v1', bodyFixedFrame: 'SYNTHETIC_FIXED', status: 'controlled',
+        bodyFixedKmFromLocalMeters: [0,.001,0,0, 0,0,.001,0, .001,0,0,0, 1000,0,0,1],
+        provenance: 'Synthetic ENU solar fixture only', uncertaintyKm: 0 },
+      // Enclose the synthetic planet-scale ridge attached later in this fixture.
+      coverage: { min: [-4000000,-4000000,-4000000], max: [4000000,4000000,4000000] },
+      physicalQueryPolicy: 'visual-only', overlapPolicy: 'composite' };
     universe.loadCatalog({ name: 'displaced solar ridge', items: [
-      { name: 'Moon', class: 'moon', trajectory: { type: 'FixedPoint', position: [0,-2000,0] },
-        geometry: { type: 'Globe', radius: 1000, surfaceTiles: [{ name: 'ridge-site', url: '/site.json', lat: 0, lon: 0 }] } },
+      { name: 'Moon', rotationModel: { type: 'Fixed', quaternion: [Math.SQRT1_2,Math.SQRT1_2,0,0], inertialFrame: 'ECLIPJ2000', bodyFixedFrame: 'SYNTHETIC_FIXED' }, class: 'moon', trajectory: { type: 'FixedPoint', position: [0,-2000,0] },
+        geometry: { type: 'Globe', radius: 1000, surfaceTiles: [site] } },
       { name: 'Sun', class: 'star', trajectory: { type: 'FixedPoint', position: [0,0,-100000] },
         geometry: { type: 'Globe', radius: 1000 } },
     ] });
@@ -86,8 +94,9 @@ try {
       viewer.cameraController.controls.target.set(0,0,-100);
       c.lookAt(0,0,-100); c.updateProjectionMatrix(); c.updateMatrixWorld(true);
       if(mode === 'camera-relative') {
-        overlay.setCameraRelativeTransform(moon.position, moon.mesh.quaternion, 0.001, c.position);
-        const desired = new THREE.Matrix4().makeTranslation(0,height,-10);
+        moon.updateSurfaceTileTransforms();
+        // Author the ridge in world coordinates. The viewer applies/restores CRR.
+        const desired = new THREE.Matrix4().makeTranslation(0,height,0);
         group.matrix.copy(overlay.group.matrixWorld).invert().multiply(desired);
       } else group.position.y = height;
     }
