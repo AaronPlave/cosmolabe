@@ -1157,7 +1157,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           this.writing = false;
           if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
           const p = err.problems[0];
-          if (name === 'runEventQuery' && /not a recognized id-code for a reference frame|SPICE\\((?:UNKNOWNFRAME|NOFRAME)\\)/i.test(p.message)) {
+          if (name === 'runEventQuery' && /not a recognized id-code for a reference frame|SPICE\((?:UNKNOWNFRAME|NOFRAME)\)/i.test(p.message)) {
             return { ok: false, code: 'missing-dependency',
               error: `Event Finder's SPICE worker cannot resolve a required reference frame (${p.message.slice(0, 240)}). This is a non-retryable environment failure, not proof of missing trajectory data. Do not create or run another Event Finder search in this request. For a distance/closest-approach question, an existing profile can instead supply a clearly labeled approximate sampled center-distance minimum via profiles.sampleProfileData; it is not a verified closest approach, surface clearance or touchdown. Report the search failure explicitly.` };
           }
