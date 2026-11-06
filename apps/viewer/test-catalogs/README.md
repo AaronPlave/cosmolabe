@@ -15,6 +15,7 @@ It does not change the public Pages list or mission/embed sources.
 | `sensor-demo`, `oem-ingest`, `arrokoth-dsk` | Sensor geometry, Cassini text ephemeris (no spacecraft SPK) and DSK plate rendering. Keep their models, ephemerides and kernels. |
 | `planetary-places`, `places/` | Complete named-place dataset and standalone technical scene, preserved without requiring new mission integration. |
 | `mars-imagery-jezero`, `moon-imagery-apollo15` | Independent imagery over ellipsoids, **without terrain**. Mission terrain is not a replacement for these fallback tests. |
+| `earth-gibs-daily` | Time-indexed imagery (#214): NASA GIBS MODIS daily true colour following simulation time. Needs network access to `gibs.earthdata.nasa.gov`; see [time-indexed imagery](../../../docs/time-indexed-imagery.md). Its tour script is `earth-gibs-daily-tour.cosmo`. |
 | Eight `atmosphere-*` scenes | Per-scenario visual regression, including eclipse, dusk, twilight, textures and Saturn shadows. Used by `scripts/visual-regression.mjs`. |
 | Eight `geographic-vectors*` scenes | Vector rendering, geographic registration, terrain overlay and GPU workload regressions. |
 | Seven `experiments/moon-*` scenes | Lunar cube, quantized/polar, imagery grid/NAC/registration and geographic comparisons; generated products may be needed. |
@@ -34,7 +35,11 @@ products need their own build scripts. No new datasets are published here.
   analytical `solar-system.json` and both inner-planet propagation variants stay
   intact. No duplicate body declarations were merged because their propagation
   and sample geometry differ.
-- ISS uses its authored historical 2011 TLE, not a current station position.
+- Earth from Orbit (`iss`) pairs NOAA-20 VIIRS daily true-colour imagery (NASA GIBS) with one CelesTrak
+  ISS TLE (epoch 2026-11-05 20:28 UTC). The ISS item's catalog `startTime`/`endTime` limit it to 3 days either
+  side of that epoch (a TLE's `windowDays` only bounds propagation and does not hide the body), so scrubbing
+  elsewhere leaves the imagery but not an extrapolated station. The imagery was not captured by the ISS.
+  `earth-gibs-daily` keeps its own historical 2011 TLE and the MODIS pilot as the independent fixture.
 - Ingenuity terrain and four imagery products have pinned published builds in
   `scripts/data-hosting/datasets.json`. Reconstruction is estimated, not full
   3D telemetry; datum, clock and frame uncertainty remain in the catalog.

@@ -1,15 +1,25 @@
 {
-  "name": "ISS — TLE Orbit Demo",
-  "version": "1.0",
-  "defaultTime": "2011-02-11T09:45:00Z",
+  "name": "Earth from Orbit",
+  "version": "1.1",
+  "description": "Real daily VIIRS true-colour imagery of Earth over a static Blue Marble backdrop, with the ISS as orbital context. The imagery comes from the NOAA-20 weather satellite, not from the ISS. The ISS is drawn from one CelesTrak NORAD TLE (epoch 2026-11-05 20:28 UTC, retrieved 2026-11-06) and only within 3 days of it. The imagery day follows the simulation clock; open Surface layers in the left rail to fix a day, compare days or toggle the layer.",
+  "defaultTime": "2026-11-04T11:30:00Z",
+  "defaultViewpoint": "Earth from orbit",
   "items": [
     {
-      "name": "ISS Overview",
+      "name": "Earth from orbit",
       "type": "Viewpoint",
       "center": "Earth",
-      "distance": 30000,
-      "latitude": 30,
-      "longitude": -30
+      "distance": 15000,
+      "latitude": -10,
+      "longitude": 5
+    },
+    {
+      "name": "Regional view",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 10500,
+      "latitude": 33,
+      "longitude": 18
     },
     {
       "name": "Track ISS",
@@ -30,49 +40,121 @@
     {
       "name": "Sun",
       "class": "star",
-      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
-      "geometry": { "type": "Globe", "radius": 695000 },
-      "label": { "color": [1.0, 0.9, 0.3] }
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
     },
     {
       "name": "Earth",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "Earth" },
-      "rotationModel": { "type": "Builtin" },
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "rotationModel": {
+        "type": "Builtin"
+      },
       "geometry": {
         "type": "Globe",
-        "radius": 6378,
+        "radii": [
+          6378.137,
+          6378.137,
+          6356.752
+        ],
         "baseMap": "textures/earth-5k.jpg",
         "atmosphere": "Earth",
-        "terrain": {
-          "type": "imagery",
-          "imagery": {
+        "imagery": [
+          {
+            "id": "blue-marble",
+            "name": "Blue Marble",
+            "description": "Blue Marble Shaded Relief and Bathymetry: a static composite with no acquisition date, not daily satellite imagery",
+            "attribution": "NASA GIBS",
             "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
             "levels": 8,
             "projection": "EPSG:3857"
+          },
+          {
+            "id": "viirs-daily",
+            "name": "VIIRS daily true colour",
+            "description": "NOAA-20 VIIRS corrected reflectance, true colour: one composite per UTC day of what the sensor saw that day, clouds included. Polar-night areas are black. Not captured by the ISS",
+            "attribution": "NASA GIBS · VIIRS NOAA-20",
+            "resolutionMeters": 250,
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/2026-11-04/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg",
+            "levels": 9,
+            "projection": "EPSG:3857",
+            "temporal": {
+              "semantics": "acquisition",
+              "cadence": "day",
+              "policy": "follow-simulation",
+              "start": "2022-01-14",
+              "end": "present",
+              "latencyDays": 1,
+              "outOfRange": "hide",
+              "illumination": "baked"
+            }
           }
-        }
+        ]
       },
-      "label": { "color": [0.4, 0.6, 1.0] },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      },
       "items": [
         {
           "name": "Moon",
           "class": "moon",
           "center": "Earth",
-          "trajectory": { "type": "Builtin", "name": "Moon" },
-          "geometry": { "type": "Globe", "radius": 1737 },
-          "label": { "color": [0.7, 0.7, 0.7] }
+          "trajectory": {
+            "type": "Builtin",
+            "name": "Moon"
+          },
+          "rotationModel": {
+            "type": "Builtin",
+            "name": "IAU Moon"
+          },
+          "geometry": {
+            "type": "Globe",
+            "radius": 1737.4,
+            "baseMap": "textures/moon-4k.jpg"
+          },
+          "label": {
+            "color": [
+              0.7,
+              0.7,
+              0.7
+            ]
+          }
         },
         {
           "name": "ISS",
           "class": "spacecraft",
           "center": "Earth",
-          "trajectoryFrame": "J2000",
+          "startTime": "2026-11-02T20:28:37Z",
+          "endTime": "2026-11-08T20:28:37Z",
           "trajectory": {
             "type": "TLE",
-            "line1": "1 25544U 98067A   11042.40620627  .00065760  00000-0  48638-3 0  8024",
-            "line2": "2 25544  51.6440  85.8998 0004217 288.1282 194.3117 15.72311137701100"
+            "line1": "1 25544U 98067A   26309.85320381  .00006629  00000+0  12749-3 0  9998",
+            "line2": "2 25544  51.6327 319.0560 0007195 352.5747   7.5134 15.49194530593711"
           },
           "rotationModel": {
             "type": "Nadir",
@@ -83,9 +165,20 @@
             "type": "Mesh",
             "size": 0.1,
             "source": "models/ISS_stationary.glb",
-            "meshRotation": [0, 1, 0, 0]
+            "meshRotation": [
+              0,
+              1,
+              0,
+              0
+            ]
           },
-          "label": { "color": [1.0, 1.0, 1.0] },
+          "label": {
+            "color": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
           "trajectoryPlot": {
             "color": "#ffcc00",
             "fade": 0.5,

@@ -16,6 +16,7 @@ import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, t
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
+import type { ImageryTimePolicy } from './ImageryTime.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 
 /**
@@ -1230,7 +1231,7 @@ export class BodyMesh extends THREE.Object3D {
   private imagerySettingsRevision = 0;
   private surfaceViewKey(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): string {
     return JSON.stringify([et, camera.position.toArray(), camera.quaternion.toArray(), camera.projectionMatrix.elements,
-      renderer.domElement.width, renderer.domElement.height, this.position.toArray(), this.mesh.quaternion.toArray(), this.visible, this.surfaceTransitionState, this.imagerySettingsRevision]);
+      renderer.domElement.width, renderer.domElement.height, this.position.toArray(), this.mesh.quaternion.toArray(), this.visible, this.surfaceTransitionState, this.imagerySettingsRevision, this.terrainManager?.imageryTimeRevision ?? 0]);
   }
   /** Record the camera/configuration used by the main view's actual streaming update. */
   observeSurfaceView(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): void {
@@ -1520,6 +1521,23 @@ export class BodyMesh extends THREE.Object3D {
 
   moveImageryLayer(id: string, toIndex: number): boolean {
     const changed = this.terrainManager?.moveImageryLayer(id, toIndex) ?? false;
+    if (changed) this.imagerySettingsRevision++;
+    return changed;
+  }
+
+  /** Whether any imagery layer's day follows the simulation clock, so it needs `updateImageryTime` each frame. */
+  get followsImageryTime(): boolean {
+    return this.terrainManager?.followsSimulationTime ?? false;
+  }
+
+  /** Offer the simulation instant (UTC ms) to time-following imagery layers (#214). */
+  updateImageryTime(simulationMs: number): void {
+    this.terrainManager?.updateImageryTime(simulationMs);
+  }
+
+  /** Fix a time-indexed imagery layer to a UTC day, or switch how it follows time. */
+  setImageryLayerTime(id: string, patch: { policy?: ImageryTimePolicy; date?: string }): boolean {
+    const changed = this.terrainManager?.setImageryLayerTime(id, patch) ?? false;
     if (changed) this.imagerySettingsRevision++;
     return changed;
   }

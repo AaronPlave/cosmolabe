@@ -186,6 +186,11 @@ function scriptImagery(bm: BodyMesh): ScriptImagery {
       role: l.role, optional: l.optional, visible: l.visible, opacity: l.opacity,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
       resolutionMeters: l.resolutionMeters, source: { ...l.source }, status: l.status,
+      ...(l.temporal ? { time: {
+        policy: l.temporal.policy, cadence: l.temporal.cadence, date: l.temporal.date,
+        requestedDate: l.temporal.requestedDate, state: l.temporal.state, offsetDays: l.temporal.offsetDays, pending: l.temporal.pending,
+        rangeStart: l.temporal.range.start, rangeEnd: l.temporal.range.end, illumination: l.temporal.illumination,
+      } } : {}),
       view: l.view ? { ...l.view, minZoom: l.minZoom } : null,
     })),
   };
