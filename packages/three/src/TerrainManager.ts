@@ -10,6 +10,7 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
+import { combineImageryIllumination, DEFAULT_IMAGERY_ILLUMINATION, injectAsIsDisplayIntoShader, surfaceLightingPath, type ImageryIllumination } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
@@ -24,6 +25,19 @@ import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from 
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
 export interface TerrainImageryConfig {
+  /** Whether this image may be relit by the simulated Sun (#204).
+   *
+   *  - `'reflectance'`: approximately photometrically normalized albedo; the
+   *    Sun lights it physically in natural mode.
+   *  - `'baked'`: shading/shadows are already in the pixels; shown as-is, never
+   *    relit, so it is not double-lit and its source albedo is not misrepresented.
+   *  - `'unknown'` (default when omitted): legacy path, relit as before and not
+   *    asserted to be physically relightable.
+   *
+   *  A stack is `baked` or `reflectance` only when every contributing layer (visible,
+   *  opacity above zero) agrees; any mixture is `unknown`, so a bounded baked overlay
+   *  never switches the Sun off for the whole surface. */
+  illumination?: ImageryIllumination;
   /** Imagery source type. Default 'xyz'.
    *
    *  - `'cube'`: preprocessed cube-face imagery.json; requires cubeSphere terrain.
@@ -118,6 +132,10 @@ export interface TerrainImageryConfig {
 }
 
 export interface TerrainConfig {
+  /** Illumination provenance of the tileset's own textures (#204); used only when no
+   *  `imagery` is configured. See {@link TerrainImageryConfig.illumination}. Default:
+   *  `'reflectance'` for an untextured quantized mesh, otherwise `'unknown'`. */
+  illumination?: ImageryIllumination;
   /** Terrain source type. 'imagery' uses XYZ image tiles projected onto an ellipsoid (no terrain mesh needed). */
   type: 'quantized-mesh' | 'cesium-ion' | '3dtiles' | 'imagery';
   /** Base URL for quantized-mesh or 3dtiles tileset.json */
@@ -685,6 +703,30 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
+  /** Declared illumination provenance by layer id, and the fallback with no imagery (#204). */
+  private readonly illuminationById = new Map<string, ImageryIllumination>();
+  private readonly noImageryIllumination: ImageryIllumination;
+  /** Shared by every tile program: 1 shows tiles as-is (baked), 0 relights them with the Sun. */
+  private readonly asIsUniform = { value: 0 };
+
+  /**
+   * Resolved illumination provenance of what is drawn now (#204): the layers that
+   * contribute pixels (visible, opacity above zero) must all agree for a claim, so
+   * a baked overlay over another source leaves the surface on the legacy relit
+   * path instead of disabling the Sun outside its footprint.
+   */
+  get surfaceIllumination(): ImageryIllumination {
+    const layers = this.cubeImagery && this.layers.length ? this.cubeImagery.imageryLayers : this.layers;
+    const visible = layers.filter(l => l.visible && l.opacity > 0);
+    return visible.length > 0
+      ? combineImageryIllumination(visible.map(l => this.illuminationById.get(l.id)))
+      : this.noImageryIllumination;
+  }
+
+  /** Push the current provenance to the tile shaders. No recompile: it is a uniform. */
+  private refreshIllumination(): void {
+    this.asIsUniform.value = surfaceLightingPath(this.surfaceIllumination) === 'as-is' ? 1 : 0;
+  }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -856,6 +898,7 @@ export class TerrainManager {
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
+    this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
     if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
@@ -874,6 +917,8 @@ export class TerrainManager {
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
     }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
+    this.layers.forEach((l, i) => this.illuminationById.set(l.id, imageryConfigs[i].illumination ?? DEFAULT_IMAGERY_ILLUMINATION));
+    this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this.initTemporal(imageryConfigs);
     this._overlayResolution = config.overlayResolution ?? 256;
@@ -1806,10 +1851,15 @@ export class TerrainManager {
    * base layer, an unknown id, or the same state).
    */
   setImageryLayerVisible(id: string, visible: boolean): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerVisible(id, visible);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerVisible(id, visible);
+      if (changed) this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
     layer.visible = visible;
+    this.refreshIllumination();
     if (visible) {
       layer.requests = 0;
       layer.failedTiles = 0;
@@ -1831,10 +1881,15 @@ export class TerrainManager {
    * has no opacity.
    */
   setImageryLayerOpacity(id: string, opacity: number): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerOpacity(id, opacity);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerOpacity(id, opacity);
+      this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
     layer.opacity = clampOpacity(opacity);
+    this.refreshIllumination();
     const overlay = this.activeOverlays.get(id);
     if (overlay) (overlay as unknown as OverlayInternals).opacity = layer.opacity;
     return true;
@@ -2810,7 +2865,11 @@ export class TerrainManager {
 
     const su = this.shadowUniforms;
     const apu = this.aerialPerspectiveUniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '');
+    // Illumination-baked imagery is displayed as-is, never relit by the Sun (#204).
+    // Always injected and driven by a shared uniform, so provenance changes
+    // (layer visibility) need no recompile and every tile shares one program.
+    const asIsUniform = this.asIsUniform;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v1';
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -2861,16 +2920,15 @@ export class TerrainManager {
         // perspective passes. Order matters — overlays should land before
         // shadow/atmosphere darken the result.
         const cacheKeySuffix = (hasOverlayWrap ? '_overlay_v1' : '');
-        if (su || apu || hasOverlayWrap) {
-          mat.onBeforeCompile = (shader, renderer) => {
-            if (hasOverlayWrap && overlayOnBeforeCompile) {
-              (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
-            }
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
-        }
+        mat.onBeforeCompile = (shader, renderer) => {
+          if (hasOverlayWrap && overlayOnBeforeCompile) {
+            (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
+          }
+          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
         // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
         // material a second time: the chain above already carries its shader.
         for (const sym of Object.getOwnPropertySymbols(basic)) {
@@ -2890,6 +2948,10 @@ export class TerrainManager {
       // which is not a general glTF transform contract. This intentionally
       // changes cube lighting relative to main, independently of style toggles.
       // See docs/validation/cube-surface-appearance for main-vs-PR lit captures.
+      // Shading-only: this rewrites the `normal` attribute, never positions, so
+      // picking, elevation sampling and slope data stay exact (#204). The blend
+      // softens faceting at the cost of attenuating real slope in the direct
+      // term; cube terrain keeps its physical normals instead.
       if (!this.cubeConfigured) this.blendSphereNormals(child, 0.6);
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -2901,16 +2963,15 @@ export class TerrainManager {
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
-        if (su || apu) {
-          const prevOBC = (mat as any).onBeforeCompile;
-          (mat as any).onBeforeCompile = (shader: any) => {
-            prevOBC?.(shader);
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          (mat as any).customProgramCacheKey = () => cacheKey;
-          (mat as any).needsUpdate = true;
-        }
+        const prevOBC = (mat as any).onBeforeCompile;
+        (mat as any).onBeforeCompile = (shader: any) => {
+          prevOBC?.(shader);
+          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        (mat as any).customProgramCacheKey = () => cacheKey;
+        (mat as any).needsUpdate = true;
       }
     });
 

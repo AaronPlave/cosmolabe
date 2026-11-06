@@ -131,6 +131,16 @@ describe('validateCatalog', () => {
     expect(ds[0].suggestion).toBe('levels');
   });
 
+  it('accepts the imagery illumination contract on terrain and on each imagery layer (#204)', () => {
+    expect(validateCatalog(withItem({
+      geometry: {
+        type: 'Globe', radius: 1737.4,
+        imagery: [{ url: 'x', illumination: 'baked' }],
+        terrain: { type: '3dtiles', url: 'y', illumination: 'reflectance', imagery: [{ url: 'x', illumination: 'unknown' }] },
+      },
+    }))).toEqual([]);
+  });
+
   it('reports an unknown trajectory or rotation type, and its nearest spelling', () => {
     const ds = validateCatalog(withItem({
       trajectory: { type: 'Keplerain' },
