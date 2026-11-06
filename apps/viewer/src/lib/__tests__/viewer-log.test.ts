@@ -47,16 +47,27 @@ describe('continuing faults', () => {
     expect(viewerLog.entries.find(e => e.id === viewerLog.activeFaultId)?.message).toContain('no coverage');
   });
 
-  it('does not re-log a dismissed fault, and logs recovery', () => {
+  it('keeps an acknowledged continuing fault active, unlogged, until it recovers', () => {
     setViewerFault('Camera frame', 'f|gap A', 'gap A');
+    const id = viewerLog.activeFaultId;
     dismissViewerFault();
     setViewerFault('Camera frame', 'f|gap A', 'gap A, later');
     expect(viewerLog.entries).toHaveLength(1);
-    expect(viewerLog.activeFaultId).toBeNull();
+    expect(viewerLog.activeFaultId).toBe(id);
+    expect(viewerLog.acknowledgedId).toBe(id);
     clearViewerFault('Camera frame');
+    expect(viewerLog.activeFaultId).toBeNull();
+    expect(viewerLog.acknowledgedId).toBeNull();
     expect(viewerLog.entries[0]).toMatchObject({ level: 'info', message: 'Recovered.' });
     clearViewerFault('Camera frame');
     expect(viewerLog.entries).toHaveLength(2);
+  });
+
+  it('raises a different failure after an acknowledgement as new', () => {
+    setViewerFault('Camera frame', 'f|gap A', 'gap A');
+    dismissViewerFault();
+    setViewerFault('Camera frame', 'f|no coverage', 'no coverage');
+    expect(viewerLog.activeFaultId).not.toBe(viewerLog.acknowledgedId);
   });
 });
 

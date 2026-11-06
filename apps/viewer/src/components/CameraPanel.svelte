@@ -6,7 +6,7 @@
    * its own. Opening it changes nothing about the view.
    */
   import { Save, Download, Upload } from 'lucide-svelte';
-  import { vs, getRenderer, setFov, setCameraMode, trackBody, lookAtBody, clearLookAt, frameBody, flyToTracked, jumpToBody, resetCamera, applyViewpoint } from '../lib/viewer-state.svelte';
+  import { vs, getRenderer, setFov, setCameraMode, trackBody, lookAtBody, clearLookAt, frameBody, flyToTracked, resetCamera, applyViewpoint } from '../lib/viewer-state.svelte';
   import { presentationControl } from '../lib/presentation-control';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { shortcutFor } from '../lib/keymap';
@@ -42,6 +42,7 @@
     return null;
   }
 
+  let viewsOpen = $state(false);
   let message = $state('');
   function run(label: string, ok: boolean) { message = ok ? '' : `${label} isn’t available right now.`; }
 
@@ -90,10 +91,9 @@
         </select>
       </label>
     </div>
-    <div class="grid grid-cols-3 gap-1">
+    <div class="grid grid-cols-2 gap-1">
       <button class={btn} disabled={!tracked} title="Fit the tracked object in view" onclick={() => run('Frame', frameBody())}>Frame</button>
       <button class={btn} disabled={!tracked} title="Animate to the framed view {shortcutFor('cam:fly-to') ?? ''}" onclick={() => run('Fly to', flyToTracked())}>Fly to</button>
-      <button class={btn} disabled={!tracked} title="Cut to the view a flight would land on" onclick={() => run('Jump', !!tracked && jumpToBody(tracked))}>Jump</button>
     </div>
     {#if message}<p class="helper text-error" role="alert">{message}</p>{/if}
     <label class="flex items-center gap-2 text-xs text-text-primary">
@@ -109,9 +109,10 @@
   <Separator class="my-1" />
 
   <!-- Less frequent controls, collapsed until wanted -->
-  <details class="px-3 py-1">
+  <details class="px-3 py-1" bind:open={viewsOpen}>
     <summary class="ui-section-label cursor-pointer select-none">Views and movement</summary>
-    <CameraControls />
+    <!-- Mounted only while open: its availability checks resolve views against the clock. -->
+    {#if viewsOpen}<CameraControls />{/if}
   </details>
 
   {#if viewpoints.length > 0}

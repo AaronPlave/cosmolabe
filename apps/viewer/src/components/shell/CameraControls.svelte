@@ -62,6 +62,7 @@
     if (down && !event.repeat) { pressed = id; startHeldCameraMove(id); }
     else if (!down) release(id);
   }
+  $effect(() => () => { for (const m of MOVES) stopHeldCameraMove(m.id); });
   $effect(() => { if (!movesAvailable) { for (const m of MOVES) stopHeldCameraMove(m.id); pressed = null; } });
 
   // ── View from a vector ──

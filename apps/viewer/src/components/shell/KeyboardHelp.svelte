@@ -22,11 +22,11 @@
       <h3 class="mb-1 text-metadata font-semibold uppercase text-text-faint">{group.category}</h3>
       <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         {#each group.bindings as binding (binding.id)}
-          <dt class="m-0 self-center" class:opacity-50={binding.unavailable}>
-            <kbd class="rounded border border-border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-metadata text-text-secondary">{binding.display}</kbd>
+          <dt class="m-0 self-center">
+            <kbd class="rounded border border-border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-metadata {binding.unavailable ? 'text-text-muted' : 'text-text-secondary'}">{binding.display}</kbd>
           </dt>
-          <dd class="m-0 self-center text-xs text-text-secondary" class:opacity-50={binding.unavailable}>
-            {binding.label}{#if binding.unavailable}<span class="text-text-faint"> · not in this camera mode</span>{/if}
+          <dd class="m-0 self-center text-xs {binding.unavailable ? 'text-text-muted' : 'text-text-secondary'}">
+            {binding.label}{#if binding.unavailable}<span class="block text-metadata">Not in this camera mode</span>{/if}
           </dd>
         {/each}
       </dl>

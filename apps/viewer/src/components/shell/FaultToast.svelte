@@ -14,7 +14,7 @@
   const entry = $derived(shownId === null ? null : viewerLog.entries.find(e => e.id === shownId) ?? null);
 
   $effect(() => {
-    const id = viewerLog.activeFaultId;
+    const id = viewerLog.activeFaultId === viewerLog.acknowledgedId ? null : viewerLog.activeFaultId;
     untrack(() => {
       clearTimeout(timer);
       shownId = id;

@@ -8,32 +8,32 @@
 
   let showLog = $state(false);
   const current = $derived(viewerLog.entries.find(entry => entry.id === viewerLog.activeFaultId) ?? null);
-  const history = $derived(viewerLog.entries.filter(entry => entry.id !== viewerLog.activeFaultId));
+  const acknowledged = $derived(current !== null && viewerLog.acknowledgedId === current.id);
 </script>
 
 <div class="flex flex-col gap-1.5 text-xs" aria-label="Viewer faults">
   <div class="flex items-center gap-2">
     {#if current}
       <AlertTriangle size={14} class="shrink-0 text-error" />
-      <span class="min-w-0 flex-1 truncate text-text-primary">1 active fault · {current.source}</span>
+      <span class="min-w-0 flex-1 truncate text-text-primary">1 active fault · {current.source}{acknowledged ? ' (acknowledged)' : ''}</span>
     {:else}
       <span class="min-w-0 flex-1 text-text-muted">No active faults</span>
     {/if}
-    {#if current}<button class="icon" aria-label="Dismiss current fault" title="Dismiss (stays in log)" onclick={dismissViewerFault}><X size={14} /></button>{/if}
+    {#if current && !acknowledged}<button class="icon" aria-label="Acknowledge fault" title="Acknowledge (it stays active until it recovers)" onclick={dismissViewerFault}><X size={14} /></button>{/if}
     <button class="link" aria-expanded={showLog} disabled={!viewerLog.entries.length} onclick={() => (showLog = !showLog)}>{showLog ? 'Hide log' : 'View log'}</button>
   </div>
-  {#if current}
+  {#if current && !acknowledged}
     <p class="m-0 break-words rounded border border-error/50 px-2 py-1 leading-snug text-text-primary" role="alert">{current.message}</p>
   {/if}
 
   {#if showLog && viewerLog.entries.length}
     <section aria-label="Log" class="rounded border border-border-subtle">
       <header class="flex items-center gap-2 border-b border-border-subtle px-2 py-0.5">
-        <div class="ui-section-label flex-1">Log · {history.length} earlier</div>
+        <div class="ui-section-label flex-1">Log · {viewerLog.entries.length} entries</div>
         <button class="icon" aria-label="Clear log" title="Clear history" onclick={() => { clearViewerLog(); showLog = false; }}><Trash2 size={14} /></button>
       </header>
       <ol class="m-0 flex max-h-56 flex-col gap-2 overflow-y-auto p-2">
-        {#each history as entry (entry.id)}
+        {#each viewerLog.entries as entry (entry.id)}
           <li class="list-none border-b border-border-subtle pb-2 last:border-0 last:pb-0">
             <div class="mb-0.5 flex items-baseline gap-2">
               <time class="font-mono text-metadata text-text-faint">{new Date(entry.timestamp).toLocaleTimeString()}</time>
@@ -42,8 +42,6 @@
             </div>
             {#if entry.message !== 'Recovered.'}<p class="m-0 break-words leading-snug text-text-primary">{entry.message}</p>{/if}
           </li>
-        {:else}
-          <li class="list-none text-text-muted">Nothing earlier.</li>
         {/each}
       </ol>
     </section>

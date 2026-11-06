@@ -15,7 +15,10 @@ let nextId = 1;
 
 export const viewerLog = $state({
   entries: [] as ViewerLogEntry[],
+  /** The fault that is happening now: health, independent of whether anyone has looked at it. */
   activeFaultId: null as number | null,
+  /** The active fault the user has seen and dismissed: it stays active, but is not raised again. */
+  acknowledgedId: null as number | null,
 });
 
 export function recordViewerLog(
@@ -42,8 +45,15 @@ export function recordViewerFault(source: string, message: string): ViewerLogEnt
   return recordViewerLog('error', source, message);
 }
 
+/**
+ * Acknowledge the active fault. A continuing condition stays active (the rail and
+ * Diagnostics still report it) until it recovers; a one-off error has no
+ * recovery to wait for, so dismissing it clears it.
+ */
 export function dismissViewerFault(): void {
-  viewerLog.activeFaultId = null;
+  const id = viewerLog.activeFaultId;
+  if ([...conditions.values()].some(c => c.id === id)) viewerLog.acknowledgedId = id;
+  else viewerLog.activeFaultId = null;
 }
 
 /** Continuing conditions by source: the key reported and the entry that carries it. */
@@ -70,7 +80,7 @@ export function clearViewerFault(source: string): void {
   const continuing = conditions.delete(source);
   const active = viewerLog.entries.find(entry => entry.id === viewerLog.activeFaultId);
   const shown = active?.source === source;
-  if (shown) viewerLog.activeFaultId = null;
+  if (shown) { viewerLog.activeFaultId = null; viewerLog.acknowledgedId = null; }
   if (continuing || shown) recordViewerLog('info', source, 'Recovered.');
 }
 
@@ -90,4 +100,5 @@ export function clearViewerLog(): void {
   conditions.clear();
   viewerLog.entries = [];
   viewerLog.activeFaultId = null;
+  viewerLog.acknowledgedId = null;
 }
