@@ -65,11 +65,13 @@ about a different, sunlit patch, and a receiver facing the Sun can still be
 behind a ridge (#205). #205 should attenuate this term, which is kept separate
 from ambient and baked terms, rather than darkening the composited image.
 
-## Demonstration: the Sun-direction correction on real streamed terrain
+## Demonstration: the Sun-direction correction on streamed imagery
 
 `scripts/demo-surface-sun-direction-gpu.mjs` renders one scene twice, with the
 same camera, epoch and imagery and no shadow caster: scene origin Earth, camera
-viewing Mars, streamed NASA Trek Viking MDIM 2.1 tiles (fetched once, cached).
+viewing Mars, streamed NASA Trek Viking MDIM 2.1 imagery tiles (fetched once, cached).
+The fixture uses `geometry.imagery` without `geometry.terrain`: its streamed
+surface is an imagery-only ellipsoid, **not displaced terrain with relief**.
 "Before" is the old origin-aimed Sun; "after" is the receiver-aimed Sun. The
 ephemeris is the Keplerian fallback (no SPICE kernels) and the imagery has no
 declared provenance (`unknown`, legacy relit), so this shows the **aiming**, not
@@ -91,8 +93,9 @@ the "before" image lights nearly the whole disk.
 Checks the script asserts (raw values in
 [`sun-direction-result.json`](validation/surface-illumination/sun-direction-result.json)):
 
-- The surface is the streamed path (`surfaceTransitionState` `streamed`, tile
-  meshes in the terrain group), not the fallback sphere.
+- The surface is the streamed imagery-only ellipsoid path (`surfaceTransitionState`
+  `streamed`, tile meshes in the terrain group), not the fallback sphere.
+  This does not validate lighting on displaced 3D terrain.
 - The "after" light is the true Mars→Sun direction (0.00°); the "before" light is
   the origin→Sun direction.
 - **Albedo-free ratio.** The same imagery at the same pixel is lit by two Sun
