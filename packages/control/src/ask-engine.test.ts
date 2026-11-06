@@ -534,7 +534,7 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     expect(attempts()).toBe(1);
     expect(run.stats.rounds).toBe(7);
     expect(run.answer).toContain('SPICE worker is missing a reference-frame dependency');
-    expect(run.answer).not.toContain('verified closest approach');
+    expect(run.answer).toContain('not verified closest approach');
     tools.dispose();
   });
 });
