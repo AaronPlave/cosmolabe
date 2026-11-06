@@ -66,6 +66,15 @@ export function wantsGlyph(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, hasCustomVi
   }
 }
 
+/**
+ * Whether the glyph stands in for the legacy lit minimum-size placeholder
+ * sphere this frame. Only while glyphs are on, the body is eligible and its
+ * projected radius is still unresolved; otherwise the old behaviour stands.
+ */
+export function glyphReplacesPlaceholder(glyphsEnabled: boolean, eligible: boolean, radiusPx: number): boolean {
+  return glyphsEnabled && eligible && radiusPx < GLYPH_GONE_PX;
+}
+
 /** Anti-aliased coverage of a signed distance in device pixels. */
 function coverage(distance: number): number {
   return Math.min(1, Math.max(0, 0.5 - distance));
@@ -346,19 +355,27 @@ export class PositionGlyphs {
   /**
    * Nearest drawn glyph within `slopPx` of a canvas position (CSS px), so a
    * click on the point itself selects the entity just like its label does.
+   *
+   * The GPU depth test hides a glyph behind a nearer globe or terrain, so the
+   * pick must too: candidates are tried nearest first and any for which
+   * `isOccluded(name)` is true is skipped.
    */
-  pickNearest(screenX: number, screenY: number, slopPx: number): string | null {
-    let best: string | null = null;
-    let bestD = slopPx * slopPx;
+  pickNearest(screenX: number, screenY: number, slopPx: number, isOccluded?: (name: string) => boolean): string | null {
+    const slopSq = slopPx * slopPx;
+    const candidates: Array<{ name: string; d2: number }> = [];
     for (const [name, entry] of this.entries) {
       const r = entry.readout;
       if (!entry.dot.visible || !r.anchor || r.glyphWeight < 0.3) continue;
       const dx = r.anchor.x - screenX;
       const dy = r.anchor.y - screenY;
       const d2 = dx * dx + dy * dy;
-      if (d2 <= bestD) { bestD = d2; best = name; }
+      if (d2 <= slopSq) candidates.push({ name, d2 });
     }
-    return best;
+    candidates.sort((a, b) => a.d2 - b.d2);
+    for (const { name } of candidates) {
+      if (!isOccluded?.(name)) return name;
+    }
+    return null;
   }
 
   /** Observable marker state for every entity currently drawn as a glyph (or fading out). */

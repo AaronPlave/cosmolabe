@@ -62,7 +62,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
-import { PositionGlyphs, wantsGlyph, type PositionGlyphReadout } from './PositionGlyphs.js';
+import { PositionGlyphs, wantsGlyph, glyphReplacesPlaceholder, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -90,6 +90,7 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+const _tmpGlyphRay = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
@@ -388,6 +389,8 @@ export class UniverseRenderer {
   private labelManager: LabelManager | null = null;
   private readonly positionGlyphs: PositionGlyphs;
   private _positionGlyphsEnabled = true;
+  /** Bodies whose small placeholder sphere the glyph has hidden (restored when it hands off). */
+  private readonly _placeholderHiddenByGlyph = new Set<string>();
   private _devicePixelObserver: ResizeObserver | null = null;
   private _devicePixelBox: {
     pixels: ResizeObserverSize;
@@ -940,10 +943,17 @@ export class UniverseRenderer {
 
       bm.scale.setScalar(1); // Always real scale
 
+      // The unlit position glyph replaces the legacy lit minimum-size
+      // placeholder (and the sphere standing in while a model fades in) for
+      // eligible, still-unresolved bodies. Disabled glyphs or ineligible bodies
+      // keep exactly the old behaviour.
+      const glyphActive = glyphReplacesPlaceholder(
+        this._positionGlyphsEnabled, wantsGlyph(bm, this._customVisuals.has(bm.body.name)), screenPixels);
+
       if (bm.hasModel && !bm.attitudeAvailable) {
         // Position known, attitude not: the marker, never a model at a held attitude.
         bm.setModelVisible(false);
-        bm.mesh.visible = true;
+        bm.mesh.visible = !glyphActive;
       } else if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
@@ -962,12 +972,18 @@ export class UniverseRenderer {
         } else if (this.minBodyPixels > 0) {
           // Too small for model: show placeholder as a dot (respects minBodyPixels)
           bm.setModelVisible(false);
-          bm.mesh.visible = true;
+          bm.mesh.visible = !glyphActive;
         } else {
           // No minBodyPixels: hide everything when too small
           bm.setModelVisible(false);
           bm.mesh.visible = false;
         }
+      } else if (glyphActive && screenPixels < this.minBodyPixels) {
+        // No model: the clamped minimum-size sphere would draw an inflated lit
+        // body at this position. The glyph marks it instead.
+        if (bm.mesh.visible) { bm.mesh.visible = false; this._placeholderHiddenByGlyph.add(bm.body.name); }
+      } else if (this._placeholderHiddenByGlyph.delete(bm.body.name)) {
+        bm.mesh.visible = true;
       }
 
       // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot.
@@ -1275,7 +1291,7 @@ export class UniverseRenderer {
         viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
         device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
         isEligible: (bm) => wantsGlyph(bm, this._customVisuals.has(bm.body.name)),
-        isPinned: (name) => this.labelManager?.isLabelPinned(name) ?? false,
+        isPinned: (name) => this.labelManager?.isLabelPinnedByHost(name) ?? false,
         trackedName: this.cameraController.trackedBody?.body.name ?? null,
         hoveredName: this._hoveredBody,
       });
@@ -5019,7 +5035,9 @@ export class UniverseRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     return this.labelManager.pickNearest(
       screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
-    ) ?? (this._positionGlyphsEnabled ? this.positionGlyphs.pickNearest(screenX, screenY, 6) : null);
+    ) ?? (this._positionGlyphsEnabled
+      ? this.positionGlyphs.pickNearest(screenX, screenY, 6, (name) => this._glyphOccluded(name))
+      : null);
   }
 
   /**
@@ -5028,21 +5046,21 @@ export class UniverseRenderer {
    * is hidden (see BodyMesh frame logic) and only the terrain mesh is visible —
    * so the terrain group is raycast too, otherwise the planet becomes unpickable.
    */
-  private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {
-    if (!this._dblClickRaycaster) return null;
-    this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+  /**
+   * Everything a body pick can hit: visible placeholder spheres, visible DSK
+   * plates and, where a sphere is hidden (camera near the surface), terrain.
+   * `exclude` leaves one body out, e.g. a marker's own geometry.
+   */
+  private _pickTargets(exclude?: string): { meshTargets: THREE.Object3D[]; terrainOwner: Map<THREE.Object3D, BodyMesh> } {
     const meshTargets: THREE.Object3D[] = [];
     const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
     for (const bm of this.bodyMeshes.values()) {
       // Raycasting ignores visibility, including bodies outside their existence window.
-      if (!bm.visible) continue;
+      if (!bm.visible || bm.body.name === exclude) continue;
       if (bm.mesh.visible) {
         meshTargets.push(bm.mesh);
       } else {
         meshTargets.push(...bm.getDskMeshes());
-        // Sphere hidden (camera near surface) — fall back to terrain mesh so the
-        // body remains pickable. Skipped when sphere is visible to avoid
-        // raycasting hundreds of tile meshes the sphere already covers.
         const terrain = bm.terrainTileGroup;
         if (terrain && terrain.visible) {
           meshTargets.push(terrain);
@@ -5050,6 +5068,39 @@ export class UniverseRenderer {
         }
       }
     }
+    return { meshTargets, terrainOwner };
+  }
+
+  /**
+   * Whether a nearer body or terrain hides this entity's position glyph from
+   * the camera: the pick-time twin of the GPU depth test that hides the sprite.
+   * Hits within a few pixels of the glyph's own depth are not occluders, so a
+   * surface-locked asset standing on its parent's terrain stays pickable.
+   */
+  private _glyphOccluded(name: string): boolean {
+    const bm = this.bodyMeshes.get(name);
+    const ray = this._dblClickRaycaster;
+    if (!bm || !ray) return false;
+    const origin = this.camera.position;
+    const toBody = _tmpGlyphRay.copy(bm.position).sub(origin);
+    const dist = toBody.length();
+    if (!(dist > 0)) return false;
+    const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
+    const worldPerPx = (2 * dist * halfFovTan) / Math.max(1, this.renderer.domElement.clientHeight);
+    const { meshTargets } = this._pickTargets(name);
+    const savedNear = ray.near, savedFar = ray.far;
+    ray.set(origin, toBody.divideScalar(dist));
+    ray.near = 0;
+    ray.far = Math.max(0, dist - 6 * worldPerPx);
+    const hit = ray.intersectObjects(meshTargets, true).length > 0;
+    ray.near = savedNear; ray.far = savedFar;
+    return hit;
+  }
+
+  private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {
+    if (!this._dblClickRaycaster) return null;
+    this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const { meshTargets, terrainOwner } = this._pickTargets();
     const hits = this._dblClickRaycaster.intersectObjects(meshTargets, true);
     if (hits.length === 0) return null;
     // Walk up from hit to find owning BodyMesh: either via terrainOwner map

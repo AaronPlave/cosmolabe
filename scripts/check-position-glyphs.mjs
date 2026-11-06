@@ -28,6 +28,16 @@ const catalog = {
           geometry: { type: 'Globe', radius: 1560.8 }, label: { color: [0.85, 0.88, 1] } },
         { name: 'Tiny', class: 'moon', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [671000, 9000, 4000] },
           geometry: { type: 'Globe', radius: 4 }, label: { color: [0.8, 0.8, 0.8] } },
+        // Directly behind Europa from the wide-view camera: its glyph is depth-hidden,
+        // so it must not be pickable either.
+        { name: 'Hidden Probe', class: 'spacecraft', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [668000, 0, 0] },
+          geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.01 }, label: { color: [1, 1, 1] } },
+        // Surface-locked assets on Europa's near and far side. (No terrain data is
+        // needed: the parent's globe is the occluder.)
+        { name: 'Rover Near', class: 'spacecraft', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [672560.8, 0, 0] },
+          geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.002, surfaceLock: true }, label: { color: [1, 1, 1] } },
+        { name: 'Rover Far', class: 'spacecraft', center: 'Jupiter', trajectory: { type: 'FixedPoint', position: [669439.2, 0, 0] },
+          geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.002, surfaceLock: true }, label: { color: [1, 1, 1] } },
         { name: 'Europa Clipper', class: 'spacecraft', center: 'Jupiter',
           trajectory: { type: 'FixedPoint', position: [671000, 0, 2600] },
           geometry: { type: 'Mesh', source: 'models/clipper_spacecraft.glb', size: 0.01 }, label: { color: [1, 1, 1] } },
@@ -144,17 +154,63 @@ try {
     const { getRenderer, setDisplayOption } = window.glyphState;
     const r = getRenderer(); const sc = r.getBodyMesh('Europa Clipper');
     setDisplayOption('labels', true, { persist: false });
+    window.cosmo.untrack();
     r.camera.position.copy(sc.position).add({ x: 60000 * r.scaleFactor, y: 18000 * r.scaleFactor, z: 0 });
     r.camera.lookAt(sc.position); r.camera.updateMatrixWorld(true);
     const frame = async () => { r.renderFrame(); await new Promise(requestAnimationFrame); r.renderFrame(); };
-    const ring = async () => { await frame(); return r.getPositionGlyphReadout().find((e) => e.name === 'Europa Clipper')?.ring; };
-    const out = { rest: await ring() };
-    r.setLabelPinned('Europa Clipper', true); out.selected = await ring();
-    window.cosmo.track?.('Europa Clipper'); out.tracked = await ring();
+    const entry = async (name = 'Europa Clipper') => { await frame(); return r.getPositionGlyphReadout().find((e) => e.name === name); };
+    const out = { rest: (await entry()).ring };
+    // Hover alone must never read as selection (it temporarily pins the label).
+    r.setHoveredBody('Europa Clipper'); const hov = await entry();
+    out.hoverRing = hov.ring; out.hovered = hov.hovered; r.setHoveredBody(null);
+    r.setLabelPinned('Europa Clipper', true); out.selected = (await entry()).ring;
+    window.cosmo.track?.('Europa Clipper'); out.tracked = (await entry()).ring;
+    window.cosmo.untrack(); r.setLabelPinned('Europa Clipper', false);
+    r.camera.position.copy(sc.position).add({ x: 60000 * r.scaleFactor, y: 18000 * r.scaleFactor, z: 0 });
+    r.camera.lookAt(sc.position); r.camera.updateMatrixWorld(true); await frame();
+
+    // Picking: a glyph hidden behind Europa must not be pickable; visible ones are,
+    // including a surface-locked asset on the near side but not one on the far side.
+    const pick = async (name) => {
+      const e = await entry(name);
+      if (!e?.anchor) return { anchor: null };
+      const hit = r.pickScene(e.anchor.x, e.anchor.y, 'select', { labelSlopPx: 0 });
+      return { anchor: e.anchor, hit: hit?.kind === 'entity' ? hit.bodyName : (hit?.kind ?? null) };
+    };
+    out.pickVisible = (await pick('Europa Clipper')).hit;
+    out.pickHidden = (await pick('Hidden Probe')).hit;
+    out.pickRoverNear = (await pick('Rover Near')).hit;
+    out.pickRoverFar = (await pick('Rover Far')).hit;
+
+    // The glyph replaces the legacy lit minimum-size placeholder sphere (the library
+    // default, minBodyPixels = 4); with glyphs off it is restored. The viewer app
+    // itself passes minBodyPixels = 0, where nothing is drawn for a tiny model body
+    // and a globe renders at its real size: glyphs must not change that.
+    const tiny = r.getBodyMesh('Tiny');
+    const vis = () => ({ clipper: sc.mesh.visible, tiny: tiny.mesh.visible });
+    const appMinBodyPixels = r.minBodyPixels;
+    r.minBodyPixels = 4;
+    await frame();
+    out.placeholderOn = { ...vis(), europa: r.getBodyMesh('Europa').mesh.visible };
+    r.setPositionGlyphsEnabled(false); await frame(); out.placeholderOff = vis();
+    r.setPositionGlyphsEnabled(true); await frame(); out.placeholderBack = vis();
+    r.minBodyPixels = 0; await frame(); out.appDefault = vis();
+    r.setPositionGlyphsEnabled(false); await frame(); out.appDefaultGlyphsOff = vis();
+    r.setPositionGlyphsEnabled(true); r.minBodyPixels = appMinBodyPixels; await frame();
     return out;
   });
-  console.log('ring states', JSON.stringify(states));
-  assert.equal(states.rest, 'none'); assert.equal(states.selected, 'selected'); assert.equal(states.tracked, 'tracked');
+  console.log('states', JSON.stringify(states));
+  assert.equal(states.rest, 'none'); assert.equal(states.hoverRing, 'none', 'hover must not draw a selected ring');
+  assert.equal(states.hovered, true);
+  assert.equal(states.selected, 'selected'); assert.equal(states.tracked, 'tracked');
+  assert.equal(states.pickVisible, 'Europa Clipper');
+  assert.notEqual(states.pickHidden, 'Hidden Probe', 'glyph behind Europa must not be pickable');
+  assert.equal(states.pickRoverNear, 'Rover Near', 'surface-locked asset on the visible side stays pickable');
+  assert.notEqual(states.pickRoverFar, 'Rover Far', 'surface-locked asset on the far side is occluded by its parent');
+  assert.deepEqual(states.placeholderOn, { clipper: false, tiny: false, europa: true }, 'glyph replaces the lit placeholder for unresolved bodies only');
+  assert.deepEqual(states.placeholderOff, { clipper: true, tiny: true }, 'legacy placeholder returns when glyphs are disabled');
+  assert.deepEqual(states.placeholderBack, { clipper: false, tiny: false });
+  assert.deepEqual(states.appDefault, states.appDefaultGlyphsOff, 'with minBodyPixels 0 the glyph changes no placeholder state');
   await page.screenshot({ path: 'work/position-glyphs/wide-tracked.png' });
 
   assert.equal(errors.length, 0, errors.join('\n'));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  GLYPH_FULL_PX, GLYPH_GONE_PX, PositionGlyphs, glyphWeight, rasterizeGlyph, wantsGlyph,
+  GLYPH_FULL_PX, GLYPH_GONE_PX, PositionGlyphs, glyphReplacesPlaceholder, glyphWeight, rasterizeGlyph, wantsGlyph,
 } from '../PositionGlyphs.js';
 import type { BodyMesh } from '../BodyMesh.js';
 
@@ -68,6 +68,16 @@ describe('glyphWeight', () => {
       const visibility = 1 - (1 - glyphWeight(px)) * (1 - model);
       expect(visibility).toBeGreaterThanOrEqual(0.5);
     }
+  });
+});
+
+describe('glyphReplacesPlaceholder', () => {
+  it('replaces the legacy placeholder only for eligible, unresolved bodies while enabled', () => {
+    expect(glyphReplacesPlaceholder(true, true, 0.5)).toBe(true);
+    expect(glyphReplacesPlaceholder(true, true, GLYPH_GONE_PX - 0.01)).toBe(true);
+    expect(glyphReplacesPlaceholder(true, true, GLYPH_GONE_PX)).toBe(false); // resolved: normal rendering
+    expect(glyphReplacesPlaceholder(false, true, 0.5)).toBe(false); // glyphs off: legacy behaviour
+    expect(glyphReplacesPlaceholder(true, false, 0.5)).toBe(false); // ineligible (Sun, custom visual…)
   });
 });
 
@@ -248,6 +258,38 @@ describe('PositionGlyphs.update', () => {
     const { anchor } = g.readout()[0];
     expect(g.pickNearest(anchor!.x + 4, anchor!.y, 6)).toBe('Clipper');
     expect(g.pickNearest(anchor!.x + 40, anchor!.y, 6)).toBeNull();
+  });
+
+  it('skips an occluded glyph when picking (a nearer body hides it) and falls through to the next', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const hidden = fakeBody('Hidden', new THREE.Vector3(0, 0, -50)); // behind a foreground globe
+    const visible = fakeBody('Visible', new THREE.Vector3(0.0001, 0, 0)); // a few px away, in front
+    g.update([hidden, visible], cam, ctx());
+    const { anchor } = g.readout().find((r) => r.name === 'Hidden')!;
+    expect(g.pickNearest(anchor!.x, anchor!.y, 6)).toBe('Hidden'); // no occlusion info: nearest wins
+    expect(g.pickNearest(anchor!.x, anchor!.y, 6, (n) => n === 'Hidden')).toBe('Visible');
+    expect(g.pickNearest(anchor!.x, anchor!.y, 6, () => true)).toBeNull();
+  });
+
+  it('keeps a surface-locked asset anchored on its surface point, nudged only toward the camera', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const rover = fakeBody('Rover', new THREE.Vector3(3, 2, 0));
+    (rover.body as unknown as { geometryData: unknown }).geometryData = { surfaceLock: true };
+    g.update([rover], cam, ctx());
+    const dot = g.group.children[0] as THREE.Sprite;
+    const toCam = cam.position.clone().sub(rover.position);
+    const offset = dot.position.clone().sub(rover.position);
+    // Same screen anchor as the body; offset is purely along the line of sight, a few px worth.
+    expect(offset.clone().normalize().dot(toCam.clone().normalize())).toBeCloseTo(1, 6);
+    const worldPerPx = (2 * toCam.length() * Math.tan((50 * Math.PI / 180) / 2)) / CSS.height;
+    expect(offset.length()).toBeGreaterThan(0);
+    expect(offset.length()).toBeLessThanOrEqual(3.0001 * worldPerPx);
+    const a = dot.position.clone().project(cam);
+    const b = rover.position.clone().project(cam);
+    expect(a.x).toBeCloseTo(b.x, 9); expect(a.y).toBeCloseTo(b.y, 9);
+    expect(rover.position.toArray()).toEqual([3, 2, 0]);
   });
 
   it('keeps allocation and sprite count bounded with many unresolved entities', () => {

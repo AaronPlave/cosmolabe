@@ -221,9 +221,13 @@ export class LabelManager {
     return entry ? entry.sprite.visible : null;
   }
 
-  /** Whether a label is pinned (selected/tracked focus). */
-  isLabelPinned(name: string): boolean {
-    return this._pinnedNames.has(name);
+  /**
+   * Whether the host pinned this label (selected/tracked focus). The transient
+   * pin `setLabelHighlighted` adds while a body is hovered does not count, so
+   * hover alone never reads as selection.
+   */
+  isLabelPinnedByHost(name: string): boolean {
+    return this._pinnedNames.has(name) && this._hoverPinned !== name;
   }
 
   setAllVisible(visible: boolean): void {
