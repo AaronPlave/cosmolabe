@@ -10,100 +10,90 @@ Surface layers stays in charge of everyday visibility, styling and probing.
 
 ## Workflow
 
-The panel leads with the plan's status — *Desired plan saved / not saved*,
-*No sources loaded / Sources not validated / Sources meet request*, and *Lock
-exportable / not exportable* — and one suggested next action: draw a region,
-export the desired plan, load an inventory, or export a lock. Export buttons
-sit there rather than only in the `…` menu. When a lock is not exportable the
-panel names the regions with no chosen source, or core's refusal, which is
-checked on every re-estimate rather than only on export. Advanced region
-controls (maximum source error, priority, fallback), per-candidate evidence
-numbers and warnings, per-region fidelity, object counts, work disk and the
-budget comparisons are behind disclosures.
+The panel is four steps, one decision at a time, with *Back* / *Next* and a
+step bar to jump between them. Start by picking a body and choosing *Draw an
+area* (or *Start without drawing*, *Open a saved plan…*, *Try the Jezero
+example*). Bodies without an evidenced sphere/oblate reference shape are
+blocked with the reason; no coordinates are invented.
 
-1. **Start.** Pick a body and choose *New plan*, open an existing desired or
-   locked plan, or load the *Jezero example*. The body summary shows its
-   reference shape and frame, how many imagery layers are configured, and
-   whether measured terrain is loaded or only the reference shape is
-   (absence of a DEM is a normal starting point, not an error). This current
-   scene is a read-only baseline: a plan changes nothing in it, and displayed
-   tiles are never treated as assessed source coverage. Bodies without
-   an evidenced sphere/oblate reference shape show a blocked-georegistration
-   explanation; no coordinates are invented.
-2. **Regions.** Select any polygon — a catalog layer, an imported GeoJSON
-   layer, or a shape drawn with Draw (#200) — and choose *Add selected*, or
-   choose *Draw region* to draw one on the plan's body that is added when
-   finished (leaving the tool without finishing cancels it, as does closing
-   the plan or the panel mid-shape). The feature is
+1. **Area.** Draw an area on the plan's body, or select any polygon — a
+   catalog layer, an imported GeoJSON layer, or a shape drawn with Draw (#200)
+   — and choose *Use selected shape*. Leaving the draw tool without finishing
+   cancels it, as does closing the plan or the panel mid-shape. The feature is
    **copied** into the plan with its typed stable ID, holes and properties;
    read-only sources are never modified, and the plan layer's `provenance`
    records the source layer, identity, ownership and feature mapping. If the
-   source shape is edited later the region shows *Use current shape*.
-   Layers in another frame (e.g. `MOON_ME_DE421` versus `IAU_MOON`), on another
-   body, or with different conventions/reference shape are refused with the
-   reason; no implicit transform is made. Points and paths need an explicit
-   buffer first.
-3. **Fidelity.** Each region requests *Imagery*, *Imagery + elevation* or
-   *Elevation*, independently. Presets — *Orbit / context* (50 m / 200 m),
-   *Descent* (1 m / 10 m), *Local operations* (0.25 m / 1 m, 0.5 m maximum
-   source error) — fill in priority and fallback too; every value stays
-   editable and the preset reads *Custom* once changed. Terrain controls only
-   appear when elevation is requested. These are requested output sampling and
-   source-error limits, not achieved accuracy.
-4. **Sources.** Load a #249 discovery inventory (array of
-   `SurfaceDiscoveryRecord`) or bare source descriptors. With no inventory,
-   coverage is reported as unknown and the estimate is geometry-only. For the
-   focused region, up to three ranked combinations are listed per channel with
-   confirmed-valid / unknown / gap fractions, target fit, download size and
-   registration/datum/illumination warnings. Rank is not suitability: each
-   candidate is labeled *meets the request* only when valid pixels, target
-   sampling and registration are all evidenced, and otherwise *suitability
-   unverified* with one primary reason (e.g. footprints overlap but valid-pixel
-   coverage is not established). Choosing one feeds the estimate.
-   Optionally load a #251 build's `planner-feedback.json` (contract v1): each
-   focused region then shows, per channel, whether a published product already
-   suffices, is published but its fit is not proved, was built but not
-   published or below target, or it needs a new build (different shape,
-   coarser output, different selected sources, or reported accuracy outside a
-   stricter limit). *Suffices* requires coverage proved for the requested ROI
-   and every requested target evidenced; continuous coverage not proved by tile
-   availability, or accuracy unreported against a limit, is *not proved*, not
-   success. Body, frame and coordinate conventions must match the build's
-   (stated in the feedback's `surface` field, or taken from the build's lock
-   if it was opened this session; otherwise the fit is *not proved*), and the
-   finest output spacing the build actually produced must meet the target;
-   the original request's sampling alone is not evidence.
-   Compatibility is per region, not by lock identity, so a reusable
-   product still matches from another build. Unrecognized feedback statuses are
-   refused. Without feedback this is *unknown*, never absent.
-5. **Estimate and budget.** The #248 estimator reports imagery and physical
-   terrain separately: area, hosted bytes and objects, raw download, peak work
-   disk, fidelity (adequate / unknown / short area) and an optional output
-   budget. The output budget limits published (hosted) bytes only; *Source
-   download (input)* is acquisition cost and is not counted against it. The
-   budget has bounded 2×/4× coarsening comparisons. The
-   comparisons never change the authored plan. With per-region selections
-   (an inventory or a held lock) fidelity is assessed per region from only
-   that region's selected sources; a source chosen for one region never
-   satisfies another. Bare descriptors give one pooled *Any loaded source*
-   figure instead.
-6. **Export / import.** *Export desired plan* writes the exact v1 JSON the CLI
-   reads (`npm run plan:surface`, `discover:surface`), with every referenced
-   GeoJSON embedded. *Export locked plan* builds a `locked-surface-plan` from
-   the chosen combinations and validates it with core; if the selections are
-   not buildable under their metadata (unknown validity, datum transforms,
-   partial coverage, an unmet `require-target`) the export is refused with the
-   reason. **The exported lock is a planner handoff, not directly executable:**
-   `npm run build:surface` runs only a fully prepared lock, and does not fill in
-   what is missing. An executor-compatible preparation step must add
-   `processing.parameters.terrain`, `imagery` and `gates` (and a profile where
-   used), a supported Mars spherical planetocentric source map, pinned source
-   bytes and runtime bindings. On export the panel reports which of these the
-   lock lacks, as far as the planner can check; bytes and bindings are verified
-   only by the executor. An imported lock re-exports unchanged until its plan, its
-   sources or its selection change. Per-region dots mark desired-plan edits
-   since the last import or export; *Lock exportable · choice not locked*
-   marks a source choice that differs from the last locked plan.
+   source shape is edited later the area shows *Use current shape*. Layers in
+   another frame (e.g. `MOON_ME_DE421` versus `IAU_MOON`), on another body, or
+   with different conventions/reference shape are refused with the reason; no
+   implicit transform is made. Points and paths need an explicit buffer first.
+   One line states what the scene shows (imagery layers, measured 3D terrain or
+   the smooth reference shape); planning never changes the scene.
+2. **Detail.** For the area, tick *Imagery* and/or *3D terrain* and choose how
+   detailed: *Regional* (50 m per pixel / 200 m per sample), *Landing* (1 m /
+   10 m) or *Close-up* (0.25 m / 1 m), or type an exact value. These are
+   requested output sampling, never measured accuracy. *Advanced* holds the
+   maximum terrain source error, priority and what to do if unmet.
+3. **Available data.** *Find available imagery and terrain* searches archive
+   product metadata bundled with the viewer — for Mars, the curated #249 ODE
+   captures around Jezero and Gale (`mars-jezero.inventory.json`,
+   `mars-gale.inventory.json`). Nothing is downloaded and no archive is
+   contacted. Footprints in another longitude domain are re-expressed exactly in
+   the plan's (a whole-turn shift per ring, noted in the record's caveats);
+   any other convention difference is not compared. Each requested channel then
+   shows **Requested** against the best candidate's native resolution and the
+   share of the area **proven** at the requested detail, with one verdict —
+   *Proven*, *Partly proven*, *Coarser than requested*, *Unknown — needs
+   verification* or *Not found* — and one sentence why (for example, footprints
+   overlap but valid pixels are not established). Rank is not suitability.
+   *Candidates and evidence* lists the ranked combinations (choose another
+   there), their source IDs, valid/unknown/gap fractions, source download and
+   warnings, plus the globe legend. *Shown in this scene* lists the configured
+   display products over the area for context; they are never treated as
+   source evidence for a rebuild. Where the viewer has no metadata (other
+   bodies), the step says coverage is unknown and points to
+   `npm run discover:surface` with an archive query; its inventory, or bare
+   source descriptors, can be opened from the ⋯ menu.
+4. **Finish.** A summary per area and channel, the estimated storage when
+   published and the source download (separate costs; the optional storage
+   limit applies to published bytes only), then:
+   - **Save plan** writes the exact v1 desired plan the CLI reads
+     (`npm run plan:surface`, `discover:surface`), with every referenced
+     GeoJSON embedded.
+   - **Prepare a build** explains that the planner doesn't build. *Save build
+     handoff* writes a `locked-surface-plan` pinning the chosen sources,
+     validated by core; when that isn't possible yet the reason is shown
+     (an area with no source found, or core's refusal, checked on each
+     re-estimate). **The handoff is not directly executable:**
+     `npm run build:surface` runs only a fully prepared lock and does not fill
+     in what is missing. A preparation step must add
+     `processing.parameters.terrain`, `imagery` and `gates` (and a profile
+     where used), a supported Mars spherical planetocentric source map, pinned
+     source bytes and runtime bindings; on save the panel lists what the lock
+     lacks, as far as it can check. An opened lock re-saves unchanged until its
+     plan, sources or selection change.
+   - *Details* holds the storage limit, work disk, 2×/4× coarsening
+     comparisons (never applied to the plan) and diagnostics.
+
+**Build feedback.** Opening a #251 build's `planner-feedback.json`
+(contract v1) from the ⋯ menu adds, per area and channel in *Finish*, whether
+a published product already suffices, is published but its fit is not proved,
+was built but not published or below target, or needs a new build (different
+shape, coarser output, different selected sources, or reported accuracy
+outside a stricter limit). *Suffices* requires coverage proved for the
+requested ROI and every requested target evidenced; continuous coverage not
+proved by tile availability, or accuracy unreported against a limit, is *not
+proved*, not success. Body, frame and coordinate conventions must match the
+build's (stated in the feedback's `surface` field, or taken from the build's
+lock if it was opened this session; otherwise the fit is *not proved*), and
+the finest output spacing the build actually produced must meet the target;
+the original request's sampling alone is not evidence. Compatibility is per
+region, not by lock identity, so a reusable product still matches from another
+build. Unrecognized feedback statuses are refused. Without feedback this is
+*unknown*, never absent.
+
+Per-region fidelity is assessed from only that region's selected sources; a
+source chosen for one region never satisfies another.
 
 ## On the globe
 
@@ -127,7 +117,7 @@ hides the comparison.
 
 The Jezero example loads `docs/examples/surface-plans/jezero.geojson` as a
 read-only layer, `mars-jezero.inventory.json` as the offline inventory, and
-three regions at the three presets with a 100 MB budget. Both are synthetic
+three regions at the three presets with a 100 MB storage limit. The regions are synthetic
 fixtures: they are not Skyfall/Mars 2020 mission geometry or proof of coverage.
 An imagery-only region on a reference ellipsoid estimates zero elevation inputs
 and work. Plan limits are those of #248 (16 layers, 32 regions, 4,096 vertices,

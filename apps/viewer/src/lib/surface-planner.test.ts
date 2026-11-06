@@ -8,7 +8,7 @@ import {
   addSurfacePlanRegion, createSurfacePlanDraft, parseGeographicGeoJson, resolveSurfacePlan, type GeographicCoordinates,
 } from '@cosmolabe/core';
 import {
-  chooseAlternative, combinationSuitability, importPlannerText, plannerProgress, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
+  channelFinding, chooseAlternative, clearSources, findSources, handoffReadiness, importPlannerText, inLongitudeDomain, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
 } from './surface-planner.svelte';
 
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8');
@@ -64,10 +64,9 @@ describe('surface planner store', () => {
     chooseAlternative('landing', only('landing', 'img-a'));
     await run();
     expect(selectionChanged()).toBe(true);
-    // Footprint-only evidence: top-ranked is not called suitable, and the plan says why.
-    const top = regionAlternatives('approach')[0];
-    expect(combinationSuitability(top, ['imagery'])).toEqual({ demonstrated: false, reason: expect.stringContaining('valid-pixel coverage') });
-    expect(plannerProgress()).toMatchObject({ regions: 2, desired: 'saved', sources: 'unproven', unprovenRegions: ['approach', 'landing'], lockable: true });
+    // Footprint-only evidence: unknown, not proven, and the handoff is ready.
+    expect(channelFinding('approach', 'imagery')).toMatchObject({ verdict: 'unknown', nativeM: 0.5, sourceIds: ['img-a'] });
+    expect(handoffReadiness()).toEqual({ ready: true, reason: '' });
     const first = JSON.parse(await lockText());
 
     // Re-open that lock: it is held and re-exported as-is.
@@ -97,12 +96,49 @@ describe('surface planner store', () => {
     expect(Object.keys(planner.selectedFidelity ?? {}).sort()).toEqual(['approach', 'landing']);
   });
 
-  it('calls a candidate suitable only when coverage, sampling and registration are all evidenced', () => {
+  it('states what the chosen sources prove, in order of evidence', async () => {
+    expect(await importPlannerText(jezeroPlan(), 'jezero.plan.json')).toBe(true);
+    clearSources();
+    expect(channelFinding('approach', 'imagery')?.verdict).toBe('not-searched');
+    expect(handoffReadiness().reason).toMatch(/Find available/);
     const coverage = { status: 'verified-complete', verifiedFraction: 1, unknownFraction: 0, gapFraction: 0, targetVerifiedFraction: 1 };
-    const alt = (patch: object, compatibility = 'evidenced') => ({ compatibility, channels: { imagery: { sourceIds: ['a'], unknownGsdSourceIds: [], coverage: { ...coverage, ...patch } } } }) as never;
-    expect(combinationSuitability(alt({}), ['imagery']).demonstrated).toBe(true);
-    expect(combinationSuitability(alt({}), ['imagery', 'elevation']).reason).toMatch(/No terrain source/);
-    expect(combinationSuitability(alt({ targetVerifiedFraction: 0.4 }), ['imagery']).reason).toMatch(/only 40%/);
-    expect(combinationSuitability(alt({}, 'unverified'), ['imagery']).demonstrated).toBe(false);
+    const finding = (patch: object, nativeGsdM: number | null = 0.5, compatibility = 'evidenced') => {
+      planner.sources = { kind: 'inventory', label: 't', records: [{ descriptor: { id: 'a', nativeGsdM } }] as never };
+      planner.report = { combinations: [{ regionId: 'approach', alternatives: [{ compatibility,
+        channels: { imagery: { sourceIds: ['a'], coverage: { ...coverage, ...patch } } } }] }] } as never;
+      planner.choice = {};
+      return channelFinding('approach', 'imagery')!;
+    };
+    expect(finding({}).verdict).toBe('proven');
+    expect(finding({}, 0.5, 'unverified').verdict).toBe('partial');
+    expect(finding({ verifiedFraction: 0.4, unknownFraction: 0.6, targetVerifiedFraction: 0.4 }).summary).toMatch(/40%/);
+    expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, 100)).toMatchObject({ verdict: 'coarser', nativeM: 100 });
+    expect(finding({ verifiedFraction: 0, unknownFraction: 1, targetVerifiedFraction: 0 }, null).summary).toMatch(/valid pixels and some resolutions are not established/);
+    planner.report = { combinations: [] } as never;
+    expect(channelFinding('approach', 'imagery')?.verdict).toBe('none');
+  });
+
+  it('finds sources for Mars from bundled archive metadata without an inventory file', async () => {
+    expect(await importPlannerText(jezeroPlan(), 'jezero.plan.json')).toBe(true);
+    clearSources();
+    await findSources();
+    expect(planner.sources.kind).toBe('inventory');
+    await run();
+    // Real archive footprints over the synthetic ROI: overlap, not proven valid pixels.
+    expect(['unknown', 'partial', 'coarser']).toContain(channelFinding('approach', 'imagery')?.verdict);
+  });
+
+  it('re-expresses archive footprints in the plan longitude domain only when exact', () => {
+    const plan = { body: 'Mars', frame: 'IAU_MARS', coordinates: { ...MARS, longitudeDomain: '-180..180' } } as never;
+    const record = (xs: number[]) => ({ kind: 'orthoimage', evidence: { url: 'https://x', footprint: 'archive-footprint' },
+      descriptor: { body: 'Mars', frame: 'IAU_MARS', coordinates: MARS, footprint: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {},
+        geometry: { type: 'Polygon', coordinates: [[[xs[0], 0], [xs[1], 0], [xs[1], 1], [xs[0], 0]]] } }] } } }) as never;
+    const lons = (r: { descriptor: { footprint: { features: { geometry: { coordinates: number[][][] } }[] } } }) => r.descriptor.footprint.features[0].geometry.coordinates[0].map(p => p[0]);
+    const east = inLongitudeDomain(record([77, 78]), plan) as never as { descriptor: { coordinates: { longitudeDomain: string } } };
+    expect(east.descriptor.coordinates.longitudeDomain).toBe('-180..180');
+    expect(lons(inLongitudeDomain(record([270, 280]), plan) as never)).toEqual([-90, -80, -80, -90]);
+    // Straddles the plan's seam: left for discovery to refuse.
+    const seam = record([170, 190]);
+    expect(inLongitudeDomain(seam, plan)).toBe(seam);
   });
 });

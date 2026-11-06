@@ -356,57 +356,151 @@ export function selectionChanged(): boolean {
   return planner.lockedSelections !== null ? planner.lockedSelections !== selectionKey() : Object.keys(planner.choice).length > 0;
 }
 
-/**
- * Whether a candidate is shown by its own discovery evidence to satisfy the
- * request on every requested channel, with one primary reason. Rank order is
- * not suitability: the top-ranked candidate can still be unproven.
- */
-export function combinationSuitability(alt: SurfaceSourceCombination, channels: SurfaceChannel[]): { demonstrated: boolean; reason: string } {
-  for (const c of channels) {
-    const ch = alt.channels[c], name = c === 'imagery' ? 'imagery' : 'terrain';
-    if (!ch?.sourceIds.length) return { demonstrated: false, reason: `No ${name} source in this combination.` };
-    const cov = ch.coverage;
-    if (cov.status === 'verified-empty') return { demonstrated: false, reason: `The selected ${name} products do not cover the region.` };
-    if (cov.status === 'unknown' || cov.unknownFraction > 0) {
-      return { demonstrated: false, reason: `${name[0].toUpperCase()}${name.slice(1)} footprints overlap, but valid-pixel coverage${ch.unknownGsdSourceIds.length ? ' and resolution are' : ' is'} not established.` };
-    }
-    if (ch.unknownGsdSourceIds.length) return { demonstrated: false, reason: `Native ${name} resolution is not established.` };
-    if (cov.targetVerifiedFraction < 0.999999) {
-      return { demonstrated: false, reason: `Valid ${name} pixels confirmed, but the requested sampling is met over only ${Math.floor(cov.targetVerifiedFraction * 100)}% of the region.` };
-    }
+/** What the chosen sources are shown to support for one region and channel, in plain terms. */
+export interface ChannelFinding {
+  requestedM: number;
+  /** Finest native sampling among the chosen sources, per their metadata; null when unknown or none. */
+  nativeM: number | null;
+  sourceIds: string[];
+  /** Fractions of the region: valid pixels evidenced, footprint only, proven gap, and evidenced at the requested sampling. */
+  verified: number; unknown: number; gap: number; targetVerified: number;
+  verdict: 'proven' | 'partial' | 'coarser' | 'unknown' | 'none' | 'not-searched';
+  summary: string;
+}
+
+const pctText = (f: number) => `${Math.round(f * 100)}%`;
+const mText = (m: number) => `${m.toLocaleString('en-US', { maximumSignificantDigits: 3 })} m`;
+
+export function channelFinding(regionId: string, channel: SurfaceChannel): ChannelFinding | null {
+  void planner.revision;
+  const region = planner.plan?.regions.find(r => r.id === regionId);
+  if (!region?.[channel]) return null;
+  const requestedM = region[channel]!.gsdM;
+  const empty = { requestedM, nativeM: null, sourceIds: [] as string[], verified: 0, unknown: 0, gap: 0, targetVerified: 0 };
+  if (planner.importedLock) {
+    return { ...empty, sourceIds: selectedSourceIds(regionId, channel) ?? [], verdict: 'unknown',
+      summary: 'Sources are fixed by the opened build handoff; their coverage is not re-assessed here.' };
   }
-  if (alt.compatibility !== 'evidenced') return { demonstrated: false, reason: 'Coverage and sampling are met, but registration compatibility is not evidenced.' };
-  return { demonstrated: true, reason: 'Valid pixels at the requested sampling are confirmed over the region (discovery metadata; a lock is still validated separately).' };
+  if (planner.sources.kind !== 'inventory') {
+    return { ...empty, verdict: 'not-searched', summary: 'Not searched yet. What is available is unknown, not absent.' };
+  }
+  const ch = chosenAlternative(regionId)?.channels[channel];
+  if (!ch?.sourceIds.length) {
+    const incomparable = planner.problems.some(p => p.code === 'discovery-transform-unavailable');
+    return { ...empty, verdict: 'none', summary: incomparable
+      ? 'No comparable product found. Some searched products use other coordinates or a different reference shape and are not compared without a transform. Unknown — needs source verification.'
+      : 'No product in the searched metadata covers this area. Unknown — needs source verification.' };
+  }
+  const records = planner.sources.records;
+  const native = ch.sourceIds.map(id => records.find(r => r.descriptor.id === id)?.descriptor.nativeGsdM ?? null);
+  const known = native.filter((n): n is number => n !== null);
+  const nativeM = known.length ? Math.min(...known) : null;
+  const c = ch.coverage;
+  const base = { requestedM, nativeM, sourceIds: ch.sourceIds, verified: c.verifiedFraction, unknown: c.unknownFraction, gap: c.gapFraction, targetVerified: c.targetVerifiedFraction };
+  const alt = chosenAlternative(regionId)!;
+  if (c.targetVerifiedFraction >= 0.999999 && alt.compatibility === 'evidenced') {
+    return { ...base, verdict: 'proven', summary: `Proven by product metadata: valid pixels at ${mText(requestedM)} or finer over the whole area.` };
+  }
+  if (c.verifiedFraction > 0) {
+    return { ...base, verdict: 'partial', summary: `Valid pixels are proven over ${pctText(c.verifiedFraction)} of the area${c.targetVerifiedFraction < c.verifiedFraction ? `, at the requested detail over ${pctText(c.targetVerifiedFraction)}` : ''}; the rest is unknown or a gap.` };
+  }
+  if (nativeM !== null && nativeM > requestedM) {
+    return { ...base, verdict: 'coarser', summary: `The best candidate is ${mText(nativeM)} per ${channel === 'imagery' ? 'pixel' : 'sample'} at source, coarser than the ${mText(requestedM)} requested.` };
+  }
+  return { ...base, verdict: 'unknown', summary: `Footprints overlap ${pctText(c.unknownFraction)} of the area, but valid pixels${known.length < native.length ? ' and some resolutions' : ''} are not established. Unknown — needs source verification.` };
+}
+
+/** Whether the viewer can search product metadata for a body without a hand-built inventory. */
+export function canFindSources(body: string): boolean {
+  return body === 'Mars';
 }
 
 /**
- * Where the plan stands on the path region → targets → evidence → export.
- * `sources`: none loaded, loaded but some region's chosen candidate unproven,
- * every chosen candidate demonstrated, or a held (imported) lock.
+ * Search the archive product metadata bundled with the viewer (curated ODE
+ * captures around Jezero and Gale; #249). Offline and bounded: no raster is
+ * read and no archive is contacted. Areas elsewhere come back as not found,
+ * i.e. unknown, which is the honest answer without a live archive query.
  */
-export function plannerProgress() {
+export async function findSources(): Promise<void> {
+  const body = planner.plan?.body;
+  if (!body || !canFindSources(body)) return;
+  const [{ default: jezero }, { default: gale }] = await Promise.all([
+    import('../../../../docs/examples/surface-plans/mars-jezero.inventory.json?raw'),
+    import('../../../../docs/examples/surface-plans/mars-gale.inventory.json?raw'),
+  ]);
+  const plan = planner.plan!;
+  const records = ([...JSON.parse(jezero), ...JSON.parse(gale)] as SurfaceDiscoveryRecord[]).map(r => inLongitudeDomain(r, plan));
+  validateSurfaceSources(records.map(r => r.descriptor));
+  planner.sources = { kind: 'inventory', label: `Bundled Mars archive metadata (${records.length} products near Jezero and Gale)`, records };
+  planner.choice = {};
+  planner.message = '';
+  sourcesChanged();
+}
+
+/**
+ * A record whose conventions differ from the plan's only in longitude domain,
+ * re-expressed in the plan's domain. Exact (a whole-turn shift per ring), and
+ * noted in the record's caveats. Anything else, or a footprint that would
+ * straddle the plan's seam, is returned unchanged for discovery to refuse.
+ */
+export function inLongitudeDomain(record: SurfaceDiscoveryRecord, plan: DesiredSurfacePlan): SurfaceDiscoveryRecord {
+  const d = record.descriptor, to = plan.coordinates.longitudeDomain, from = d.coordinates.longitudeDomain;
+  if (from === to || !d.footprint || d.body !== plan.body || d.frame !== plan.frame
+    || serializeSurfacePlan({ ...d.coordinates, longitudeDomain: to }) !== serializeSurfacePlan(plan.coordinates)) return record;
+  const [lo, hi] = to === '0..360' ? [0, 360] : [-180, 180];
+  const needs = (x: number) => x < lo || x > hi;
+  let ok = true;
+  const ring = (r: number[][]) => {
+    const shift = r.some(([x]) => needs(x)) ? (to === '0..360' ? 360 : -360) : 0;
+    const out = r.map(([x, ...rest]) => [x + shift, ...rest]);
+    if (out.some(([x]) => needs(x))) ok = false;
+    return out;
+  };
+  const footprint = structuredClone(d.footprint);
+  for (const f of footprint.features) {
+    const g = f.geometry as { type: string; coordinates: number[][][] | number[][][][] };
+    g.coordinates = g.type === 'Polygon' ? (g.coordinates as number[][][]).map(ring) : (g.coordinates as number[][][][]).map(p => p.map(ring));
+  }
+  if (!ok) return record;
+  return { ...record, descriptor: { ...d, coordinates: { ...d.coordinates, longitudeDomain: to }, footprint },
+    evidence: { ...record.evidence, caveats: [...(record.evidence.caveats ?? []), `Footprint longitudes re-expressed from ${from} to ${to} by the viewer (exact).`] } };
+}
+
+/** Scene products over a region: display context only, never source evidence for a rebuild. */
+export function sceneProducts(regionId: string): { name: string; resolutionM: number | null }[] {
+  void planner.revision;
+  const plan = planner.plan, region = plan?.regions.find(r => r.id === regionId);
+  const mesh = plan ? getRenderer()?.getBodyMesh(plan.body) : null;
+  if (!plan || !region || !mesh) return [];
+  const layer = plan.layers.find(l => l.id === region.feature.layerId);
+  const feature = layer?.geojson?.features.find(x => `${typeof x.id}:${x.id}` === region.feature.featureId);
+  const lons: number[] = [], lats: number[] = [];
+  const walk = (v: unknown): void => { if (Array.isArray(v) && typeof v[0] === 'number') { lons.push(((v[0] % 360) + 360) % 360); lats.push(v[1] as number); } else if (Array.isArray(v)) v.forEach(walk); };
+  walk((feature?.geometry as { coordinates?: unknown } | undefined)?.coordinates);
+  const overlaps = (b: [number, number, number, number] | null) => {
+    if (!b || !lons.length) return true;
+    const w = ((b[0] % 360) + 360) % 360, e = ((b[2] % 360) + 360) % 360;
+    const inLon = (x: number) => w <= e ? x >= w && x <= e : x >= w || x <= e;
+    return Math.max(...lats) >= b[1] && Math.min(...lats) <= b[3] && (lons.some(inLon) || inLon(w) && Math.min(...lons) <= w && Math.max(...lons) >= w);
+  };
+  return [
+    ...mesh.imageryLayers.filter(l => overlaps(l.bounds)).map(l => ({ name: l.name, resolutionM: l.resolutionMeters })),
+    ...(mesh.hasTerrain ? [{ name: 'Measured 3D terrain', resolutionM: null }] : []),
+  ];
+}
+
+/** Whether a build handoff (a lock) can be saved now, and if not, why, in plain terms. */
+export function handoffReadiness(): { ready: boolean; reason: string } {
   void planner.revision;
   const plan = planner.plan;
-  if (!plan) return null;
-  const pairs = plan.regions.flatMap(r => surfaceRegionChannels(r).map(c => [r.id, c] as const));
-  const unproven = planner.importedLock || planner.sources.kind !== 'inventory' ? [] : plan.regions.filter(r => {
-    const alt = chosenAlternative(r.id);
-    return !alt || !combinationSuitability(alt, surfaceRegionChannels(r)).demonstrated;
-  }).map(r => r.id);
-  const unselectedRegions = planner.importedLock || planner.sources.kind !== 'inventory' ? []
-    : [...new Set(pairs.filter(([r, c]) => !selectedSourceIds(r, c)?.length).map(([r]) => r))];
-  return {
-    regions: plan.regions.length,
-    desired: !plan.regions.length ? 'empty' as const : planner.base && !planChanges()?.dirty ? 'saved' as const : 'unsaved' as const,
-    sources: planner.importedLock ? 'locked' as const : planner.sources.kind !== 'inventory' ? 'none' as const : unproven.length ? 'unproven' as const : 'demonstrated' as const,
-    unprovenRegions: unproven,
-    /** Regions with a requested channel that has no chosen source. */
-    unselectedRegions,
-    /** Why core refuses the lock, once every channel has a source. */
-    lockProblem: unselectedRegions.length ? null : planner.lockProblem,
-    /** Every region's channels have a chosen source and core validated the lock on the last run. */
-    lockable: pairs.length > 0 && (!!planner.importedLock || (planner.sources.kind === 'inventory' && !unselectedRegions.length && !planner.lockProblem)),
-  };
+  if (!plan?.regions.length) return { ready: false, reason: 'Add an area first.' };
+  if (planner.importedLock) return { ready: true, reason: '' };
+  if (planner.sources.kind !== 'inventory') return { ready: false, reason: 'Find available imagery and terrain first.' };
+  const missing = plan.regions.flatMap(r => surfaceRegionChannels(r).filter(c => !selectedSourceIds(r.id, c)?.length)
+    .map(c => `${r.id} ${c === 'imagery' ? 'imagery' : 'terrain'}`));
+  if (missing.length) return { ready: false, reason: `No source was found for ${missing.join(', ')}.` };
+  if (planner.lockProblem) return { ready: false, reason: `The chosen sources can't be pinned yet: ${planner.lockProblem}.` };
+  return { ready: true, reason: '' };
 }
 
 /** Whether a region's channel is already built or published, per the loaded build feedback. */
@@ -611,7 +705,7 @@ export function exportDesired(): void {
     const text = desiredPlanText();
     download(`${fileBase(planner.plan!)}.plan.json`, text);
     planner.base = JSON.parse(text) as DesiredSurfacePlan;
-    planner.message = 'Exported the desired plan.';
+    planner.message = `Saved the plan as ${fileBase(planner.plan!)}.plan.json. Reopen it here from "Open a saved plan" or the ⋯ menu.`;
     planner.revision++;
   } catch (e) { planner.message = describe(e); }
 }
