@@ -129,11 +129,18 @@ export function featureSteps(): [boolean, boolean] {
 export const GLOBAL_SEARCH_LIMIT = 50;
 
 /** Features of every layer matching the search across layers, visible layers first. */
+/**
+ * The surface planner's own display layers (#250): desired regions and source
+ * coverage drawn while a plan is open. They are planner presentation, not
+ * surface data, so Surface layers neither lists nor searches them.
+ */
+export const isPlannerDisplayLayer = (id: string | null | undefined): boolean => !!id && id.startsWith('planner:');
+
 export function searchAllFeatures(text: string): { matches: { layer: GeographicLayer; entry: GeographicSearchEntry }[]; total: number } {
   void geo.revision;
   const query = { text, field: null };
   if (geographicQueryEmpty(query)) return { matches: [], total: 0 };
-  const layers = [...(universe()?.geographicLayers.layers ?? [])].sort((a, b) => Number(layerVisible(b.id)) - Number(layerVisible(a.id)));
+  const layers = [...(universe()?.geographicLayers.layers ?? [])].filter((l) => !isPlannerDisplayLayer(l.id)).sort((a, b) => Number(layerVisible(b.id)) - Number(layerVisible(a.id)));
   const matches: { layer: GeographicLayer; entry: GeographicSearchEntry }[] = [];
   let total = 0;
   for (const layer of layers) {
