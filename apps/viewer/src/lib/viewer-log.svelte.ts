@@ -75,6 +75,20 @@ export function setViewerFault(source: string, key: string, message: string): vo
   conditions.set(source, { key, id: recordViewerLog('error', source, message, { key }).id });
 }
 
+/**
+ * Identity of a fault from its frame and the provider's reason. Providers (SPICE)
+ * put the requested epoch in the reason, and it moves every frame while time
+ * plays, so numbers that are times (calendar dates, decimals, exponents, SCLK,
+ * long integers) are masked; otherwise one ongoing gap would log every frame.
+ */
+export function faultIdentity(frameId: string, reason: string): string {
+  const masked = reason.replace(
+    /\d{4} [A-Za-z]{3} \d{1,2}(?: \d{1,2}:\d{2}:\d{2}(?:\.\d+)?)?|\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+)?|\d{1,2}:\d{2}:\d{2}(?:\.\d+)?|\d+\/\d+(?::\d+)+(?:\.\d+)?|[+-]?\d+\.\d+(?:[eE][+-]?\d+)?|[+-]?\d+[eE][+-]?\d+|\d{8,}/g,
+    '#',
+  );
+  return `${frameId}|${masked}`;
+}
+
 /** The condition `source` reported has gone: leave the status and log the recovery. */
 export function clearViewerFault(source: string): void {
   const continuing = conditions.delete(source);

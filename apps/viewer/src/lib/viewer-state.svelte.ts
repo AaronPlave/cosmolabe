@@ -25,7 +25,7 @@ import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { workspaceNode } from './workspace.svelte';
-import { clearViewerFault, recordViewerFault, recordViewerLog, setViewerFault } from './viewer-log.svelte';
+import { faultIdentity, clearViewerFault, recordViewerFault, recordViewerLog, setViewerFault } from './viewer-log.svelte';
 import { navigateToPlace, selectPlace, viewportPlace } from './places';
 import { setCatalogActivities } from './analysis.svelte';
 import { activityEvent } from './mission-activities';
@@ -692,7 +692,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // for the length of the flight.
     const cc = renderer.cameraController;
     const frameFault = cc.frameFault;
-    if (frameFault) setViewerFault('Camera frame', `${frameFault.frameId}|${frameFault.reason}`, frameFault.message);
+    if (frameFault) setViewerFault('Camera frame', faultIdentity(frameFault.frameId, frameFault.reason), frameFault.message);
     else clearViewerFault('Camera frame');
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) {

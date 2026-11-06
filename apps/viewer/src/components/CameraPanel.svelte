@@ -32,14 +32,15 @@
   const bodies = $derived(vs.bodies.map(b => b.name));
   const tracked = $derived(vs.trackedBodyName);
   const mode = $derived(MODES.find(m => m.id === vs.cameraMode));
+  const hasSubject = $derived((void vs.frameTick, !!getRenderer()?.cameraController.modeSubject));
   const hasSensors = $derived((void vs.frameTick, (getRenderer()?.getSensorNames().length ?? 0) > 0));
 
   /** Why a mode cannot be chosen now, or null. Shown, never silently substituted. */
   function unavailable(id: string): string | null {
     if (id === 'free-orbit') return null;
-    if (!tracked) return 'needs a tracked object';
-    if (id === 'instrument' && !hasSensors) return 'no sensors in this scene';
-    return null;
+    // The controller applies a mode to its subject: the tracked body, else the one it last orbited.
+    if (id === 'instrument') return hasSensors ? null : 'no sensors in this scene';
+    return hasSubject ? null : 'needs an object to apply to';
   }
 
   let viewsOpen = $state(false);

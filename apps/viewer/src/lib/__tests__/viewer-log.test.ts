@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { isIncidentalRuntimeError, clearViewerFault, clearViewerLog, dismissViewerFault, recordViewerFault, recordViewerLog, setViewerFault, viewerLog } from '../viewer-log.svelte';
+import { faultIdentity, isIncidentalRuntimeError, clearViewerFault, clearViewerLog, dismissViewerFault, recordViewerFault, recordViewerLog, setViewerFault, viewerLog } from '../viewer-log.svelte';
 
 afterEach(clearViewerLog);
 
@@ -68,6 +68,34 @@ describe('continuing faults', () => {
     dismissViewerFault();
     setViewerFault('Camera frame', 'f|no coverage', 'no coverage');
     expect(viewerLog.activeFaultId).not.toBe(viewerLog.acknowledgedId);
+  });
+});
+
+describe('time-varying fault reasons', () => {
+  const ongoing = (reasons: string[]) => {
+    for (const reason of reasons) setViewerFault('Camera frame', faultIdentity('IAU_X', reason), reason);
+    expect(viewerLog.entries).toHaveLength(1);
+    expect(viewerLog.entries[0].message).toBe(reasons.at(-1));
+  };
+
+  it('treats one ongoing gap as one fault while the epoch in its text advances', () => {
+    ongoing([
+      'SPICE(NOFRAMECONNECT): no CK data for -82000 at ET 983836892.4561 (2031 MAR 06 12:00:16.456)',
+      'SPICE(NOFRAMECONNECT): no CK data for -82000 at ET 983836893.4561 (2031 MAR 06 12:00:17.456)',
+      'SPICE(NOFRAMECONNECT): no CK data for -82000 at ET 9.838368E+08 (2031 MAR 06 12:00:18)',
+    ]);
+  });
+
+  it('does not log a new fault when the calendar day rolls over (real SPICE text)', () => {
+    ongoing([
+      'Insufficient ephemeris data has been loaded to compute the state of -159 (EUROPAM) relative to 502 (EUROPA) at the ephemeris epoch 2018 JUL 02 23:59:43.966.',
+      'Insufficient ephemeris data has been loaded to compute the state of -159 (EUROPAM) relative to 502 (EUROPA) at the ephemeris epoch 2018 JUL 03 08:22:43.126.',
+    ]);
+  });
+
+  it('still separates different causes and different bodies', () => {
+    expect(faultIdentity('f', 'no CK data for -82000 at ET 1.5')).not.toBe(faultIdentity('f', 'no CK data for -82001 at ET 1.5'));
+    expect(faultIdentity('f', 'no CK data at ET 1.5')).not.toBe(faultIdentity('f', 'no SPK data at ET 1.5'));
   });
 });
 

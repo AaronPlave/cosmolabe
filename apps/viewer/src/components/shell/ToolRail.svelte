@@ -71,7 +71,10 @@
   // Popovers open beside the vertical rail, above the compact bottom row.
   const side = $derived(compact ? 'top' : 'right');
   const faulted = $derived(viewerLog.activeFaultId !== null);
-  const popoverClass = 'p-2.5 w-[min(22rem,calc(100cqw-16px))]';
+  // The compact rail scrolls sideways; opening help by key must bring its anchor into view.
+  let keyboardButton = $state<HTMLButtonElement | null>(null);
+  $effect(() => { if (shell.shortcutsOpen && compact) keyboardButton?.scrollIntoView({ inline: 'center', block: 'nearest' }); });
+  const popoverClass = 'p-2.5 w-[min(22rem,calc(100cqw-16px))] border border-border-default bg-popover shadow-xl';
 
   function hint(tool: ToolDef): string {
     if (tool.id === 'camera') return `Camera (${shortcutFor('cam:cycle')} cycles mode)`;
@@ -185,7 +188,7 @@
   <Popover.Root bind:open={shell.shortcutsOpen}>
     <Popover.Trigger>
       {#snippet child({ props })}
-        <button {...props} class="rail-btn" aria-label="Keyboard shortcuts" title={`Keyboard shortcuts (${shortcutFor('help:toggle')})`}>
+        <button {...props} bind:this={keyboardButton} class="rail-btn" aria-label="Keyboard shortcuts" title={`Keyboard shortcuts (${shortcutFor('help:toggle')})`}>
           <Keyboard size={16} />
         </button>
       {/snippet}
