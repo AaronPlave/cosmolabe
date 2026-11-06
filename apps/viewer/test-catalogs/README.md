@@ -15,6 +15,7 @@ It does not change the public Pages list or mission/embed sources.
 | `sensor-demo`, `oem-ingest`, `arrokoth-dsk` | Sensor geometry, Cassini text ephemeris (no spacecraft SPK) and DSK plate rendering. Keep their models, ephemerides and kernels. |
 | `planetary-places`, `places/` | Complete named-place dataset and standalone technical scene, preserved without requiring new mission integration. |
 | `mars-imagery-jezero`, `moon-imagery-apollo15` | Independent imagery over ellipsoids, **without terrain**. Mission terrain is not a replacement for these fallback tests. |
+| `earth-gibs-daily` | Time-indexed imagery (#214): NASA GIBS MODIS daily true colour following simulation time. Needs network access to `gibs.earthdata.nasa.gov`; see [time-indexed imagery](../../../docs/time-indexed-imagery.md). Its tour script is `earth-gibs-daily-tour.cosmo`. |
 | Eight `atmosphere-*` scenes | Per-scenario visual regression, including eclipse, dusk, twilight, textures and Saturn shadows. Used by `scripts/visual-regression.mjs`. |
 | Eight `geographic-vectors*` scenes | Vector rendering, geographic registration, terrain overlay and GPU workload regressions. |
 | Seven `experiments/moon-*` scenes | Lunar cube, quantized/polar, imagery grid/NAC/registration and geographic comparisons; generated products may be needed. |

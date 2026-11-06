@@ -299,6 +299,26 @@ export interface ScriptImageryLayer {
   /** Native ground resolution in m/px as the provider advertises it; null when unstated. */
   readonly resolutionMeters: number | null;
   /**
+   * Present only for time-indexed imagery: which observation (acquisition) day
+   * the layer depicts, which is not the simulation epoch. `date` is the day on
+   * screen, null when none is shown (see `state`). When `offsetDays` is not 0
+   * the day shown is not the day requested.
+   */
+  readonly time?: {
+    readonly policy: 'fixed' | 'follow-simulation' | 'latest';
+    readonly cadence: 'day';
+    readonly date: string | null;
+    readonly requestedDate: string | null;
+    readonly state: 'exact' | 'nearest' | 'before-range' | 'after-range' | 'no-data' | 'not-yet-published' | 'invalid';
+    readonly offsetDays: number;
+    /** A change of what is shown (to another day, or to none) is waiting out the throttle; the layer is not settled. */
+    readonly pending: boolean;
+    readonly rangeStart: string | null;
+    readonly rangeEnd: string | null;
+    /** `baked`: the image carries the Sun of its acquisition, and the viewer still shades the globe by the simulated Sun, so lighting is applied twice. Nothing un-lights the image. */
+    readonly illumination: 'baked' | 'reflectance';
+  };
+  /**
    * Which product the layer is, as the catalog names it, apart from its
    * display name and who serves it. The endpoint is an HTTP(S) provider origin
    * only (null for other resources), never a path, userinfo, query or fragment.
@@ -945,6 +965,7 @@ export interface ViewerSnapshotState {
   readonly placeSources?: readonly { id: string; enabled: boolean; labelsVisible: boolean }[];
   /** Present => merge by stable ID; absent => preserve. No cached results or drafts. */
   readonly measurements?: { version: 1; items: MeasurementDefinition[]; selected?: string };
+  /** Visibility, opacity and order only. A time-indexed layer's date policy and fixed day are not captured, so a replay does not restore a chosen date. */
   readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number; index?: number }[];
   readonly geographic?: readonly { id: string; visible: boolean; style: GeographicLayerStyle }[];
   readonly appearance?: readonly { body: string; settings: ScriptSurfaceAppearance }[];

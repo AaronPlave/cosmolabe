@@ -1,4 +1,5 @@
 import type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
+import type { ImageryLayerTime } from './ImageryTime.js';
 
 /**
  * Streamed surface imagery as a Globe capability (#123).
@@ -62,6 +63,8 @@ export interface ImageryLayerInfo {
   source: ImageryLayerSource;
   /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
   view: ImageryLayerView | null;
+  /** Source-time state of a time-indexed layer (#214); absent or null for time-independent imagery. */
+  temporal?: ImageryLayerTime | null;
 }
 
 /**

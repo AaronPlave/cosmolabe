@@ -26,6 +26,7 @@ import {
   geodeticToBodyFixed,
   bodyFixedToSurfacePosition,
   isSupportedGeodeticDatum,
+  etToDate,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
@@ -1213,6 +1214,8 @@ export class UniverseRenderer {
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
         if (bm.hasTerrain) {
+          // Time-indexed imagery follows the simulation's UTC day (#214).
+          if (bm.followsImageryTime) bm.updateImageryTime(etToDate(et).getTime());
           bm.updateTerrain(this.camera, this.renderer, screenPx, null);
           bm.observeSurfaceView(this.camera, this.renderer, et);
         }
