@@ -34,6 +34,9 @@ jobs:
       - name: Check for stale git-lfs pointers
         run: bash scripts/check-lfs-pointers.sh
 
+      - name: Validate catalog discovery and dependency inventory
+        run: npm run check:catalogs > /tmp/catalog-inventory.json
+
       - name: Purity lint (core and control import no renderer)
         run: npm run lint:purity
 

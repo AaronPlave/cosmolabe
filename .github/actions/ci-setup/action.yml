@@ -25,22 +25,22 @@ runs:
       uses: actions/cache@v4
       with:
         path: .git/lfs
-        key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
+        key: lfs-test-kernels-${{ hashFiles('apps/viewer/test-catalogs/kernels/de440s.bsp', 'kernels/test-data/de425s.bsp', 'kernels/test-data/cassini/04183_04185ra.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
 
     - name: Smudge sparse test-kernel LFS files
       if: inputs.test-kernels == 'true'
       shell: bash
-      # These sparse paths include the place smoke Mars base texture. In particular, do not
-      # fetch all viewer kernels: the other mission catalogs are much larger.
+      # Shared DE440s, two scientific oracles, and the place smoke Mars texture.
+      # Small fixtures are ordinary Git blobs; demos use fetch scripts / R2.
       run: |
         git lfs install --local
-        git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc,apps/viewer/test-catalogs/textures/mars.dds"
-        git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc" "apps/viewer/test-catalogs/textures/mars.dds"
+        git lfs fetch --include "apps/viewer/test-catalogs/kernels/de440s.bsp,kernels/test-data/de425s.bsp,kernels/test-data/cassini/04183_04185ra.bc,apps/viewer/test-catalogs/textures/mars.dds"
+        git lfs checkout "apps/viewer/test-catalogs/kernels/de440s.bsp" "kernels/test-data/de425s.bsp" "kernels/test-data/cassini/04183_04185ra.bc" "apps/viewer/test-catalogs/textures/mars.dds"
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
         cache: npm
 
     - name: Install dependencies

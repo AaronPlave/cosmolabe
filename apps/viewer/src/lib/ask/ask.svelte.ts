@@ -6,8 +6,9 @@
  * refuse a scene they were not planned for) and the next request starts a new
  * conversation, so nothing said about one catalog's objects is applied to the
  * next. Bounded: a conversation holds `MAX_TURNS` requests, then the next one
- * starts a new conversation — history is never trimmed in place, because a
- * provider validates a replayed conversation against what it sent. What the
+ * starts a new conversation. Earlier requests are replayed condensed — the
+ * person's words, the answer and what the viewer did (`compactHistory`) — so a
+ * long conversation does not resend every tool result on every round. What the
  * person sees is not reset by either: earlier requests stay in the panel, and
  * the first request of a new conversation says why the model starts without
  * them.
@@ -17,7 +18,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, runAgent, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -53,6 +54,10 @@ export interface AskTurn {
   error: string | null;
   /** The transport's reason for an `error`, when it gave one (`budget_exhausted`, `rate_limited`, …). */
   errorCode: string | null;
+  /** Model round trips and tokens processed, once the request ends (tokens null when the proxy does not report them). */
+  stats: { rounds: number; rawTokens: number | null } | null;
+  /** The viewer's own verdict on this request's changes, and the facts its answer was checked against; null while running. */
+  result: RequestResult | null;
 }
 
 /** What the viewer did for a request, counted from the steps' own results. */
@@ -86,26 +91,52 @@ const ENDINGS: Partial<Record<AskStatus, string>> = {
  * ended with its answer. Never suggests a retry: a view change is not undone by
  * stopping, and retrying a request that ran out of budget only fails again.
  */
-export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error' } | null {
+export function endNote(turn: AskTurn, label: (step: AskStep) => string = (s) => s.name): { text: string; tone: 'warning' | 'error' } | null {
   if (turn.status === 'running' || turn.status === 'done') return null;
-  const t = tally(turn);
-  const ran = t.done + t.refused + t.partial;
-  const inspections = t.inspected ? ` ${plural(t.inspected, 'capability lookup')} completed.` : '';
-  const account = inspections + (ran === 0 ? '' : ` ${plural(ran, 'step')} ran${t.refused || t.partial ? ` (${t.done} done, ${t.refused} refused${t.partial ? `, ${t.partial} unverified` : ''})` : ''}; changes already made to the view remain.`);
+  // What the view now holds from this request, in the words the action list uses: writes, by their own contracts.
+  const applied = turn.steps.filter(wrote).map(label);
+  const failed = tally(turn).refused;
+  const account = applied.length ? ` Already applied: ${applied.join('; ')}.${failed ? ` ${plural(failed, 'step')} refused.` : ''}` : failed ? ` Nothing changed; ${plural(failed, 'step')} refused.` : '';
   if (turn.status === 'error') {
     if (turn.errorCode === 'budget_exhausted') {
-      return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} No further steps were sent. Completed view changes remain; inspect the action list before starting a new request.` };
+      return { tone: 'warning', text: `Stopped: the model proxy's raw-token safety cap (cached tokens included) is used up, so this request has no answer.${account} Press Clear to start a new conversation once the proxy accepts requests again.` };
     }
     if (turn.errorCode === 'cost_budget_exhausted') {
-      return { tone: 'warning', text: `Request stopped: the proxy's estimated-cost guard was reached or pricing is unavailable.${account} No further steps were sent. This estimate is not a billing record.` };
+      return { tone: 'warning', text: `Stopped: the model proxy's estimated-cost guard was reached or pricing is unavailable (an estimate, not a bill).${account} Press Clear to start a new conversation once the proxy accepts requests again.` };
     }
     if (turn.errorCode === 'rate_limited') {
-      return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; no further steps were sent. Prior changes remain; inspect the action list.${account}` };
+      return { tone: 'warning', text: `Stopped: the model proxy's rate limit was reached; requests resume in a minute.${account}` };
     }
     return { tone: 'error', text: `${turn.error ?? 'The request failed.'}${account}` };
   }
   const ending = ENDINGS[turn.status];
   return ending ? { tone: 'warning', text: `${ending}${account}` } : null;
+}
+
+/** A step that changed the viewer: its result carries its contract's outcome. */
+const wrote = (s: AskStep) => !!s.result?.ok && !!s.result.outcome && s.result.outcome.writes.length > 0;
+const plainList = (items: readonly string[]) => items.join('; ').replace(/\.$/, '');
+
+/**
+ * The viewer's verdict beside the answer: whether the request's changes are
+ * verified, only partly observed, unobservable or failing, and whether the
+ * answer had to be replaced because it contradicted the viewer's results.
+ * Null for a request that changed nothing and answered consistently, or that
+ * did not finish (`endNote` speaks for those).
+ */
+export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
+  const r = turn.result;
+  if (turn.status !== 'done' || !r) return null;
+  const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
+  const replaced = `${r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : ''}${r.escalated ? ` Answered by the escalation model: ${r.escalated}.` : ''}`;
+  switch (r.status) {
+    // Without a stated goal the check covers what each change itself promised, not the whole request.
+    case 'verified': return { tone: 'muted', text: `${r.intentStated ? 'Checked in the viewer.' : 'Each change checked in the viewer; the request as a whole was not stated, so not checked.'}${replaced}` };
+    case 'partial': return { tone: 'muted', text: `Holds; not yet observed: ${plainList(failing)}.${replaced}` };
+    case 'failed': return { tone: 'warning', text: `Viewer check: ${plainList(failing)}.${replaced}` };
+    case 'unverified': return { tone: 'muted', text: `Not checked against the viewer: ${plainList([...r.unobservable.map(u => u.replace(/^[^:]+: /, '')), ...failing])}.${replaced}` };
+    default: return replaced ? { tone: 'warning', text: replaced.trim() } : null;
+  }
 }
 
 /** Requests the panel keeps showing; older ones scroll away for good. */
@@ -195,6 +226,8 @@ export function answerAskApproval(approved: boolean) {
 }
 
 let history: AgentMessage[] = [];
+/** End states this conversation committed to; the loop holds later requests to them. */
+let goals: readonly Predicate[] = [];
 let historyScene = -1;
 /** Requests in the conversation the model currently remembers. */
 let conversationTurns = 0;
@@ -229,6 +262,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 function startOver() {
   conversation++;
   history = [];
+  goals = [];
   historyScene = sceneId();
   conversationTurns = 0;
 }
@@ -262,7 +296,7 @@ export async function submitAsk(prompt: string): Promise<void> {
 
   const mineConversation = conversation;
   conversationTurns++;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null };
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, result: null };
   ask.turns.push(turn);
   if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
@@ -273,6 +307,7 @@ export async function submitAsk(prompt: string): Promise<void> {
     tools: toolkit,
     task: mine,
     history,
+    goals,
     prompt: text,
     onEvent: (e) => {
       const view = live();
@@ -291,18 +326,20 @@ export async function submitAsk(prompt: string): Promise<void> {
     },
   });
   running = run;
-  const { messages, outcome } = await run;
+  const { messages, outcome, stats, result, answer, goals: held } = await run;
   mine.finish();
-  if (conversation === mineConversation && historyScene === sceneId()) history = [...messages];
+  if (conversation === mineConversation && historyScene === sceneId()) { history = [...messages]; goals = held; }
   const view = live();
   if (view) {
     view.status = outcome.kind;
+    view.stats = { rounds: stats.rounds, rawTokens: stats.rawTokens };
+    view.result = result;
+    view.reply = answer;
     view.error = outcome.kind === 'error' ? outcome.message : null;
     view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
     if (outcome.kind === 'error' && ['budget_exhausted', 'cost_budget_exhausted', 'rate_limited'].includes(outcome.code ?? '')) {
-      ask.serviceBlocked = outcome.code === 'rate_limited'
-        ? 'The model service is rate-limited. Requests are paused for one minute; earlier view changes remain.'
-        : 'The model service stopped this conversation. Earlier view changes remain; inspect the action list before starting a new conversation.';
+      // The turn's own note explains it; this only gates the input box.
+      ask.serviceBlocked = outcome.code === 'rate_limited' ? 'Requests resume in a minute.' : 'Press Clear to continue once the proxy allows requests again.';
       if (outcome.code === 'rate_limited') serviceTimer = setTimeout(resetServiceBlock, 60000);
     }
   }
@@ -346,6 +383,7 @@ export function disposeAsk() {
   embedded = false;
   conversation++;
   history = [];
+  goals = [];
   historyScene = -1;
   task = null;
   running = null;

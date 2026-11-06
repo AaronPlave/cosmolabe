@@ -1,12 +1,18 @@
 /** Semantic automation over the same definitions and actions as the viewer panels. */
-import { validateGeographicCoordinates, validateGeographicLayerStyle, geographicEditFeatureRefId } from '@cosmolabe/core';
+import { validateGeographicCoordinates, validateGeographicLayerStyle, geographicEditFeatureRefId, geographicPositionInConvention, type GeographicCoordinates } from '@cosmolabe/core';
 import type { MeasurementDefinition } from '@cosmolabe/core';
 import type { ViewerControl } from '@cosmolabe/control';
 import { measurements, captureSharedMeasurements, installMeasurementDefinitions, selectMeasurement, removeMeasurement } from './spatial-measurements.svelte';
 import { validateMeasurementLinkState, validateMeasurementReferences } from './measurement-link-state';
 import { geo, geographicLayer, layerVisible, setLayerVisible, selectFeature, goToFeature, navigationUnavailable } from './geographic-layers.svelte';
 import { layerStyle, setLayerStyle, flushLayerStyles } from './geographic-styles.svelte';
-import { isEditable, applyEdit, edits, createLayer, matchesDrawFrame } from './geographic-editing.svelte';
+import { isEditable, applyEdit, edits, createLayer, matchesDrawFrame, editLayer } from './geographic-editing.svelte';
+
+/** A display feature's point as [longitude, latitude]: the layer's declared convention when it has one, east-positive otherwise. */
+function pointInLayer(p: { latDeg: number; lonDeg: number }, coordinates: GeographicCoordinates | undefined): readonly [number, number] {
+  const [lon, lat] = coordinates ? geographicPositionInConvention(p, coordinates) : [p.lonDeg, p.latDeg];
+  return [lon, lat];
+}
 import { getRenderer, getSceneUniverse, vs, sceneId } from './viewer-state.svelte';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -77,7 +83,9 @@ export const analysisControl: Pick<Required<ViewerControl>, 'listMeasurements' |
     if (!layer) return undefined;
     const offset = opts?.offset ?? 0, limit = opts?.limit ?? 50;
     if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('offset must be nonnegative; limit must be 1–100');
-    return { total: layer.features.length, features: layer.features.slice(offset, offset + limit).map(f => ({ id: f.id, name: typeof f.properties?.name === 'string' ? f.properties.name : f.id, type: f.geometry.type, sourceId: f.sourceId ?? null })) };
+    return { total: layer.features.length, features: layer.features.slice(offset, offset + limit).map(f => ({ id: f.id, name: typeof f.properties?.name === 'string' ? f.properties.name : f.id, type: f.geometry.type, sourceId: f.sourceId ?? null,
+      // In the layer's own convention, so it compares with a ground projection's annotation position.
+      ...(f.geometry.type === 'Point' ? { point: pointInLayer(f.geometry.coordinates, editLayer(id)?.coordinates) } : {}) })) };
   },
   getSelectedGeographicFeature: () => geo.selected ? { layer: geo.selected.layerId, feature: geo.selected.featureId } : null,
   setGeographicLayerVisible: (id, visible, opts) => {

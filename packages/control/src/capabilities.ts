@@ -1,11 +1,13 @@
 /** Discoverable, instance-bound rendering of the existing control vocabulary (#328). */
-import { agentDefinitions, createAgentTools, violation, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolEffect, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
+import { agentDefinitions, createAgentTools, normalizeInput, violation, type AgentDefinition, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
+import type { OperationContract } from './verbs.js';
+import type { StateDomain } from './outcome.js';
 import { eventVisualizationMetadata } from './event-agent-metadata.js';
 import type { ScriptReadinessRequest, ViewerControl } from './contracts.js';
 import { VERBS } from './verbs.js';
 
 export const CAPABILITY_VERSION = 1;
-export const CAPABILITY_LIMITS = { page: 12, selected: 8, query: 160, receipts: 64, inputChars: 16000 } as const;
+export const CAPABILITY_LIMITS = { page: 12, selected: 8, query: 160, receipts: 64, inputChars: 16000, index: 8000 } as const;
 export type CapabilityEffect = 'read' | 'viewer' | 'authoring' | 'external';
 export interface CapabilityScope { readonly viewer: string; readonly scene: number | null; readonly revision: number }
 export interface CapabilitySummary {
@@ -27,6 +29,19 @@ export interface CapabilityDescription extends CapabilitySummary {
   readonly provenance: string;
   /** 'host' retains allowAuthoring; destructive input variants also need confirmation. */
   readonly permission: 'none' | 'host' | 'host-and-confirmation';
+  /** The operation's own usage notes, from its contract. */
+  readonly guide: string | null;
+  /** From the operation's contract: what it changes and how its result is observed. */
+  readonly behaviour: {
+    readonly writes: readonly StateDomain[];
+    /** Its result is checked by predicates over these reads; null when it cannot be observed. */
+    readonly observedBy: readonly string[] | null;
+    readonly unobservable: string | null;
+    /** Some input variants destroy saved state (exact-call confirmation). */
+    readonly destructiveVariants: boolean;
+    /** Safe to repeat for reads; writes are never retried automatically either way. */
+    readonly idempotent: boolean;
+  };
 }
 export type OperationStatus = 'accepted' | 'running' | 'completed' | 'refused' | 'partial' | 'cancelled' | 'stale';
 export interface OperationReceipt {
@@ -83,7 +98,7 @@ export interface CapabilityTools extends AgentTools {
 
 /** A small schema shortlist, never an authorization allowlist. All other
  * registry operations are invocable through the same validated dispatcher. */
-export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext'] as const;
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
 export function defaultAskDefinitions() {
   return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
 }
@@ -92,7 +107,7 @@ const objectSchema = (properties: Record<string, AgentJsonSchema>, required: str
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
   { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs when you need their schemas; prior description is optional.',
-    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'spatial', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks', 'analysis'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
+    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string' }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
@@ -101,35 +116,14 @@ const DISCOVERY: readonly AgentToolDef[] = [
     inputSchema: objectSchema({ id: { type: 'string' }, version: { type: 'number' }, input: { type: 'object' } }, ['id', 'input']) },
 ];
 
-export function capabilityDomain(name: string, effect: AgentToolEffect): string {
-  if (name === 'findTrajectoryExtrema' || name === 'navigateToAnalysisResult') return 'analysis';
-  if (/SpatialContext|GroundPoint|ProbePoint|ObjectState/.test(name)) return 'spatial';
-  if (/Event/.test(name)) return 'events';
-  if (/Instrument/.test(name)) return 'instruments';
-  if (/Bookmark|ViewState/.test(name)) return 'bookmarks';
-  if (/Measurement/.test(name)) return 'measurements';
-  if (/Geographic|Annotation/.test(name)) return 'geographic';
-  if (/Readiness|Ready/.test(name)) return 'readiness';
-  if (/Activity|Activities/.test(name)) return 'activities';
-  if (/Place|Coordinates/.test(name)) return 'places';
-  if (/Imagery|Surface/.test(name)) return 'surface';
-  if (/Grid/.test(name)) return 'grids';
-  if (effect === 'camera') return 'camera';
-  if (effect === 'time') return 'time';
-  if (effect === 'export') return 'capture';
-  return effect === 'read' || effect === 'selection' ? 'scene' : 'display';
-}
-const idOf = (def: AgentToolDef) => `${capabilityDomain(def.name, def.effect)}.${def.name}`;
-// Conditional destructive variants retain exact-call confirmation. Malformed JSON
-// is never treated as a reversible edit; normal validation still runs below.
-function destructiveEdit(name: string, input: unknown): boolean {
-  const args = input as Record<string, unknown>;
-  if (name === 'restoreMeasurements') return args.mode === 'replace';
-  if (name === 'editAnnotation') {
-    try { return JSON.parse(String(args.json)).type === 'delete'; } catch { return true; }
-  }
-  return false;
-}
+/** An operation's ID namespace, from its own contract. */
+export const capabilityDomain = (def: AgentDefinition): string => def.contract.namespace;
+const idOf = (def: AgentDefinition) => `${def.contract.namespace}.${def.name}`;
+// Destructive variants are the operation's own declaration. Malformed JSON is
+// never treated as a reversible edit; normal validation still runs below.
+const destructiveEdit = (def: AgentDefinition, input: unknown): boolean => {
+  try { return def.contract.destructive?.(input as Record<string, unknown>) ?? false; } catch { return true; }
+};
 const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : def.effect === 'authoring' ? 'authoring' : 'viewer';
 const fail = (error: string, code: AgentErrorCode = 'invalid-input'): AgentToolResult => ({ ok: false, code, error });
 const SCOPE_SCHEMA = objectSchema({ viewer: { type: 'string' }, scene: { type: ['number', 'null'] }, revision: { type: 'number' } }, ['viewer', 'scene', 'revision']);
@@ -140,6 +134,8 @@ const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
+  getViewComposition: objectSchema({ et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
+  checkGoal: objectSchema({ kind: TEXT, status: { type: 'string', enum: ['met', 'partial', 'unmet', 'inconclusive'] }, checks: RECORDS }, ['kind', 'status', 'checks']),
   getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
   listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
@@ -217,7 +213,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         : def.requiresAuthoring && !opts.allowAuthoring ? 'Host authoring permission required'
         : effectOf(def) === 'authoring' && (!opts.allowAuthoring || !opts.confirmAuthoring) ? 'Host authoring permission and confirmation required'
         : effectOf(def) === 'external' && (!opts.allowExternal || !opts.confirmExternal) ? 'Host permission and confirmation required' : null);
-    return { id, version: CAPABILITY_VERSION, domain: capabilityDomain(def.name, def.effect), description: def.description.slice(0, 640), effect: effectOf(def), available: reason === null, reason: reason?.slice(0, 640) ?? null };
+    return { id, version: CAPABILITY_VERSION, domain: capabilityDomain(def), description: def.description.slice(0, 640), effect: effectOf(def), available: reason === null, reason: reason?.slice(0, 640) ?? null };
   };
   const listCapabilities = (query: CapabilityQuery = {}): CapabilityPage => {
     versionCheck(query.version);
@@ -250,7 +246,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         dependencies: method ? [method] : [],
         conventions: 'Time: ET seconds past J2000 or UTC calendar; angles: degrees; distances and camera poses: km. Scene body/frame conventions are authoritative; no implicit coordinate transform. Consult verb parameter descriptions.',
         provenance: 'Scene/catalog declarations and observed runtime state are distinct. Null/withheld provenance, accuracy and coverage remain unknown.',
-        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : def.requiresAuthoring ? 'host' : 'none' };
+        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : def.requiresAuthoring ? 'host' : 'none',
+        guide: def.contract.guide ?? null, behaviour: behaviour(def.contract) };
     });
   };
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -269,13 +266,19 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     let busy = false;
     let captureReadiness: { request: ScriptReadinessRequest; ready: boolean } | null = null;
     const wrapped: AgentTask = {
-      id: task.id, signal: task.signal, get ended() { return task.ended; }, cancel: () => task.cancel(), finish: () => task.finish(),
+      id: task.id, signal: task.signal, get ended() { return task.ended; }, get taken() { return task.taken; }, cancel: () => task.cancel(), finish: () => task.finish(),
       async call(name, input) {
         if (disposed) return fail('Capability catalog disposed', 'cancelled');
         if (task.ended) return fail(`Task ${task.ended}; nothing ran`, task.ended);
         if (bound.revision !== revision || bound.scene !== scope().scene) return fail('Scene changed; discover again', 'stale');
         // Hosts may invoke tasks concurrently; never interleave writes in a task.
         if (busy) return fail('Another operation is running in this task', 'refused');
+        const known = definitions().find(d => idOf(d) === name || d.name === name);
+        if (known) input = normalizeInput(known.inputSchema, input);
+        else if (name === 'invokeCapability' && input && typeof input === 'object') {
+          const target = definitions().find(d => idOf(d) === (input as { id?: unknown }).id);
+          if (target) input = { ...(input as object), input: normalizeInput(target.inputSchema, (input as { input?: unknown }).input ?? {}) };
+        }
         let serialized: string;
         try { serialized = JSON.stringify(input); } catch { return fail('Input must be JSON'); }
         if (!serialized || serialized.length > CAPABILITY_LIMITS.inputChars) return fail('Input exceeds JSON size budget');
@@ -297,7 +300,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             const descriptions = describeCapabilities(args.ids as string[], args.version as number | undefined);
             return { ok: true, summary: 'Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task.', data: {
               version: CAPABILITY_VERSION, scope: scope(),
-              selected: descriptions.map(({ id, tool, outputSchema, effect, available, reason, references, permission }) => ({ id, name: tool.name, description: tool.description.slice(0, 640), inputSchema: tool.inputSchema, outputDataSchema: outputSchema.properties?.data, effect, available, reason, references, permission })),
+              selected: descriptions.map(({ id, tool, outputSchema, effect, available, reason, references, permission, guide }) => ({ id, name: tool.name, description: tool.description.slice(0, 640), inputSchema: tool.inputSchema, outputDataSchema: outputSchema.properties?.data, effect, available, reason, references, permission, ...(guide ? { guide } : {}) })),
               conventions: descriptions[0].conventions, provenance: descriptions[0].provenance,
               output: 'ok/summary/data or ok/code/error, plus receipt: id, operation, version, scope, task, status, requestedTarget, resolvedTarget, observation, warnings, provenance, verification. Inspect getOperationResult for authoritative progress/results. Full output schema is available through the typed host describeCapabilities API.',
             } };
@@ -333,7 +336,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         let result: AgentToolResult;
         try {
           let confirmed = true;
-          const needsAuthoringConfirmation = effectOf(def) === 'authoring' || (def.requiresAuthoring && destructiveEdit(name, input));
+          const needsAuthoringConfirmation = effectOf(def) === 'authoring' || (def.requiresAuthoring && destructiveEdit(def, input));
           if (needsAuthoringConfirmation) confirmed = opts.confirmAuthoring ? await opts.confirmAuthoring(idOf(def), JSON.parse(serialized)) : false;
           if (effectOf(def) === 'external') confirmed = await opts.confirmExternal!(idOf(def), JSON.parse(serialized));
           if (!confirmed) result = fail(needsAuthoringConfirmation && !opts.confirmAuthoring ? 'Host confirmation required' : 'Host confirmation declined', 'refused');
@@ -350,22 +353,15 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         finally { busy = false; }
         if (name === 'waitUntilReady' && captureReadiness) captureReadiness.ready = result.ok;
         const observation = observe();
-        // Features without a shared semantic read remain explicitly unverified (#297).
-        const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
-          || (name === 'navigateToAnalysisResult' && result.ok && (result.data as {verified?:boolean} | undefined)?.verified === true)
-          || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
-          || (name === 'selectGeographicFeature' && typeof host.getSelectedGeographicFeature === 'function' && typeof host.listGeographicLayers === 'function')
-          || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
-          || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
-          || (name === 'seekActivity' && typeof host.listActivities === 'function')
-          || (['focusEventResult','presentEventResult'].includes(name) && typeof host.getEventVisualization === 'function')
-          || (name === 'upsertEventQuery' && typeof host.getEventQueryInfo === 'function')
-          || (name === 'runEventQuery' && typeof host.getEventSearch === 'function' && typeof host.getEventResultPage === 'function');
-        const verified = observation.state !== null && hasReadback;
-        const eventPartial = ['focusEventResult','presentEventResult'].includes(name) && (observation.state as { events?: { status: string } } | null)?.events?.status !== 'observed';
-        const status: OperationStatus = result.ok ? verified && !eventPartial ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
+        // Completed means observed: a read's own data, or a write whose contract's
+        // predicates the viewer reports met. Anything else is partial, never completed.
+        const outcome = result.outcome;
+        const verified = observation.state !== null && result.ok && (effectOf(def) === 'read' ? true : outcome?.report?.status === 'met');
+        const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
             : result.code === 'failed' ? 'partial' : 'refused';
+        const outcomeWarnings = !result.ok || effectOf(def) === 'read' ? [] : !outcome?.report ? [`Not observable: ${outcome?.unobservable ?? 'no result declared'}.`]
+          : outcome.report.status === 'met' ? [] : [`Viewer check ${outcome.report.status}: ${outcome.report.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}.`];
         const resolvedTarget: Record<string, string> = {};
         const referenceWarnings: string[] = [];
         // Resolving identity is distinct from claiming the desired state held.
@@ -380,7 +376,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             } catch { referenceWarnings.push(`Could not verify reference field ${field}`); }
           }
         }
-        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(eventPartial && result.ok ? ['Event selection was applied; timeline or rendered event geometry has only partial readback. Inspect getEventVisualization before capture.'] : []), ...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
+        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? outcomeWarnings : [result.error]), ...referenceWarnings] };
         remember(receipt);
         return { ...result, receipt };
       },
@@ -404,12 +400,50 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     };
     return wrapped;
   };
+  const direct = () => opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!];
+  const signature = (def: AgentDefinition) => `${idOf(def)}${def.contract.guide ? '*' : ''}(${Object.entries(def.inputSchema.properties ?? {}).map(([key, prop]) => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(prop.type) ? prop.type.join('|') : prop.type ?? 'json'}${prop.enum ? '=' + prop.enum.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${prop.maximum !== undefined ? '<=' + prop.maximum : ''}`).join(',')})`;
+  /**
+   * The registry index the model sees, within a fixed budget however many
+   * operations are registered: entries in registration order (built-ins
+   * first) until the budget, then a count of the rest, which stay findable
+   * through listCapabilities and invocable by ID.
+   */
+  const index = () => {
+    const entries: string[] = [];
+    let used = 0;
+    const all = definitions();
+    for (const def of all) {
+      const entry = signature(def);
+      if (used + entry.length + 2 > CAPABILITY_LIMITS.index) break;
+      entries.push(entry); used += entry.length + 2;
+    }
+    const rest = all.length - entries.length;
+    return `Compact registry IDs (* has usage notes: describe it before first use): ${entries.join(', ')}${rest ? `, and ${rest} more: find them with listCapabilities` : ''}.`;
+  };
   const api: CapabilityTools = {
-    list: () => { versionCheck(); return [...(opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!]), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} Compact registry IDs: ${definitions().map(def => `${idOf(def)}(${Object.keys(def.inputSchema.properties ?? {}).map(key => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(def.inputSchema.properties![key].type) ? def.inputSchema.properties![key].type!.join('|') : def.inputSchema.properties![key].type ?? 'json'}${def.inputSchema.properties![key].enum ? '=' + def.inputSchema.properties![key].enum!.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${def.inputSchema.properties![key].maximum !== undefined ? '<=' + def.inputSchema.properties![key].maximum : ''}`).join(',')})`).join(', ')}.` } : d)]; },
-    inspect: () => { versionCheck(); return raw.inspect!(); }, listCapabilities, describeCapabilities, getOperationResult, begin,
+    list: () => { versionCheck(); return [...direct(), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} ${index()}` } : d)]; },
+    inspect: () => { versionCheck(); return raw.inspect!(); }, verify: goal => { versionCheck(); return raw.verify!(goal); }, listCapabilities, describeCapabilities, getOperationResult, begin,
+    contractOf: (name, input) => {
+      if (DISCOVERY.some(d => d.name === name && d.name !== 'invokeCapability')) return { namespace: 'scene', writes: [] };
+      const id = name === 'invokeCapability' ? (input as { id?: unknown } | null)?.id : name;
+      return definitions().find(d => idOf(d) === id || d.name === id)?.contract ?? null;
+    },
+    readable: method => raw.readable?.(method) ?? false,
+    preflight: (name, input, held) => {
+      const def = name === 'invokeCapability' ? definitions().find(d => idOf(d) === (input as { id?: unknown } | null)?.id) : definitions().find(d => d.name === name || idOf(d) === name);
+      return def ? raw.preflight?.(def.name, name === 'invokeCapability' ? (input as { input?: unknown }).input : input, held) ?? null : null;
+    },
+    // Notes for the directly offered tools only, so the prompt stays bounded; every other operation's notes come from the same registry: with a read in its namespace, a description, or its first use.
+    guides: namespace => (namespace ? definitions().filter(d => d.contract.namespace === namespace) : direct()).filter(d => d.contract.guide && summary(d).available).map(d => ({ name: d.name, guide: d.contract.guide! })),
     call: async (name, input) => { const task = begin(); try { return await task.call(name, input); } finally { task.finish(); } },
     cancel: () => raw.cancel(),
     dispose: () => { disposed = true; offLoad(); raw.dispose(); receipts.clear(); },
   };
   return api;
+}
+
+function behaviour(c: OperationContract): CapabilityDescription['behaviour'] {
+  const reads = c.writes.length === 0;
+  return { writes: c.writes, observedBy: reads ? [] : c.unobservable ? null : [...new Set(['the viewer\'s shared reads', ...(c.observes ?? [])])],
+    unobservable: reads ? null : c.unobservable ?? null, destructiveVariants: !!c.destructive, idempotent: reads || !!c.idempotent };
 }

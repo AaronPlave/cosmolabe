@@ -33,9 +33,10 @@ See the [viewer shell guide](ui-shell.md).
 
 ## Local setup and assets
 
-Use Node.js 20 or later. For local mission examples, install
+Use Node.js 24 or later. For local mission examples, install
 [Git LFS](https://git-lfs.com/) **before cloning** so tracked meshes, DDS textures,
-large lunar maps and kernel binaries are downloaded rather than left as pointers.
+large lunar maps, shared DE440s and the two large test oracles are downloaded rather than left
+as pointers. Mission-specific binary kernels are fetched or R2-hosted.
 A small analytical scene does not require every mission dataset.
 
 ```sh

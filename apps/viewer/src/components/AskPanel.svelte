@@ -4,8 +4,8 @@
    * sidebar. A request shows what the person typed, the model's one answer, and
    * a quiet action status. Opening
    * that line lists the actions in plain words; one Details view under them
-   * holds the raw tool calls, results and the model's narration for anyone
-   * debugging. A request that stops early says why and what its actions came
+   * holds every raw tool call and full result, one collapsible step each, the
+   * model's narration and a copy of the whole trace, for anyone debugging. A request that stops early says why and what its actions came
    * to, from their actual results. The panel's own chrome minimizes and closes
    * it; closing stops a running request.
    *
@@ -15,7 +15,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, type AskStep, type AskTurn,
+    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
   import { etToUtcString } from '../lib/viewer-state.svelte';
@@ -89,7 +89,13 @@
     gotoCoordinates: (i) => `Went to coordinates on ${text(i.object) ?? 'a body'}`,
     viewpoint: (i) => `Moved to the ${text(i.name) ?? 'saved'} viewpoint`,
     setFrame: () => 'Changed the camera frame',
-    circleCenter: () => 'Circled the view',
+    circleCenterRight: (i) => `Swung the view right ${i.degrees ?? ''}°`,
+    circleCenterLeft: (i) => `Swung the view left ${i.degrees ?? ''}°`,
+    circleCenterUp: (i) => `Swung the view up ${i.degrees ?? ''}°`,
+    circleCenterDown: (i) => `Swung the view down ${i.degrees ?? ''}°`,
+    composeView: (i) => `Rotated around ${text(i.anchor) ?? 'the tracked object'} to show ${text(i.target) ?? 'the target'}`,
+    getViewComposition: () => 'Checked what is in view',
+    checkGoal: () => 'Checked the result in the viewer',
     dolly: () => 'Moved the camera',
     stopFlight: () => 'Stopped the flight',
     setTime: () => 'Set the time',
@@ -117,12 +123,13 @@
     return LABELS[step.name]?.(input) ?? actionMetadata(step).label;
   }
 
-  /** Everything raw, as one block: the tool calls, their results and the model's narration. */
-  function details(turn: AskTurn): string {
-    const lines = turn.steps.map((s) => JSON.stringify({ tool: s.name, input: s.input, result: s.result }, null, 1));
-    if (turn.notes.length) lines.push(`model notes: ${JSON.stringify(turn.notes)}`);
-    const out = lines.join('\n');
-    return out.length > 8000 ? `${out.slice(0, 8000)}…` : out;
+  /** The whole raw trace, untruncated: every tool call with its input and full host result, and the model's narration. */
+  function trace(turn: AskTurn): string {
+    return JSON.stringify({ prompt: turn.prompt, steps: turn.steps.map((s) => ({ tool: s.name, input: s.input, result: s.result })), notes: turn.notes }, null, 1);
+  }
+  let copied = $state<number | null>(null);
+  async function copyTrace(turn: AskTurn) {
+    try { await navigator.clipboard.writeText(trace(turn)); copied = turn.id; } catch { copied = null; }
   }
 </script>
 
@@ -184,8 +191,12 @@
             {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
             {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
           </p>
-          {#if endNote(turn)}
-            {@const note = endNote(turn)!}
+          {#if checkNote(turn)}
+            {@const check = checkNote(turn)!}
+            <p class="ui-helper whitespace-normal {check.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{check.text}</p>
+          {/if}
+          {#if endNote(turn, stepLabel)}
+            {@const note = endNote(turn, stepLabel)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
           {/if}
           {#if turn.steps.length > 0}
@@ -193,6 +204,7 @@
               <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
                 <ChevronRight size={10} class="ask-chevron" />
                 Action details
+                {#if turn.stats}<span class="text-text-faint">· {turn.stats.rounds} model {turn.stats.rounds === 1 ? 'round' : 'rounds'}{#if turn.stats.rawTokens !== null} · {Math.round(turn.stats.rawTokens / 1000)}k tokens{/if}</span>{/if}
               </summary>
               <ul class="mt-1 flex flex-col gap-0.5">
                 {#each turn.steps.filter(s => !actionMetadata(s).diagnostic) as step (step.id)}
@@ -212,7 +224,14 @@
               </ul>
               <details class="ask-details mt-1">
                 <summary class="ui-helper cursor-pointer select-none text-text-faint">Details</summary>
-                <pre class="ui-helper mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{details(turn)}</pre>
+                <button class="ui-meta mt-1 rounded px-1.5 py-0.5 text-text-secondary hover:bg-hover hover:text-text-primary" onclick={() => copyTrace(turn)}>{copied === turn.id ? 'Copied full trace' : 'Copy full trace'}</button>
+                {#each turn.steps as step, i (step.id)}
+                  <details class="mt-1">
+                    <summary class="ui-helper cursor-pointer select-none font-mono text-[10px] text-text-faint">{i + 1}. {step.name === 'invokeCapability' && step.input && typeof step.input === 'object' ? String((step.input as Record<string, unknown>).id) : step.name} · {!step.result ? 'running' : step.result.ok ? 'ok' : step.result.code}</summary>
+                    <pre class="ui-helper mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify({ input: step.input, result: step.result }, null, 1)}</pre>
+                  </details>
+                {/each}
+                {#if turn.notes.length}<pre class="ui-helper mt-1 whitespace-pre-wrap font-mono text-[10px]">model notes: {JSON.stringify(turn.notes)}</pre>{/if}
               </details>
             </details>
           {/if}
@@ -225,7 +244,7 @@
       {/if}
     </ol>
 
-    {#if ask.serviceBlocked}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
+    {#if ask.serviceBlocked && ask.turns.at(-1)?.status !== 'error'}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
     {#if askApproval.pending}
       {@const approval = approvalPresentation(askApproval.pending, etToUtcString)}
       <div class="mx-3 mb-2 rounded border border-border p-2" role="group" aria-label="Approve Ask action">

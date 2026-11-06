@@ -6,7 +6,7 @@ import { agentDefinitions } from './agent.js';
 import { createCapabilityTools, defaultAskDefinitions, CAPABILITY_LIMITS } from './capabilities.js';
 import { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
 import { VERB_LIST } from './verbs.js';
-import { CAPABILITY_SYSTEM_PROMPT, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { systemPrompt, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import type { AgentTask } from './agent.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -226,20 +226,30 @@ describe('verified receipts and partial workflows', () => {
     tools.dispose();
   });
 
-  it('keeps shared registry routing, provenance and coverage instructions explicit', () => {
-    for (const name of ['Use resolve,', 'When resolve', 'searchPlaces', 'listActivities', 'getSurfaceData', 'getImagery', 'seekActivity', 'setPlaying']) {
-      expect(CAPABILITY_SYSTEM_PROMPT).not.toContain(name);
-    }
-    for (const name of ['describeScene', 'listCapabilities', 'describeCapabilities', 'invokeCapability', 'getOperationResult']) expect(CAPABILITY_SYSTEM_PROMPT).toContain(name);
-    expect(CAPABILITY_SYSTEM_PROMPT).toContain('source provenance withheld');
-    expect(CAPABILITY_SYSTEM_PROMPT).toContain('current-view coverage is unknown');
+  it('keeps feature guidance with the operations: the core prompt names no feature operation', () => {
+    const core = systemPrompt([], []);
+    for (const def of agentDefinitions()) if (!['checkGoal', 'describeScene'].includes(def.name)) expect(core, def.name).not.toMatch(new RegExp(`\\b${def.name}\\b`));
+    const tools = createCapabilityTools(Object.assign(new FakeViewer(), { getSurfaceData: () => undefined }), { surface: 'fixed' });
+    const prompt = systemPrompt(tools.list(), tools.guides!());
+    // Only the directly offered tools' notes are in the prompt; the rest come from the registry on demand.
+    expect(prompt).toContain('- composeView: To bring another object into a close-up');
+    expect(prompt).not.toContain('- getSurfaceData:');
+    expect(tools.describeCapabilities(['surface.getSurfaceData'])[0].guide).toMatch(/^Zero getImagery layers/);
+    for (const name of ['listCapabilities', 'describeCapabilities', 'invokeCapability']) expect(prompt).toContain(name);
+    expect(prompt).toContain('source provenance withheld');
+    // Discovery offers describeScene alone directly, so only its notes are in the prompt.
+    const discovery = createCapabilityTools(new FakeViewer(), { surface: 'discovery' });
+    expect(discovery.guides!().map(g => g.name)).toEqual(['describeScene']);
+    discovery.dispose();
+    tools.dispose();
   });
 
   it('declares missing semantic readback instead of marking every UI feature verified', async () => {
     const tools = createCapabilityTools(new FakeViewer());
     const task = tools.begin();
-    await choose(task, 'grids.setGridOpacity');
-    expect(await task.call('setGridOpacity', { opacity: 0.5 })).toMatchObject({ ok: true, receipt: { status: 'partial', verification: 'host-return', warnings: [expect.stringContaining('#297')] } });
+    await choose(task, 'places.gotoCoordinates');
+    expect(await task.call('gotoCoordinates', { object: 'Titan', latitude: 1, longitude: 2 })).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'a surface coordinate view has no projection read' },
+      receipt: { status: 'partial', verification: 'host-return', warnings: ['Not observable: a surface coordinate view has no projection read.'] } });
     tools.dispose();
   });
 
@@ -352,7 +362,7 @@ describe('verified receipts and partial workflows', () => {
       requests.push(request);
       round++;
       if (round === 1) return uses('describeCapabilities', { ids: ['scene.select', 'surface.showImagery'] });
-      if (round === 2) return uses('invokeCapability', { id: 'scene.select', version: 1, input: { object: 'Titan' } });
+      if (round === 2) return { stop: 'tool_use', content: [{ type: 'tool_use', id: 'g', name: 'checkGoal', input: { require: [] } }, ...uses('invokeCapability', { id: 'scene.select', version: 1, input: { object: 'Titan' } }).content] };
       if (round === 3) return uses('invokeCapability', { id: 'surface.showImagery', version: 1, input: { object: 'Titan', layer: 'absent', visible: true } });
       if (round === 4) return uses('describeScene', {});
       return { stop: 'end', content: [{ type: 'text', text: 'Titan selected; imagery refused.' }] };

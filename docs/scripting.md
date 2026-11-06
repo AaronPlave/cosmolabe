@@ -178,6 +178,7 @@ says which way each flight ended.
 | `dolly <km> [seconds]` | Move the camera straight away from what it orbits (toward it if negative), keeping its aim. Stops short of the centre, and a body's surface still stops it. |
 | `crane <km> [seconds]` | Raise the camera and the point it looks at together along the view's up (lower if negative), so the same view slides up the screen. |
 | `circleCenterRight <degrees> [seconds]` | Swing the camera around what it orbits, keeping its distance and aim. Also `circleCenterLeft`, `circleCenterUp`, `circleCenterDown`. Instant by default; give seconds to animate. |
+| `composeView <anchor> <target> [also]` | Swing the camera around the tracked anchor (with `circleCenter*`) until the target, and `also`, sit beside it in the frame. Keeps distance, clock and selection. Refuses without moving when the anchor fills the view; fails when a nearer body hides the target. Needs `getViewComposition`. |
 
 `setCamera` takes eye, target and up in that order — the same order catalog
 `Viewpoint` JSON and `camera-view-io.ts` already use.
@@ -343,20 +344,24 @@ The **Earth–Moon Scripted Tour** on the home screen loads the base library's
 Earth system on the real kernels (`test-catalogs/earth-moon-tour.json` requires
 `base/earth-system.json`: de440s for where Earth and the Moon were on
 2015-10-31, pck00011 for how they were turned), so the body-fixed views land on
-the geography the original script aims at, and runs an adaptation
-of Cosmographia's Earth–Moon scripting example in the console, block by block
-with the original's notes and pacing. The
-`circleCenter*`, `moveAwayFromCenter` and `craneUp` moves carry over as
-`circleCenter*`, `dolly` and `crane`. `moveToPov`, which Cosmolabe cannot
-animate yet, becomes an instant `setCamera` pose at the position the original
-ends on. Calls with no equivalent are left as "No equivalent yet" comments; the
-table under [Not yet in Cosmolabe](#not-yet-in-cosmolabe) lists them.
-Cosmolabe scripts are conceptually similar to Cosmographia's but are not
-source-compatible with its `cosmoscripting` Python API. The script is
-`apps/viewer/test-catalogs/earth-moon-tour.cosmo`, attached to its catalog by the
-`script` field of an index entry (see [catalog-sources.md](catalog-sources.md)),
-so a deployment offers scripted tours the same way it offers catalogs. A unit
-test parses every script the Examples index names against the verb table.
+the intended lunar hemisphere. The roughly two-minute story flies from Earth to
+the Moon, reveals its body-fixed grid, crosses the north pole to the far side,
+then follows Earth with one day passing each second. Notes explain that these
+are camera moves, not a spacecraft trajectory. It finishes paused at its
+original time and overview, with grid and axes hidden.
+
+The tour is inspired by Cosmographia's Earth–Moon example, using existing
+`gotoObject`, `dolly`, `circleCenter*`, `crane`, frame, layer and clock commands.
+It no longer announces unsupported actions as though they happened.
+Cosmolabe scripts are not source-compatible with Cosmographia's Python API;
+[Not yet in Cosmolabe](#not-yet-in-cosmolabe) describes remaining API differences.
+
+The script is `apps/viewer/test-catalogs/earth-moon-tour.cosmo`, attached by the
+public index entry's `script` field. Launch with
+`?entry=examples/earth-moon-tour` to run it visibly in the Script panel. Direct
+`?catalog=test-catalogs/earth-moon-tour` loads only the scene. Pause, Stop and
+Run remain available; edit a wait or camera move to make your own tour. Tests
+parse scripts from both public and developer indexes against the verb table.
 
 ## The read side
 
@@ -1051,16 +1056,20 @@ chat/MCP/voice transport or new solver is introduced.
 
 ### Mission tour and capture fixture
 
-The ordinary index entry **Ingenuity Analysis Tour** links
+The developer index entry **Ingenuity Analysis Tour** links
 [`ingenuity-analysis-tour.cosmo`](../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo)
-to the existing Ingenuity/Jezero catalog. It composes Flight 5 selection/seek, a
+to the existing Ingenuity/Jezero catalog. Configure the developer source to
+browse it and launch `?entry=developer/ingenuity-analysis-tour` in the ordinary
+viewer. The public index does not include this developer tour. It composes Flight 5 selection/seek, a
 stable named place, coordinate navigation, imagery and geographic styles, a saved
 Mars-centre distance definition and physical-terrain appearance. The caption
 retains the trajectory's estimated timing/path limitation and does not describe
 centre distance as terrain clearance. Missing products fail transparently.
 
 Run `CL_VIEWER_URL=http://127.0.0.1:5297/ node scripts/test-modern-scene-automation.mjs`
-against a viewer from this checkout. The fixture exercises the ordinary scripted
+against a viewer from this checkout with the developer source configured as
+shown in [catalog sources](catalog-sources.md#public-curation-and-developer-discovery).
+The fixture exercises the ordinary scripted
 entry and `?test=1` script execution, asserts semantic state and readiness,
 round-trips the supported snapshot, tests missing-source refusal, and writes
 screenshots plus a compact JSON report under `/tmp/modern-scene-automation`.

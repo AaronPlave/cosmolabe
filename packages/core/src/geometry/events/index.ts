@@ -76,3 +76,6 @@ export {
   eventTimelineSpan,
   focusForEvent,
 } from './focus.js';
+
+export type { EncounterClass } from './encounter.js';
+export { classifyApproach, SPHERE_OF_INFLUENCE_KM } from './encounter.js';

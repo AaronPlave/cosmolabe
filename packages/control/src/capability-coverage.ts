@@ -20,8 +20,7 @@ export const CONTROL_CONTRACT_GAPS = {
   getSelectedMeasurement: 'Observed by listMeasurements; trusted hosts receive full definitions.',
   getSelectedGeographicFeature: 'Scene-scoped geographic selection read; included in notifications.',
   getActivity: 'Activity detail is currently derived from listActivities; direct lookup is not a separate tool.',
-  getTimelineWindow: '#297: timeline window read/write schemas missing.',
-  setTimelineWindow: '#297: timeline window read/write schemas missing.',
+  getViewerState: 'Structured view state behind snapshots; observed through operation contracts (state predicates), not offered as a model read.',
   getCamera: 'Used by UI and snapshot; explicit pose read schema missing (#297).',
   getCameraReference: '#297: portable floating-origin read/write schema missing.',
   setCameraReference: '#297: portable floating-origin read/write schema missing.',
@@ -54,10 +53,12 @@ export function capabilityCoverage() {
   const direct = new Set(defaultAskDefinitions().map(d => d.name));
   return [
     ...agentDefinitions().map(def => {
-      const domain = capabilityDomain(def.name, def.effect);
+      const domain = capabilityDomain(def);
       return { feature: domain, operation: `${domain}.${def.name}`, ui: UI[domain],
         semantic: def.method ?? 'bounded composite read', script: VERBS.has(def.name) ? def.name : null,
-        discovery: true, defaultAsk: direct.has(def.name) ? 'direct' : 'discovery', effect: def.effect, permission: def.effect === 'authoring' ? 'approve-authoring' : def.effect === 'export' ? 'approve-external' : def.requiresAuthoring ? 'host-authoring' : 'direct', status: 'registered', missingReason: null };
+        discovery: true, defaultAsk: direct.has(def.name) ? 'direct' : 'discovery', effect: def.effect, permission: def.effect === 'authoring' ? 'approve-authoring' : def.effect === 'export' ? 'approve-external' : def.requiresAuthoring ? 'host-authoring' : 'direct', status: 'registered', missingReason: null,
+        // How a result is known (#345): a read; a write checked by its own postconditions; or a stated reason it cannot be.
+        writes: def.contract.writes, evidence: def.contract.writes.length === 0 ? 'read' : def.contract.unobservable && !def.contract.observes?.length ? `unobservable: ${def.contract.unobservable}` : 'postconditions' };
     }),
     ...UI_CAPABILITY_GAPS.map(gap => ({ ...gap, operation: null, semantic: null, script: null,
       discovery: false, status: 'gap', missingReason: gap.reason })),

@@ -41,7 +41,7 @@ See [workflow details and data requirements](docs/viewer-overview.md#workflows).
 
 **[Launch the hosted viewer](https://aaronplave.com/cosmolabe/)** and choose an example catalog.
 
-To run locally, use Node.js 20+ and install [Git LFS](https://git-lfs.com/) before
+To run locally, use Node.js 24+ and install [Git LFS](https://git-lfs.com/) before
 cloning to download tracked binary assets:
 
 ```sh
@@ -54,6 +54,10 @@ npm --prefix apps/viewer run dev
 
 Open the URL printed by Vite. Analytical examples need no SPICE kernels; mission
 examples may need additional downloads, and generated terrain needs local setup.
+The full `npm test` suite still needs shared DE440s and two selectively fetched
+LFS scientific oracles plus the existing LRO and Cosmographia test data; see the commands in
+[contributing](CONTRIBUTING.md#development-setup). Mission-specific binary kernels are
+fetched or R2-hosted, while small test fixtures are committed directly.
 See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 [development commands](CONTRIBUTING.md).
 
@@ -64,11 +68,12 @@ See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 | Europa Clipper | Europa encounters, spacecraft model and instrument FOVs |
 | Cassini Saturn Tour | Saturn orbit insertion, Titan and Enceladus encounters |
 | LRO at the Moon | Lunar orbit, terrain and imagery |
-| ISS (TLE) | Satellite propagation without SPICE |
+| ISS | Satellite propagation without SPICE |
 | Psyche | An interplanetary cruise trajectory |
 | Earth–Moon Scripted Tour | Scripted camera, time and display changes |
 
-Browse the [full catalog index](apps/viewer/test-catalogs/index.json) or
+Browse the [12 public experiences](apps/viewer/test-catalogs/index.json),
+[developer examples and regression fixtures](apps/viewer/test-catalogs/README.md), or
 [configure another catalog source](docs/catalog-sources.md).
 
 ## Gallery

@@ -8,7 +8,7 @@
     "places/ingenuity-sites.json"
   ],
   "version": "1.2",
-  "description": "Ingenuity positions are estimated from observed 2D NASA/MMGIS paths and landing locations, with the official flight log constraining estimated altitude/time profiles. They are not complete 3D telemetry. Source, datum, clock, and frame uncertainty: data/ingenuity/reconstruction.json. Cube terrain and four independent imagery products are prepared locally; production publication requires authorization.",
+  "description": "Ingenuity positions are estimated from observed 2D NASA/MMGIS paths and landing locations, with the official flight log constraining estimated altitude/time profiles. They are not complete 3D telemetry. Source, datum, clock, and frame uncertainty: data/ingenuity/reconstruction.json. Cube terrain and four independent imagery products pin published builds in scripts/data-hosting/datasets.json; local development uses complete local products or the pinned hosted builds. Coverage remains product-bounded.",
   "defaultTime": "2021-07-05T09:00:08Z",
   "defaultViewpoint": "Jezero Overhead",
   "items": [

@@ -11,12 +11,15 @@ Thanks for your interest. This project is in early development and contributions
 
 ## Development setup
 
-This is an npm workspaces monorepo. Node 20+ required.
+This is an npm workspaces monorepo. Node 24+ required.
 
 ```bash
 git clone https://github.com/AaronPlave/cosmolabe.git
 cd cosmolabe
-git lfs pull          # required to fetch demo kernels, models, textures
+# Required by normal npm test: shared DE440s and two scientific oracles.
+git lfs pull --include="apps/viewer/test-catalogs/kernels/de440s.bsp,kernels/test-data/de425s.bsp,kernels/test-data/cassini/04183_04185ra.bc"
+bash scripts/fetch-lro-kernels.sh   # existing LRO/frame integration data
+bash scripts/fetch-cosmographia-data.sh  # third-party catalog integration data
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
@@ -64,7 +67,17 @@ npx vitest run packages/core                    # one package
 npx vitest run --reporter=verbose <test-name>   # debug single test
 ```
 
-Tests that depend on SPICE kernels live under `kernels/test-data/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
+The full normal suite needs shared DE440s and the two LFS oracles fetched above; they
+are not optional tests. Other deterministic SPICE fixtures are ordinary Git blobs
+under `kernels/fixtures/` and `kernels/test-data/`. The LRO and Cosmographia fetches
+above remain required by their integration tests, just as in CI. See
+[kernel fixtures and provenance](kernels/README.md).
+
+Mission-specific viewer binary kernels are not in Git/LFS (shared DE440s remains): Vite uses versioned R2 pins
+when local files are absent, or run the relevant `scripts/fetch-*-kernels.sh`
+for full local mission data. `scripts/fetch-all.sh` is for demos/deployment, not
+the normal test suite. Visual/browser checks may additionally need LFS models,
+textures and maps; use `git lfs pull` for those assets.
 
 ## Adding a feature
 

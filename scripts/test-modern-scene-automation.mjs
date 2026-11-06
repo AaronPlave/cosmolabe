@@ -1,4 +1,7 @@
-/** Real mission automation: ordinary index script and test harness, using the public port. */
+/** Real mission automation: ordinary developer-index script and test harness.
+ * Configure the served viewer with the developer source (docs/catalog-sources.md):
+ * VITE_CATALOG_SOURCES='[{"id":"developer","name":"Developer examples","indexUrl":"test-catalogs/dev-index.json"}]'
+ */
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +22,8 @@ try {
     if (!modes.has(harness ? 'harness' : 'ordinary')) continue;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
-    const url = new URL(harness ? '?catalog=test-catalogs/ingenuity-jezero&test=1' : '?entry=examples/ingenuity-analysis-tour', base);
+    // The ordinary viewer explicitly opts into developer discovery; no test hook is used.
+    const url = new URL(harness ? '?catalog=test-catalogs/ingenuity-jezero&test=1' : '?entry=developer/ingenuity-analysis-tour', base);
     await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
     if (harness) await page.evaluate(source => window.__cosmolabe.runScript(source, { forbidWait: true }), source);
@@ -27,6 +31,7 @@ try {
       const status = page.getByRole('status', { name: 'Script status' });
       await page.waitForFunction(() => /Completed|Failed|nothing ran|Stopped/.test(document.querySelector('[aria-label="Script status"]')?.textContent ?? ''), null, { timeout: 120000 });
       assert.match(await status.innerText(), /Completed/);
+      assert.equal(new URL(page.url()).searchParams.get('entry'), 'developer/ingenuity-analysis-tour');
       assert.equal(await page.evaluate(() => window.__cosmolabe), undefined, 'ordinary viewer must not need the test hook');
     }
     const result = await page.evaluate(async ({ controlModule }) => {

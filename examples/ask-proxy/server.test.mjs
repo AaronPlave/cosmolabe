@@ -49,6 +49,11 @@ describe('wire → Anthropic', () => {
     expect(JSON.stringify(body)).not.toContain('cache_control');
   });
 
+  it('sets the effort level only when configured to', () => {
+    expect(toAnthropicRequest(WIRE, LIMITS).body.output_config).toBeUndefined();
+    expect(toAnthropicRequest(WIRE, { ...LIMITS, reasoningEffort: 'low' }).body.output_config).toEqual({ effort: 'low' });
+  });
+
   it('requests provider-side model fallback only when configured to', () => {
     expect(toAnthropicRequest(WIRE, { ...LIMITS, fallback: true }).body.fallbacks).toBe('default');
     expect('fallbacks' in toAnthropicRequest(WIRE, { ...LIMITS, fallback: false }).body).toBe(false);
@@ -114,7 +119,7 @@ describe('ask proxy server', () => {
     const res = await post(url, WIRE);
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe('http://viewer.test');
-    expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }] });
+    expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }], usage: expect.objectContaining({ inputTokens: expect.any(Number), outputTokens: expect.any(Number) }) });
     expect(seen[0].headers['x-api-key']).toBe('secret');
     // Nothing in the request asks the provider to choose another model.
     expect(seen[0].headers['anthropic-beta']).toBeUndefined();
@@ -130,6 +135,19 @@ describe('ask proxy server', () => {
     await post(url, WIRE);
     expect(seen[0].headers['anthropic-beta']).toBe(FALLBACK_BETA);
     expect(JSON.parse(seen[0].body).fallbacks).toBe('default');
+  });
+
+  it('answers an escalated request with the configured escalation model; the client never names one', async () => {
+    const models = [], usage = [];
+    const url = await start(async (u, init) => {
+      models.push(JSON.parse(init.body).model);
+      return new Response(JSON.stringify({ content: [], stop_reason: 'end_turn' }), { status: 200 });
+    }, { model: 'claude-haiku-5-5', escalationModel: 'claude-sonnet-5-5', onUsage: u => usage.push(u.requestedModel) });
+    await post(url, WIRE);
+    await post(url, { ...WIRE, escalated: true });
+    await post(url, { ...WIRE, escalated: 'claude-opus-5-5', model: 'claude-opus-5-5' });
+    expect(models).toEqual(['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+    expect(usage).toEqual(models);
   });
 
   it('reports an upstream failure without its credentials problem looking like the viewer\'s', async () => {
