@@ -88,7 +88,7 @@
   const field = 'ui-control w-full min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs';
 </script>
 
-<div class="flex flex-col gap-3 px-3 py-2 text-xs text-text-secondary">
+<div class="flex flex-col gap-3 py-2 text-xs text-text-secondary">
   <section aria-label="Views">
     <div class="ui-section-label">View {center ? `of ${center}` : ''}</div>
     <p class="helper">One-shot viewpoints that switch to free orbit. <b>Top</b> looks down the orbital normal, not geographic north.</p>
