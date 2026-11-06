@@ -33,7 +33,7 @@ try {
   await page.locator('.browser .body').evaluate(body => { body.scrollTop = 0; });
   await page.screenshot({ path: `${output}/browser-narrow.png` });
   await page.setViewportSize({ width: 1440, height: 960 });
-  await page.locator('.catalog-list .row').filter({ hasText: 'Explore the ISS in Earth orbit (2011).' }).click();
+  await page.locator('.catalog-list .row').filter({ hasText: 'Real daily satellite imagery of Earth (NASA VIIRS, 2026) with the ISS in orbit.' }).click();
   await page.waitForFunction(() => window.cosmo?.listObjects().includes('ISS'), null, { timeout: 120000 });
   assert.ok(new URL(page.url()).searchParams.get('catalog').endsWith('test-catalogs/iss'));
   const gpu = await page.evaluate(() => {
