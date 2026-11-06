@@ -1,5 +1,5 @@
 import type { ScriptSurfaceAppearance } from '@cosmolabe/control';
-import { type BodyMesh, normalizeSurfaceAppearance } from '@cosmolabe/three';
+import { type BodyMesh, type ImageryTimePolicy, normalizeSurfaceAppearance } from '@cosmolabe/three';
 import { getRenderer, sceneId, emit } from './viewer-state.svelte';
 
 export function getSurfaceAppearance(body: string) {
@@ -52,6 +52,14 @@ export function moveImageryLayer(body: string, id: string, index: number, opts?:
     if (from < 0 || index < 0 || index >= bm.imageryLayers.length || (from === 0) !== (index === 0)) return false;
     return from === index || bm.moveImageryLayer(id, index);
   });
+}
+/**
+ * Fix a time-indexed imagery layer to a UTC day (`{ date }`), or switch how it
+ * picks one (`{ policy }`: fixed, follow-simulation, latest). Changes apply at
+ * once; only simulation-following is throttled to the source cadence.
+ */
+export function setImageryTime(body: string, id: string, patch: { policy?: ImageryTimePolicy; date?: string }, opts?: { scene?: number }): boolean {
+  return imageryAction(body, opts, bm => bm.setImageryLayerTime(id, patch));
 }
 function imageryAction(body: string, opts: { scene?: number } | undefined, action: (bm: BodyMesh) => boolean): boolean {
   if (opts?.scene !== undefined && opts.scene !== sceneId()) throw new Error('the scene changed since this was read');

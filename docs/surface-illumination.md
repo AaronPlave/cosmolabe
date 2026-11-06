@@ -146,6 +146,22 @@ and `terrain`. No catalog in this repository declares it yet. Which products are
 reflectance and which are baked is a #123/#147 decision; until a catalog says,
 it stays `unknown` and renders exactly as before.
 
+### Relation to `temporal.illumination` (#214)
+
+Time-indexed imagery already has `imagery[].temporal.illumination` (`baked`
+default, or `reflectance`). That is a **label** recording that a dated image
+carries its acquisition-time Sun; it does not change rendering, and such a layer
+is still shaded by the simulated Sun (see [time-indexed imagery](time-indexed-imagery.md)).
+It is a separate key from this page's layer-level `imagery[].illumination`,
+which **does** change rendering, and the two use `baked` in different senses
+(`temporal.illumination: baked`: lit as acquired, still relit; `illumination:
+baked`: shown as-is). The TypeScript type for this page's contract is exported
+as `ImageryRelightProvenance` so it does not collide with #214's
+`ImageryIllumination`. Today a dated layer with no layer-level `illumination` is
+`unknown` and renders as before; letting `temporal.illumination: baked` imply
+`illumination: baked` for daily imagery is a behavior change to the GIBS pilot
+and is left as an explicit decision.
+
 ## Lighting modes
 
 `natural` is physical. `shadow` (brighter ambient, softer Sun) and `flood` (full

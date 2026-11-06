@@ -117,6 +117,14 @@
       "group": "Technical examples"
     },
     {
+      "id": "earth-gibs-daily",
+      "name": "Earth daily imagery (GIBS)",
+      "catalog": "./earth-gibs-daily.json",
+      "script": "./earth-gibs-daily-tour.cosmo",
+      "description": "Time-indexed MODIS daily imagery following simulation time, with a static Earth map and Blue Marble beneath \u2014 no SPICE",
+      "group": "Technical examples"
+    },
+    {
       "id": "atmosphere-earth-dusk",
       "name": "Atmosphere validation: Earth dusk",
       "catalog": "./atmosphere-earth-dusk.json",

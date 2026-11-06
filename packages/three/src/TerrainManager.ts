@@ -20,6 +20,7 @@ import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGrid
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
+import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
@@ -107,6 +108,13 @@ export interface TerrainImageryConfig {
    *  VIIRS/MODIS true-color reflectance. When set, the resolved date replaces
    *  the `default` time segment in the WMTS tile URL path. */
   time?: string | 'yesterday';
+  /** Time-indexed imagery (#214): what day the layer depicts and how it is chosen.
+   *  `time` above is the same thing as a fixed date and keeps working; when both
+   *  are given, `temporal.date` wins. Supported for the overlay layers of
+   *  `xyz`, `tms`, `wmts` and `wmts-capabilities` sources, whose URLs carry the
+   *  date as a `/default/YYYY-MM-DD/` segment or a `{Time}` dimension. The bottom
+   *  (base) layer may only be fixed: put a daily layer above a static backdrop. */
+  temporal?: ImageryTemporalConfig;
   /** Stable id for viewer controls. Defaults to `layer-<index>`. */
   id?: string;
   /** Display name for viewer controls. Defaults to the product name in the URL path. */
@@ -402,21 +410,44 @@ function resolveTime(spec: string | undefined): string | undefined {
  *  `default`. Match that ISO-date segment between style and TMS and swap
  *  it for the user-requested date. Services with a custom style or a
  *  non-date time format fall through unchanged. */
+const DATED_SEGMENT = /\/default\/\d{4}-\d{2}-\d{2}\//;
 function timeSubstitutedURL(url: string, resolvedTime: string): string {
-  return url.replace(/\/default\/\d{4}-\d{2}-\d{2}\//, `/default/${resolvedTime}/`);
+  return url.replace(DATED_SEGMENT, `/default/${resolvedTime}/`);
 }
 
-/** Build a `preprocessURL` callback for a WMTS overlay that does time
- *  substitution. Returns undefined if no time substitution is needed.
- *  (For XYZ overlays, the equivalent helper in `createImageryOverlay` also
- *  enforces minZoom-skipping; for WMTS overlays minZoom semantics live on
- *  `calculateLevel` instead — clamping the requested level so the data is
- *  *up*-sampled rather than skipped.) */
-function buildWmtsOverlayPreprocessURL(
-  time: string | undefined,
-): ((url: string) => string) | undefined {
-  if (!time) return undefined;
-  return (url: string) => timeSubstitutedURL(url, time);
+/** The capabilities layer a source config names (the first when it names none). */
+function capabilitiesLayer(capabilities: WMTSCapabilitiesResult, layerId: string | undefined) {
+  return layerId ? capabilities.layers.find((l) => l.identifier === layerId) : capabilities.layers[0];
+}
+
+/** A layer's WMTS time dimension, if the provider declares one. */
+function timeDimension(capabilities: WMTSCapabilitiesResult, layerId: string | undefined) {
+  return capabilitiesLayer(capabilities, layerId)?.dimensions?.find((d) => /^time$/i.test(d.identifier));
+}
+
+/** The dimension name a date is substituted under; `Time` when the provider names none. */
+function timeDimensionId(capabilities: WMTSCapabilitiesResult, layerId: string | undefined): string {
+  return timeDimension(capabilities, layerId)?.identifier ?? 'Time';
+}
+
+/** The days a provider says a layer has, from its time dimension; null when it declares none readable. */
+function capabilitiesExtent(capabilities: WMTSCapabilitiesResult, layerId: string | undefined): ImageryAvailability | null {
+  const dim = timeDimension(capabilities, layerId);
+  return dim ? parseTimeExtent([...dim.values, dim.defaultValue]) : null;
+}
+
+/** Source-time bookkeeping of one time-indexed imagery layer (#214). */
+interface TemporalRuntime {
+  readonly config: ImageryTemporalConfig;
+  readonly base: boolean;
+  policy: ImageryTimePolicy;
+  fixedDate: string | null;
+  /** What the catalog declared; the provider's capabilities fill the rest. */
+  readonly declared: ImageryAvailability;
+  availability: ImageryAvailability;
+  rangeSource: 'catalog' | 'provider' | 'clock';
+  readonly follower: ImageryTimeFollower;
+  switches: number;
 }
 
 /** Clamp a WMTS overlay's `calculateLevel` to a minimum, so far-out zooms
@@ -544,7 +575,7 @@ const SHOW_GRACE_MS = 1500;
 const STREAM_STALL_MS = 3000;
 
 /** Create the appropriate imagery overlay based on config type. */
-function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
+function createImageryOverlay(img: TerrainImageryConfig, date?: string): ImageryOverlay {
   const type = img.type ?? 'xyz';
   switch (type) {
     case 'wms':
@@ -562,7 +593,6 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
         opacity: clampOpacity(img.opacity ?? 1),
       });
     case 'wmts': {
-      const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
       // The 3d-tiles-renderer 0.4.24 TS defs made `tileMatrices` required even
       // for the url-only overlay shape — the JS constructor still accepts the
       // old form (it derives matrices from the WMTS URL pattern), so cast
@@ -571,7 +601,9 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
         url: img.url,
         color: img.color ?? 0xffffff,
         opacity: clampOpacity(img.opacity ?? 1),
-        ...(preprocessURL ? { preprocessURL } : {}),
+        // A `{Time}` template takes its date here; a baked `/default/<date>/`
+        // segment is rewritten where the layer's fetches are gated.
+        ...(date ? { dimensions: { Time: date } } : {}),
       } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
       if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
       return overlay;
@@ -718,6 +750,11 @@ export class TerrainManager {
   /** Per layer, source tiles (`level/x/y`) that failed and are drawn from a parent. */
   private readonly degradedTiles = new Map<string, Set<string>>();
   private readonly capabilitiesCache = new Map<string, Promise<WMTSCapabilitiesResult>>();
+  /** Time-indexed layers (#214), by layer id. A layer's displayed day is its follower's committed one. */
+  private readonly temporal = new Map<string, TemporalRuntime>();
+  /** The simulation instant (UTC ms) last offered; null before the first frame. */
+  private simulationMs: number | null = null;
+  private _imageryTimeRevision = 0;
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
   private loadedModels = 0;
@@ -883,6 +920,7 @@ export class TerrainManager {
     this.layers.forEach((l, i) => this.illuminationById.set(l.id, imageryConfigs[i].illumination ?? DEFAULT_IMAGERY_ILLUMINATION));
     this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
+    this.initTemporal(imageryConfigs);
     this._overlayResolution = config.overlayResolution ?? 256;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
     this.showAtPixels = config.showAtPixels ?? 80;
@@ -983,7 +1021,7 @@ export class TerrainManager {
       // tile URLs — so registering a plain plugin object with a preprocessURL
       // is enough. ImageOverlayPlugin uses its OWN per-overlay preprocessURL
       // (not this chain), so this hook never affects overlay URLs.
-      const baseTime = resolveTime(baseImg.time);
+      const baseTime = this.temporal.get(this.layers[0].id)?.follower.current?.date ?? undefined;
       if (baseTime) {
         this.tiles.registerPlugin({
           preprocessURL: (url: string) => timeSubstitutedURL(url, baseTime),
@@ -1765,6 +1803,7 @@ export class TerrainManager {
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
       status: layerStatus(l.requests, l.failedTiles, this.setupFailed.has(l.id)),
       view: this.overlayView(l),
+      temporal: this.temporalInfo(l.id),
     }));
   }
 
@@ -1824,6 +1863,9 @@ export class TerrainManager {
     if (visible) {
       layer.requests = 0;
       layer.failedTiles = 0;
+      // A hidden layer was not following; the day it comes back with is the current one.
+      const rt = this.temporal.get(id);
+      if (rt) rt.follower.force(this.resolveFor(rt), performance.now());
       void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
     } else {
       this.overlayGeneration.set(id, (this.overlayGeneration.get(id) ?? 0) + 1);
@@ -1868,6 +1910,174 @@ export class TerrainManager {
       if (overlay) this.overlayPlugin?.setOverlayOrder(overlay, i);
     });
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Time-indexed imagery (#214)
+  // ---------------------------------------------------------------------------
+
+  /** Bumped whenever a layer's displayed day changes, so view observers see a new source. */
+  get imageryTimeRevision(): number { return this._imageryTimeRevision; }
+
+  /** Whether any layer's day can change by itself with the simulation clock. */
+  get followsSimulationTime(): boolean {
+    for (const rt of this.temporal.values()) if (!rt.base && rt.policy !== 'fixed') return true;
+    return false;
+  }
+
+  /**
+   * Register the layers whose config names a day. The legacy `time` field is a
+   * fixed day in the same system, so there is one date-substitution path.
+   * Unsupported source types and base-layer follow requests are reported and
+   * the layer stays time-independent rather than showing an unlabelled day.
+   */
+  private initTemporal(configs: TerrainImageryConfig[]): void {
+    configs.forEach((cfg, i) => {
+      const id = this.layers[i].id;
+      const legacy = cfg.time ? resolveTime(cfg.time) : undefined;
+      if (!cfg.temporal && !legacy) return;
+      const t = cfg.temporal ?? {};
+      const type = cfg.type ?? 'xyz';
+      if (!['xyz', 'tms', 'wmts', 'wmts-capabilities'].includes(type)) {
+        this.warnOnce(`imagery-time-type:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": time-indexed imagery needs an xyz, tms, wmts or wmts-capabilities source, not "${type}"; showing it without a date.`);
+        return;
+      }
+      const base = i === 0;
+      const fixedDate = t.date ?? legacy ?? null;
+      if (fixedDate !== null && dayNumber(fixedDate) === null) {
+        this.warnOnce(`imagery-time-date:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": "${fixedDate}" is not a YYYY-MM-DD date.`);
+      }
+      let policy: ImageryTimePolicy = t.policy ?? (fixedDate !== null ? 'fixed' : 'follow-simulation');
+      if (policy === 'latest' && type !== 'wmts-capabilities') {
+        this.warnOnce(`imagery-time-latest:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": "latest" needs a wmts-capabilities source, whose time dimension declares what is available; following simulation time instead.`);
+        policy = 'follow-simulation';
+      }
+      if (base && policy !== 'fixed') {
+        this.warnOnce(`imagery-time-base:${id}`, `[Cosmolabe:Imagery] The base layer "${this.layers[i].name}" cannot follow time; put a daily layer above a static backdrop.${fixedDate ? ' Using its fixed date.' : ''}`);
+        if (fixedDate === null) return;
+        policy = 'fixed';
+      }
+      const day = (v: string | undefined) => (v && dayNumber(v) !== null ? v : null);
+      const declared: ImageryAvailability = { start: day(t.start), end: day(t.end) };
+      const rt: TemporalRuntime = {
+        config: t, base, policy, fixedDate, declared, availability: { ...declared },
+        rangeSource: declared.start || declared.end ? 'catalog' : 'clock',
+        follower: new ImageryTimeFollower(), switches: 0,
+      };
+      this.temporal.set(id, rt);
+      // A fixed layer knows its day now; a following one waits for the first frame's clock.
+      if (policy === 'fixed') rt.follower.force(this.resolveFor(rt), performance.now());
+    });
+  }
+
+  private resolveFor(rt: TemporalRuntime): ResolvedImageryTime {
+    return resolveImageryTime(rt.config, rt.policy, rt.fixedDate, this.simulationMs, rt.availability, Date.now());
+  }
+
+  /** The displayed day of a layer: undefined when it is time-independent, null when nothing is shown. */
+  private displayedDate(id: string): string | null | undefined {
+    const rt = this.temporal.get(id);
+    return rt ? rt.follower.current?.date ?? null : undefined;
+  }
+
+  private temporalInfo(id: string): ImageryLayerTime | null {
+    const rt = this.temporal.get(id);
+    if (!rt) return null;
+    const cur = rt.follower.current;
+    const type = this.layerConfigs.get(id)?.type ?? 'xyz';
+    return {
+      semantics: rt.config.semantics ?? 'acquisition',
+      cadence: rt.config.cadence ?? 'day',
+      policy: rt.policy,
+      policies: rt.base ? ['fixed'] : type === 'wmts-capabilities' ? ['fixed', 'follow-simulation', 'latest'] : ['fixed', 'follow-simulation'],
+      illumination: rt.config.illumination ?? 'baked',
+      outOfRange: rt.config.outOfRange ?? 'hide',
+      requestedDate: cur?.requested ?? null,
+      date: cur?.date ?? null,
+      state: cur?.state ?? 'invalid',
+      offsetDays: cur?.offsetDays ?? 0,
+      range: { ...rt.availability, source: rt.rangeSource },
+      pending: rt.follower.pending,
+      pendingDate: rt.follower.pendingDate,
+      switches: rt.switches,
+    };
+  }
+
+  /**
+   * Offer the simulation instant (UTC ms) to the layers that follow it. Called
+   * every frame; a new day is committed only once it has held (debounce) and no
+   * more often than the throttle allows, so playback and scrubbing request a
+   * few date buckets rather than one per frame. Cheap when nothing follows.
+   */
+  updateImageryTime(simulationMs: number, now = performance.now()): void {
+    this.simulationMs = Number.isFinite(simulationMs) ? simulationMs : null;
+    for (const [id, rt] of this.temporal) {
+      // A hidden layer does not follow; re-enabling resolves the current day at once.
+      if (rt.base || rt.policy === 'fixed' || !this.layer(id)?.visible) continue;
+      if (rt.follower.offer(this.resolveFor(rt), now)) this.applyTemporalCommit(id);
+    }
+  }
+
+  /**
+   * Choose how a time-indexed overlay picks its day: `{ date }` fixes it to a
+   * UTC day, `{ policy }` switches between fixed, following the simulation, and
+   * the provider's latest. An explicit choice applies at once (it is not
+   * throttled). Returns false for an unknown or time-independent layer, the
+   * base, an unsupported policy, or a malformed date.
+   */
+  setImageryLayerTime(id: string, patch: { policy?: ImageryTimePolicy; date?: string }): boolean {
+    const rt = this.temporal.get(id);
+    const info = this.temporalInfo(id);
+    if (!rt || !info || rt.base || (patch.policy === undefined && patch.date === undefined)) return false;
+    if (patch.policy !== undefined && !info.policies.includes(patch.policy)) return false;
+    if (patch.date !== undefined && (dayNumber(patch.date) === null || (patch.policy !== undefined && patch.policy !== 'fixed'))) return false;
+    const policy = patch.policy ?? (patch.date !== undefined ? 'fixed' : rt.policy);
+    // Pinning a following layer keeps the day on screen unless one is given.
+    const fixedDate = patch.date ?? (policy === 'fixed' && rt.policy !== 'fixed' ? info.date ?? info.requestedDate ?? rt.fixedDate : rt.fixedDate);
+    if (policy === rt.policy && fixedDate === rt.fixedDate) return false;
+    rt.policy = policy;
+    rt.fixedDate = fixedDate;
+    if (rt.follower.force(this.resolveFor(rt), performance.now())) this.applyTemporalCommit(id);
+    this._imageryTimeRevision++;
+    return true;
+  }
+
+  /**
+   * Read what a provider declares about a layer's days from its capabilities,
+   * keeping what the catalog declared, and re-resolve against it. A day that
+   * the provider shows to be unavailable stops being requested.
+   */
+  private discoverAvailability(id: string, capabilities: WMTSCapabilitiesResult): void {
+    const rt = this.temporal.get(id);
+    const extent = rt && !rt.base ? capabilitiesExtent(capabilities, this.layerConfigs.get(id)?.layer) : null;
+    if (!rt || !extent) return;
+    const availability: ImageryAvailability = { start: rt.declared.start ?? extent.start, end: rt.declared.end ?? extent.end, intervals: extent.intervals };
+    if (availability.start === rt.availability.start && availability.end === rt.availability.end && rt.availability.intervals) return;
+    rt.availability = availability;
+    rt.rangeSource = (rt.declared.start && rt.declared.end) ? 'catalog' : 'provider';
+    // The overlay being prepared reads the result; no reload from inside its own setup.
+    rt.follower.force(this.resolveFor(rt), performance.now());
+    this._imageryTimeRevision++;
+  }
+
+  /** A layer's source day changed: drop the old day's overlay and load the new one. */
+  private applyTemporalCommit(id: string): void {
+    const rt = this.temporal.get(id);
+    const layer = this.layer(id);
+    if (!rt || !layer) return;
+    rt.switches++;
+    this._imageryTimeRevision++;
+    // Counters and degraded tiles describe the day just left.
+    layer.requests = 0;
+    layer.failedTiles = 0;
+    this.degradedTiles.delete(id);
+    this.setupFailed.delete(id);
+    if (rt.base || !layer.visible || !this.overlayPlugin) return;
+    // Removing the overlay aborts its queued fetches and releases its textures
+    // before the new day's is built, so two days never share a layer; the
+    // generation bump in prepareOverlay retires any setup still in flight.
+    this.detachOverlay(id);
+    void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
   }
 
   /** Per-terrain-tile composite resolution, in pixels. */
@@ -1996,20 +2206,27 @@ export class TerrainManager {
     const layer = this.layer(id)!;
     try {
       let overlay: ImageryOverlay;
+      let capabilities: WMTSCapabilitiesResult | undefined;
       if (cfg.type === 'wmts-capabilities') {
-        const capabilities = await this.fetchCapabilities(cfg.url);
-        const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(cfg.time));
+        capabilities = await this.fetchCapabilities(cfg.url);
+        this.discoverAvailability(id, capabilities);
+      }
+      // The day this overlay depicts, fixed for its lifetime: a different day is a different overlay.
+      const date = this.displayedDate(id);
+      // No day to show (outside the source's range, not yet resolved): request nothing and leave the lower layers visible.
+      if (date === null) return null;
+      if (capabilities) {
         overlay = new WMTSTilesOverlay({
           capabilities,
           layer: cfg.layer,
           tileMatrixSet: cfg.tileMatrixSet,
           color: cfg.color ?? 0xffffff,
           opacity: layer.opacity,
-          ...(preprocessURL ? { preprocessURL } : {}),
+          ...(date ? { dimensions: { [timeDimensionId(capabilities, cfg.layer)]: date } } : {}),
         } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
         if (cfg.minZoom != null) clampOverlayMinLevel(overlay, cfg.minZoom);
       } else {
-        overlay = createImageryOverlay(cfg);
+        overlay = createImageryOverlay(cfg, date);
       }
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
@@ -2019,7 +2236,12 @@ export class TerrainManager {
         // removing an overlay does not drain them. Fetches a switched-off
         // layer still has queued resolve to an empty tile instead of going out.
         if (this.activeOverlays.get(id) !== overlay) return SKIP_TILE_DATA_URL;
-        const out = inner ? inner(url) : url;
+        let out = inner ? inner(url) : url;
+        if (date && out !== SKIP_TILE_DATA_URL) {
+          out = timeSubstitutedURL(out, date);
+          // Never fetch what the label cannot vouch for: a URL that did not take the day is skipped, not shown as that day.
+          if (!out.includes(date)) return SKIP_TILE_DATA_URL;
+        }
         // Count real requests, not the skip tiles outside a layer's coverage.
         if (out !== SKIP_TILE_DATA_URL) layer.requests++;
         return out;
@@ -2041,6 +2263,13 @@ export class TerrainManager {
         });
       }
       await o.init();
+      // Fail closed: a dated layer whose URL cannot carry the date would show one unlabelled image under a dated name.
+      if (date) {
+        const template = (overlay as unknown as { imageSource?: { url?: string } }).imageSource?.url ?? cfg.url;
+        if (!template.includes(date) && !DATED_SEGMENT.test(template)) {
+          throw new Error(`the tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date ${date} cannot take effect`);
+        }
+      }
       this.setupFailed.delete(id);
       return { id, overlay, generation };
     } catch (err) {

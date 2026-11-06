@@ -104,8 +104,11 @@ export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } fr
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
 export { LIGHTING_MODES, DEFAULT_IMAGERY_ILLUMINATION, combineImageryIllumination, isImageryIllumination, surfaceLightingPath, isPhysicallyRelit, sunDirectionAt, incidenceCosine, directTerm, solarGeometryAt } from './SurfaceIllumination.js';
-export type { ImageryIllumination, SurfaceLightingPath, LightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
+// `ImageryIllumination` is already the time-indexed imagery label (ImageryTime.ts, #214); the relighting provenance is exported under its own name.
+export type { ImageryIllumination as ImageryRelightProvenance, SurfaceLightingPath, LightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
+export { resolveImageryTime, parseTimeExtent, ImageryTimeFollower, DEFAULT_IMAGERY_THROTTLE, dayNumber, utcDay } from './ImageryTime.js';
+export type { ImageryLayerTime, ImageryTemporalConfig, ImageryTimePolicy, ImageryTimeState, ImageryTimeSemantics, ImageryCadence, ImageryIllumination, ImageryOutOfRange, ResolvedImageryTime, ImageryAvailability } from './ImageryTime.js';
 export type { ImageryLayerInfo, ImageryLayerSource, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
