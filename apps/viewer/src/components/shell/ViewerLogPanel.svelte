@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The viewer's status, reached from its rail button: what is failing now,
+   * The viewer's fault log, a section of Diagnostics: what is failing now,
    * kept apart from what has happened, with recovery logged where it is seen.
    */
   import { AlertTriangle, Trash2, X } from 'lucide-svelte';
@@ -10,14 +10,14 @@
   const history = $derived(viewerLog.entries.filter(entry => entry.id !== viewerLog.activeFaultId));
 </script>
 
-<div class="flex max-h-[min(32rem,calc(100cqh-1.5rem))] flex-col gap-3 overflow-y-auto text-xs">
+<div class="flex flex-col gap-2 text-xs">
   <header class="flex items-center gap-2">
-    <h2 class="m-0 flex-1 text-sm font-semibold text-text-primary">Viewer status</h2>
+    <div class="ui-section-label flex-1">Faults and log</div>
     <button class="icon" aria-label="Clear log" title="Clear history" disabled={!viewerLog.entries.length} onclick={clearViewerLog}><Trash2 size={14} /></button>
   </header>
 
   <section aria-label="Current">
-    <div class="ui-section-label mb-1">Now</div>
+    <div class="mb-1 text-metadata uppercase text-text-faint">Now</div>
     {#if current}
       <div class="flex items-start gap-2 rounded border border-error/50 px-2 py-1.5" role="alert">
         <AlertTriangle size={14} class="mt-0.5 shrink-0 text-error" />
@@ -33,7 +33,7 @@
   </section>
 
   <section aria-label="History">
-    <div class="ui-section-label mb-1">History</div>
+    <div class="mb-1 text-metadata uppercase text-text-faint">History</div>
     {#if !history.length}
       <p class="m-0 text-text-muted">Nothing recorded.</p>
     {:else}

@@ -42,6 +42,7 @@ function getBuiltinCommands(): Command[] {
     { id: 'time:step-back', label: 'Step backward', shortcut: shortcutFor('time:step-back'), category: 'Time', execute: () => stepBackward() },
 
     // Camera
+    { id: 'cam:open', label: 'Camera panel', category: 'Camera', execute: () => openTool('camera') },
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: shortcutFor('cam:fly-to'), category: 'Camera', execute: () => flyToTracked() },
     { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
     { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },

@@ -22,11 +22,9 @@
    * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check, Activity, AlertTriangle } from 'lucide-svelte';
+  import { Search, Crosshair, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
-  import CameraControls from './CameraControls.svelte';
   import KeyboardHelp from './KeyboardHelp.svelte';
-  import ViewerLogPanel from './ViewerLogPanel.svelte';
   import { viewerLog } from '../../lib/viewer-log.svelte';
   import { availableTools, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { shortcutFor } from '../../lib/keymap';
@@ -76,6 +74,8 @@
   const popoverClass = 'p-2.5 w-[min(22rem,calc(100cqw-16px))]';
 
   function hint(tool: ToolDef): string {
+    if (tool.id === 'camera') return `Camera (${shortcutFor('cam:cycle')} cycles mode)`;
+    if (tool.id === 'debug' && faulted) return 'Diagnostics — a fault is active';
     const id = tool.id === 'instrument' ? 'instr:open' : `tool:${tool.id}`;
     const shortcut = shortcutFor(id);
     return shortcut ? `${tool.label} (${shortcut})` : tool.label;
@@ -137,6 +137,7 @@
     <button
       class="rail-btn"
       class:stowed={s === 'stowed'}
+      class:faulted={tool.id === 'debug' && faulted}
       aria-pressed={s === 'active'}
       aria-label={tool.label}
       title={hint(tool)}
@@ -157,19 +158,6 @@
   >
     <Crosshair size={16} />
   </button>
-
-  <Popover.Root>
-    <Popover.Trigger>
-      {#snippet child({ props })}
-        <button {...props} class="rail-btn" aria-label="Camera views and moves" title={`Camera views and moves (${shortcutFor('cam:cycle')} cycles mode)`}>
-          <Camera size={16} />
-        </button>
-      {/snippet}
-    </Popover.Trigger>
-    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
-      <CameraControls />
-    </Popover.Content>
-  </Popover.Root>
 
   <button
     class="rail-btn"
@@ -207,19 +195,6 @@
     </Popover.Content>
   </Popover.Root>
 
-  <!-- Subdued while quiet; red, with a dot, while something is failing now. -->
-  <Popover.Root bind:open={viewerLog.open}>
-    <Popover.Trigger>
-      {#snippet child({ props })}
-        <button {...props} class="rail-btn" class:faulted aria-label={faulted ? 'Viewer status: fault active' : 'Viewer status'} title={faulted ? 'Fault active — open viewer status' : 'Viewer status'}>
-          {#if faulted}<AlertTriangle size={16} />{:else}<Activity size={16} />{/if}
-        </button>
-      {/snippet}
-    </Popover.Trigger>
-    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
-      <ViewerLogPanel />
-    </Popover.Content>
-  </Popover.Root>
 {/snippet}
 
 <nav

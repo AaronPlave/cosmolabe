@@ -61,7 +61,7 @@ export function matchKeyBinding(event: Pick<KeyboardEvent, 'key' | 'metaKey' | '
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   return KEYMAP.find(binding => {
     if (binding.scope === 'camera') return false;
-    if (binding.key.toLowerCase() !== key) return false;
+    if (binding.key.toLowerCase() !== key.toLowerCase()) return false;
     if (event.altKey) return false;
     if (!!binding.primary !== (event.metaKey || event.ctrlKey)) return false;
     return !!binding.shift === event.shiftKey;

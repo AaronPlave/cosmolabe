@@ -1585,11 +1585,14 @@ function semanticView(definition: ViewpointDefinition, center: string, place: bo
   }
 }
 
+/**
+ * How far a semantic view stands off `center`: where Frame would land, so a
+ * spacecraft is seen at its own scale however far away the camera was.
+ */
 function viewDistanceKm(center: string): number {
   const body = _renderer?.getBodyMesh(center);
   if (!_renderer || !body) return 1;
-  const rangeKm = _renderer.camera.position.distanceTo(_renderer.cameraController.controls.target) / _renderer.scaleFactor;
-  return Math.max(rangeKm, body.displayRadius * 3, 1);
+  return _renderer.cameraController.framingDistance(body, _renderer.scaleFactor) / _renderer.scaleFactor;
 }
 
 /** Place the camera along a direction from `centerName`, as a one-shot free-orbit view. */

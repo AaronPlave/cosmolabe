@@ -1,13 +1,12 @@
 <script lang="ts">
   /**
-   * The camera actions, in one place beside the other rail instruments:
-   * one-shot viewpoints (Top, Sun, Velocity), held dolly/crane moves, and a
-   * labelled vector view behind an advanced section. Mouse and keyboard
-   * gestures stay first-class; this is the discoverable, touch-sized route to
-   * the same moves.
+   * The camera panel's motion sections (#15 inside #224): one-shot viewpoints
+   * (Top, Sun, Velocity), held dolly/crane moves, and a labelled vector view
+   * behind an advanced section. Mouse and keyboard gestures stay first-class;
+   * this is the discoverable, touch-sized route to the same moves.
    */
   import { ArrowDownToLine, ArrowUpToLine, ZoomIn, ZoomOut } from 'lucide-svelte';
-  import { vs, getRenderer, cycleCamera, applyViewPreset, setViewFromDirection, viewCenterName } from '../../lib/viewer-state.svelte';
+  import { vs, getRenderer, applyViewPreset, setViewFromDirection, viewCenterName } from '../../lib/viewer-state.svelte';
   import { startHeldCameraMove, stopHeldCameraMove } from '../../lib/held-camera-moves';
   import { geometryFrameOptions } from '../../lib/geometry-frames';
   import { getUniverse, getMissionFrameNames } from '../../lib/loader';
@@ -89,15 +88,7 @@
   const field = 'ui-control w-full min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs';
 </script>
 
-<div class="flex max-h-[min(34rem,calc(100cqh-1.5rem))] flex-col gap-3 overflow-y-auto text-xs text-text-secondary">
-  <section aria-label="Camera mode" class="flex items-center justify-between gap-2">
-    <div class="min-w-0">
-      <div class="ui-section-label">Camera</div>
-      <div class="truncate text-text-primary capitalize">{modeLabel}</div>
-    </div>
-    <button class="action" onclick={() => cycleCamera()} title={`Next camera mode${shortcutFor('cam:cycle') ? ` (${shortcutFor('cam:cycle')})` : ''}`}>Next mode</button>
-  </section>
-
+<div class="flex flex-col gap-3 px-3 py-2 text-xs text-text-secondary">
   <section aria-label="Views">
     <div class="ui-section-label">View {center ? `of ${center}` : ''}</div>
     <p class="helper">One-shot viewpoints that switch to free orbit. <b>Top</b> looks down the orbital normal, not geographic north.</p>

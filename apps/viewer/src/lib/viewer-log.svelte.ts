@@ -16,7 +16,6 @@ let nextId = 1;
 export const viewerLog = $state({
   entries: [] as ViewerLogEntry[],
   activeFaultId: null as number | null,
-  open: false,
 });
 
 export function recordViewerLog(

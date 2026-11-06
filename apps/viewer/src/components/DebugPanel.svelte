@@ -4,6 +4,7 @@
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import ViewerLogPanel from './shell/ViewerLogPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -159,6 +160,8 @@
 {#if info}
   <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
     <div class="diagnostics">
+
+    <ViewerLogPanel />
 
     <!-- FPS chart -->
     <div class="mb-1.5">
