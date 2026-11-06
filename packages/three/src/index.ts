@@ -103,6 +103,8 @@ export { DEFAULT_SURFACE_APPEARANCE, normalizeSurfaceAppearance, ELEVATION_PALET
 export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
+export { LIGHTING_MODES, DEFAULT_IMAGERY_ILLUMINATION, combineImageryIllumination, isImageryIllumination, surfaceLightingPath, isPhysicallyRelit, sunDirectionAt, incidenceCosine, directTerm, solarGeometryAt } from './SurfaceIllumination.js';
+export type { ImageryIllumination, SurfaceLightingPath, LightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
 export type { ImageryLayerInfo, ImageryLayerSource, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';

@@ -1,6 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
+import { aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -576,8 +577,12 @@ export class UniverseRenderer {
     this.ambientLight.layers.enableAll();
     this.scene.add(this.ambientLight);
 
-    // Separate scene for surface tile CRR rendering.
-    // Full ambient light: surface tiles are photogrammetric with baked lighting.
+    // Separate scene for surface tile CRR rendering (`surfaceTiles` overlays).
+    // Full ambient light, in every lighting mode: these overlays are mission-site
+    // photogrammetry with baked lighting, i.e. `illumination: 'baked'` in the
+    // contract of SurfaceIllumination.ts, displayed as-is. This is deliberately
+    // NOT the streamed-terrain path: `TerrainManager` tiles live in the main
+    // scene and are lit by the Sun light below (#204).
     this.tileScene = new THREE.Scene();
     this.tileScene.add(new THREE.AmbientLight(0xffffff, 1));
 
@@ -2648,24 +2653,11 @@ export class UniverseRenderer {
    */
   setLightingMode(mode: 'natural' | 'shadow' | 'flood'): void {
     this._lightingMode = mode;
-    if (!this.ambientLight) return;
-    switch (mode) {
-      case 'natural':
-        this.ambientLight.color.setHex(0x080808);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 2;
-        break;
-      case 'shadow':
-        this.ambientLight.color.setHex(0x555555);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 1.5;
-        break;
-      case 'flood':
-        this.ambientLight.color.setHex(0xffffff);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 0;
-        break;
-    }
+    // One definition of each mode (SurfaceIllumination.ts) for every surface:
+    // fallback globe, streamed terrain and imagery-only tiles all take this
+    // ambient/Sun pair. Only `natural` is a physical claim. Baked photogrammetry
+    // in `tileScene` is mode-independent by design.
+    applyLightingMode(mode, this.ambientLight, this.sunLight);
   }
 
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
@@ -3458,8 +3450,15 @@ export class UniverseRenderer {
 
     if (!caster) {
       light.castShadow = false;
-      light.target.position.set(0, 0, 0);
-      light.target.updateMatrixWorld();
+      // Aim at the streamed surface being viewed, so its Sun direction is the
+      // Sun direction *there*. The scene origin is the camera's origin body,
+      // which is only the same on that body. No such surface: origin, as before.
+      const receiver = this.illuminationReceiver();
+      if (!receiver || !aimSunLight(light, sun.position, receiver)) {
+        light.position.copy(sun.position);
+        light.target.position.set(0, 0, 0);
+        light.target.updateMatrixWorld();
+      }
       return;
     }
 
@@ -3483,6 +3482,32 @@ export class UniverseRenderer {
     cam.top = halfSize;
     cam.bottom = -halfSize;
     cam.updateProjectionMatrix();
+  }
+
+  private readonly _illumCandidates: { position: THREE.Vector3; radius: number }[] = [];
+
+  /** Scene position of the streamed surface the Sun light should be aimed at, or null. */
+  private illuminationReceiver(): THREE.Vector3 | null {
+    const candidates = this._illumCandidates;
+    candidates.length = 0;
+    for (const bm of this.bodyMeshes.values()) {
+      if (!(bm.hasTerrain || bm.hasSurfaceTiles) || !bm.present || !bm.visible) continue;
+      candidates.push({ position: bm.position, radius: bm.displayRadius * this.scaleFactor });
+    }
+    return pickIlluminationReceiver(this.camera.position, candidates)?.position ?? null;
+  }
+
+  /**
+   * Sun elevation/azimuth and incidence at a planetocentric latitude/longitude
+   * on `bodyName`, at the current simulation time. For fixed-pose diagnostics
+   * and screenshot captions (#204). Null if the body or Sun is not in the scene.
+   */
+  solarGeometryAt(bodyName: string, latitudeDeg: number, longitudeDeg: number): SolarGeometry | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    const sun = this.bodyMeshes.get('Sun');
+    if (!bm || !sun) return null;
+    return solarGeometryAt(bm.position, bm.mesh.quaternion, sun.position,
+      bm.displayRadius * this.scaleFactor, latitudeDeg, longitudeDeg);
   }
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
