@@ -25,7 +25,7 @@
 </script>
 
 {#if entry && !isToolOpen('debug')}
-  <div data-scene-occluder class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100cqw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border border-error/50 px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role="alert">
+  <div data-scene-occluder class="shell-surface fixed left-1/2 top-16 z-40 flex w-max max-w-[calc(100cqw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border border-error/50 px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role="alert">
     <span class="min-w-0 break-words"><b class="text-error">{entry.source}:</b> {entry.message}</span>
     <button class="shrink-0 text-text-muted underline hover:text-text-primary" onclick={() => openTool('debug')}>Details</button>
     <button aria-label="Dismiss message" class="shrink-0 text-text-muted hover:text-text-primary" onclick={() => { shownId = null; }}>&times;</button>
