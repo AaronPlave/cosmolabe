@@ -131,8 +131,14 @@ const TEXT: AgentJsonSchema = { type: 'string' }, NUMBER: AgentJsonSchema = { ty
 const NULLABLE_RECORD: AgentJsonSchema = { type: ['object', 'null'] };
 const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
+const PROFILE_DATA_OUTPUT = objectSchema({ scene: { type: ['number', 'null'] }, id: TEXT, status: TEXT,
+  quantity: { type: ['string', 'null'] }, unit: { type: ['string', 'null'] }, bodies: NULLABLE_RECORD,
+  requestedWindow: { type: 'object' }, window: NULLABLE_RECORD, samples: { type: 'array', maxItems: 32, items: { type: 'object' } },
+  missing: NUMBER, gaps: RECORDS, minimum: NULLABLE_RECORD, maximum: NULLABLE_RECORD, sampling: { type: 'object' }, limitations: STRINGS });
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  getProfileValue: PROFILE_DATA_OUTPUT,
+  sampleProfileData: PROFILE_DATA_OUTPUT,
   getProfileOptions: objectSchema({ quantities: RECORDS, window: { type: 'object' }, limitations: STRINGS }),
   listProfiles: objectSchema({ scene: { type: ['number','null'] }, total: NUMBER, items: RECORDS }),
   getProfile: objectSchema({ scene: { type: ['number','null'] }, status: TEXT, definition: NULLABLE_RECORD, resolved: NULLABLE_RECORD, timeline: { type: 'object' }, limitations: STRINGS }),

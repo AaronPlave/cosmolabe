@@ -1877,6 +1877,63 @@ describe('shared continuous timeline profiles (#359)', () => {
     expect(c.removeProfile(def.id)).toBe(true);
     expect(c.getProfile(def.id).status).toBe('missing-profile');
   });
+  it('reads exact points and bounded samples through the shared script/Ask port without moving the scene', async () => {
+    const c = profileScene(); c.upsertProfile({ ...def, enabled: false, visible: false });
+    const before = { time: c.getTime(), camera: c.getCamera(), selected: c.getSelected(), tracked: c.getTracked(), window: c.getTimelineWindow(), definitions: c.listProfiles() };
+    const point = c.getProfileValue(def.id, 4);
+    expect(point).toMatchObject({ status: 'available', quantity: 'range', unit: 'km', samples: [{ et: 4, value: 96 }], missing: 0, sampling: { method: 'exact-point', interpolation: 'none' } });
+    const tools = createCapabilityTools(c, { surface: 'fixed' });
+    const input = { id: def.id, start: 0, end: 10, count: 5 };
+    const read = await tools.call('invokeCapability', { id: 'profiles.sampleProfileData', input });
+    expect(read.ok).toBe(true);
+    if (!read.ok) throw new Error('Expected read');
+    expect(read.data).toEqual(c.sampleProfileData(def.id, { start: input.start, end: input.end, count: input.count }));
+    const data = c.sampleProfileData(def.id, { start: input.start, end: input.end, count: input.count });
+    expect(data.samples.map(s => [s.et, s.value])).toEqual([[0,100],[2.5,97.5],[5,95],[7.5,92.5],[10,90]]);
+    expect(data.minimum).toEqual(data.samples[4]); expect(data.maximum).toEqual(data.samples[0]);
+    expect(data).toMatchObject({ status: 'available', missing: 0, gaps: [], sampling: { stepSeconds: 2.5, maxCount: 32, coverage: 'not-certified' } });
+    expect(data.limitations.join(' ')).toContain('not physical surface clearance');
+    expect(c.sampleProfileData(def.id, { start: 0, end: 10 }).samples).toHaveLength(32);
+    expect(c.sampleProfileData(def.id, { start: 0, end: 10, count: 32 }).samples).toHaveLength(32);
+    for (const count of [1, 33, 1e9, 3.5, NaN]) expect(() => c.sampleProfileData(def.id, { start: 0, end: 10, count })).toThrow();
+    for (const [start, end] of [[10,0],[5,5],[NaN,10],[0,Infinity]]) expect(() => c.sampleProfileData(def.id, { start, end })).toThrow();
+    expect(() => c.getProfileValue(def.id, NaN)).toThrow();
+    expect(c.sampleProfileData('missing', { start: 0, end: 10 }).status).toBe('missing-profile');
+    expect(c.getProfileValue(def.id, 4, { scene: -1 }).status).toBe('scene-reloaded');
+    expect(c.sampleProfileData(def.id, { start: 0, end: 10 }, { scene: -1 }).samples).toEqual([]);
+    const exact = await tools.call('invokeCapability', { id: 'profiles.getProfileValue', input: { id: def.id, et: 4 } });
+    expect(exact.ok && exact.data).toEqual(point);
+    expect({ time: c.getTime(), camera: c.getCamera(), selected: c.getSelected(), tracked: c.getTracked(), window: c.getTimelineWindow(), definitions: c.listProfiles() }).toEqual(before);
+    tools.dispose();
+  });
+  it('retains actual position gaps, clips explicit windows and compares only finite samples', () => {
+    const c = profileScene();
+    c.upsertProfile({ ...def, profile: { ...def.profile, window: { start: 2, end: 8 } } });
+    const u = viewerState.getSceneUniverse()!;
+    u.absolutePositionOf = (name, et) => et === 5 ? [NaN, 0, 0] : name === 'Cassini' ? [et, 0, 0] : [100, 0, 0];
+    const data = c.sampleProfileData(def.id, { start: 0, end: 10, count: 3 });
+    expect(data).toMatchObject({ status: 'partial', requestedWindow: { start: 0, end: 10 }, window: { start: 2, end: 8 }, missing: 1, gaps: [{ start: 5, end: 5, samples: 1 }], minimum: { et: 8, value: 92 }, maximum: { et: 2, value: 98 } });
+    expect(data.samples.map(s => s.value)).toEqual([98,null,92]);
+    expect(c.getProfileValue(def.id, 5).samples[0].value).toBeNull(); // no interpolation between valid neighbours
+    expect(c.getProfileValue(def.id, 1)).toMatchObject({ status: 'unavailable', window: null, samples: [], minimum: null });
+    expect(c.getProfileValue(def.id, 2).status).toBe('available'); // inclusive
+    expect(c.sampleProfileData(def.id, { start: 9, end: 10 })).toMatchObject({ status: 'unavailable', window: null, samples: [], missing: 0 });
+    u.absolutePositionOf = () => { throw new Error('missing'); };
+    const missing = c.sampleProfileData(def.id, { start: 2, end: 8, count: 4 });
+    expect(missing).toMatchObject({ status: 'unavailable', minimum: null, maximum: null, missing: 4, gaps: [{ start: 2, end: 8, samples: 4 }] });
+    u.absolutePositionOf = name => name === 'Cassini' ? [0,0,0] : [10,0,0];
+    const tied = c.sampleProfileData(def.id, { start: 2, end: 8, count: 4 });
+    expect(tied.minimum?.et).toBe(2); expect(tied.maximum?.et).toBe(2);
+  });
+  it('reads all shipped quantities through the existing exact quantity evaluator', () => {
+    const c = profileScene();
+    for (const [quantity, unit, expected] of [['range','km',95], ['relative-speed','km/s',1], ['range-rate','km/s',-1], ['phase-angle','°',0]] as const) {
+      c.upsertProfile({ ...def, profile: { quantity, bodies: { ...def.profile.bodies, illuminator: 'Cassini' } } });
+      const read = c.getProfileValue(def.id, 5);
+      expect(read).toMatchObject({ status: 'available', quantity, unit });
+      expect(read.samples[0].value).toBeCloseTo(expected);
+    }
+  });
   it('probes narrow intersecting windows without counting intentional clipping as missing data', async () => {
     const c = profileScene();
     c.upsertProfile({ ...def, profile: { ...def.profile, window: { start: 4.001, end: 4.002 } } });

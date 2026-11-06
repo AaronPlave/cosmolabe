@@ -2,6 +2,12 @@
 
 2026-11-05, PR #363. **Review fixes pass native browser acceptance and the Haiku-only rerun, including the unsupported-clearance negative response.**
 
+2026-11-06 numerical read follow-up: `getProfileValue` and `sampleProfileData` expose the existing exact quantity evaluator/sampler and position provider to ViewerControl/scripts and discoverable Ask. Interval reads return at most 32 samples, actual ET/UTC, units, requested/effective windows, null gaps and finite sampled extrema. Native Rosetta checks compare every returned range directly to the loaded Universe positions and check that the maximum response fits the ordinary Ask output budget. Unit regressions cover all four quantities, clipping, missing positions, tie selection, count/parameter limits, stale scenes and unchanged viewer state. The height-extrema solver handles different metrics; this read only compares its returned samples, with no new solver.
+
+Haiku-only exploration smoke: “show Philae's distance profile, tell me where the sampled center distance is smallest, and take me there” passed in 9 rounds. It first read 32 samples across the original timeline (2 missing), then 32 over ET 468000000–471500000 (none missing). The returned minimum was **2.4727981082705752 km at ET 469919354.83870965** (2014-11-22 09:08:07 UTC). The final reply reported 2.4728 km, explicitly distinguished center distance from surface clearance/first touchdown, and existing `setTime` used that exact ET. Serialized provider-bound samples, a separate exact point read, visible native trace, unchanged camera/selection/tracking/window and absence of competing solver/viewpoint navigation were checked. The API does not certify a global extremum or contact.
+
+Diagnostic limits: the first larger response exceeded the existing model-result budget, so the shared bound is now 32. Another trial invented a narrow profile window; guidance now requires an explicitly requested restriction. The successful numerical reply described rounded near-equal values as a flat plateau and omitted the sample interval/count; final guidance now warns against inferred exact ties and asks for those limits. A clearance-only rerun correctly refused the unsupported plot without claiming absent geometry, but its accepted center-distance alternative skipped an explicit `getProfile` reread, so that full scenario failed the strict live harness despite an independently visible native trace. These individual smoke trials are not a reliability claim. Keep the PR draft pending final acceptance/review and CI; raw outputs remain outside the repository.
+
 Live acceptance used the ordinary fixed Ask panel in the loaded Rosetta catalog, with both normal and escalation requests pinned to `claude-haiku-5-5`, provider fallback disabled, and no production routing/default changes. Every provider-reported model matched Haiku. Chromium used SwiftShader at 1400 × 900. The catalog was paused before requests; its original timeline window was preserved. Prompt-cache warmth was uncontrolled.
 
 Final run:
@@ -32,6 +38,8 @@ Repeat approved live acceptance (requires a configured `ANTHROPIC_API_KEY`; raw 
 ```sh
 VITE_ASK_ENDPOINT=http://127.0.0.1:8797 npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5200 --strictPort
 ASK_PROFILE_LIVE=1 node scripts/test-ask-timeline-profiles.mjs
+# Only the numerical exploration request:
+ASK_PROFILE_LIVE=1 ASK_PROFILE_SCENARIO=explore node scripts/test-ask-timeline-profiles.mjs
 ```
 
-Local checks after review fixes: package build, test/viewer/Svelte typechecks, changed-source ESLint and capability coverage pass; 1007 tests across the control package and viewer libraries pass. CI must be rechecked on the final remote head.
+Local checks after review fixes: package build, test/viewer/Svelte typechecks, changed-source ESLint and capability coverage pass; 1010 tests across the control package and viewer libraries pass. CI must be rechecked on the final remote head.

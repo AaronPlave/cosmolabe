@@ -1,9 +1,9 @@
 /** Semantic adapter for the existing timeline profiles; no second sampler or store. */
-import type { ScriptProfileDefinition, ScriptProfileInfo, ViewerControl } from '@cosmolabe/control';
+import type { ScriptProfileData, ScriptProfileSampleRequest, ScriptProfileDefinition, ScriptProfileInfo, ViewerControl } from '@cosmolabe/control';
 import { configuredItem, configuredProfiles, createConfiguredProfile, updateConfiguredProfile, removeConfiguredItem, resolveProfile, setConfiguredItemEnabled, setConfiguredItemVisible } from './analysis.svelte';
-import { getSceneUniverse, sceneId, vs } from './viewer-state.svelte';
+import { getSceneUniverse, sceneId, etToUtcString, vs } from './viewer-state.svelte';
 import { setTimelineDepth } from './shell.svelte';
-import { PROFILE_QUANTITIES, profileQuantity, sampleProfile } from './profile-sampling';
+import { PROFILE_QUANTITIES, profileQuantity, quantityAt, sampleProfile } from './profile-sampling';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -70,10 +70,69 @@ export function getProfile(id: string, opts?: { scene?: number }): ScriptProfile
   return { scene, definition: def, resolved, timeline,
     status: !supported || intersects && !valid && !timeline.traceVisible ? 'unavailable' : !intersects || values.length > valid || timeline.missing > 0 || item.enabled && (!timeline.present || item.visible && !timeline.traceVisible) ? 'partial' : 'available', limitations: notes };
 }
-export const profileControl: Pick<Required<ViewerControl>, 'getProfileOptions' | 'listProfiles' | 'getProfile' | 'upsertProfile' | 'removeProfile'> = {
+const MAX_DATA_SAMPLES = 32;
+/** Read the existing sampler, independent of row pixel density or visibility. */
+function readProfileData(id: string, request: ScriptProfileSampleRequest, point: boolean, opts?: { scene?: number }): ScriptProfileData {
+  if (!record(request)) throw new Error('Profile sample request required');
+  const { start, end } = request, count = point ? 1 : request.count ?? 32;
+  if (Object.keys(request).some(k => !['start', 'end', 'count'].includes(k)) || !Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(end - start) || end < start || !point && end === start || !Number.isInteger(count) || count < (point ? 1 : 2) || count > MAX_DATA_SAMPLES) throw new Error('Finite ET window and integer sample count from 2 to 32 required');
+  const scene = getSceneUniverse() ? sceneId() : null;
+  const result: ScriptProfileData = { scene, id, status: 'unavailable', quantity: null, unit: null, bodies: null,
+    requestedWindow: { start, end }, window: null, samples: [], missing: 0, gaps: [], minimum: null, maximum: null,
+    sampling: { method: point ? 'exact-point' : 'uniform', requestedCount: count, maxCount: MAX_DATA_SAMPLES, stepSeconds: null, coverage: 'not-certified', interpolation: 'none' },
+    limitations: [
+      'Exact evaluations of the existing display quantity at returned ET epochs; no interpolation across gaps. Missing positions remain null. These reads do not move the scene or alter the profile.',
+      'Minimum/maximum compare only the returned finite samples (earliest on ties). Approximate sampled extrema, not certified global or local extrema; no refinement or continuous coverage guarantee. Gaps describe missing sampled epochs only. A finer requested interval/count can change the result.',
+      'Center-to-center minimum is not physical surface clearance, contact or first touchdown. Authored touchdown viewpoints are separate annotations. Physical DSK/mesh availability is not assessed by this API.',
+      'Positions use Universe.absolutePositionOf in km and ET seconds past J2000. Relative speed/range rate use ±0.5-second differences; phase angle is in degrees. No frame/aberration overrides or GF coverage certificate.',
+    ] };
+  if (scene === null || opts?.scene !== undefined && opts.scene !== scene) return { ...result, status: 'scene-reloaded' };
+  const item = configuredItem(id);
+  if (item?.type !== 'continuous-profile') return { ...result, status: 'missing-profile' };
+  const resolved = copy(resolveProfile(item));
+  resolved.bodies.observer ??= vs.trackedBodyName ?? undefined;
+  result.quantity = resolved.quantity;
+  const spec = profileQuantity(resolved.quantity);
+  result.unit = spec?.unit ?? null;
+  result.bodies = resolved.bodies;
+  const window = { start: Math.max(start, item.profile.window?.start ?? -Infinity), end: Math.min(end, item.profile.window?.end ?? Infinity) };
+  if (window.end < window.start || !point && window.end === window.start) {
+    result.limitations.push('Requested time/window does not overlap the configured profile window; position coverage was not assessed.');
+    return result;
+  }
+  result.window = window;
+  const u = getSceneUniverse()!, b = resolved.bodies;
+  if (!spec || !b.observer || !b.target || b.observer === b.target || !u.getBody(b.observer) || !u.getBody(b.target) || spec.id === 'phase-angle' && !u.getBody(b.illuminator || 'Sun')) {
+    result.limitations.push('Unsupported quantity or missing/distinct scene participants.');
+    return result;
+  }
+  const bodies = { observer: b.observer, target: b.target, illuminator: b.illuminator };
+  const pos = (body: string, et: number) => u.absolutePositionOf(body, et);
+  const series = point ? { ets: [start], values: [quantityAt(spec.id, bodies, start, pos)] } : sampleProfile(spec, bodies, window, count, pos);
+  result.sampling.stepSeconds = point ? null : (window.end - window.start) / (count - 1);
+  result.samples = series.ets.map((et, i) => ({ et, utc: etToUtcString(et), value: Number.isFinite(series.values[i]) ? series.values[i] : null }));
+  let gap: ScriptProfileData['gaps'][number] | undefined;
+  for (const sample of result.samples) {
+    if (sample.value === null) {
+      result.missing++;
+      if (!gap) { gap = { start: sample.et, end: sample.et, samples: 0 }; result.gaps.push(gap); }
+      gap.end = sample.et; gap.samples++;
+    } else {
+      gap = undefined;
+      if (!result.minimum || sample.value < result.minimum.value!) result.minimum = { ...sample };
+      if (!result.maximum || sample.value > result.maximum.value!) result.maximum = { ...sample };
+    }
+  }
+  result.status = !result.minimum ? 'unavailable' : result.missing ? 'partial' : 'available';
+  if (window.start !== start || window.end !== end) result.limitations.push('Returned samples cover the intersection with the configured profile window; intentional clipping is not missing trajectory data.');
+  return result;
+}
+export const profileControl: Pick<Required<ViewerControl>, 'getProfileOptions' | 'listProfiles' | 'getProfile' | 'getProfileValue' | 'sampleProfileData' | 'upsertProfile' | 'removeProfile'> = {
   getProfileOptions: () => ({ quantities: PROFILE_QUANTITIES.map(({ id, label, unit }) => ({ id, label, unit })), window: { start: vs.scrubBaseMin, end: vs.scrubBaseMax }, limitations: [...limitations] }),
   listProfiles: () => ({ scene: getSceneUniverse() ? sceneId() : null, total: configuredProfiles().length, items: configuredProfiles().slice(0, 64).map(p => definition(p.id)!) }),
   getProfile,
+  getProfileValue: (id, et, opts) => readProfileData(id, { start: et, end: et }, true, opts),
+  sampleProfileData: (id, request, opts) => readProfileData(id, request, false, opts),
   upsertProfile: (input, opts) => {
     guard(opts?.scene);
     if (!input || typeof input !== 'object' || Object.keys(input).some(k => !['id','label','profile','enabled','visible'].includes(k))) throw new Error('Invalid profile definition');

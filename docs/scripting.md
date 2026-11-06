@@ -881,6 +881,20 @@ The text verbs accept `upsertProfile "<JSON definition>"` and `removeProfile <id
 
 `getProfile` reports resolved participants/window, configured flags, native row presence, sampled trace visibility and missing samples. An accepted mutation alone is not visual success: absent UI integration or position samples yields partial/unavailable. Samples come from `Universe.absolutePositionOf`, including non-SPICE trajectories, without GF certification. Range is not physical surface clearance, and sampled minima are not certified contact events.
 
+`getProfileValue(id, et, { scene })` evaluates the quantity exactly at one ET. `sampleProfileData(id, { start, end, count? }, { scene })` reads uniform samples (default 32, integer count 2–32) over the requested ET interval intersected with the explicit profile window. Both are read only, work for hidden/disabled profiles, and reuse `quantityAt` / `sampleProfile` and the native absolute-position provider. They return quantity/unit, resolved bodies, requested/effective windows, actual sampled ET/UTC epochs and values, missing counts and runs of missing sampled epochs. Missing values remain null; intentional window clipping is separate. No interpolation crosses gaps, and sample availability does not certify continuous coverage.
+
+`minimum` and `maximum` select the earliest finite sample on ties, with no refinement. They are approximate sampled extrema of the returned data, not certified local/global extrema or physical clearance/contact/first touchdown. The existing trajectory-height machinery computes different reference/terrain metrics; these reads simply compare their own returned samples. The catalog's authored touchdown viewpoint is a separate annotation. To navigate when requested, pass the returned ET unchanged to the existing time control:
+
+```js
+const data = control.sampleProfileData('distance', { start, end, count: 32 });
+if (data.minimum) {
+  console.log(data.minimum.value, data.unit, data.minimum.et, data.missing);
+  control.setTime({ kind: 'et', et: data.minimum.et });
+}
+```
+
+Ask discovers the same read APIs as `profiles.getProfileValue` / `profiles.sampleProfileData`; native timeline pixel density does not change their requested sampling. Reads never change camera, time, timeline window, or the profile definition. Stale scene guards return `scene-reloaded`; missing profiles and entirely unavailable positions retain explicit status and null extrema.
+
 ### Event Finder, instruments and session views
 
 `listEventQueries`, `upsertEventQuery`, `removeEventQuery` and `openEventQuery`

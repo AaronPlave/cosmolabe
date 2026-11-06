@@ -33,10 +33,18 @@ try {
     const ask = await tools.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify({ ...definition, visible: true }) } });
     await new Promise(requestAnimationFrame);
     const observed = await tools.call('invokeCapability', { id: 'profiles.getProfile', input: { id: definition.id } });
+    const sampled = await tools.call('invokeCapability', { id: 'profiles.sampleProfileData', input: { id: definition.id, start: c.getTime(), end: c.getTime() + 3600, count: 32 } });
+    const exact = c.getProfileValue(definition.id, sampled.data.minimum.et);
+    const state = await import(loaded('/src/lib/viewer-state.svelte.ts'));
+    const u = state.getSceneUniverse();
+    const sourceValues = sampled.data.samples.map(s => {
+      const a = u.absolutePositionOf('Philae', s.et), b = u.absolutePositionOf(target, s.et);
+      return Math.hypot(...a.map((v, i) => v - b[i]));
+    });
     const after = { time: c.getTime(), camera: c.getCamera(), tracked: c.getTracked(), selected: c.getSelected(), playing: c.isPlaying() };
     const unsupported = await tools.call('invokeCapability', { id: 'profiles.upsertProfile', input: { definition: JSON.stringify({ ...definition, id: 'clearance', profile: { ...definition.profile, quantity: 'physical-clearance' } }) } });
     tools.dispose();
-    return { before, after, options, fromScript, ask, observed, unsupported, total: c.listProfiles().total };
+    return { before, after, sampled, exact, sourceValues, options, fromScript, ask, observed, unsupported, total: c.listProfiles().total };
   });
   assert.deepEqual(result.after, result.before, 'profile creation must not move the scene');
   assert.equal(result.total, 1);
@@ -48,6 +56,11 @@ try {
   assert.equal(result.ask.receipt.status, 'completed');
   assert.equal(result.observed.data.timeline.traceVisible, true);
   assert.equal(result.unsupported.ok, false);
+  assert.equal(result.sampled.ok, true);
+  assert.ok(JSON.stringify(result.sampled).length <= 6000, 'Maximum sample response fits the ordinary Ask result budget');
+  assert.equal(result.sampled.data.minimum.value, Math.min(...result.sourceValues));
+  assert.equal(result.exact.samples[0].value, result.sampled.data.minimum.value);
+  assert.deepEqual(result.sampled.data.samples.map(s => s.value), result.sourceValues);
   const row = page.locator('[data-tl-row="profile:philae-distance"]');
   assert.ok(await row.locator('path.trace').getAttribute('d'), 'native sampled trace exists');
   // A narrow valid window between the coarse readback probes is not a gap.

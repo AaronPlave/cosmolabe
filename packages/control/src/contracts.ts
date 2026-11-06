@@ -39,6 +39,29 @@ export interface ScriptProfileInfo {
   timeline: { present: boolean; traceVisible: boolean; window: { start: number; end: number }; samples: number; missing: number };
   limitations: string[];
 }
+/** Exact evaluations of the existing display quantity; never interpolated. */
+export interface ScriptProfileSample { et: number; utc: string; value: number | null }
+export interface ScriptProfileSampleRequest { start: number; end: number; count?: number }
+export interface ScriptProfileData {
+  scene: number | null;
+  id: string;
+  status: ScriptProfileInfo['status'];
+  quantity: string | null;
+  unit: string | null;
+  bodies: ContinuousProfileConfiguration['bodies'] | null;
+  requestedWindow: { start: number; end: number };
+  /** Intersection with the configured profile window; null when disjoint. */
+  window: { start: number; end: number } | null;
+  samples: ScriptProfileSample[];
+  missing: number;
+  /** Runs of missing sampled epochs, not certified continuous coverage intervals. */
+  gaps: { start: number; end: number; samples: number }[];
+  /** Earliest on ties; extrema of these samples only, never refined/certified. */
+  minimum: ScriptProfileSample | null;
+  maximum: ScriptProfileSample | null;
+  sampling: { method: 'exact-point' | 'uniform'; requestedCount: number; maxCount: number; stepSeconds: number | null; coverage: 'not-certified'; interpolation: 'none' };
+  limitations: string[];
+}
 export interface ScriptProfileOptions {
   quantities: { id: string; label: string; unit: string }[];
   window: { start: number; end: number };
@@ -752,6 +775,8 @@ export interface ViewerControl {
   getProfileOptions?(): ScriptProfileOptions;
   listProfiles?(): { scene: number | null; total: number; items: ScriptProfileDefinition[] };
   getProfile?(id: string, opts?: ScriptSceneOptions): ScriptProfileInfo;
+  getProfileValue?(id: string, et: number, opts?: ScriptSceneOptions): ScriptProfileData;
+  sampleProfileData?(id: string, request: ScriptProfileSampleRequest, opts?: ScriptSceneOptions): ScriptProfileData;
   upsertProfile?(definition: ScriptProfileDefinition, opts?: ScriptSceneOptions): boolean;
   removeProfile?(id: string, opts?: ScriptSceneOptions): boolean;
   listEventQueries?(): readonly ConfiguredEventQuery[];
