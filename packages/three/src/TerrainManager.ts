@@ -1993,8 +1993,8 @@ export class TerrainManager {
     const rt = this.temporal.get(id);
     const extent = rt && !rt.base ? capabilitiesExtent(capabilities, this.layerConfigs.get(id)?.layer) : null;
     if (!rt || !extent) return;
-    const availability = { start: rt.declared.start ?? extent.start, end: rt.declared.end ?? extent.end };
-    if (availability.start === rt.availability.start && availability.end === rt.availability.end) return;
+    const availability: ImageryAvailability = { start: rt.declared.start ?? extent.start, end: rt.declared.end ?? extent.end, intervals: extent.intervals };
+    if (availability.start === rt.availability.start && availability.end === rt.availability.end && rt.availability.intervals) return;
     rt.availability = availability;
     rt.rangeSource = (rt.declared.start && rt.declared.end) ? 'catalog' : 'provider';
     // The overlay being prepared reads the result; no reload from inside its own setup.

@@ -18,7 +18,7 @@ This is tiled raster imagery with a date. It is not a terrain streamer, a GIS pa
 
 The legacy `time` field is a fixed date in the same system, so there is one date substitution: a `/default/YYYY-MM-DD/` URL segment or a WMTS `{Time}` dimension. A URL that carries neither logs a warning, because the label would otherwise name a day the pixels are not.
 
-Source time is resolved by pure functions (`resolveImageryTime`, `ImageryTimeFollower` in `packages/three/src/ImageryTime.ts`). A day resolves to one of: *exact*, *nearest* (only with `outOfRange: "nearest"` in follow mode; the offset is labelled), or nothing, because it is *before the source's first day*, *after its last*, *later than the clock allows it to have been published* (`today − latencyDays`, whatever the declared range says) or *invalid*.
+Source time is resolved by pure functions (`resolveImageryTime`, `ImageryTimeFollower` in `packages/three/src/ImageryTime.ts`). A day resolves to one of: *exact*, *nearest* (only with `outOfRange: "nearest"` in follow mode; the offset is labelled), or nothing, because it is *before the source's first day*, *after its last*, *later than the clock allows it to have been published* (`today − latencyDays`, whatever the declared range says), *in a gap the provider declares* (*no data*), or *invalid*.
 
 ## What changes on screen
 
@@ -40,7 +40,9 @@ Open with `?catalog=test-catalogs/earth-gibs-daily` (or from the developer index
 
 **Attribution.** NASA GIBS, MODIS Terra. NASA's standard acknowledgement, from memory and to be checked against GIBS's current wording before publishing, is: *"We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Observing System Data and Information System (EOSDIS)."* GIBS imagery is openly available; confirm the current terms before redistributing it.
 
-**Not in the pilot.** An optional cloud layer; `wmts-capabilities` for GIBS (the capabilities document is large; the machinery is implemented and tested against a time dimension, and `latest` needs it); a script verb for choosing a fixed date (use the Imagery section, or `BodyMesh.setImageryLayerTime`).
+The catalog also carries a second, **switched-off** layer, *MODIS daily (provider range)*: the same product through the capabilities document. Switch it on to take the first day, last day and gaps from GIBS and to choose **Latest available** (the newest declared day, less `latencyDays`). The default layer does not pay the 5.8 MB download; it relies on the catalog's own `start`, `latencyDays` and the service's 404s.
+
+**Not in the pilot.** An optional cloud layer; a script verb for choosing a fixed date (use the Imagery section, or `BodyMesh.setImageryLayerTime`).
 
 ### Endpoint facts, checked against the live service (2026-11-06)
 
@@ -48,7 +50,9 @@ Open with `?catalog=test-catalogs/earth-gibs-daily` (or from the developer index
 * The first day is 2000-02-24 (`200`); 2000-02-23 and 1999-12-31 answer `404` (with CORS headers), and so does tomorrow.
 * Today's tile already exists but is partial (5 KB against 22 KB for yesterday at the same tile), which is why the catalog sets `latencyDays: 1`.
 * Tiles are JPEG: swath gaps are opaque black, not transparent, so the layers beneath do not show through them (see the orbit view above). That is data, not a fallback failure.
-* Not checked: how rate limiting answers, and a GIBS `WMTSCapabilities.xml` URL (the per-layer path guessed for this check returned `400`, so the catalog uses the REST template and not `wmts-capabilities`).
+* **Capabilities URL.** `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/wmts.cgi?SERVICE=WMTS&request=GetCapabilities` (the same document is at `…/epsg3857/best/1.0.0/WMTSCapabilities.xml`; `epsg4326/best/wmts.cgi?…` works likewise). It is the whole service, about 5.8 MB, with CORS headers; per-layer paths such as `…/<Layer>/1.0.0/WMTSCapabilities.xml` return `400`. Layer `MODIS_Terra_CorrectedReflectance_TrueColor` lists `GoogleMapsCompatible_Level9`, a `Time` dimension with `Default` = today (`Current` false), and a `{Time}` tile template. In the viewer it loads in roughly 8 s on the sandbox connection, once per session and only when a layer that uses it is switched on.
+* **The time dimension has gaps.** It is a list of `P1D` runs, not one span: 2000-02-24 → 2026-11-06 in 11 runs, with missing days between them (for example 2000-04-26 and 2025-11-09). The tile URL for such a day is a `404`, so the viewer reads the runs and reports *No data* for a day inside a gap, rather than asking for it (`outOfRange: "nearest"` picks the closest available day and labels it).
+* Not checked: how rate limiting answers.
 
 `node scripts/test-time-indexed-imagery.mjs --live` repeats the CORS, two-day and pre-start checks, and the same rendering checks, against the real service. It passes here: day changes follow the simulation clock, a scrub keeps one overlay, and a day before the product shows nothing.
 

@@ -28,8 +28,15 @@ describe('day arithmetic', () => {
 
 describe('parseTimeExtent', () => {
   it('reads GIBS-style daily intervals and single days', () => {
-    expect(parseTimeExtent(['2002-07-04/2026-11-05/P1D'])).toEqual({ start: '2002-07-04', end: '2026-11-05' });
-    expect(parseTimeExtent(['2020-01-01', '2019-01-01/2019-06-30/P1D'])).toEqual({ start: '2019-01-01', end: '2020-01-01' });
+    expect(parseTimeExtent(['2002-07-04/2026-11-05/P1D'])).toEqual({ start: '2002-07-04', end: '2026-11-05', intervals: [['2002-07-04', '2026-11-05']] });
+    expect(parseTimeExtent(['2020-01-01', '2019-01-01/2019-06-30/P1D'])).toMatchObject({ start: '2019-01-01', end: '2020-01-01' });
+  });
+
+  it('keeps the gaps between runs, merging runs that touch', () => {
+    // GIBS lists runs with holes, e.g. a missing day between 2025-11-08 and 2025-11-10.
+    expect(parseTimeExtent(['2025-08-10/2025-11-08/P1D', '2025-11-10/2026-11-06/P1D', '2025-01-01/2025-08-09/P1D'])).toEqual({
+      start: '2025-01-01', end: '2026-11-06', intervals: [['2025-01-01', '2025-11-08'], ['2025-11-10', '2026-11-06']],
+    });
   });
 
   it('ignores coarser cadences and unreadable entries', () => {
@@ -80,6 +87,17 @@ describe('resolveImageryTime', () => {
       .toMatchObject({ date: null, state: 'not-yet-published' });
     expect(resolveImageryTime({}, 'follow-simulation', null, at('2030-01-01T00:00:00Z'), { start: null, end: null }, NOW))
       .toMatchObject({ date: null, state: 'not-yet-published' });
+  });
+
+  it('treats a day inside a declared gap as no data, and can offer the nearest run', () => {
+    const gapped: ImageryAvailability = { start: '2025-01-01', end: '2026-11-05', intervals: [['2025-01-01', '2025-11-08'], ['2025-11-10', '2026-11-05']] };
+    const r = (cfg: ImageryTemporalConfig, iso: string) => resolveImageryTime(cfg, 'follow-simulation', null, at(iso), gapped, NOW);
+    expect(r({}, '2025-11-08T10:00:00Z')).toMatchObject({ date: '2025-11-08', state: 'exact' });
+    expect(r({}, '2025-11-09T10:00:00Z')).toMatchObject({ date: null, state: 'no-data', requested: '2025-11-09' });
+    expect(r({ outOfRange: 'nearest' }, '2025-11-09T10:00:00Z')).toMatchObject({ date: '2025-11-08', state: 'nearest', offsetDays: -1 });
+    expect(resolveImageryTime({}, 'fixed', '2025-11-09', null, gapped, NOW)).toMatchObject({ date: null, state: 'no-data' });
+    // Runs past what the clock allows do not count.
+    expect(resolveImageryTime({}, 'follow-simulation', null, at('2026-11-06T01:00:00Z'), gapped, NOW)).toMatchObject({ date: null, state: 'after-range' });
   });
 
   it('resolves `latest` only from a provider-declared end', () => {

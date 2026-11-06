@@ -5,25 +5,71 @@
   "defaultTime": "2024-06-01T18:00:00Z",
   "defaultViewpoint": "Earth from orbit",
   "items": [
-    { "name": "Earth from orbit", "type": "Viewpoint", "center": "Earth", "distance": 16000, "latitude": 20, "longitude": -100 },
-    { "name": "Regional close-up", "type": "Viewpoint", "center": "Earth", "distance": 6900, "latitude": 36.5, "longitude": -121.5 },
-    { "name": "Track ISS", "type": "Viewpoint", "center": "ISS", "distance": 10, "latitude": 15, "longitude": 0 },
+    {
+      "name": "Earth from orbit",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 16000,
+      "latitude": 20,
+      "longitude": -100
+    },
+    {
+      "name": "Regional close-up",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6900,
+      "latitude": 36.5,
+      "longitude": -121.5
+    },
+    {
+      "name": "Track ISS",
+      "type": "Viewpoint",
+      "center": "ISS",
+      "distance": 10,
+      "latitude": 15,
+      "longitude": 0
+    },
     {
       "name": "Sun",
       "class": "star",
-      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
-      "geometry": { "type": "Globe", "radius": 695000 },
-      "label": { "color": [1.0, 0.9, 0.3] }
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
     },
     {
       "name": "Earth",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "Earth" },
-      "rotationModel": { "type": "Builtin" },
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "rotationModel": {
+        "type": "Builtin"
+      },
       "geometry": {
         "type": "Globe",
-        "radii": [6378.137, 6378.137, 6356.752],
+        "radii": [
+          6378.137,
+          6378.137,
+          6356.752
+        ],
         "baseMap": "textures/earth-5k.jpg",
         "atmosphere": "Earth",
         "imagery": [
@@ -40,7 +86,7 @@
             "id": "modis-daily",
             "name": "MODIS daily true colour",
             "description": "MODIS Terra corrected reflectance, true colour: one composite per UTC day of what the sensor saw that day, clouds included",
-            "attribution": "NASA GIBS · MODIS Terra",
+            "attribution": "NASA GIBS \u00b7 MODIS Terra",
             "resolutionMeters": 250,
             "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-06-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg",
             "levels": 9,
@@ -55,10 +101,36 @@
               "outOfRange": "hide",
               "illumination": "baked"
             }
+          },
+          {
+            "id": "modis-daily-provider",
+            "name": "MODIS daily (provider range)",
+            "description": "The same product through the WMTS capabilities document (about 6 MB, fetched only when this layer is switched on): the first day, the last day and the gaps in between come from the provider, and Latest available is possible",
+            "attribution": "NASA GIBS \u00b7 MODIS Terra",
+            "resolutionMeters": 250,
+            "type": "wmts-capabilities",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/wmts.cgi?SERVICE=WMTS&request=GetCapabilities",
+            "layer": "MODIS_Terra_CorrectedReflectance_TrueColor",
+            "tileMatrixSet": "GoogleMapsCompatible_Level9",
+            "visible": false,
+            "temporal": {
+              "semantics": "acquisition",
+              "cadence": "day",
+              "policy": "follow-simulation",
+              "latencyDays": 1,
+              "outOfRange": "hide",
+              "illumination": "baked"
+            }
           }
         ]
       },
-      "label": { "color": [0.4, 0.6, 1.0] },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      },
       "items": [
         {
           "name": "ISS",
@@ -70,10 +142,35 @@
             "line1": "1 25544U 98067A   11042.40620627  .00065760  00000-0  48638-3 0  8024",
             "line2": "2 25544  51.6440  85.8998 0004217 288.1282 194.3117 15.72311137701100"
           },
-          "rotationModel": { "type": "Nadir", "target": "ISS", "center": "Earth" },
-          "geometry": { "type": "Mesh", "size": 0.1, "source": "models/ISS_stationary.glb", "meshRotation": [0, 1, 0, 0] },
-          "label": { "color": [1.0, 1.0, 1.0] },
-          "trajectoryPlot": { "color": "#ffcc00", "fade": 0.5, "duration": "1.5h", "visible": true }
+          "rotationModel": {
+            "type": "Nadir",
+            "target": "ISS",
+            "center": "Earth"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.1,
+            "source": "models/ISS_stationary.glb",
+            "meshRotation": [
+              0,
+              1,
+              0,
+              0
+            ]
+          },
+          "label": {
+            "color": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "trajectoryPlot": {
+            "color": "#ffcc00",
+            "fade": 0.5,
+            "duration": "1.5h",
+            "visible": true
+          }
         }
       ]
     }

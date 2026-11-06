@@ -72,7 +72,7 @@ try {
   }
 
   await page.goto(`${base}?catalog=test-catalogs/earth-gibs-daily`);
-  await page.waitForFunction(() => window.renderer?.getBodyMesh('Earth')?.imageryLayers?.length === 2 && window.cosmo);
+  await page.waitForFunction(() => window.renderer?.getBodyMesh('Earth')?.imageryLayers?.length === 3 && window.cosmo);
   // The ISS mesh is a Git LFS object; a checkout without it settles with one failed asset, which is not what is tested here.
   await page.evaluate(() => window.renderer.waitForInitialAssets());
   await page.evaluate(() => { window.__loadErrors = 0; window.renderer.getBodyMesh('Earth').terrainManager.tiles.addEventListener('load-error', () => { window.__loadErrors++; }); });
@@ -277,6 +277,29 @@ try {
     assert.ok(probe.first.status === 200 && probe.second.status === 200, `GIBS must answer CORS tile requests for both days: ${JSON.stringify(probe)}`);
     assert.notEqual(probe.first.bytes, probe.second.bytes, 'two days should be two different images');
     assert.ok(probe.beforeStart.status !== 200, 'a day before the product starts should have no tiles');
+  }
+
+  if (live) {
+    // The provider's own time dimension (WMTS capabilities, about 6 MB): range, gaps and `latest`.
+    await page.evaluate(() => { window.cosmo.setImageryVisible('Earth', 'modis-daily', false); window.cosmo.setImageryVisible('Earth', 'modis-daily-provider', true); });
+    const provider = () => page.evaluate(() => window.renderer.getBodyMesh('Earth').imageryLayers.find((x) => x.id === 'modis-daily-provider').temporal);
+    await sim('2024-06-01T18:00:00Z');
+    await page.waitForFunction(() => { const t = window.renderer.getBodyMesh('Earth').imageryLayers.find((x) => x.id === 'modis-daily-provider').temporal; return t.range.source === 'provider' && t.date === '2024-06-01'; }, null, { timeout: 120_000 });
+    let p = await provider();
+    assert.equal(p.range.start, FIRST_DAY, 'the provider declares the same first day as the catalog');
+    assert.ok(p.range.intervals.length > 1, 'the provider declares gaps between runs of days');
+    // 2025-11-09 is one of the days GIBS lists as missing between runs.
+    const gap = p.range.intervals.find((_, i, all) => i + 1 < all.length && all[i + 1][0] !== undefined && all[i][1] < all[i + 1][0]);
+    const missingDay = new Date(Date.parse(`${gap[1]}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    await sim(`${missingDay}T12:00:00Z`);
+    await page.waitForFunction(() => window.renderer.getBodyMesh('Earth').imageryLayers.find((x) => x.id === 'modis-daily-provider').temporal.state === 'no-data', null, { timeout: 60_000 });
+    result.checks.providerGap = { missingDay, state: (await provider()).state };
+    assert.equal((await stats()).overlays, 0, 'a day inside a declared gap requests nothing');
+    assert.equal(await page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerTime('modis-daily-provider', { policy: 'latest' })), true);
+    await page.waitForFunction(() => { const t = window.renderer.getBodyMesh('Earth').imageryLayers.find((x) => x.id === 'modis-daily-provider').temporal; return t.policy === 'latest' && t.date; }, null, { timeout: 60_000 });
+    p = await provider();
+    result.checks.providerLatest = { date: p.date, rangeEnd: p.range.end };
+    assert.ok(p.date <= p.range.end, 'latest never exceeds what the provider declares');
   }
 
   assert.deepEqual(result.errors, [], 'no page or GL errors');

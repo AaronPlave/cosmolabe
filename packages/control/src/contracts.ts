@@ -309,7 +309,7 @@ export interface ScriptImageryLayer {
     readonly cadence: 'day';
     readonly date: string | null;
     readonly requestedDate: string | null;
-    readonly state: 'exact' | 'nearest' | 'before-range' | 'after-range' | 'not-yet-published' | 'invalid';
+    readonly state: 'exact' | 'nearest' | 'before-range' | 'after-range' | 'no-data' | 'not-yet-published' | 'invalid';
     readonly offsetDays: number;
     readonly rangeStart: string | null;
     readonly rangeEnd: string | null;

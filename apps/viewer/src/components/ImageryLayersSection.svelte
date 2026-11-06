@@ -174,6 +174,8 @@
         return { text: 'Before data', tone: 'muted', title: `${t.requestedDate} is before this source’s first day (${t.range.start}); the layers beneath are shown` };
       case 'after-range':
         return { text: 'After data', tone: 'muted', title: `${t.requestedDate} is after this source’s last day (${t.range.end}); the layers beneath are shown` };
+      case 'no-data':
+        return { text: 'No data', tone: 'muted', title: `The source has no imagery for ${t.requestedDate}; the layers beneath are shown` };
       case 'not-yet-published':
         return { text: 'Not published', tone: 'muted', title: `${t.requestedDate} is later than this source can have published; the layers beneath are shown` };
       case 'invalid':

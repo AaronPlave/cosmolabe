@@ -78,6 +78,8 @@ export type ImageryTimeState =
   | 'before-range'
   /** Requested day follows the source's last day; nothing is shown. */
   | 'after-range'
+  /** Inside the source's range but in a gap its time dimension declares; nothing is shown. */
+  | 'no-data'
   /** Requested day is later than the provider can have published; nothing is shown. */
   | 'not-yet-published'
   /** The configuration or requested date is not usable; nothing is shown. */
@@ -99,6 +101,8 @@ export interface ResolvedImageryTime {
 export interface ImageryAvailability {
   start: string | null;
   end: string | null;
+  /** Sorted, disjoint `[first, last]` runs of days the provider has, when it declares them. Days between runs are gaps. */
+  intervals?: ReadonlyArray<readonly [string, string]>;
 }
 
 const DAY_MS = 86_400_000;
@@ -135,8 +139,7 @@ export function utcDay(ms: number): string | null {
  * (or a single day); null when none can be read.
  */
 export function parseTimeExtent(values: readonly string[]): ImageryAvailability | null {
-  let start = Infinity;
-  let end = -Infinity;
+  const runs: Array<[number, number]> = [];
   for (const raw of values) {
     for (const part of raw.split(',')) {
       const [a, b, period] = part.trim().split('/');
@@ -145,13 +148,22 @@ export function parseTimeExtent(values: readonly string[]): ImageryAvailability 
       // A coarser period than a day is a different cadence; its gaps are not daily data.
       if (b !== undefined && period !== undefined && period !== 'P1D') continue;
       const last = b === undefined ? first : dayNumber(b.slice(0, 10));
-      if (last === null) continue;
-      start = Math.min(start, first);
-      end = Math.max(end, last);
+      if (last === null || last < first) continue;
+      runs.push([first, last]);
     }
   }
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return { start: dayString(start), end: dayString(end) };
+  if (!runs.length) return null;
+  runs.sort((x, y) => x[0] - y[0]);
+  const merged: Array<[number, number]> = [];
+  for (const run of runs) {
+    const prev = merged[merged.length - 1];
+    if (prev && run[0] <= prev[1] + 1) prev[1] = Math.max(prev[1], run[1]);
+    else merged.push([...run]);
+  }
+  const strings = merged.map(([f, l]) => [dayString(f), dayString(l)] as const)
+    .filter((r): r is readonly [string, string] => r[0] !== null && r[1] !== null);
+  if (!strings.length) return null;
+  return { start: strings[0][0], end: strings[strings.length - 1][1], intervals: strings };
 }
 
 /** `requested` is the policy's day; `now` is the wall clock for the not-yet-published check. */
@@ -181,14 +193,26 @@ export function resolveImageryTime(
   else requestedDay = simulationMs === null ? null : dayNumber(utcDay(simulationMs));
   if (requestedDay === null) return invalid(policy === 'fixed' ? fixedDate : null);
 
+  const runs = (availability.intervals ?? []).map(([f, l]) => [dayNumber(f), dayNumber(l)] as const)
+    .filter((r): r is readonly [number, number] => r[0] !== null && r[1] !== null)
+    .map(([f, l]) => [f, end === null ? l : Math.min(l, end)] as const).filter(([f, l]) => f <= l);
   const outside = start !== null && requestedDay < start ? 'before-range'
     : end !== null && requestedDay > end
       ? (lastPublished !== null && requestedDay > lastPublished ? 'not-yet-published' : 'after-range')
+      : runs.length && !runs.some(([f, l]) => requestedDay >= f && requestedDay <= l) ? 'no-data'
       : null;
   if (!outside) return shown(policy, requestedDay, requestedDay, 'exact');
   // An explicit date is the viewer's choice and is never swapped for another.
   if (policy === 'follow-simulation' && config.outOfRange === 'nearest') {
-    const nearest = outside === 'before-range' ? start : end;
+    let nearest: number | null = outside === 'before-range' ? start : end;
+    if (runs.length) {
+      // The closest available day; an earlier one wins a tie.
+      let best = Infinity;
+      for (const [f, l] of runs) {
+        const day = Math.max(f, Math.min(l, requestedDay));
+        if (Math.abs(day - requestedDay) < best) { best = Math.abs(day - requestedDay); nearest = day; }
+      }
+    }
     if (nearest !== null) return shown(policy, requestedDay, nearest, 'nearest');
   }
   return { policy, requested: dayString(requestedDay), date: null, state: outside, offsetDays: 0 };

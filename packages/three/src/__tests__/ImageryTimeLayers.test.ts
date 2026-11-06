@@ -368,6 +368,18 @@ describe('time-indexed imagery layers (#214)', () => {
       tm.dispose();
     });
 
+    it('reads the provider’s gaps and shows no day inside one', async () => {
+      const tm = makeCaps({ policy: 'follow-simulation' }, caps(['2025-08-10/2025-11-08/P1D', '2025-11-10/2026-11-05/P1D'], '2026-11-05'));
+      tm.updateImageryTime(at('2025-11-09T00:00:00Z'), 0);
+      await flush();
+      expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: null, state: 'no-data', requestedDate: '2025-11-09' });
+      expect(plugin(tm).overlays).toHaveLength(0);
+      tm.updateImageryTime(at('2025-11-10T00:00:00Z'), 5000);
+      await flush();
+      expect(layerOf(tm, 'daily').temporal).toMatchObject({ date: '2025-11-10', state: 'exact' });
+      tm.dispose();
+    });
+
     it('lets a catalog range narrow the provider’s', async () => {
       const tm = makeCaps({ policy: 'follow-simulation', start: '2020-01-01' });
       tm.updateImageryTime(at('2019-12-31T00:00:00Z'), 0);
