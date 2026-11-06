@@ -539,6 +539,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       for (const name of delivered) noted.add(name);
       messages.push({ role: 'user', content: results });
     }
+    if (eventFrameUnavailable && !ended()) {
+      answer = 'Event Finder could not calculate the closest approach because its SPICE worker is missing a reference-frame dependency. A distance profile can provide an approximate sampled center-to-center minimum, but no verified closest approach or physical touchdown was established.';
+      return finish({ kind: 'done' });
+    }
     return finish(ended() ?? { kind: 'step-limit' });
   } finally {
     if (!opts.task) task.finish();
