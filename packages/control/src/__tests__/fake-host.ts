@@ -47,6 +47,7 @@ export class FakeViewer implements ViewerControl {
   saveBookmark(name: string) { this.log('saveBookmark', name); return true; }
   upsertBookmark(input: import('../contracts.js').ScriptBookmark) { this.log('upsertBookmark', input.name); return true; }
   removeBookmark(name: string) { this.log('removeBookmark', name); return true; }
+  async findClosestApproach(_request: import('../contracts.js').ScriptClosestApproachRequest, _opts?: import('../contracts.js').ScriptSceneOptions & { signal?: import('../contracts.js').ScriptCancelSignal }): Promise<import('../contracts.js').ScriptClosestApproachResult> { return { query: 'fake-approach', status: 'unavailable', reason: 'search-failed', computedEventVerified: false, windows: [], stepSeconds: null, candidates: 0, result: null, presentation: null, samples: null, limitations: ['Fake host has no solver.'] }; }
   upsertProfile(input: import('../contracts.js').ScriptProfileDefinition) { this.log('upsertProfile', input.id); return true; }
   removeProfile(id: string) { this.log('removeProfile', id); return true; }
   upsertEventQuery(input: import('../contracts.js').ScriptEventQuery) { this.log('upsertEventQuery', input.id); return true; }

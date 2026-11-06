@@ -45,8 +45,8 @@ try {
       for (const message of wire.messages) for (const block of message.content) if (block.type === 'tool_result') payloads.set(block.toolUseId, block.content);
     });
     try {
-      const closest = scenario.startsWith('closest-');
-      await page.goto(new URL(`?catalog=test-catalogs/rosetta${closest ? '' : '&test=1'}`, base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
+      assert.ok(['profile', 'clearance', 'explore'].includes(scenario), 'Closest-approach controls now use test-ask-analysis-transfer.mjs');
+      await page.goto(new URL('?catalog=test-catalogs/rosetta&test=1', base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
       await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
       await page.evaluate(async () => {
         window.cosmo.setPlaying(false);
@@ -54,34 +54,12 @@ try {
         (await import(resource('/src/lib/shell.svelte.ts'))).openTool('ask');
         window.__askProfile = (await import(resource('/src/lib/ask/ask.svelte.ts'))).ask;
       });
-      if (closest) {
-        // Exercise the real worker. The success control furnishes ALL catalog
-        // dependencies only inside this browser, leaving #361's production
-        // kernel scoping and Rosetta's intentional bus identity untouched.
-        const control = await page.evaluate(async ({ success, resolverPath }) => {
-          const url = performance.getEntriesByType('resource').map(e => e.name).find(u => new URL(u).pathname === '/src/lib/loader.ts');
-          const loader = await import(url), worker = loader.getGeometryWorker();
-          if (!worker) throw new Error('Closest-approach acceptance requires the real geometry worker');
-          if (success) {
-            const kernels = worker.options.kernels;
-            const { loadCatalogFromUrl } = await import('/@fs' + resolverPath);
-            const graph = await loadCatalogFromUrl(loader.demoCatalogUrl('test-catalogs/rosetta'));
-            const dependencies = graph.kernels.map(k => k.url).filter(u => /\.(?:tf|tsc|bc)(?:\.gz)?$/i.test(new URL(u).pathname));
-            if (!dependencies.length) throw new Error('No catalog frame/attitude dependencies observed');
-            worker.options.kernels = async () => [...await kernels(), ...dependencies];
-            const search = worker.search.bind(worker);
-            worker.search = options => search({ ...options, scope: undefined });
-          }
-          return { worker: true, catalogFrameAttitudeDependencies: success };
-        }, { success: scenario === 'closest-success', resolverPath: new URL('../packages/core/src/catalog/CatalogResolver.ts', import.meta.url).pathname });
-        report.workerControl = { ...report.workerControl, [scenario]: control };
-      }
       const snapshot = () => page.evaluate(() => {
         const c = window.cosmo;
         return { time: c.getTime(), playing: c.isPlaying(), selected: c.getSelected(), tracked: c.getTracked(), camera: c.getCamera(), window: c.getTimelineWindow() };
       });
       const before = await snapshot();
-      const prompts = closest ? ['When did Philae get closest to comet 67P during its landing? Show me.'] : scenario === 'explore' ? ["show Philae's distance profile relative to 67P, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
+      const prompts = scenario === 'explore' ? ["show Philae's distance profile relative to 67P, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
         ? ['show a distance profile between Philae and 67P in the timeline', 'not closest approach; I want the profile in the timeline']
         : ["show Philae's height above 67P's physical surface in the timeline", 'I accept a center-to-center distance profile instead; label it as center distance, not physical surface height.'];
       for (const [index, prompt] of prompts.entries()) {
@@ -107,54 +85,7 @@ try {
         delete report.pending; report.runs.push(run); writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
         console.log(JSON.stringify({ scenario, turn: index + 1, rounds: run.rounds, status: result.status, reply: result.reply,
           profiles: result.profiles.map(p => ({ id: p.definition?.id, quantity: p.resolved?.quantity, status: p.status, timeline: p.timeline })), steps: result.steps.map(s => [s.name,s.ok,s.receipt]) }));
-        assert.ok(result.status === 'done' || scenario === 'closest-failure' && result.status === 'step-limit' && result.reply, result.error ?? `Missing useful answer: ${result.status}`);
-        if (closest) {
-          assert.ok(run.rounds <= 10, 'Fixed Ask keeps its explicit request budget');
-          const searches = result.steps.filter(s => s.name === 'events.runEventQuery');
-          assert.equal(searches.length, 1, 'Only one Event Finder attempt');
-          assert.ok(result.steps.some(s => /checkGoal$/.test(s.name) && s.ok), 'Respect checkGoal');
-          assert.ok(!result.steps.some(s => /applyNamedViewpoint|goToViewpoint|findTrajectoryExtrema/.test(s.name)), 'No authored viewpoint or competing analysis substitution');
-          if (scenario === 'closest-success') {
-            assert.equal(searches[0].ok, true);
-            assert.equal(result.verification.status, 'verified');
-            assert.equal(result.steps.filter(s => s.name === 'profiles.sampleProfileData').length, 0, 'Do not substitute profiles for a successful event');
-            const presentation = result.steps.find(s => s.name === 'events.presentEventResult' && s.ok);
-            assert.ok(presentation, 'Present the computed event');
-            const page = result.steps.findLast(s => s.name === 'getEventResultPage' && s.ok || s.name === 'events.getEventResultPage' && s.ok);
-            assert.ok(page && payloads.get(page.id) && !payloads.get(page.id).includes('result-too-large'), 'Computed event must reach the model');
-            assert.equal(result.visualization.selected.id, JSON.parse((presentation.input.input ?? presentation.input).reference).id);
-            const event = page.data.items.find(item => item.reference.id === result.visualization.selected.id);
-            assert.equal(after.time, event.et);
-            assert.match(result.reply, /closest|minimum/i);
-          } else {
-            assert.equal(searches[0].code, 'missing-dependency');
-            assert.ok(payloads.get(searches[0].id)?.includes('missing-dependency'), 'The model must see the dependency failure');
-            assert.match(result.reply, /(?:SPICE|frame|dependency|search|Event Finder)/i);
-            const read = result.steps.findLast(s => s.name === 'profiles.sampleProfileData' && s.ok && s.data.minimum);
-            assert.ok(read, 'Recover with actual numerical profile samples');
-            const d = read.data;
-            const definition = result.steps.findLast(s => /(?:^|\.)upsertEventQuery$/.test(s.name) && s.ok)?.data?.query?.definition;
-            assert.deepEqual(d.requestedWindow, definition.window, 'Preserve the failed search interval');
-            assert.ok(d.samples.length >= 2 && d.samples.length <= 32);
-            assert.deepEqual(JSON.parse(payloads.get(read.id)).data, d, 'Numerical data delivered intact');
-            assert.deepEqual(Object.values(d.bodies).sort(), ['Philae', '67P/Churyumov-Gerasimenko'].sort());
-            assert.equal(d.minimum.value, Math.min(...d.samples.filter(s => s.value !== null).map(s => s.value)));
-            const actual = await page.evaluate(({ id, et }) => window.cosmo.getProfileValue(id, et), { id: d.id, et: d.minimum.et });
-            assert.equal(actual.samples[0].value, d.minimum.value, 'Independent point read agrees with samples');
-            assert.equal(after.time, d.minimum.et, 'Navigate to the returned ET');
-            assert.ok(result.verification.report.checks.some(c => c.slot === 'event' && c.ok === false), 'Computed-event goal remains unmet');
-            assert.equal(result.visualization.selected, null, 'A sampled minimum is not a selected computed event');
-            assert.match(result.reply, /sampl|approxim/i);
-            assert.match(result.reply, /not[^.]{0,90}(?:verified|certified|touchdown|surface)|(?:couldn.t|could not|unable|failed)[^.]{0,90}(?:comput|closest|search)/i);
-            assert.ok(result.reply.includes(String(d.samples.length)), 'Disclose sample count');
-            for (const sample of [d.samples[0], d.samples.at(-1)]) assert.ok(result.reply.includes(sample.utc.slice(0, 10)) || result.reply.includes(String(sample.et)), 'Disclose effective interval endpoints');
-            assert.match(result.reply, /gap|missing|no gaps|complete/i, 'Disclose gaps');
-            assert.equal(after.playing, false, 'The sampled epoch remains paused');
-            const profile = result.profiles.find(p => p.definition.id === d.id);
-            assert.equal(profile?.timeline?.traceVisible, true, 'Show the native trace');
-          }
-          continue;
-        }
+        assert.ok(result.status === 'done', result.error ?? `Missing useful answer: ${result.status}`);
         if (scenario !== 'explore') assert.equal(run.unchangedScene, true, 'Adding a profile must not move the scene');
         assert.equal(result.events, 0, 'Do not substitute Event Finder');
         if (scenario !== 'explore') assert.ok(!result.steps.some(s => /setTimelineWindow|setTime$/.test(s.name)), 'Do not change the window or epoch just to add a profile');

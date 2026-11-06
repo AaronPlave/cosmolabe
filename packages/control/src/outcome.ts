@@ -206,8 +206,8 @@ export function adopt(held: readonly Predicate[], incoming: readonly Predicate[]
     const old = next.get(slotOf(p));
     const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && (old.query === p.query || (!!old.stated && !old.query));
     if (old?.stated && by === 'action') {
-      // The person's requirement stays; an action only fills in which result it selected.
-      if (sameSearch && p.id !== undefined) next.set(slotOf(p), { ...old, query: p.query, id: p.id });
+      // The requirement stays; bind the actual search even if it produced no selectable result.
+      if (sameSearch && p.query !== undefined) next.set(slotOf(p), { ...old, query: p.query, ...(p.id === undefined ? {} : { id: p.id }) });
       continue;
     }
     // A selected result inherits what was required of it (the closest, a real encounter).

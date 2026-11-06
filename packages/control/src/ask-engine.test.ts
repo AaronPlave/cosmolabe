@@ -584,10 +584,8 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     const { host } = failingScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
-    expect(result).toMatchObject({ ok: false, code: 'missing-dependency', error: expect.stringContaining('sampleProfileData') });
+    expect(result).toMatchObject({ ok: false, code: 'missing-dependency', data: { alternative: 'sampled-center-distance', query: { bodies: { observer: 'Philae', target: '67P' }, window: { start: 0, end: 1000000000 } } } });
     if (!result.ok) {
-      expect(result.error).toContain('"observer":"Philae","target":"67P"');
-      expect(result.error).toContain('"window":{"start":0,"end":1000000000}');
       expect(result.error).not.toContain('-226000');
     }
     const info = host.getEventQueryInfo.bind(host);
@@ -647,6 +645,18 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     expect(run.answer).toContain('(0 missing)');
     expect(run.answer).toContain('not a verified closest approach');
     expect(run.result.status).toBe('failed');
+    tools.dispose();
+  });
+
+  it('corrects fabricated sampled distances even without a computed event fact', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(readSamples('sampled')), say('The sampled minimum is 999 km; 0 missing samples.'), say('The sampled minimum is 999 km; 0 missing samples.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'Tell me the sampled center distance.' });
+    expect(run.stats.rounds).toBe(3);
+    expect(run.result.answerIssues).toEqual([expect.stringMatching(/999 km.*matches no distance/)]);
+    expect(run.answer).toContain('is 3 km at t10');
+    expect(run.answer).not.toContain('999');
     tools.dispose();
   });
 

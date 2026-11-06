@@ -473,6 +473,30 @@ export interface ScriptReadiness {
   readonly limitations: readonly string[];
 }
 
+/** Bounded composition of the existing Event Finder primitives, not another solver. */
+export interface ScriptClosestApproachRequest {
+  observer: string;
+  target: string;
+  /** Both ET endpoints, or neither to search assessed overlap with the catalog window. */
+  start?: number;
+  end?: number;
+  present?: boolean;
+}
+export interface ScriptClosestApproachResult {
+  /** Identity allocated for this attempt, even if preflight cannot save/run it. */
+  query: string;
+  status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
+  reason: 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
+  computedEventVerified: boolean;
+  windows: { start: number; end: number }[];
+  stepSeconds: number | null;
+  candidates: number;
+  result: ScriptEventResultPage | null;
+  presentation: ScriptEventFocusReceipt | null;
+  samples: ScriptProfileData | null;
+  limitations: readonly string[];
+}
+
 export interface ViewerControl {
   findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
   /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
@@ -772,6 +796,7 @@ export interface ViewerControl {
     suggestedWindow: { start: number; end: number } | null;
     error: { code: string } | null;
   };
+  findClosestApproach?(request: ScriptClosestApproachRequest, opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptClosestApproachResult>;
   getProfileOptions?(): ScriptProfileOptions;
   listProfiles?(): { scene: number | null; total: number; items: ScriptProfileDefinition[] };
   getProfile?(id: string, opts?: ScriptSceneOptions): ScriptProfileInfo;

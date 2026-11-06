@@ -28,6 +28,8 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  */
 import type {
   ScriptActivity,
+  ScriptProfileData,
+  ScriptClosestApproachRequest,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -40,6 +42,7 @@ import type {
 import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { missingFrameDependency } from './closest-approach.js';
 import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
@@ -111,7 +114,7 @@ export type AgentErrorCode =
 
 export type AgentToolResult = (
   | { readonly ok: true; readonly summary: string; readonly data?: unknown; readonly completion?: { readonly kind: 'flight'; readonly id: number; readonly outcome: 'arrived' } }
-  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string }
+  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string; readonly data?: unknown }
 ) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[] };
 
 /**
@@ -131,7 +134,7 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export type ResultFact = { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface EventResultFact {
   readonly kind: 'event-result';
   readonly query: string;
@@ -234,6 +237,7 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'circleCenterDown', effect: 'camera' },
   { verb: 'dolly', effect: 'camera' },
   { verb: 'composeView', effect: 'camera' },
+  { verb: 'findClosestApproach', effect: 'camera' },
   { verb: 'stopFlight', effect: 'camera' },
   { verb: 'setTime', effect: 'time' },
   { verb: 'setTimeRate', effect: 'time' },
@@ -322,7 +326,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['rendered','reference','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', contract: { namespace: 'spatial', writes: [], guide: 'The pin is transient display, not a saved point. When the person asks for a point after a pin ("place a point", "save it"), they mean a saved annotation at the pin: make it with geographic.editAnnotation (describe it for its notes); never report the pin itself as that point.' }, effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Closest-approach bodies are {observer,target}; center is not a substitute for observer. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window:{start:number,end:number} in ET seconds past J2000 (never UTC strings),step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation. The schemas above suffice for upsertEventQuery; runEventQuery takes input {id} and can follow upsert in the same reply after checkGoal. Do not describe these known schemas redundantly.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'Registry kinds, defaults and coverage for custom Event Finder work. For routine find/show closest-approach requests prefer findClosestApproach, which composes these controls and reports structured results. Catalog dates alone do not prove coverage. Custom searches require exact scene participant names, numeric ET bounds and the kind default step; do not change body IDs or frames to evade failures.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventResultPage', contract: { namespace: 'events', writes: [], guide: 'For "closest", order range-ascending: it compares every measured candidate before paging; the first chronological result is not the smallest range. State the searched start and end dates (windowUtc) and step limits; never imply all-time coverage. Each result says whether its range minimum is an encounter and by which criterion: quote its distances and classification, not your own.' }, effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -628,7 +632,7 @@ export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
   for (const { verb } of AGENT_VERBS) {
     if (!VERBS.has(verb)) throw new Error(`Unregistered fixed agent verb: ${verb}`);
   }
-  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult']);
+  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult', 'findClosestApproach']);
   return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
 }
 
@@ -883,6 +887,16 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       ...(base.data !== undefined ? { data: base.data } : back?.data !== undefined ? { data: back.data } : {}), outcome };
   }
 
+  function profileRead(data: ScriptProfileData): AgentToolResult {
+      const first = data.samples[0], last = data.samples.at(-1);
+      const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
+      const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
+      const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
+        ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false, samples: data.samples.flatMap(s => s.value === null ? [] : [{ km: s.value, utc: s.utc, et: s.et }]) }] : [];
+      return { ok: true, facts, summary: `${minimum} In the final answer, name BOTH interval endpoints above (UTC dates or ET numbers), report count or spacing, and say minimum among the returned samples. Do not replace the endpoints with full timeline or mission window. This is only a minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+
+  }
+
   const reads: Record<string, (input: Input) => AgentToolResult> = {
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
     getSpatialContext: input => ({ ok: true, summary: 'Targeted body/state/Draw conventions; missing layers can be created after approval.', data: metadata.spatialContext(host.getSpatialContext!(input.object as string)) }),
@@ -894,13 +908,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     getProfile: input => ({ ok: true, summary: 'Native profile readback; partial/unavailable is not visual acceptance.', data: host.getProfile!(input.id as string) }),
     getProfileValue: input => ({ ok: true, summary: 'Exact profile value at the returned epoch; no interpolation or surface-clearance claim.', data: host.getProfileValue!(input.id as string, input.et as number) }),
     sampleProfileData: input => {
-      const data = host.sampleProfileData!(input.id as string, { start: input.start as number, end: input.end as number, ...(input.count === undefined ? {} : { count: input.count as number }) });
-      const first = data.samples[0], last = data.samples.at(-1);
-      const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
-      const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
-      const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
-        ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false }] : [];
-      return { ok: true, facts, summary: `${minimum} In the final answer, name BOTH interval endpoints above (UTC dates or ET numbers), report count or spacing, and say minimum among the returned samples. Do not replace the endpoints with full timeline or mission window. This is only a minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+      return profileRead(host.sampleProfileData!(input.id as string, { start: input.start as number, end: input.end as number, ...(input.count === undefined ? {} : { count: input.count as number }) }));
     },
     getTimelineWindow: () => { const w = host.getTimelineWindow!(); return { ok: true, summary: 'Timeline window.', data: { ...w, ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(w.start)), endUtc: attempt(() => opts.formatTime!(w.end)) } : {}) } }; },
     getViewComposition: input => ({ ok: true, summary: 'Current view composition.', data: compositionData(host.getViewComposition!(input.objects as string[])) }),
@@ -1033,6 +1041,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     goalChecks = 0;
     /** A required worker frame cannot be repaired by changing a query in this task. */
     eventFrameUnavailable = false;
+    private readonly closestPairs = new Set<string>();
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -1065,7 +1074,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         this.end('stale');
         return { ok: false, code: 'stale', error: 'the scene changed since this request began; nothing was done' };
       }
-      if (this.eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery'].includes(def.name)) {
+      if (this.eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery', 'findClosestApproach'].includes(def.name)) {
         return { ok: false, code: 'missing-dependency', error: 'Not run: Event Finder already encountered a non-retryable SPICE frame dependency in this request. Do not create or run another query. Follow the original failure recovery guidance if it matches the requested quantity, or report the event as uncomputed.' };
       }
       if (def.effect !== 'read' && !hasScene()) return { ok: false, code: 'no-scene', error: 'no scene is loaded' };
@@ -1097,6 +1106,32 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
+
+      if (name === 'findClosestApproach') {
+        const pair = JSON.stringify([args.observer, args.target].sort());
+        if (this.closestPairs.has(pair)) return { ok: false, code: 'refused', error: 'This pair already received its bounded closest-approach analysis in this request. Report its result or structured failure; do not change the window to evade it.' };
+        const blocked = ['upsertEventQuery','runEventQuery', ...(args.present === false ? [] : ['presentEventResult','setTime','setPlaying']), 'upsertProfile','sampleProfileData'].find(operation => opts.omittedTools?.[operation]);
+        if (blocked) return { ok: false, code: 'refused', error: `Closest-approach analysis requires ${blocked}: ${opts.omittedTools![blocked]}` };
+        this.closestPairs.add(pair);
+        this.writing = true;
+        try {
+          const response = await host.findClosestApproach!(args as unknown as ScriptClosestApproachRequest, { signal: this.signal });
+          this.writing = false;
+          const late = this.gate(def);
+          if (late) return late;
+          if (response.status === 'interrupted') { this.clockTaken = true; this.cameraTaken = true; return { ok: false, code: 'interrupted', error: 'Analysis interrupted; leaving clock and camera to the person.' }; }
+          if (response.reason === 'missing-dependency') this.eventFrameUnavailable = true;
+          const facts: ResultFact[] = response.status === 'computed' ? [] : [{ kind: 'event-search-failure', reason: response.reason ?? response.status }];
+          if (response.samples) facts.push(...(profileRead(response.samples).facts ?? []));
+          if (response.result) facts.push(...(reads.getEventResultPage({ query: response.result.items[0].reference.query, order: 'range-ascending' }).facts ?? []));
+          const data = { ...response, samples: response.samples ? { ...response.samples, samples: undefined, count: response.samples.samples.length } : null, result: response.result ? eventPageMetadata(response.result, metadata.text) : null,
+            presentation: response.presentation ? { status: response.presentation.status, reference: response.presentation.reference, observation: eventVisualizationMetadata(response.presentation.observation) } : null };
+          const sampleRead = response.samples ? profileRead(response.samples) : null;
+          const base = { summary: `Closest-approach analysis ${response.status}${response.reason ? ` (${response.reason})` : ''}. Computed-event presentation verified: ${response.computedEventVerified}.${response.reason === 'missing-dependency' ? ' A required SPICE reference-frame dependency is unavailable; this does not establish absent trajectory data. Changing the time window, body IDs or frames will not repair it.' : ''} ${sampleRead?.ok ? sampleRead.summary : 'Report the actual searched windows, candidates and step limits. A structured failure is final; do not retry.'}`, data };
+          return response.status === 'computed' ? { ...judged(def, name, args, base), facts } : { ok: true, ...base, outcome: outcomeOf(def, args, data), facts };
+        } catch { return { ok: false, code: 'failed', error: 'Closest-approach analysis failed; no verified result.' }; }
+        finally { this.writing = false; }
+      }
 
       if (name === 'findTrajectoryExtrema') {
         measuredResults.clear();
@@ -1169,15 +1204,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           if (late) return late;
           if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
           const p = err.problems[0];
-          if (name === 'runEventQuery' && /not a recognized id-code for a reference frame|SPICE\((?:UNKNOWNFRAME|NOFRAME)\)/i.test(p.message)) {
+          if (name === 'runEventQuery' && missingFrameDependency(p.message)) {
             this.eventFrameUnavailable = true;
             const query = attempt(() => host.getEventQueryInfo?.(args.id as string));
             const definition = query ? eventQueryMetadata(query, metadata.text).definition : null;
-            const recovery = definition?.kind === 'closest-approach' && host.sampleProfileData && host.upsertProfile
-              ? `For this center-distance search only, offer a qualified approximate alternative using the existing profiles: one profiles.listProfiles read (input {}) to find a reusable profile and receive its operation notes. Then invoke profiles.upsertProfile if needed (input {definition: JSON text {id,profile:{quantity:range,bodies:{observer,target}},enabled:true,visible:true}}) and profiles.sampleProfileData (input {id,start,end,count:32}) sequentially in the SAME reply, using one stable profile ID. These input shapes are sufficient; do not spend a round describing them again. After samples return, invoke time.setTime (input {when: minimum.et}) if navigation was requested, then answer. No additional getProfileOptions/getProfile read is needed if the result already establishes the state. Failed search: ${JSON.stringify(definition)}. Preserve the person's interval (including landing/descent); do not substitute the whole mission or invent a new window. If finite samples exist and navigation was requested, setTime to minimum.et exactly. Report both interval endpoints, count/spacing, gaps, value and epoch as a minimum among returned samples only; the requested computed event remains unverified. Do not release its goal merely to claim completion. If a later viewer check reports that computed-event goal unmet, explain this limitation without another tool call.`
-              : 'No numerical profile substitution is established for this event kind. Report the requested event as uncomputed; do not substitute a distance minimum for an occultation, eclipse, physical clearance or other quantity.';
-            return { ok: false, code: 'missing-dependency',
-              error: `Event Finder cannot resolve a required SPICE reference-frame dependency. This is a non-retryable environment failure, not proof of missing trajectory data. Do not create or run another Event Finder search in this request, or change frame/body IDs or coverage to evade the error. ${recovery} This does not establish surface clearance or touchdown; an authored viewpoint is a separate annotation. Use at most one recovery path, batch independent reads, and report any unmet intent plainly.` };
+            return { ok: false, code: 'missing-dependency', data: { query: definition, alternative: definition?.kind === 'closest-approach' ? 'sampled-center-distance' : null },
+              error: `Event Finder lacks a required SPICE frame dependency. non-retryable in this request; do not change IDs, frames or coverage. The event is uncomputed. ${definition?.kind === 'closest-approach' ? 'Center-distance profile samples may be an explicitly approximate alternative; they cannot establish surface clearance or touchdown.' : 'No numerical profile substitution is established for this event kind.'}` };
           }
           const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended ?? 'cancelled')
             : p.kind === 'unknown-target' ? 'refused'

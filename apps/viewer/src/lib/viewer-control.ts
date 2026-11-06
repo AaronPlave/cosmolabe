@@ -38,6 +38,7 @@ import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
 import {
   snapshotScript,
+  findClosestApproach,
   type ScriptCamera,
   type ScriptEventMap,
   type ScriptEventName,
@@ -265,7 +266,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     }
   };
 
-  return {
+  const port: Required<ViewerControl> = {
     findTrajectoryExtrema: findViewerTrajectoryExtrema,
     navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
     selectPlace: (ref, opts) => {
@@ -288,6 +289,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
       showPlaceDataset(id, visible); return true;
     },
+    findClosestApproach: (request, opts) => findClosestApproach(port, request, opts),
     ...profileControl, ...analysisControl, ...spatialControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
@@ -661,4 +663,5 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       }
     },
   };
+  return port;
 }

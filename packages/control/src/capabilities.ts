@@ -98,7 +98,7 @@ export interface CapabilityTools extends AgentTools {
 
 /** A small schema shortlist, never an authorization allowlist. All other
  * registry operations are invocable through the same validated dispatcher. */
-export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'findClosestApproach', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
 export function defaultAskDefinitions() {
   return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
 }
@@ -142,6 +142,7 @@ const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   getProfileOptions: objectSchema({ quantities: RECORDS, window: { type: 'object' }, limitations: STRINGS }),
   listProfiles: objectSchema({ scene: { type: ['number','null'] }, total: NUMBER, items: RECORDS }),
   getProfile: objectSchema({ scene: { type: ['number','null'] }, status: TEXT, definition: NULLABLE_RECORD, resolved: NULLABLE_RECORD, timeline: { type: 'object' }, limitations: STRINGS }),
+  findClosestApproach: objectSchema({ query: TEXT, status: { type: 'string', enum: ['computed','sampled','unavailable','no-results','interrupted'] }, reason: { type: ['string','null'] }, computedEventVerified: { type: 'boolean' }, windows: RECORDS, stepSeconds: { type: ['number','null'] }, candidates: NUMBER, result: NULLABLE_RECORD, presentation: NULLABLE_RECORD, samples: NULLABLE_RECORD, limitations: STRINGS }, ['query','status','reason','computedEventVerified','windows','samples']),
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
   getViewComposition: objectSchema({ et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
   checkGoal: objectSchema({ kind: TEXT, status: { type: 'string', enum: ['met', 'partial', 'unmet', 'inconclusive'] }, checks: RECORDS }, ['kind', 'status', 'checks']),

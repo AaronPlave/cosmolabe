@@ -277,7 +277,7 @@ function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>, read: bo
 /** Preserve JSON and explicit page boundaries even when a host returns oversized data. */
 export const resultText = (result: AgentToolResult, max: number, read = false): string => {
   const receipt = result.receipt ? { receipt: modelReceipt(result.receipt, read) } : {};
-  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt } : { error: result.error, code: result.code, ...receipt };
+  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt } : { error: result.error, code: result.code, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt };
   const text = JSON.stringify(payload);
   if (text.length <= max) return text;
   if (result.ok && result.data && typeof result.data === 'object' && 'activities' in result.data) {
@@ -473,7 +473,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         // end state and the answer agrees with what the reads published.
         report = wrote ? verify() : null;
         // Repair is for a known unmet predicate only; what cannot be observed is reported, not retried.
-        const missingEventDependency = facts.some(f => f.kind === 'sampled-range' && f.eventSearchUnavailable);
+        const missingEventDependency = facts.some(f => f.kind === 'event-search-failure' || f.kind === 'sampled-range' && f.eventSearchUnavailable);
         const unavailableEventSlots = new Set(missingEventDependency
           ? held.filter(p => ['eventSelected', 'eventRun', 'eventEpoch', 'eventFramed', 'eventDrawn'].includes(p.p)).map(slotOf) : []);
         const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot) && !unavailableEventSlots.has(c.slot)) ?? [];
