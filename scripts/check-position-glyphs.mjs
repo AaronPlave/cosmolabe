@@ -107,7 +107,7 @@ try {
       setDisplayOption('trajectories', false, { persist: false });
       r.cameraController.controls.enableDamping = false;
       r.camera.fov = 50; r.camera.updateProjectionMatrix();
-      const frame = async () => { r.renderFrame(); await new Promise(requestAnimationFrame); r.renderFrame(); };
+      const frame = async (n = 30) => { for (let i = 0; i < n; i++) r.renderFrame(); await new Promise(requestAnimationFrame); r.renderFrame(); };
       r.cameraController.controls.target.copy(sc.position);
       r.camera.up.set(0, 1, 0);
       r.camera.position.copy(sc.position).add({ x: distanceKm * r.scaleFactor, y: distanceKm * 0.3 * r.scaleFactor, z: 0 });
@@ -121,7 +121,7 @@ try {
         v.sort((p, q) => p - q); return { max: v[v.length - 1], median: v[v.length >> 1] };
       };
       const measure = async (enabled) => {
-        r.setPositionGlyphsEnabled(enabled); await frame();
+        r.setPositionGlyphsEnabled(enabled); await frame(enabled ? 40 : 2);
         const g = r.getPositionGlyphReadout().find((e) => e.name === 'Europa Clipper');
         const a = g?.anchor ?? (() => { const v = sc.position.clone().project(r.camera);
           return { x: (v.x * 0.5 + 0.5) * r.renderer.domElement.clientWidth, y: (-v.y * 0.5 + 0.5) * r.renderer.domElement.clientHeight }; })();
@@ -129,25 +129,39 @@ try {
       };
       const off = await measure(false);
       const on = await measure(true);
-      return { distanceKm, modelVisible: sc.isModelVisible, off, on };
+      // The same view with Clipper selected/tracked: focus keeps the locator (and its label)
+      // regardless of label decluttering.
+      r.setLabelPinned('Europa Clipper', true);
+      const focus = await measure(true);
+      r.setLabelPinned('Europa Clipper', false);
+      await frame(30);
+      return { distanceKm, modelVisible: sc.isModelVisible, off, on, focus, lab: r.labelManager?.getLabelState('Europa Clipper') };
     }, { distanceKm });
     sweep.push(info);
     await page.screenshot({ path: `work/position-glyphs/zoom-${String(distanceKm).replace('.', '_')}km.png` });
     console.log(`${String(info.distanceKm).padStart(8)} km  glyph=${info.on.glyph ? info.on.glyph.glyphWeight.toFixed(2) : 'none'}  extent=${info.on.glyph?.extentPx.toFixed(1) ?? '-'}px  ` +
       `off(max/med)=${info.off.max.toFixed(0)}/${info.off.median.toFixed(0)}  on(max/med)=${info.on.max.toFixed(0)}/${info.on.median.toFixed(0)}`);
   }
-  // Wide view: glyph ON makes the position a bright point against the dark sky; OFF it is not.
+  // Wide view: for the selected/tracked spacecraft, the glyph makes the position a bright
+  // point against the dark sky where the legacy fallback drew nothing.
   const wide = sweep[0];
-  assert.ok(wide.on.glyph && wide.on.glyph.glyphWeight === 1, 'wide view: glyph drawn');
-  assert.ok(wide.on.max - wide.on.median > 120, `wide view: glyph must stand out (${JSON.stringify(wide.on)})`);
-  assert.ok(wide.off.max - wide.off.median < wide.on.max - wide.on.median, 'glyph must improve on the lit placeholder');
-  // No dead zone: whenever the glyph is drawn or the model is not yet visible, the
-  // position remains distinct from its surroundings.
+  assert.ok(wide.focus.glyph && wide.focus.glyph.glyphWeight === 1, 'wide view: selected spacecraft keeps its locator');
+  assert.ok(wide.focus.max - wide.focus.median > 120, `wide view: glyph must stand out (${JSON.stringify(wide.focus)})`);
+  assert.ok(wide.off.max - wide.off.median < wide.focus.max - wide.focus.median, 'glyph must improve on the legacy fallback');
+  // Ordinary entities: a marker never outlives its label (no orphaned dots), and an
+  // unresolved entity with a legible label has one.
   for (const s of sweep) {
-    if (s.on.glyph && s.on.glyph.glyphWeight >= 0.5) assert.ok(s.on.max - s.on.median > 60, `no dead zone at ${s.distanceKm} km: ${JSON.stringify(s.on)}`);
+    if (s.on.glyph) assert.ok(s.lab.legible, `marker without a legible label at ${s.distanceKm} km`);
+    if (s.lab.legible && s.distanceKm >= 2) assert.ok(s.on.glyph, `unresolved entity with a legible label has its marker at ${s.distanceKm} km`);
+  }
+  assert.ok(sweep.some((s) => !s.lab.legible && !s.on.glyph), 'the sweep exercises a culled label with no marker');
+  // No dead zone: whenever the (focus) glyph is drawn, the position stays distinct from its surroundings.
+  for (const s of sweep) {
+    if (s.focus.glyph && s.focus.glyph.glyphWeight >= 0.5) assert.ok(s.focus.max - s.focus.median > 60, `no dead zone at ${s.distanceKm} km: ${JSON.stringify(s.focus)}`);
   }
   // Resolved: no glyph left at the closest zoom.
   assert.equal(sweep.at(-1).on.glyph, null, 'resolved model keeps no glyph');
+  assert.equal(sweep.at(-1).focus.glyph, null, 'resolved model keeps no ring either, even when selected');
 
   // Selected / tracked / hover rings, label-coordinated, in the wide view.
   const states = await page.evaluate(async () => {
@@ -157,9 +171,10 @@ try {
     window.cosmo.untrack();
     r.camera.position.copy(sc.position).add({ x: 60000 * r.scaleFactor, y: 18000 * r.scaleFactor, z: 0 });
     r.camera.lookAt(sc.position); r.camera.updateMatrixWorld(true);
-    const frame = async () => { r.renderFrame(); await new Promise(requestAnimationFrame); r.renderFrame(); };
+    const frame = async (n = 30) => { for (let i = 0; i < n; i++) r.renderFrame(); await new Promise(requestAnimationFrame); r.renderFrame(); };
     const entry = async (name = 'Europa Clipper') => { await frame(); return r.getPositionGlyphReadout().find((e) => e.name === name); };
-    const out = { rest: (await entry()).ring };
+    const rest = await entry(); // an ordinary entity whose label is culled has no marker at all
+    const out = { rest: rest ? rest.ring : 'none' };
     // Hover alone must never read as selection (it temporarily pins the label).
     r.setHoveredBody('Europa Clipper'); const hov = await entry();
     out.hoverRing = hov.ring; out.hovered = hov.hovered; r.setHoveredBody(null);
@@ -171,6 +186,7 @@ try {
 
     // Picking: a glyph hidden behind Europa must not be pickable; visible ones are,
     // including a surface-locked asset on the near side but not one on the far side.
+    for (const n of ['Europa Clipper', 'Hidden Probe', 'Rover Near', 'Rover Far']) r.setLabelPinned(n, true); // focus: markers drawn regardless of label decluttering
     const pick = async (name) => {
       const e = await entry(name);
       if (!e?.anchor) return { anchor: null };
@@ -181,6 +197,8 @@ try {
     out.pickHidden = (await pick('Hidden Probe')).hit;
     out.pickRoverNear = (await pick('Rover Near')).hit;
     out.pickRoverFar = (await pick('Rover Far')).hit;
+    for (const n of ['Hidden Probe', 'Rover Near', 'Rover Far']) r.setLabelPinned(n, false);
+    r.setLabelPinned('Europa Clipper', false);
 
     // The glyph replaces the legacy lit minimum-size placeholder sphere (the library
     // default, minBodyPixels = 4); with glyphs off it is restored. The viewer app
@@ -197,6 +215,54 @@ try {
     r.minBodyPixels = 0; await frame(); out.appDefault = vis();
     r.setPositionGlyphsEnabled(false); await frame(); out.appDefaultGlyphsOff = vis();
     r.setPositionGlyphsEnabled(true); r.minBodyPixels = appMinBodyPixels; await frame();
+
+    // --- Label-coordinated LOD (live-testing feedback) ---
+    const ring2 = async (name = 'Europa Clipper') => { await frame(); return r.getPositionGlyphReadout().find((e) => e.name === name) ?? null; };
+    out.lod = {};
+    out.lod.ordinaryWithLabel = !!(await ring2('Tiny'));
+    r.setLabelVisible('Tiny', false);                       // label deliberately gone ...
+    out.lod.ordinaryNoLabel = (await ring2('Tiny')) !== null; // ... so the marker goes too
+    r.setLabelVisible('Tiny', true);
+    out.lod.ordinaryBack = (await ring2('Tiny')) !== null;
+    r.setLabelVisible('Europa Clipper', false);              // focus keeps its locator ...
+    r.setLabelPinned('Europa Clipper', true);
+    out.lod.focusNoLabelRing = (await ring2())?.ring ?? null;
+    r.setLabelPinned('Europa Clipper', false);
+    r.setLabelVisible('Europa Clipper', true);
+    window.glyphState.setDisplayOption('labels', false, { persist: false }); // all labels off:
+    await frame();
+    out.lod.allLabelsOffOrdinary = r.getPositionGlyphReadout().filter((e) => e.ring === 'none').length;
+    r.setLabelPinned('Europa Clipper', true);
+    out.lod.allLabelsOffFocus = (await ring2())?.ring ?? null;  // selected entity keeps its locator
+    r.setLabelPinned('Europa Clipper', false);
+    window.glyphState.setDisplayOption('labels', true, { persist: false });
+    await frame();
+
+    // --- Whole-glyph terrain/plate occlusion ---
+    // A reconstructed-surface plate between the camera and the selected spacecraft's
+    // anchor must hide the whole symbol (dot and ring), and releasing it brings it back.
+    r.setLabelVisible('Tiny', false); // keep the only drawn glyph in this section the one under test
+    r.setLabelPinned('Europa Clipper', true);
+    out.occ = { before: (await ring2())?.occluded ?? null };
+    const rover = r.getBodyMesh('Rover Near');
+    const V3 = r.camera.position.constructor, M4 = r.camera.matrixWorld.constructor, Q = r.camera.quaternion.constructor;
+    const plate = r.getBodyMesh('Europa').mesh.clone();
+    plate.userData.dskSurface = true; plate.matrixAutoUpdate = false;
+    const mid = r.camera.position.clone().add(sc.position.clone().sub(r.camera.position).multiplyScalar(0.5));
+    const radius = 3000 * r.scaleFactor / 1560.8;
+    rover.modelContainer.updateWorldMatrix(true, false);
+    plate.matrix.copy(new M4().copy(rover.modelContainer.matrixWorld).invert()
+      .multiply(new M4().compose(mid, new Q(), new V3(radius, radius, radius))));
+    rover.modelContainer.add(plate);
+    await frame(2); r.renderFrame();
+    const during = await ring2();
+    const sprites = r.positionGlyphs.group.children.filter((o) => o.visible);
+    out.occ.during = { occluded: during?.occluded ?? null, visibility: during?.visibility ?? null, drawnSprites: sprites.length, drawn: r.getPositionGlyphReadout().filter((e) => e.visibility > 0.003).map((e) => `${e.name}:${e.visibility.toFixed(3)}:${e.ring}`) };
+    out.occ.pickDuring = (() => { const a = during?.anchor; return a ? r.pickScene(a.x, a.y, 'select', { labelSlopPx: 0 })?.bodyName ?? null : null; })();
+    rover.modelContainer.remove(plate);
+    out.occ.after = (await ring2())?.occluded ?? null;
+    r.setLabelPinned('Europa Clipper', false);
+    r.setLabelVisible('Tiny', true);
     return out;
   });
   console.log('states', JSON.stringify(states));
@@ -211,6 +277,19 @@ try {
   assert.deepEqual(states.placeholderOff, { clipper: true, tiny: true }, 'legacy placeholder returns when glyphs are disabled');
   assert.deepEqual(states.placeholderBack, { clipper: false, tiny: false });
   assert.deepEqual(states.appDefault, states.appDefaultGlyphsOff, 'with minBodyPixels 0 the glyph changes no placeholder state');
+  // Label-coordinated LOD: no marker without the label that explains it; focus overrides.
+  assert.equal(states.lod.ordinaryWithLabel, true, 'a labelled ordinary entity shows its marker');
+  assert.equal(states.lod.ordinaryNoLabel, false, 'an ordinary entity whose label is gone has no marker');
+  assert.equal(states.lod.ordinaryBack, true, 'the marker returns with its label');
+  assert.equal(states.lod.focusNoLabelRing, 'selected', 'a selected entity keeps its locator even without a label');
+  assert.equal(states.lod.allLabelsOffOrdinary, 0, 'with labels disabled, no unexplained markers on ordinary entities');
+  assert.equal(states.lod.allLabelsOffFocus, 'selected', 'with labels disabled, the selected entity keeps its locator');
+  // Whole-glyph occlusion by a plate in front of the anchor.
+  assert.equal(states.occ.before, false);
+  assert.equal(states.occ.during.occluded, true, 'plate in front of the anchor hides the glyph');
+  assert.equal(states.occ.during.drawnSprites, 0, 'no part (dot or ring) of an occluded glyph is drawn');
+  assert.notEqual(states.occ.pickDuring, 'Europa Clipper', 'an occluded glyph is not pickable');
+  assert.equal(states.occ.after, false, 'the glyph returns when the plate is gone');
   await page.screenshot({ path: 'work/position-glyphs/wide-tracked.png' });
 
   assert.equal(errors.length, 0, errors.join('\n'));

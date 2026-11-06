@@ -21,6 +21,16 @@ import type { BodyMesh } from './BodyMesh.js';
 export const GLYPH_FULL_PX = 4;
 /** Projected radius (CSS px) from which the glyph is gone: the body is resolved. */
 export const GLYPH_GONE_PX = 12;
+/**
+ * Naturally drawn globes are their own marker as soon as their disk is visible
+ * at all, so the glyph hands off far earlier than for a model whose few pixels
+ * are easy to lose (a physical body must never wear a second, artificial
+ * "body" on top of its real disk).
+ */
+export const PHYSICAL_GLYPH_FULL_PX = 1;
+export const PHYSICAL_GLYPH_GONE_PX = 3;
+/** The selected/tracked ring leaves a physical disk even sooner: an open circle around a tiny disk reads as a second body. */
+export const PHYSICAL_RING_GONE_PX = 2;
 
 /** Solid dot diameter, CSS px. */
 const DOT_DIAMETER_PX = 3;
@@ -35,16 +45,47 @@ const HALO_PX = 1;
 const HALO_ALPHA = 0.7;
 const REST_OPACITY = 0.85;
 const HOVER_SCALE = 1.25;
+/** Per-frame easing of the LOD / terrain-occlusion factors, and the frames a terrain verdict must persist. */
+const VIS_RATE = 0.2;
+const TERRAIN_RATE = 0.3;
+const TERRAIN_DEBOUNCE_FRAMES = 2;
+/** Below this opacity a sprite is imperceptible and is not drawn at all. */
+const MIN_DRAW_OPACITY = 0.02;
+
+function ease(value: number, target: number, rate: number): number {
+  const next = value + (target - value) * rate;
+  return Math.abs(target - next) < 0.01 ? target : next;
+}
 
 export type GlyphRing = 'none' | 'selected' | 'tracked';
 type GlyphKind = 'dot' | 'selected' | 'tracked';
 
-/** 1 while the body is unresolved, easing to 0 as its projected extent grows. */
-export function glyphWeight(extentPx: number): number {
-  if (!(extentPx > GLYPH_FULL_PX)) return 1;
-  if (extentPx >= GLYPH_GONE_PX) return 0;
-  const t = (extentPx - GLYPH_FULL_PX) / (GLYPH_GONE_PX - GLYPH_FULL_PX);
+function bandWeight(extentPx: number, full: number, gone: number): number {
+  if (!(extentPx > full)) return 1;
+  if (extentPx >= gone) return 0;
+  const t = (extentPx - full) / (gone - full);
   return 1 - t * t * (3 - 2 * t);
+}
+
+/**
+ * 1 while the body is unresolved, easing to 0 as its projected extent grows.
+ * `physical` bodies (globes drawn at real scale) resolve much sooner than
+ * models/spacecraft.
+ */
+export function glyphWeight(extentPx: number, physical = false): number {
+  return physical
+    ? bandWeight(extentPx, PHYSICAL_GLYPH_FULL_PX, PHYSICAL_GLYPH_GONE_PX)
+    : bandWeight(extentPx, GLYPH_FULL_PX, GLYPH_GONE_PX);
+}
+
+/** Weight of the selected/tracked ring, which leaves a physical disk before the dot does. */
+export function ringWeight(extentPx: number, physical = false): number {
+  return physical ? bandWeight(extentPx, PHYSICAL_GLYPH_FULL_PX, PHYSICAL_RING_GONE_PX) : glyphWeight(extentPx);
+}
+
+/** Globes are drawn at real scale as physical bodies; everything else is a model or marker. */
+export function isPhysicalGlobe(bm: Pick<BodyMesh, 'body'>): boolean {
+  return bm.body.geometryType === 'Globe';
 }
 
 /**
@@ -128,8 +169,18 @@ export interface PositionGlyphReadout {
   hovered: boolean;
   /** Glyph's approximate pixel footprint (diameter, CSS px) — 0 when not drawn. */
   footprintPx: number;
-  /** Whether the anchor lies inside the canvas. Depth occlusion is applied on the GPU and is not reported. */
+  /** Whether the anchor lies inside the canvas. */
   onScreen: boolean;
+  /**
+   * Whole-glyph visibility, 0..1: the label-coordinated LOD decision, anchor
+   * occlusion by bodies and terrain, all eased. Dot and ring share it, so a
+   * glyph is drawn whole or not at all.
+   */
+  visibility: number;
+  /** The anchor is hidden behind a nearer body or terrain (glyph is not pickable). */
+  occluded: boolean;
+  /** The entity's label is deliberately shown (stable); focus entities show a glyph regardless. */
+  labelLegible: boolean;
 }
 
 export interface PositionGlyphContext {
@@ -138,12 +189,33 @@ export interface PositionGlyphContext {
   /** Device-pixel backing store, for texel-exact sizing. */
   device: { width: number; height: number; pixelRatio: number };
   isEligible: (bm: BodyMesh) => boolean;
+  /** Host-pinned (selected / highlighted); a transient hover pin must not count. */
   isPinned: (name: string) => boolean;
   trackedName: string | null;
   hoveredName: string | null;
+  /**
+   * The stable label decision for a body (null if it has no label). Ordinary
+   * entities get a glyph only while their label is legible, so a marker never
+   * outlives the label that explains it; selected/tracked entities do not need one.
+   */
+  labelState: (name: string) => { legible: boolean; occlusion: number } | null;
+  /**
+   * Whether terrain or reconstructed plates hide the entity's anchor. Asked
+   * only for glyphs that would otherwise draw. Spheres are covered by the
+   * label occlusion fade.
+   */
+  terrainOccluded?: (bm: BodyMesh) => boolean;
 }
 
 interface GlyphEntry {
+  /** In the LOD set this frame (drawn, or hidden only by anchor occlusion). */
+  active: boolean;
+  /** Eased 0..1 LOD visibility (label coordination / focus). */
+  vis: number;
+  /** Eased 0..1 terrain-occlusion factor and its debounce. */
+  terrainVis: number;
+  terrainTarget: number;
+  terrainPending: number;
   dot: THREE.Sprite;
   ring: THREE.Sprite;
   readout: PositionGlyphReadout;
@@ -154,7 +226,7 @@ const _corner = new THREE.Vector3();
 const _toCam = new THREE.Vector3();
 
 export class PositionGlyphs {
-  /** Add to the scene; sprites live on the overlay layer and depth-test against bodies. */
+  /** Add to the scene; sprites live on the overlay layer and are never depth-tested (see makeSprite). */
   readonly group = new THREE.Group();
   private readonly entries = new Map<string, GlyphEntry>();
   private textures: Record<GlyphKind, THREE.DataTexture> | null = null;
@@ -200,9 +272,10 @@ export class PositionGlyphs {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map,
       transparent: true,
-      // Depth-tested against the scene so a nearer body or terrain hides the
-      // glyph; depth writes off so it never occludes anything itself.
-      depthTest: true,
+      // Occlusion is decided once, for the anchor (label occlusion fade + terrain
+      // test), and applied to the whole glyph as opacity. A per-fragment depth
+      // test would let terrain slice an arbitrary crescent out of the symbol.
+      depthTest: false,
       depthWrite: false,
       sizeAttenuation: false,
       fog: false,
@@ -220,11 +293,13 @@ export class PositionGlyphs {
     let entry = this.entries.get(name);
     if (!entry) {
       entry = {
+        active: false, vis: 0, terrainVis: 1, terrainTarget: 1, terrainPending: 0,
         dot: this.makeSprite(textures.dot, 998),
         ring: this.makeSprite(textures.selected, 998),
         readout: {
           name, anchor: null, extentPx: Infinity, glyphWeight: 0,
           ring: 'none', hovered: false, footprintPx: 0, onScreen: false,
+          visibility: 0, occluded: false, labelLegible: false,
         },
       };
       this.group.add(entry.dot, entry.ring);
@@ -284,21 +359,49 @@ export class PositionGlyphs {
       }
 
       const extent = PositionGlyphs.extentPx(bm, camera, ctx.viewport);
-      const weight = glyphWeight(extent);
+      const physical = isPhysicalGlobe(bm);
+      const weight = glyphWeight(extent, physical);
       if (weight <= 0) {
         if (existing) this.hide(existing);
         continue;
       }
 
-      const entry = existing ?? this.entryFor(name, textures);
       const ring: GlyphRing = ctx.trackedName === name ? 'tracked' : ctx.isPinned(name) ? 'selected' : 'none';
       const hovered = ctx.hoveredName === name;
 
+      // LOD policy. A glyph is a navigation symbol tied to its label: ordinary
+      // entities show one only while their label is deliberately shown (a stable,
+      // hysteretic decision made by the label manager), so no unexplained marker
+      // is left behind at far zoom. Selected/tracked entities always keep their
+      // locator (their label is pinned by the label manager).
+      const label = ctx.labelState(name);
+      const focus = ring !== 'none';
+      const wantVis = focus || label?.legible ? 1 : 0;
+      let entry = existing;
+      if (!entry && wantVis === 0) continue;
+      entry = entry ?? this.entryFor(name, textures);
+      entry.vis = ease(entry.vis, wantVis, VIS_RATE);
+      if (wantVis === 0 && entry.vis === 0) { this.hide(entry); continue; }
+
+      // Anchor occlusion: the label's analytic body occlusion fade, plus terrain /
+      // plate tests for the few glyphs that would draw. Decided for the anchor and
+      // applied to the whole glyph; debounced so a rim grazing the anchor does not
+      // toggle it frame to frame.
+      let terrainWant = 1;
+      if (ctx.terrainOccluded && entry.vis > 0.02) terrainWant = ctx.terrainOccluded(bm) ? 0 : 1;
+      if (terrainWant !== entry.terrainTarget) {
+        if (++entry.terrainPending >= TERRAIN_DEBOUNCE_FRAMES) { entry.terrainTarget = terrainWant; entry.terrainPending = 0; }
+      } else entry.terrainPending = 0;
+      entry.terrainVis = ease(entry.terrainVis, entry.terrainTarget, TERRAIN_RATE);
+      const occlusion = label?.occlusion ?? 1;
+      entry.active = true;
+      const visibility = entry.vis * occlusion * entry.terrainVis;
+      const occluded = occlusion * entry.terrainVis < 0.5;
+
       // Anchor: the body's true scene position, nudged a few pixels toward the
-      // camera so terrain/model depth at the anchor itself (surface-locked
-      // assets sit exactly on the terrain) can't z-fight the sprite away. This
-      // moves only the sprite; the body, its trajectory and every query keep
-      // their exact positions.
+      // camera so a surface-locked asset sitting exactly on its parent's surface
+      // is not clipped by it. This moves only the sprite; the body, its
+      // trajectory and every query keep their exact positions.
       _toCam.copy(camera.position).sub(bm.position);
       const dist = _toCam.length();
       const worldPerPx = (2 * dist * halfFovTan) / Math.max(1, ctx.viewport.height);
@@ -307,19 +410,20 @@ export class PositionGlyphs {
       entry.ring.position.copy(entry.dot.position);
 
       const dotMat = entry.dot.material as THREE.SpriteMaterial;
-      dotMat.opacity = (hovered ? 1 : REST_OPACITY) * weight;
+      dotMat.opacity = (hovered ? 1 : REST_OPACITY) * weight * visibility;
       const dotScale = hovered ? HOVER_SCALE : 1;
       entry.dot.scale.set(
         (this.texSize.dot / pxPerScaleX) * dotScale,
         (this.texSize.dot / pxPerScaleY) * dotScale, 1);
-      entry.dot.visible = true;
+      entry.dot.visible = dotMat.opacity > MIN_DRAW_OPACITY;
 
-      if (ring === 'none') {
+      const ringAlpha = ring === 'none' ? 0 : (ring === 'tracked' ? 1 : 0.92) * ringWeight(extent, physical) * visibility;
+      if (ring === 'none' || ringAlpha <= MIN_DRAW_OPACITY) {
         entry.ring.visible = false;
       } else {
         this.setRingTexture(entry, ring);
         const ringMat = entry.ring.material as THREE.SpriteMaterial;
-        ringMat.opacity = (ring === 'tracked' ? 1 : 0.92) * weight;
+        ringMat.opacity = ringAlpha;
         const size = this.texSize[ring];
         entry.ring.scale.set(size / pxPerScaleX, size / pxPerScaleY, 1);
         entry.ring.visible = true;
@@ -335,8 +439,11 @@ export class PositionGlyphs {
       r.glyphWeight = weight;
       r.ring = ring;
       r.hovered = hovered;
-      r.footprintPx = (ring === 'none' ? DOT_DIAMETER_PX * dotScale
+      r.footprintPx = !entry.dot.visible ? 0 : (!entry.ring.visible ? DOT_DIAMETER_PX * dotScale
         : ring === 'tracked' ? TRACKED_RING_DIAMETER_PX : RING_DIAMETER_PX);
+      r.visibility = visibility;
+      r.occluded = occluded;
+      r.labelLegible = !!label?.legible;
       r.onScreen = !behind && x >= 0 && y >= 0 && x <= ctx.viewport.width && y <= ctx.viewport.height;
     }
   }
@@ -344,7 +451,10 @@ export class PositionGlyphs {
   private hide(entry: GlyphEntry): void {
     entry.dot.visible = false;
     entry.ring.visible = false;
+    entry.active = false;
+    entry.vis = 0; entry.terrainVis = 1; entry.terrainTarget = 1; entry.terrainPending = 0;
     const r = entry.readout;
+    r.visibility = 0; r.occluded = false; r.labelLegible = false;
     r.glyphWeight = 0;
     r.footprintPx = 0;
     r.anchor = null;
@@ -355,34 +465,32 @@ export class PositionGlyphs {
   /**
    * Nearest drawn glyph within `slopPx` of a canvas position (CSS px), so a
    * click on the point itself selects the entity just like its label does.
-   *
-   * The GPU depth test hides a glyph behind a nearer globe or terrain, so the
-   * pick must too: candidates are tried nearest first and any for which
-   * `isOccluded(name)` is true is skipped.
+   * A glyph whose anchor is occluded (and so is not drawn) is never a hit.
    */
-  pickNearest(screenX: number, screenY: number, slopPx: number, isOccluded?: (name: string) => boolean): string | null {
-    const slopSq = slopPx * slopPx;
-    const candidates: Array<{ name: string; d2: number }> = [];
+  pickNearest(screenX: number, screenY: number, slopPx: number): string | null {
+    let best: string | null = null;
+    let bestD = slopPx * slopPx;
     for (const [name, entry] of this.entries) {
       const r = entry.readout;
-      if (!entry.dot.visible || !r.anchor || r.glyphWeight < 0.3) continue;
+      if (!entry.dot.visible || !r.anchor || r.occluded || r.glyphWeight * r.visibility < 0.3) continue;
       const dx = r.anchor.x - screenX;
       const dy = r.anchor.y - screenY;
       const d2 = dx * dx + dy * dy;
-      if (d2 <= slopSq) candidates.push({ name, d2 });
+      if (d2 <= bestD) { bestD = d2; best = name; }
     }
-    candidates.sort((a, b) => a.d2 - b.d2);
-    for (const { name } of candidates) {
-      if (!isOccluded?.(name)) return name;
-    }
-    return null;
+    return best;
   }
 
-  /** Observable marker state for every entity currently drawn as a glyph (or fading out). */
+  /**
+   * Observable marker state for every entity in the glyph set: drawn, fading
+   * out, or hidden only because its anchor is occluded (`occluded: true`,
+   * `visibility` near 0). Depth occlusion by anything the analytic label fade and
+   * the terrain/plate test do not cover is not reported.
+   */
   readout(): PositionGlyphReadout[] {
     const out: PositionGlyphReadout[] = [];
     for (const entry of this.entries.values()) {
-      if (entry.dot.visible) out.push({ ...entry.readout, anchor: entry.readout.anchor && { ...entry.readout.anchor } });
+      if (entry.active) out.push({ ...entry.readout, anchor: entry.readout.anchor && { ...entry.readout.anchor } });
     }
     return out;
   }

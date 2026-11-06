@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  GLYPH_FULL_PX, GLYPH_GONE_PX, PositionGlyphs, glyphReplacesPlaceholder, glyphWeight, rasterizeGlyph, wantsGlyph,
+  GLYPH_FULL_PX, GLYPH_GONE_PX, PHYSICAL_GLYPH_GONE_PX, PHYSICAL_RING_GONE_PX, PositionGlyphs,
+  glyphReplacesPlaceholder, glyphWeight, ringWeight, rasterizeGlyph, wantsGlyph,
 } from '../PositionGlyphs.js';
 import type { BodyMesh } from '../BodyMesh.js';
 
@@ -40,8 +41,17 @@ function ctx(over: Partial<Parameters<PositionGlyphs['update']>[2]> = {}): Param
     viewport: CSS, device: device(),
     isEligible: (bm) => wantsGlyph(bm, false),
     isPinned: () => false, trackedName: null, hoveredName: null,
+    // Default: a labelled entity whose label is shown and not occluded.
+    labelState: () => ({ legible: true, occlusion: 1 }),
     ...over,
   };
+}
+
+type Ctx = Parameters<PositionGlyphs['update']>[2];
+
+/** Run enough frames for the eased visibility factors to settle. */
+function settle(g: PositionGlyphs, bodies: BodyMesh[], cam: THREE.PerspectiveCamera, c: Ctx, frames = 60): void {
+  for (let i = 0; i < frames; i++) g.update(bodies, cam, c);
 }
 
 /** Projected radius in px of a radius-r body at distance d for the test camera. */
@@ -255,21 +265,24 @@ describe('PositionGlyphs.update', () => {
     const g = new PositionGlyphs(2);
     const cam = camera();
     g.update([fakeBody('Clipper', new THREE.Vector3())], cam, ctx());
+    settle(g, [fakeBody('Clipper', new THREE.Vector3())], cam, ctx());
     const { anchor } = g.readout()[0];
     expect(g.pickNearest(anchor!.x + 4, anchor!.y, 6)).toBe('Clipper');
     expect(g.pickNearest(anchor!.x + 40, anchor!.y, 6)).toBeNull();
   });
 
-  it('skips an occluded glyph when picking (a nearer body hides it) and falls through to the next', () => {
+  it('does not pick a glyph whose anchor is occluded (and does not draw it)', () => {
     const g = new PositionGlyphs(2);
     const cam = camera();
     const hidden = fakeBody('Hidden', new THREE.Vector3(0, 0, -50)); // behind a foreground globe
     const visible = fakeBody('Visible', new THREE.Vector3(0.0001, 0, 0)); // a few px away, in front
-    g.update([hidden, visible], cam, ctx());
-    const { anchor } = g.readout().find((r) => r.name === 'Hidden')!;
-    expect(g.pickNearest(anchor!.x, anchor!.y, 6)).toBe('Hidden'); // no occlusion info: nearest wins
-    expect(g.pickNearest(anchor!.x, anchor!.y, 6, (n) => n === 'Hidden')).toBe('Visible');
-    expect(g.pickNearest(anchor!.x, anchor!.y, 6, () => true)).toBeNull();
+    const c = ctx({ labelState: (n) => ({ legible: true, occlusion: n === 'Hidden' ? 0 : 1 }) });
+    settle(g, [hidden, visible], cam, c);
+    const hiddenGlyph = g.readout().find((r) => r.name === 'Hidden');
+    expect(hiddenGlyph?.occluded ?? true).toBe(true);
+    expect(g.group.children.filter((o) => o.visible)).toHaveLength(1); // only Visible's dot is drawn
+    const a = g.readout().find((r) => r.name === 'Visible')!.anchor!;
+    expect(g.pickNearest(a.x, a.y, 6)).toBe('Visible');
   });
 
   it('keeps a surface-locked asset anchored on its surface point, nudged only toward the camera', () => {
@@ -306,5 +319,143 @@ describe('PositionGlyphs.update', () => {
     expect(g.group.children.length).toBe(sprites);
     g.dispose();
     expect(g.group.children.length).toBe(0);
+  });
+});
+
+describe('label-coordinated LOD (#337 live-testing feedback)', () => {
+  const sprites = (g: PositionGlyphs) => g.group.children as THREE.Sprite[];
+  const drawn = (g: PositionGlyphs) => sprites(g).filter((o) => o.visible).length;
+
+  it('an ordinary entity whose label is culled gets no glyph — no unexplained dots', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const sc = fakeBody('Far', new THREE.Vector3());
+    settle(g, [sc], cam, ctx({ labelState: () => ({ legible: false, occlusion: 1 }) }));
+    expect(g.readout()).toHaveLength(0);
+    expect(g.group.children).toHaveLength(0); // never even allocated
+    // Entities with no label at all are not marked either.
+    settle(g, [sc], cam, ctx({ labelState: () => null }));
+    expect(g.readout()).toHaveLength(0);
+  });
+
+  it('shows the glyph when the label is legible, and fades it with the label — no pop either way', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const sc = fakeBody('Clipper', new THREE.Vector3());
+    const alphas: number[] = [];
+    const op = () => (sprites(g)[0].material as THREE.SpriteMaterial).opacity;
+    const on = ctx({ labelState: () => ({ legible: true, occlusion: 1 }) });
+    const off = ctx({ labelState: () => ({ legible: false, occlusion: 1 }) });
+    for (let i = 0; i < 40; i++) { g.update([sc], cam, on); alphas.push(op()); }
+    const peak = alphas.at(-1)!;
+    expect(peak).toBeGreaterThan(0.8);
+    // Gradual rise: no frame-to-frame jump larger than a fraction of the range.
+    for (let i = 1; i < alphas.length; i++) expect(alphas[i] - alphas[i - 1]).toBeLessThan(peak * 0.3);
+    alphas.length = 0;
+    for (let i = 0; i < 60; i++) { g.update([sc], cam, off); alphas.push(op()); }
+    for (let i = 1; i < alphas.length; i++) {
+      expect(alphas[i]).toBeLessThanOrEqual(alphas[i - 1] + 1e-9); // monotone fade-out
+      expect(alphas[i - 1] - alphas[i]).toBeLessThan(peak * 0.3);
+    }
+    expect(g.readout()).toHaveLength(0); // gone, not lingering
+  });
+
+  it('a selected or tracked entity keeps its locator even when its label is culled or the entity is far', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const sc = fakeBody('Clipper', new THREE.Vector3());
+    const culled = { labelState: () => ({ legible: false, occlusion: 1 }) };
+    settle(g, [sc], cam, ctx({ ...culled, isPinned: () => true }));
+    expect(g.readout()[0].ring).toBe('selected');
+    expect(g.readout()[0].visibility).toBeGreaterThan(0.95);
+    settle(g, [sc], cam, ctx({ ...culled, isPinned: () => true, trackedName: 'Clipper' }));
+    expect(g.readout()[0].ring).toBe('tracked');
+    expect(g.readout()[0].visibility).toBeGreaterThan(0.95);
+    // Hover alone is not focus: with the label culled it earns nothing.
+    const g2 = new PositionGlyphs(2);
+    settle(g2, [sc], cam, ctx({ ...culled, hoveredName: 'Clipper' }));
+    expect(g2.readout()).toHaveLength(0);
+  });
+
+  it('draws the whole glyph or none: dot and ring share one visibility, and occlusion removes both', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const sc = fakeBody('Clipper', new THREE.Vector3());
+    const pinned = { isPinned: () => true, trackedName: 'Clipper' as string | null };
+    const op = (i: number) => (sprites(g)[i].material as THREE.SpriteMaterial).opacity;
+    for (const occlusion of [1, 0.7, 0.4, 0.1]) {
+      settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion }) }), 3);
+      if (sprites(g)[1].visible && sprites(g)[0].visible) {
+        // Same multiplier on both parts (ring base 1 for tracked, dot base 0.85).
+        expect(op(1) / 1).toBeCloseTo(op(0) / 0.85, 6);
+      }
+    }
+    settle(g, [sc], cam, ctx({ ...pinned, labelState: () => ({ legible: true, occlusion: 0 }) }));
+    expect(drawn(g)).toBe(0); // nothing left of either part
+    expect(g.readout().every((r) => r.occluded)).toBe(true);
+    const anchor = g.readout()[0]?.anchor ?? { x: 400, y: 300 };
+    expect(g.pickNearest(anchor.x, anchor.y, 20)).toBeNull();
+  });
+
+  it('terrain occlusion of the anchor is debounced and hides dot and ring together', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const rover = fakeBody('Rover', new THREE.Vector3());
+    const base = { isPinned: () => true };
+    let hidden = false;
+    const c = ctx({ ...base, terrainOccluded: () => hidden });
+    settle(g, [rover], cam, c);
+    expect(drawn(g)).toBe(2);
+    // A single frame of rim contact does not toggle the glyph.
+    hidden = true; g.update([rover], cam, c); hidden = false;
+    for (let i = 0; i < 10; i++) g.update([rover], cam, c);
+    expect(drawn(g)).toBe(2);
+    expect(g.readout()[0].occluded).toBe(false);
+    // A persistent occlusion hides both parts and makes the glyph unpickable.
+    hidden = true;
+    settle(g, [rover], cam, c);
+    expect(drawn(g)).toBe(0);
+    hidden = false;
+    settle(g, [rover], cam, c);
+    expect(drawn(g)).toBe(2);
+  });
+
+  it('physical globes hand off to their own disk far earlier than models; the ring leaves first', () => {
+    const cam = camera();
+    expect(glyphWeight(PHYSICAL_GLYPH_GONE_PX, true)).toBe(0);
+    expect(glyphWeight(PHYSICAL_GLYPH_GONE_PX, false)).toBeGreaterThan(0.9); // a model at 3px still needs it
+    expect(ringWeight(PHYSICAL_RING_GONE_PX, true)).toBe(0);
+    expect(ringWeight(PHYSICAL_RING_GONE_PX, true)).toBeLessThan(glyphWeight(PHYSICAL_RING_GONE_PX, true) + 1e-9);
+    // A Moon-like globe whose disk is ~5px: no marker at all, even when selected/tracked.
+    const px = (r: number, d: number) => r / (2 * Math.tan((50 * Math.PI / 180) / 2) * d) * CSS.height;
+    const radius = 5 / px(1, 100);
+    const moon = fakeBody('Moon', new THREE.Vector3(), { displayRadius: radius, classification: 'moon', geometryType: 'Globe' });
+    const g = new PositionGlyphs(2);
+    settle(g, [moon], cam, ctx({ isPinned: () => true, trackedName: 'Moon' }));
+    expect(g.readout()).toHaveLength(0);
+    // The same extent for a spacecraft model still gets its glyph.
+    const sat = fakeBody('Sat', new THREE.Vector3(), { displayRadius: radius });
+    settle(g, [sat], cam, ctx({}));
+    expect(g.readout().map((r) => r.name)).toEqual(['Sat']);
+  });
+
+  it('is stable under a slow zoom: no flicker, and the glyph never reappears after resolving', () => {
+    const g = new PositionGlyphs(2);
+    const cam = camera();
+    const px = (r: number, d: number) => r / (2 * Math.tan((50 * Math.PI / 180) / 2) * d) * CSS.height;
+    const radius = 1 / px(1, 100);
+    let state: 'shown' | 'gone' = 'shown';
+    let prev = -1;
+    for (let extentPx = 0.5; extentPx <= 16; extentPx += 0.05) {
+      const sc = fakeBody('Sat', new THREE.Vector3(), { displayRadius: radius * extentPx });
+      for (let k = 0; k < 3; k++) g.update([sc], cam, ctx({}));
+      const r = g.readout()[0];
+      const a = r ? r.visibility * r.glyphWeight : 0;
+      if (a === 0 && state === 'shown' && extentPx > GLYPH_GONE_PX) state = 'gone';
+      if (state === 'gone') expect(a).toBe(0);
+      if (prev >= 0 && extentPx > GLYPH_FULL_PX + 0.5) expect(a).toBeLessThanOrEqual(prev + 1e-6); // non-increasing once resolving
+      prev = a;
+    }
+    expect(state).toBe('gone');
   });
 });

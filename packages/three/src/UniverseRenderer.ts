@@ -1265,6 +1265,7 @@ export class UniverseRenderer {
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
+      this.labelManager.setTrackedName(this.cameraController.trackedBody?.body.name ?? null);
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this.labelManager.update(
         bodyMeshArr,
@@ -1283,10 +1284,12 @@ export class UniverseRenderer {
       }
     }
 
-    // Position glyphs read the same final camera and pinned/tracked/hover state
-    // as the labels, so marker and label agree on the anchor.
+    // Position glyphs read the same final camera and the label manager's stable
+    // label decisions, so a marker is shown only while its label explains it
+    // (selected/tracked entities always keep both) and shares its anchor.
     if (this._positionGlyphsEnabled) {
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
+      this._terrainOccluders = null;
       this.positionGlyphs.update(bodyMeshArr, this.camera, {
         viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
         device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
@@ -1294,6 +1297,8 @@ export class UniverseRenderer {
         isPinned: (name) => this.labelManager?.isLabelPinnedByHost(name) ?? false,
         trackedName: this.cameraController.trackedBody?.body.name ?? null,
         hoveredName: this._hoveredBody,
+        labelState: (name) => this.labelManager?.getLabelState(name) ?? null,
+        terrainOccluded: (bm) => this._glyphTerrainOccluded(bm),
       });
     } else this.positionGlyphs.group.visible = false;
 
@@ -5036,7 +5041,7 @@ export class UniverseRenderer {
     return this.labelManager.pickNearest(
       screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
     ) ?? (this._positionGlyphsEnabled
-      ? this.positionGlyphs.pickNearest(screenX, screenY, 6, (name) => this._glyphOccluded(name))
+      ? this.positionGlyphs.pickNearest(screenX, screenY, 6)
       : null);
   }
 
@@ -5071,28 +5076,42 @@ export class UniverseRenderer {
     return { meshTargets, terrainOwner };
   }
 
+  private _terrainOccluders: THREE.Object3D[] | null = null;
+
   /**
-   * Whether a nearer body or terrain hides this entity's position glyph from
-   * the camera: the pick-time twin of the GPU depth test that hides the sprite.
-   * Hits within a few pixels of the glyph's own depth are not occluders, so a
-   * surface-locked asset standing on its parent's terrain stays pickable.
+   * Whether streamed terrain or reconstructed (DSK) plates hide an entity's
+   * anchor from the camera. Bodies' globes are handled analytically by the
+   * label occlusion fade; this covers relief that a sphere cannot (a crater rim
+   * in front of a rover). It is asked once per drawn glyph per frame, about the
+   * anchor only, so the whole symbol is shown or hidden together. Hits within a
+   * few pixels (or a small fraction of the range) of the anchor itself are not
+   * occluders, so an asset standing on terrain is not hidden by it.
    */
-  private _glyphOccluded(name: string): boolean {
-    const bm = this.bodyMeshes.get(name);
+  private _glyphTerrainOccluded(bm: BodyMesh): boolean {
     const ray = this._dblClickRaycaster;
-    if (!bm || !ray) return false;
+    if (!ray) return false;
+    if (!this._terrainOccluders) {
+      const targets: THREE.Object3D[] = [];
+      for (const other of this.bodyMeshes.values()) {
+        if (!other.visible) continue;
+        targets.push(...other.getDskMeshes());
+        const terrain = other.terrainTileGroup;
+        if (terrain && terrain.visible) targets.push(terrain);
+      }
+      this._terrainOccluders = targets;
+    }
+    if (this._terrainOccluders.length === 0) return false;
     const origin = this.camera.position;
     const toBody = _tmpGlyphRay.copy(bm.position).sub(origin);
     const dist = toBody.length();
     if (!(dist > 0)) return false;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
     const worldPerPx = (2 * dist * halfFovTan) / Math.max(1, this.renderer.domElement.clientHeight);
-    const { meshTargets } = this._pickTargets(name);
     const savedNear = ray.near, savedFar = ray.far;
     ray.set(origin, toBody.divideScalar(dist));
     ray.near = 0;
-    ray.far = Math.max(0, dist - 6 * worldPerPx);
-    const hit = ray.intersectObjects(meshTargets, true).length > 0;
+    ray.far = Math.max(0, dist - Math.max(8 * worldPerPx, 0.02 * dist));
+    const hit = ray.intersectObjects(this._terrainOccluders, true).length > 0;
     ray.near = savedNear; ray.far = savedFar;
     return hit;
   }
