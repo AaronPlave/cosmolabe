@@ -97,6 +97,8 @@ class SurfacePlannerState {
   selectedFidelity = $state.raw<Record<string, SurfaceFidelityAssessment> | null>(null);
   /** Diagnostics from the last discovery/estimate run, or why it could not run. */
   problems = $state.raw<SurfacePlanDiagnostic[]>([]);
+  /** Why core refuses to lock the current selection, from the last run; null when it locks (or nothing is selectable). */
+  lockProblem = $state<string | null>(null);
   /** Region in focus: its candidates and coverage are the only ones drawn. */
   focused = $state<string | null>(null);
   focusChannel = $state<SurfaceChannel>('imagery');
@@ -354,6 +356,59 @@ export function selectionChanged(): boolean {
   return planner.lockedSelections !== null ? planner.lockedSelections !== selectionKey() : Object.keys(planner.choice).length > 0;
 }
 
+/**
+ * Whether a candidate is shown by its own discovery evidence to satisfy the
+ * request on every requested channel, with one primary reason. Rank order is
+ * not suitability: the top-ranked candidate can still be unproven.
+ */
+export function combinationSuitability(alt: SurfaceSourceCombination, channels: SurfaceChannel[]): { demonstrated: boolean; reason: string } {
+  for (const c of channels) {
+    const ch = alt.channels[c], name = c === 'imagery' ? 'imagery' : 'terrain';
+    if (!ch?.sourceIds.length) return { demonstrated: false, reason: `No ${name} source in this combination.` };
+    const cov = ch.coverage;
+    if (cov.status === 'verified-empty') return { demonstrated: false, reason: `The selected ${name} products do not cover the region.` };
+    if (cov.status === 'unknown' || cov.unknownFraction > 0) {
+      return { demonstrated: false, reason: `${name[0].toUpperCase()}${name.slice(1)} footprints overlap, but valid-pixel coverage${ch.unknownGsdSourceIds.length ? ' and resolution are' : ' is'} not established.` };
+    }
+    if (ch.unknownGsdSourceIds.length) return { demonstrated: false, reason: `Native ${name} resolution is not established.` };
+    if (cov.targetVerifiedFraction < 0.999999) {
+      return { demonstrated: false, reason: `Valid ${name} pixels confirmed, but the requested sampling is met over only ${Math.floor(cov.targetVerifiedFraction * 100)}% of the region.` };
+    }
+  }
+  if (alt.compatibility !== 'evidenced') return { demonstrated: false, reason: 'Coverage and sampling are met, but registration compatibility is not evidenced.' };
+  return { demonstrated: true, reason: 'Valid pixels at the requested sampling are confirmed over the region (discovery metadata; a lock is still validated separately).' };
+}
+
+/**
+ * Where the plan stands on the path region → targets → evidence → export.
+ * `sources`: none loaded, loaded but some region's chosen candidate unproven,
+ * every chosen candidate demonstrated, or a held (imported) lock.
+ */
+export function plannerProgress() {
+  void planner.revision;
+  const plan = planner.plan;
+  if (!plan) return null;
+  const pairs = plan.regions.flatMap(r => surfaceRegionChannels(r).map(c => [r.id, c] as const));
+  const unproven = planner.importedLock || planner.sources.kind !== 'inventory' ? [] : plan.regions.filter(r => {
+    const alt = chosenAlternative(r.id);
+    return !alt || !combinationSuitability(alt, surfaceRegionChannels(r)).demonstrated;
+  }).map(r => r.id);
+  const unselectedRegions = planner.importedLock || planner.sources.kind !== 'inventory' ? []
+    : [...new Set(pairs.filter(([r, c]) => !selectedSourceIds(r, c)?.length).map(([r]) => r))];
+  return {
+    regions: plan.regions.length,
+    desired: !plan.regions.length ? 'empty' as const : planner.base && !planChanges()?.dirty ? 'saved' as const : 'unsaved' as const,
+    sources: planner.importedLock ? 'locked' as const : planner.sources.kind !== 'inventory' ? 'none' as const : unproven.length ? 'unproven' as const : 'demonstrated' as const,
+    unprovenRegions: unproven,
+    /** Regions with a requested channel that has no chosen source. */
+    unselectedRegions,
+    /** Why core refuses the lock, once every channel has a source. */
+    lockProblem: unselectedRegions.length ? null : planner.lockProblem,
+    /** Every region's channels have a chosen source and core validated the lock on the last run. */
+    lockable: pairs.length > 0 && (!!planner.importedLock || (planner.sources.kind === 'inventory' && !unselectedRegions.length && !planner.lockProblem)),
+  };
+}
+
 /** Whether a region's channel is already built or published, per the loaded build feedback. */
 export function regionBuildStatus(regionId: string, channel: SurfaceChannel) {
   void planner.revision;
@@ -432,7 +487,10 @@ export async function run(): Promise<void> {
     estimate = await estimateSurfacePlan(plan, { sources: estimatorSources(report) });
     if (hasRegionSelection()) selectedFidelity = await surfaceSelectedFidelity(plan, id => descriptorsFor(regionSelection(id), report));
   } catch (e) { problems.push({ severity: 'error', code: 'estimate-failed', path: '$', message: describe(e) }); }
+  let lockProblem: string | null = null;
+  if (hasRegionSelection()) try { await lockText(); } catch (e) { lockProblem = describe(e); }
   if (token !== runToken) return;
+  planner.lockProblem = lockProblem;
   planner.estimate = estimate;
   planner.selectedFidelity = selectedFidelity;
   planner.problems = problems;

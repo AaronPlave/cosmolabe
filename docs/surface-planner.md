@@ -10,11 +10,24 @@ Surface layers stays in charge of everyday visibility, styling and probing.
 
 ## Workflow
 
+The panel leads with the plan's status — *Desired plan saved / not saved*,
+*No sources loaded / Sources not validated / Sources meet request*, and *Lock
+exportable / not exportable* — and one suggested next action: draw a region,
+export the desired plan, load an inventory, or export a lock. Export buttons
+sit there rather than only in the `…` menu. When a lock is not exportable the
+panel names the regions with no chosen source, or core's refusal, which is
+checked on every re-estimate rather than only on export. Advanced region
+controls (maximum source error, priority, fallback), per-candidate evidence
+numbers and warnings, per-region fidelity, object counts, work disk and the
+budget comparisons are behind disclosures.
+
 1. **Start.** Pick a body and choose *New plan*, open an existing desired or
    locked plan, or load the *Jezero example*. The body summary shows its
    reference shape and frame, how many imagery layers are configured, and
    whether measured terrain is loaded or only the reference shape is
-   (absence of a DEM is a normal starting point, not an error). Bodies without
+   (absence of a DEM is a normal starting point, not an error). This current
+   scene is a read-only baseline: a plan changes nothing in it, and displayed
+   tiles are never treated as assessed source coverage. Bodies without
    an evidenced sphere/oblate reference shape show a blocked-georegistration
    explanation; no coordinates are invented.
 2. **Regions.** Select any polygon — a catalog layer, an imported GeoJSON
@@ -42,7 +55,11 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    coverage is reported as unknown and the estimate is geometry-only. For the
    focused region, up to three ranked combinations are listed per channel with
    confirmed-valid / unknown / gap fractions, target fit, download size and
-   registration/datum/illumination warnings. Choosing one feeds the estimate.
+   registration/datum/illumination warnings. Rank is not suitability: each
+   candidate is labeled *meets the request* only when valid pixels, target
+   sampling and registration are all evidenced, and otherwise *suitability
+   unverified* with one primary reason (e.g. footprints overlap but valid-pixel
+   coverage is not established). Choosing one feeds the estimate.
    Optionally load a #251 build's `planner-feedback.json` (contract v1): each
    focused region then shows, per channel, whether a published product already
    suffices, is published but its fit is not proved, was built but not
@@ -61,8 +78,10 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    refused. Without feedback this is *unknown*, never absent.
 5. **Estimate and budget.** The #248 estimator reports imagery and physical
    terrain separately: area, hosted bytes and objects, raw download, peak work
-   disk, fidelity (adequate / unknown / short area) and an optional
-   published-byte budget with its bounded 2×/4× coarsening comparisons. The
+   disk, fidelity (adequate / unknown / short area) and an optional output
+   budget. The output budget limits published (hosted) bytes only; *Source
+   download (input)* is acquisition cost and is not counted against it. The
+   budget has bounded 2×/4× coarsening comparisons. The
    comparisons never change the authored plan. With per-region selections
    (an inventory or a held lock) fidelity is assessed per region from only
    that region's selected sources; a source chosen for one region never
@@ -82,8 +101,8 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    bytes and runtime bindings. On export the panel reports which of these the
    lock lacks, as far as the planner can check; bytes and bindings are verified
    only by the executor. An imported lock re-exports unchanged until its plan, its
-   sources or its selection change. *Unsaved changes* and per-region dots mark
-   desired-plan edits since the last import or export; *Sources not locked*
+   sources or its selection change. Per-region dots mark desired-plan edits
+   since the last import or export; *Lock exportable · choice not locked*
    marks a source choice that differs from the last locked plan.
 
 ## On the globe

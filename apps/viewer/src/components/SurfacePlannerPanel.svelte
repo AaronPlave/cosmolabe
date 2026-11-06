@@ -16,8 +16,8 @@
   import { vs } from '../lib/viewer-state.svelte';
   import { geo } from '../lib/geographic-layers.svelte';
   import {
-    PLANNER_LEGEND, addSelectedRegion, cancelDrawRegion, chooseAlternative, chosenAlternative, clearFeedback, clearSources, closePlan, drawRegion, exportDesired,
-    exportLock, focusRegion, importPlannerText, loadJezeroExample, planChanges, planner, plannerBodies, plannerBodyStatus,
+    PLANNER_LEGEND, addSelectedRegion, cancelDrawRegion, chooseAlternative, chosenAlternative, clearFeedback, clearSources, closePlan, combinationSuitability,
+    drawRegion, exportDesired, exportLock, focusRegion, importPlannerText, loadJezeroExample, planChanges, planner, plannerBodies, plannerBodyStatus, plannerProgress,
     refreshRegion, regionAlternatives, regionBuildStatus, regionDrifted, regionRefusal, removeRegion, selectedSourceFeature,
     selectionChanged, setBudget, setFocusChannel, setPolicy, startPlan, updateRegion, installOverlay,
   } from '../lib/surface-planner.svelte';
@@ -38,6 +38,10 @@
   let focused = $derived(plan?.regions.find((r) => r.id === planner.focused) ?? null);
   let estimate = $derived((void planner.revision, planner.estimate));
   let unlockedChoice = $derived(selectionChanged());
+  let progress = $derived((void planner.revision, plannerProgress()));
+  /** The one action the panel suggests next. */
+  let next = $derived<'draw' | 'desired' | 'sources' | 'lock' | null>(!progress ? null : !progress.regions ? 'draw'
+    : progress.desired !== 'saved' ? 'desired' : progress.sources === 'none' ? 'sources' : progress.lockable && (progress.sources === 'demonstrated' || (progress.sources === 'locked' && unlockedChoice)) ? 'lock' : null);
 
   let fileInput = $state<HTMLInputElement | null>(null);
   async function openFile(e: Event) {
@@ -109,6 +113,9 @@
     published: 'Published product suffices', 'published-unproven': 'Published; fit not proved', built: 'Built, not published',
     coarser: 'Built below target', 'needs-build': 'Needs a new build', unknown: 'Unknown',
   };
+  const sourcesChip: Record<string, string> = {
+    none: 'No sources loaded', unproven: 'Sources not validated', demonstrated: 'Sources meet request (metadata)', locked: 'Imported lock',
+  };
   const coverageLabel: Record<string, string> = {
     'verified-complete': 'Valid pixels confirmed over the whole region', 'verified-partial': 'Valid pixels confirmed over part of the region',
     unknown: 'Footprints overlap; pixel validity unknown', 'verified-empty': 'Selected products do not cover the region',
@@ -138,20 +145,18 @@
   {:else}
     <div class="plan-head">
       <span class="ui-section-label">{plan.body} plan</span>
-      {#if changes?.dirty}<span class="badge dirty" title="Desired plan changed since the last import or export">Unsaved changes</span>
-      {:else if unlockedChoice}<span class="badge dirty" title="Source selection differs from the last locked plan">Sources not locked</span>
-      {:else if planner.base}<span class="badge">Saved</span>{/if}
       <span class="spacer"></span>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger class="icon-action" aria-label="Plan actions" title="Plan actions"><Ellipsis size={14} /></DropdownMenu.Trigger>
         <DropdownMenu.Content align="end">
           <DropdownMenu.Item disabled={!plan.regions.length} onSelect={exportDesired}>Export desired plan…</DropdownMenu.Item>
           <DropdownMenu.Item disabled={!plan.regions.length} onSelect={() => void exportLock()}>Export locked plan…</DropdownMenu.Item>
-          <DropdownMenu.Item onSelect={() => fileInput?.click()}>Open plan or sources…</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={() => fileInput?.click()}>Open plan, sources or build feedback…</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={closePlan}>Close plan</DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Root>
     </div>
+    {#if progress}{@render progressView(progress)}{/if}
     {#if status}{@render bodyStatus()}{/if}
 
     <!-- Regions -->
@@ -197,7 +202,7 @@
         {/if}
       </div>
       {#if planner.sources.kind === 'none'}
-        <p class="ui-helper text-text-muted">No source inventory loaded. Coverage is <strong>unknown</strong>, not absent; the estimate is geometry-only.</p>
+        <p class="ui-helper text-text-muted">No source inventory loaded. The scene's configured layers are display data, not assessed sources: coverage is <strong>unknown</strong>, not absent, and the estimate is geometry-only.</p>
         <button class="text-link ui-meta" onclick={() => fileInput?.click()}>Load an inventory or source descriptors…</button>
       {:else}
         <p class="ui-meta text-text-muted source-label">
@@ -207,10 +212,9 @@
         {#if planner.sources.kind === 'inventory' && focused}{@render alternatives(focused)}
         {:else if planner.sources.kind === 'inventory'}<p class="ui-helper text-text-muted">Focus a region to compare its candidate sources.</p>{/if}
       {/if}
-      <p class="ui-meta text-text-muted source-label">
-        {#if planner.feedback}Build feedback: {planner.feedback.label} <button class="text-link" onclick={clearFeedback}>Clear</button>
-        {:else}No build feedback loaded: whether a published product exists is unknown. <button class="text-link" onclick={() => fileInput?.click()}>Load planner-feedback.json…</button>{/if}
-      </p>
+      {#if planner.feedback}
+        <p class="ui-meta text-text-muted source-label">Build feedback: {planner.feedback.label} <button class="text-link" onclick={clearFeedback}>Clear</button></p>
+      {/if}
     </section>
 
     <!-- Estimate -->
@@ -223,7 +227,7 @@
       {:else if plan.regions.length}<p class="ui-helper text-text-muted">{planner.busy ? 'Estimating…' : 'No estimate.'}</p>
       {:else}<p class="ui-helper text-text-muted">Add a region to estimate sizes.</p>{/if}
       <div class="field inline">
-        <label class="ui-label" for="planner-budget">Published budget (MB)</label>
+        <label class="ui-label" for="planner-budget" title="Limits the published (hosted) output, not source downloads">Output budget (MB)</label>
         <input id="planner-budget" type="number" min="1" step="1" class={fieldClass} value={plan.budget ? plan.budget.publishedBytes / 1e6 : ''} placeholder="None" onchange={budgetInput} />
       </div>
     </section>
@@ -235,7 +239,7 @@
       </details>
     {/if}
   {/if}
-  {#if planner.message}<p class="ui-helper message" role="status">{planner.message}</p>{/if}
+  {#if planner.message && !plan}<p class="ui-helper message" role="status">{planner.message}</p>{/if}
   <input bind:this={fileInput} type="file" accept=".json,application/json" class="hidden" onchange={openFile} />
 </InstrumentPanel>
 
@@ -245,9 +249,10 @@
       <dt>Georegistration</dt><dd class="warn">Blocked — {status!.blocked}</dd>
     {:else}
       <dt>Reference</dt><dd>{status!.referenceShape} · {plan?.frame ?? status!.frame}</dd>
-      <dt>Configured</dt>
+      <dt>Current scene</dt>
       <dd>{status!.imageryLayers} imagery {status!.imageryLayers === 1 ? 'layer' : 'layers'} ·
-        {status!.measuredTerrain ? 'measured terrain loaded' : 'reference shape only (no measured relief)'}</dd>
+        {status!.measuredTerrain ? 'measured terrain loaded' : 'reference shape only (no measured relief)'}
+        <br /><span class="text-text-muted">Read-only baseline: a plan changes nothing in the scene.</span></dd>
     {/if}
   </dl>
 {/snippet}
@@ -279,6 +284,13 @@
       {#if region.elevation}
         <label class="ui-label" for="dem-{region.id}">Terrain GSD (m)</label>
         <input id="dem-{region.id}" type="number" min="0" step="any" class={fieldClass} value={region.elevation.gsdM} onchange={(e) => setGsd(region, 'elevation', e)} />
+      {/if}
+    </div>
+    <p class="ui-meta text-text-muted">Requested output sampling, not achieved source accuracy.</p>
+    <details class="advanced">
+      <summary class="ui-meta">Advanced</summary>
+      <div class="grid">
+      {#if region.elevation}
         <label class="ui-label" for="acc-{region.id}" title="Maximum physical source uncertainty; not mesh error or pixel size">Max source error (m)</label>
         <input id="acc-{region.id}" type="number" min="0" step="any" placeholder="Any" class={fieldClass} value={region.elevation.accuracyM ?? ''} onchange={(e) => setAccuracy(region, e)} />
       {/if}
@@ -291,14 +303,16 @@
         <option value="allow-coarser">Allow coarser</option>
         <option value="leave-unavailable">Leave unavailable</option>
       </select>
-    </div>
-    <p class="ui-meta text-text-muted">Requested output sampling, not achieved source accuracy.</p>
+      </div>
+    </details>
+    {#if planner.feedback}
     <dl class="estimate ui-meta" aria-label="Built products">
       {#each surfaceRegionChannels(region) as c (c)}
         {@const b = regionBuildStatus(region.id, c)}
         {#if b}<dt>{c === 'imagery' ? 'Built imagery' : 'Built terrain'}</dt><dd data-build={b.status} title={b.detail}>{buildLabel[b.status]}<br /><span class="text-text-muted">{b.detail}</span></dd>{/if}
       {/each}
     </dl>
+    {/if}
     <div class="actions end">
       <button class="text-link ui-meta danger" onclick={() => removeRegion(region.id)}><Trash2 size={12} /> Remove region</button>
     </div>
@@ -322,28 +336,32 @@
     <ol class="alternatives" aria-label="Source combinations for {region.id}">
       {#each list as alt, i (alt.id)}
         {@const ch = alt.channels[planner.focusChannel]}
+        {@const fit = combinationSuitability(alt, channels)}
         <li>
           <label class="alt" class:on={alt === chosen}>
             <input type="radio" name="alt-{region.id}" checked={alt === chosen} onchange={() => chooseAlternative(region.id, i)} />
             <span class="alt-body">
-              <span class="alt-title">{i === 0 ? 'Recommended' : `Alternative ${i}`} · {alt.compatibility === 'evidenced' ? 'registration evidenced' : 'unverified'}</span>
+              <span class="alt-title">{i === 0 ? 'Top-ranked' : `Alternative ${i}`} · <span data-fit={fit.demonstrated}>{fit.demonstrated ? 'meets the request' : 'suitability unverified'}</span></span>
+              <span class="ui-meta">{fit.reason}</span>
               {#if ch}
-                <span class="ui-meta">{ch.sourceIds.length ? ch.sourceIds.join(', ') : 'No source'}</span>
+                {#if ch.sourceIds.length}<span class="ui-meta">{ch.sourceIds.join(', ')}</span>{/if}
                 <span class="bar" aria-hidden="true">
                   <span style:width={pct(ch.coverage.verifiedFraction)} style:background={PLANNER_LEGEND[2].color}></span>
                   <span style:width={pct(ch.coverage.unknownFraction)} style:background={PLANNER_LEGEND[3].color}></span>
                   <span style:width={pct(ch.coverage.gapFraction)} style:background={PLANNER_LEGEND[4].color}></span>
                 </span>
-                <span class="ui-meta">{coverageLabel[ch.coverage.status]} — {pct(ch.coverage.verifiedFraction)} valid, {pct(ch.coverage.unknownFraction)} unknown, {pct(ch.coverage.gapFraction)} gap;
-                  target met over {pct(ch.coverage.targetVerifiedFraction)} (requested {meters(ch.requestedGsdM)}{ch.coarserSourceIds.length ? `; coarser: ${ch.coarserSourceIds.length}` : ''}{ch.unknownGsdSourceIds.length ? `; unknown sampling: ${ch.unknownGsdSourceIds.length}` : ''})</span>
               {:else}
                 <span class="ui-meta">This combination has no {planner.focusChannel} source.</span>
               {/if}
-              <span class="ui-meta">Download {range(alt.cost.downloadBytes)}</span>
-              {#if alt.warnings.length}
-                <details class="warnings"><summary class="ui-meta">{alt.warnings.length} warnings</summary>
-                  <ul>{#each alt.warnings as w (w)}<li class="ui-meta">{w}</li>{/each}</ul></details>
-              {/if}
+              <span class="ui-meta" title="Input acquisition; separate from the output budget">Source download (input): {range(alt.cost.downloadBytes)}</span>
+              <details class="warnings"><summary class="ui-meta">Evidence details{alt.warnings.length ? ` · ${alt.warnings.length} warnings` : ''}</summary>
+                {#if ch}
+                  <p class="ui-meta">{coverageLabel[ch.coverage.status]} — {pct(ch.coverage.verifiedFraction)} valid, {pct(ch.coverage.unknownFraction)} unknown, {pct(ch.coverage.gapFraction)} gap;
+                    target met over {pct(ch.coverage.targetVerifiedFraction)} (requested {meters(ch.requestedGsdM)}{ch.coarserSourceIds.length ? `; coarser: ${ch.coarserSourceIds.length}` : ''}{ch.unknownGsdSourceIds.length ? `; unknown sampling: ${ch.unknownGsdSourceIds.length}` : ''})</p>
+                {/if}
+                <p class="ui-meta">Registration {alt.compatibility === 'evidenced' ? 'evidenced' : 'unverified'}.</p>
+                {#if alt.warnings.length}<ul>{#each alt.warnings as w (w)}<li class="ui-meta">{w}</li>{/each}</ul>{/if}
+              </details>
             </span>
           </label>
         </li>
@@ -351,12 +369,14 @@
     </ol>
   {/if}
   <label class="ui-meta check"><input type="checkbox" checked={planner.showCoverage} onchange={(e) => { planner.showCoverage = (e.currentTarget as HTMLInputElement).checked; installOverlay(); }} /> Show this combination on the globe</label>
-  <ul class="legend" aria-label="Legend">
-    {#each PLANNER_LEGEND as item (item.id)}
-      <li class="ui-meta" title={item.detail}><span class="key" style:background={item.color}></span>{item.label}</li>
-    {/each}
-  </ul>
-  <p class="ui-meta text-text-muted">Built products come only from loaded build feedback; loaded renderer tiles are not shown.</p>
+  <details class="warnings"><summary class="ui-meta">Legend</summary>
+    <ul class="legend" aria-label="Legend">
+      {#each PLANNER_LEGEND as item (item.id)}
+        <li class="ui-meta" title={item.detail}><span class="key" style:background={item.color}></span>{item.label}</li>
+      {/each}
+    </ul>
+    <p class="ui-meta text-text-muted">Built products come only from loaded build feedback; tiles displayed in the scene are not treated as sources.</p>
+  </details>
 {/snippet}
 
 {#snippet estimateView()}
@@ -364,31 +384,71 @@
   {@const t = e.totals}
   <dl class="estimate ui-meta">
     {#each (['imagery', 'elevation'] as const) as c (c)}
-      {#if t[c].areaM2 > 0}
-        <dt>{c === 'imagery' ? 'Imagery' : 'Physical terrain'}</dt>
-        <dd>{area(t[c].areaM2)} · {range(t[c].publishedBytes)} · {range(t[c].objects, count)} objects
-          {#if planner.selectedFidelity}
-            {#each plan!.regions.filter((r) => r[c] && planner.selectedFidelity![r.id]) as r (r.id)}<br /><span class="text-text-muted">{r.id} (selected sources): {fidelityText(planner.selectedFidelity[r.id], c)}</span>{/each}
-          {:else}
-            <br /><span class="text-text-muted" title="Pools every loaded descriptor across regions; not a per-region selection">{planner.sources.kind === 'none' ? 'No sources loaded' : 'Any loaded source'}: {fidelityText(e.fidelity, c)}</span>
-          {/if}</dd>
-      {/if}
+      {#if t[c].areaM2 > 0}<dt>{c === 'imagery' ? 'Imagery' : 'Physical terrain'}</dt><dd>{area(t[c].areaM2)} · output {range(t[c].publishedBytes)}</dd>{/if}
     {/each}
     {#if t.elevation.areaM2 === 0}<dt>Physical terrain</dt><dd class="text-text-muted">Not requested — no elevation inputs or work.</dd>{/if}
-    <dt>Hosted</dt><dd>{range(t.publishedBytes)} · {range(t.publishedObjects, count)} objects</dd>
-    <dt>Download</dt><dd>{range(t.rawSourceDownloadBytes)}{e.sourceDownload.unknownSizeIds.length ? ` · ${e.sourceDownload.unknownSizeIds.length} sizes unknown` : ''}</dd>
-    <dt>Work disk</dt><dd>{range(t.peakWorkDiskBytes)}</dd>
+    <dt>Published output</dt><dd>{range(t.publishedBytes)}</dd>
     {#if e.budget}
-      <dt>Budget</dt>
-      <dd data-budget={e.budget.status}>{e.budget.status === 'within' ? 'Within' : e.budget.status === 'over' ? 'Over' : 'Uncertain'} {bytes(e.budget.publishedBytes)}
-        {#each e.budget.comparisons as cmp (cmp.gsdMultiplier)}
-          <br /><span class="text-text-muted">If {cmp.regionIds.join(', ')} were {cmp.gsdMultiplier}× coarser: {range(cmp.publishedBytes)} ({cmp.status}). Comparison only; the plan is unchanged.</span>
-        {/each}
-      </dd>
+      <dt>Output budget</dt>
+      <dd data-budget={e.budget.status}>{e.budget.status === 'within' ? 'Within' : e.budget.status === 'over' ? 'Over' : 'Uncertain against'} {bytes(e.budget.publishedBytes)}</dd>
     {/if}
+    <dt>Source download (input)</dt><dd>{planner.sources.kind === 'none' ? 'Unknown: no sources loaded' : range(t.rawSourceDownloadBytes)}{e.sourceDownload.unknownSizeIds.length ? ` · ${e.sourceDownload.unknownSizeIds.length} sizes unknown` : ''}</dd>
   </dl>
-  <p class="ui-meta text-text-muted">Uncalibrated scenario bounds (tile packing, compression, scratch). No build or download was performed.</p>
-  <p class="ui-meta text-text-muted">An exported lock is a planner handoff: it needs an executor preparation step (terrain, imagery and gate parameters, pinned source bytes, runtime bindings) before <code>build:surface</code> can run it.</p>
+  <p class="ui-meta text-text-muted">The output budget limits what is published and hosted. Source download is input acquisition, a separate cost.</p>
+  <details class="warnings">
+    <summary class="ui-meta">Details and assumptions</summary>
+    <dl class="estimate ui-meta">
+      {#each (['imagery', 'elevation'] as const) as c (c)}
+        {#if t[c].areaM2 > 0}
+          <dt>{c === 'imagery' ? 'Imagery' : 'Physical terrain'}</dt>
+          <dd>{range(t[c].objects, count)} objects
+            {#if planner.selectedFidelity}
+              {#each plan!.regions.filter((r) => r[c] && planner.selectedFidelity![r.id]) as r (r.id)}<br /><span class="text-text-muted">{r.id} (selected sources): {fidelityText(planner.selectedFidelity[r.id], c)}</span>{/each}
+            {:else}
+              <br /><span class="text-text-muted" title="Pools every loaded descriptor across regions; not a per-region selection">{planner.sources.kind === 'none' ? 'No sources loaded' : 'Any loaded source'}: {fidelityText(e.fidelity, c)}</span>
+            {/if}</dd>
+        {/if}
+      {/each}
+      <dt>Hosted objects</dt><dd>{range(t.publishedObjects, count)}</dd>
+      <dt>Work disk</dt><dd>{range(t.peakWorkDiskBytes)}</dd>
+      {#each e.budget?.comparisons ?? [] as cmp (cmp.gsdMultiplier)}
+        <dt>If coarser</dt><dd>{cmp.regionIds.join(', ')} at {cmp.gsdMultiplier}×: {range(cmp.publishedBytes)} ({cmp.status}). Comparison only; the plan is unchanged.</dd>
+      {/each}
+    </dl>
+    <p class="ui-meta text-text-muted">Uncalibrated scenario bounds (tile packing, compression, scratch). No build or download was performed.</p>
+  </details>
+{/snippet}
+
+{#snippet progressView(p: NonNullable<typeof progress>)}
+  <ul class="chips" aria-label="Plan status">
+    {#if p.desired !== 'empty'}<li data-ok={p.desired === 'saved'}>{p.desired === 'saved' ? 'Desired plan saved' : 'Desired plan not saved'}</li>{/if}
+    {#if p.regions}<li data-ok={p.sources === 'demonstrated' || p.sources === 'locked'}>{sourcesChip[p.sources]}</li>{/if}
+    {#if p.regions}<li data-ok={p.lockable && !unlockedChoice}>{!p.lockable ? 'Lock not exportable' : unlockedChoice ? 'Lock exportable · choice not locked' : 'Lock exportable'}</li>{/if}
+  </ul>
+  <div class="next">
+    <p class="ui-helper">
+      {#if !p.regions}Start with a region: draw one on {plan!.body}, or select a polygon in the scene and add it below.
+      {:else if next === 'desired'}Set each region's imagery or terrain target below, then export the desired plan. It records what you want and changes nothing in the scene.
+      {:else if p.sources === 'none'}To see what could supply this plan, load a source inventory. Without one, source coverage is unknown.
+      {:else if p.sources === 'unproven'}Source evidence does not show the request is met for {p.unprovenRegions.join(', ')}. Focus a region to see why. A lock records a choice; it does not prove suitability.
+      {:else if p.sources === 'locked' && !unlockedChoice}Imported lock held unchanged. Load build feedback to see what is already built.
+      {:else}The chosen sources meet the request by discovery metadata. Export a locked plan to hand off.{/if}
+    </p>
+    <div class="actions">
+      {#if !p.regions}
+        <button class="primary" onclick={drawRegion} disabled={planner.awaitingDraw || !!status?.blocked}><PenLine size={13} /> Draw region</button>
+      {:else}
+        <button class={next === 'desired' ? 'primary' : 'secondary'} onclick={exportDesired}>Export desired plan</button>
+        {#if p.sources === 'none'}<button class={next === 'sources' ? 'primary' : 'secondary'} onclick={() => fileInput?.click()}>Load source inventory…</button>{/if}
+        <button class={next === 'lock' ? 'primary' : 'secondary'} disabled={!p.lockable} onclick={() => void exportLock()}
+          title={p.lockable ? 'Validated on export' : 'Load an inventory and choose a source for every region first'}>Export locked plan</button>
+      {/if}
+    </div>
+    {#if p.unselectedRegions.length}<p class="ui-meta warn">Not lockable: no source is chosen for {p.unselectedRegions.join(', ')} (no compatible candidate for a requested channel).</p>{/if}
+    {#if p.lockProblem}<p class="ui-meta warn">Not lockable: {p.lockProblem}</p>{/if}
+    {#if planner.message}<p class="ui-helper message" role="status">{planner.message}</p>{/if}
+    {#if p.lockable}<p class="ui-meta text-text-muted">A locked plan is a handoff, not a build: an executor preparation step (terrain, imagery and gate parameters, pinned source bytes, runtime bindings) must complete it before <code>build:surface</code> can run.</p>{/if}
+  </div>
 {/snippet}
 
 <style>
@@ -407,8 +467,16 @@
   .plan-head, .section-head { display: flex; align-items: center; gap: 6px; }
   .section-head { justify-content: space-between; margin-bottom: 4px; }
   .spacer { flex: 1; }
-  .badge { padding: 0 6px; border-radius: 8px; border: 1px solid var(--color-border); font-size: var(--text-metadata); color: var(--color-text-secondary); }
-  .badge.dirty { border-color: var(--color-warning); color: var(--color-warning); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chips li { padding: 0 6px; border-radius: 8px; border: 1px solid var(--color-warning); font-size: var(--text-metadata); color: var(--color-warning); }
+  .chips li[data-ok='true'] { border-color: var(--color-border); color: var(--color-text-secondary); }
+  .next { margin-top: 8px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-2); }
+  .next .actions { margin-top: 6px; }
+  .next p + .actions + p { margin-top: 6px; }
+  .advanced summary { cursor: pointer; color: var(--color-text-secondary); }
+  [data-fit='true'] { color: var(--color-success, #4cc38a); }
+  [data-fit='false'] { color: var(--color-warning); }
+  .warnings summary { cursor: pointer; color: var(--color-text-secondary); }
   .section { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--color-border); }
   .body-status { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin-top: 6px; color: var(--color-text-secondary); }
   .body-status dt, .estimate dt { color: var(--color-text-muted); }

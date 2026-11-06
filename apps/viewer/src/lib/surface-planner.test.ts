@@ -8,7 +8,7 @@ import {
   addSurfacePlanRegion, createSurfacePlanDraft, parseGeographicGeoJson, resolveSurfacePlan, type GeographicCoordinates,
 } from '@cosmolabe/core';
 import {
-  chooseAlternative, importPlannerText, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
+  chooseAlternative, combinationSuitability, importPlannerText, plannerProgress, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
 } from './surface-planner.svelte';
 
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8');
@@ -64,6 +64,10 @@ describe('surface planner store', () => {
     chooseAlternative('landing', only('landing', 'img-a'));
     await run();
     expect(selectionChanged()).toBe(true);
+    // Footprint-only evidence: top-ranked is not called suitable, and the plan says why.
+    const top = regionAlternatives('approach')[0];
+    expect(combinationSuitability(top, ['imagery'])).toEqual({ demonstrated: false, reason: expect.stringContaining('valid-pixel coverage') });
+    expect(plannerProgress()).toMatchObject({ regions: 2, desired: 'saved', sources: 'unproven', unprovenRegions: ['approach', 'landing'], lockable: true });
     const first = JSON.parse(await lockText());
 
     // Re-open that lock: it is held and re-exported as-is.
@@ -91,5 +95,14 @@ describe('surface planner store', () => {
     expect(pick(second, 'approach')).toEqual(['img-b']);
     // Per region: landing's fidelity is assessed only from landing's own selection.
     expect(Object.keys(planner.selectedFidelity ?? {}).sort()).toEqual(['approach', 'landing']);
+  });
+
+  it('calls a candidate suitable only when coverage, sampling and registration are all evidenced', () => {
+    const coverage = { status: 'verified-complete', verifiedFraction: 1, unknownFraction: 0, gapFraction: 0, targetVerifiedFraction: 1 };
+    const alt = (patch: object, compatibility = 'evidenced') => ({ compatibility, channels: { imagery: { sourceIds: ['a'], unknownGsdSourceIds: [], coverage: { ...coverage, ...patch } } } }) as never;
+    expect(combinationSuitability(alt({}), ['imagery']).demonstrated).toBe(true);
+    expect(combinationSuitability(alt({}), ['imagery', 'elevation']).reason).toMatch(/No terrain source/);
+    expect(combinationSuitability(alt({ targetVerifiedFraction: 0.4 }), ['imagery']).reason).toMatch(/only 40%/);
+    expect(combinationSuitability(alt({}, 'unverified'), ['imagery']).demonstrated).toBe(false);
   });
 });
