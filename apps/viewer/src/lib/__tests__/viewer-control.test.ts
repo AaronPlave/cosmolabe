@@ -1888,6 +1888,11 @@ describe('shared continuous timeline profiles (#359)', () => {
     expect(read.ok).toBe(true);
     if (!read.ok) throw new Error('Expected read');
     expect(read.data).toEqual(c.sampleProfileData(def.id, { start: input.start, end: input.end, count: input.count }));
+    expect(read.summary).toContain('Among the returned samples');
+    expect(read.summary).toContain('the sampled minimum is 90 km');
+    expect(read.summary).toContain('ET 0 to 10');
+    expect(read.summary).toContain('5 samples, spacing 2.5 seconds, 0 missing');
+    expect(read.summary).toContain('not a certified minimum');
     const data = c.sampleProfileData(def.id, { start: input.start, end: input.end, count: input.count });
     expect(data.samples.map(s => [s.et, s.value])).toEqual([[0,100],[2.5,97.5],[5,95],[7.5,92.5],[10,90]]);
     expect(data.minimum).toEqual(data.samples[4]); expect(data.maximum).toEqual(data.samples[0]);

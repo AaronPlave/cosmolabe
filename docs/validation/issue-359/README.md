@@ -1,45 +1,34 @@
 # Issue #359 acceptance
 
-2026-11-05, PR #363. **Review fixes pass native browser acceptance and the Haiku-only rerun, including the unsupported-clearance negative response.**
+2026-11-06, PR #363. The final Haiku-only exploration run passes the sampling-disclosure checks. The other four profile/correction/clearance scenarios passed during this review. These are individual smoke trials, not a reliability benchmark.
 
-2026-11-06 numerical read follow-up: `getProfileValue` and `sampleProfileData` expose the existing exact quantity evaluator/sampler and position provider to ViewerControl/scripts and discoverable Ask. Interval reads return at most 32 samples, actual ET/UTC, units, requested/effective windows, null gaps and finite sampled extrema. Native Rosetta checks compare every returned range directly to the loaded Universe positions and check that the maximum response fits the ordinary Ask output budget. Unit regressions cover all four quantities, clipping, missing positions, tie selection, count/parameter limits, stale scenes and unchanged viewer state. The height-extrema solver handles different metrics; this read only compares its returned samples, with no new solver.
+All live requests used the ordinary fixed Ask panel in the loaded Rosetta catalog, with normal and escalation requests pinned to `claude-haiku-5-5`, provider fallback disabled, and no production routing changes. Provider-reported models matched Haiku. Chromium used SwiftShader at 1400 × 900; cache warmth was uncontrolled. Raw reports remain outside the repository.
 
-Haiku-only exploration smoke: “show Philae's distance profile, tell me where the sampled center distance is smallest, and take me there” passed in 9 rounds. It first read 32 samples across the original timeline (2 missing), then 32 over ET 468000000–471500000 (none missing). The returned minimum was **2.4727981082705752 km at ET 469919354.83870965** (2014-11-22 09:08:07 UTC). The final reply reported 2.4728 km, explicitly distinguished center distance from surface clearance/first touchdown, and existing `setTime` used that exact ET. Serialized provider-bound samples, a separate exact point read, visible native trace, unchanged camera/selection/tracking/window and absence of competing solver/viewpoint navigation were checked. The API does not certify a global extremum or contact.
+The final exploration request explicitly says “Philae's distance profile relative to 67P” so a fresh conversation does not default to the tracked Rosetta spacecraft. In **8 model rounds**, Ask created the native range trace, read 32 actual samples, reported **2.473 km at 2014-11-27 17:00:48 UTC**, and sought ET **470379716.12903225** through existing `setTime`. The actual returned minimum was **2.472798109264723 km**, the smallest finite value among those samples.
 
-Diagnostic limits: the first larger response exceeded the existing model-result budget, so the shared bound is now 32. Another trial invented a narrow profile window; guidance now requires an explicitly requested restriction. The successful numerical reply described rounded near-equal values as a flat plateau and omitted the sample interval/count; final guidance now warns against inferred exact ties and asks for those limits. A clearance-only rerun correctly refused the unsupported plot without claiming absent geometry, but its accepted center-distance alternative skipped an explicit `getProfile` reread, so that full scenario failed the strict live harness despite an independently visible native trace. These individual smoke trials are not a reliability claim. Keep the PR draft pending final acceptance/review and CI; raw outputs remain outside the repository.
+The reply named both effective interval endpoints, **2003-12-30 23:58:55 UTC to 2017-01-01 23:58:50 UTC**, and described the minimum as the smallest of **32 samples**, with two missing endpoints. It explicitly distinguished center distance from surface clearance/touchdown. This is not a certified global or continuous minimum. Authored touchdown viewpoints are separate annotations; physical-surface/contact analysis remains #360.
 
-Live acceptance used the ordinary fixed Ask panel in the loaded Rosetta catalog, with both normal and escalation requests pinned to `claude-haiku-5-5`, provider fallback disabled, and no production routing/default changes. Every provider-reported model matched Haiku. Chromium used SwiftShader at 1400 × 900. The catalog was paused before requests; its original timeline window was preserved. Prompt-cache warmth was uncontrolled.
+Acceptance independently verified the visible native trace, unchanged camera/selection/tracking/playback/timeline window, exact returned navigation ET, actual point value at that ET, and the complete serialized provider-bound numerical result. No competing solver, Event Finder query or authored-viewpoint navigation ran. The bounded read has 32 samples with 2 missing; the native pixel-density trace separately has 856 samples with 29 missing.
 
-Final run:
+The harness now requires both effective sampling endpoints (ET or UTC dates), the real sample count or correctly rounded step, and explicit limitation to the returned samples. It rejects the earlier “32 samples across the full window” reply. Numerical read summaries place the actual interval, count/spacing, gaps and sampled minimum together and explicitly request both endpoints in the final answer.
 
-| Request | Model rounds | Observed result |
-| --- | ---: | --- |
-| Show a distance profile between Philae and 67P in the timeline | 6 | One native `range` profile; correct pair, enabled and visible; matching serialized `getProfile` result delivered to the model |
-| Not closest approach; I want the profile in the timeline | 3 | Same ID and native trace; no search or duplicate profile |
-| Philae's height above 67P's physical surface | 4 | No profile/search created; stated that timeline profiles cannot show physical-surface height, without claiming absent geometry |
-| Explicitly accept center distance instead, labeled as such | 10 | One native range profile with an honest center-distance/not-surface-height label |
+Profile state is verified independently in the native viewer. Provider-delivered supporting evidence may be a targeted read or a verified mutation receipt, including earlier evidence in the same conversation. A repeated `getProfile` call is not mandatory. Replaying the earlier accepted-alternative case without that call now passes on its actual delivered receipt; removing provider evidence still fails.
 
-All requests preserved camera position/target/up/FOV, epoch, playback, tracking, selection and timeline window. No Event Finder query ran. The default full-catalog trace has 856 samples, 29 missing; the model reported the gaps rather than certified clearance or complete coverage. Native timeline presence and trace visibility were checked independently from the model reply. The profile quantity/presence/visibility reads were checked in actual serialized provider-bound tool results, matched by tool-call ID. An accepted partial visualization was not retried and no window/epoch change was attempted in the final run.
+During this review the original profile request (6 rounds), correction (7), physical-clearance refusal (3), and explicitly accepted center-distance alternative (5) passed. The refusal made no absent-surface-model claim. Earlier inspection established a loaded 67P DSK mesh despite null terrain inventory; inventory nulls do not establish absent geometry.
 
-Earlier acceptance incorrectly claimed absent surface geometry, despite an independent native check finding one loaded 67P DSK mesh with null terrain inventory. The review fix puts the inventory's scope limit in the surface read description, guide and returned summary: DSK/irregular mesh availability is not assessed, and null terrain does not establish absent geometry. A provider-wire regression preserves that limit. The rerun states the unsupported timeline capability without that absence claim. It also offered a numeric extrema calculation, which was not executed or validated here; #360 owns physical clearance calculations. The accepted alternative encountered a usage-notes refusal and released a stray event-search goal, but ran no search and did not retry an accepted mutation. These 23 Haiku-only rounds are one smoke trial, not a reliability benchmark.
+Native/script/dispatcher acceptance also covers narrow-window clipping, disabled-row edit/re-enable/delete, shared identity, unsupported quantity refusal and direct comparison of returned numerical ranges to loaded Universe positions. Shared reads use the existing `quantityAt` / `sampleProfile`, preserve null gaps and state, and return at most 32 samples. There is no new solver or interpolation across gaps. Package build, typechecks, changed-source ESLint and the 122-operation capability gate pass; 169 focused viewer/control tests pass. Final-head CI must be checked separately.
 
-The other two review fixes have focused regressions: availability probes use the intersection of profile and visible windows; native missing counts exclude intentional clipping. Nonoverlapping windows say coverage was not assessed. Disabled profiles remain in the timeline as compact manageable rows; Show re-enables them, and edit/remove stay accessible. Browser acceptance verifies a narrow window between the old coarse probe instants, then disabled edit/re-enable/delete.
-
-Live testing also exposed a partial-result classification defect: a successfully configured, visible trace with sample gaps had been returned as an overall failed write. Its configuration postcondition remains a hard check; presentation completeness is now an internal soft state check that yields a partial receipt. Model goals cannot set that classification. Regressions verify that configuration mismatches still fail, while incomplete presentation stays partial.
-
-Repeat native script/dispatcher/UI acceptance:
+Repeat native acceptance:
 
 ```sh
 CL_VIEWER_URL=http://127.0.0.1:5199 node scripts/test-timeline-profiles.mjs
 ```
 
-Repeat approved live acceptance (requires a configured `ANTHROPIC_API_KEY`; raw reports remain outside the repository):
+Repeat approved live acceptance (requires configured `ANTHROPIC_API_KEY`):
 
 ```sh
 VITE_ASK_ENDPOINT=http://127.0.0.1:8797 npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5200 --strictPort
 ASK_PROFILE_LIVE=1 node scripts/test-ask-timeline-profiles.mjs
-# Only the numerical exploration request:
+# Only numerical exploration:
 ASK_PROFILE_LIVE=1 ASK_PROFILE_SCENARIO=explore node scripts/test-ask-timeline-profiles.mjs
 ```
-
-Local checks after review fixes: package build, test/viewer/Svelte typechecks, changed-source ESLint and capability coverage pass; 1010 tests across the control package and viewer libraries pass. CI must be rechecked on the final remote head.

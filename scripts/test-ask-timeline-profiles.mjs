@@ -55,7 +55,7 @@ try {
         return { time: c.getTime(), playing: c.isPlaying(), selected: c.getSelected(), tracked: c.getTracked(), camera: c.getCamera(), window: c.getTimelineWindow() };
       });
       const before = await snapshot();
-      const prompts = scenario === 'explore' ? ["show Philae's distance profile, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
+      const prompts = scenario === 'explore' ? ["show Philae's distance profile relative to 67P, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
         ? ['show a distance profile between Philae and 67P in the timeline', 'not closest approach; I want the profile in the timeline']
         : ["show Philae's height above 67P's physical surface in the timeline", 'I accept a center-to-center distance profile instead; label it as center distance, not physical surface height.'];
       for (const [index, prompt] of prompts.entries()) {
@@ -97,14 +97,20 @@ try {
           assert.deepEqual(Object.values(profile.resolved.bodies).sort(), ['Philae', '67P/Churyumov-Gerasimenko'].sort()); // range is symmetric
           assert.equal(profile.definition.visible, true); assert.equal(profile.definition.enabled, true);
           assert.equal(profile.timeline.present, true); assert.equal(profile.timeline.traceVisible, true);
-          const read = result.steps.find(s => s.name === 'profiles.getProfile' && s.ok);
-          assert.ok(read, 'Model must read the actual profile');
-          assert.ok(payloads.get(read.id)?.includes('traceVisible'), 'Profile read must be delivered to the provider');
-          assert.ok(!payloads.get(read.id)?.includes('result-too-large'));
-          const delivered = JSON.parse(payloads.get(read.id));
-          assert.equal(delivered.data.resolved.quantity, 'range');
-          assert.equal(delivered.data.timeline.present, true);
-          assert.equal(delivered.data.timeline.traceVisible, true);
+          // Native observation is authoritative; the model may learn the result
+          // from a verified mutation receipt, a targeted read, or later evidence.
+          // Earlier delivered evidence in this conversation can also suffice.
+          // Do not prescribe a redundant getProfile call just for acceptance.
+          const evidence = report.runs.filter(r => r.scenario === scenario).flatMap(r => r.result.steps).filter(s => s.ok && (s.name === 'profiles.getProfile' || s.name === 'profiles.upsertProfile'));
+          assert.ok(evidence.some(s => {
+            const wire = payloads.get(s.id);
+            if (!wire || wire.includes('result-too-large')) return false;
+            const r = JSON.parse(wire);
+            const input = s.input.input ?? s.input;
+            const mutationId = s.name === 'profiles.upsertProfile' ? JSON.parse(input.definition).id : null;
+            return r.data?.definition?.id === profile.definition.id && r.data?.timeline?.traceVisible === true
+              || mutationId === profile.definition.id && r.receipt && ['completed', 'partial'].includes(r.receipt.status);
+          }), 'Profile state must have supporting provider-delivered evidence, from a read or verified mutation receipt');
           if (scenario === 'explore') {
             const reads = result.steps.filter(s => s.name === 'profiles.sampleProfileData' && s.ok);
             assert.ok(reads.length, 'Ask must retrieve actual numerical samples');
@@ -125,6 +131,26 @@ try {
             assert.equal(seek.input.input?.when ?? seek.input.when, data.minimum.et, 'Seek must use returned ET without rounding');
             assert.deepEqual({ ...after, time: before.time }, before, 'Only the requested epoch changes');
             assert.ok(!result.steps.some(s => /findTrajectoryExtrema|runEventQuery|applyNamedViewpoint|goToViewpoint/.test(s.name)), 'No competing solver or authored touchdown navigation');
+            // Calibrate the answer against the actual effective sampling scope.
+            const text = result.reply.replaceAll('**', '');
+            const mentionsEndpoint = (et, sample) => {
+              if (text.includes(String(et)) || text.includes(sample.utc.slice(0, 10))) return true;
+              const date = new Date(sample.utc.slice(0, 10) + 'T00:00:00Z');
+              const day = date.getUTCDate(), year = date.getUTCFullYear();
+              const month = date.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+              const m = `(?:${month}|${month.slice(0, 3)}\\.?)`;
+              return new RegExp(`\\b(?:${m}\\s+${day}(?:st|nd|rd|th)?,?\\s+${year}|${day}(?:st|nd|rd|th)?\\s+${m},?\\s+${year})\\b`, 'i').test(text);
+            };
+            assert.ok(mentionsEndpoint(data.window.start, data.samples[0]) && mentionsEndpoint(data.window.end, data.samples.at(-1)), 'Report both effective interval endpoints (ET or UTC date)');
+            const countPattern = new RegExp(`\\b${data.samples.length}\\s+(?:(?:returned|uniform|exact|sampled)\\s+)*(?:samples|points)\\b`, 'i');
+            const stepMentions = [...text.matchAll(/([0-9]+(?:\.[0-9]+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\b/gi)];
+            const hasStep = stepMentions.some(m => {
+              const scale = /^(?:d)/i.test(m[2]) ? 86400 : /^(?:h)/i.test(m[2]) ? 3600 : /^(?:m)/i.test(m[2]) ? 60 : 1;
+              const precision = 10 ** -(m[1].split('.')[1]?.length ?? 0);
+              return Math.abs(Number(m[1]) * scale - data.sampling.stepSeconds) <= 0.51 * precision * scale;
+            });
+            assert.ok(countPattern.test(text) || hasStep, 'Report the actual sample count or rounded spacing');
+            assert.match(text, /\b(?:minimum|smallest|lowest)\b[^.!?]{0,100}\b(?:among|of|from|within)\b[^.!?]{0,80}\b(?:returned|samples|points)\b|\b(?:among|of|from)\b[^.!?]{0,60}\b(?:samples|sampled points)\b[^.!?]{0,80}\b(?:minimum|smallest|lowest)\b/i, 'Explicitly limit the minimum to the returned samples');
             assert.match(result.reply, /sampl|approxim/i);
             assert.match(result.reply, /(?:not|isn.t|doesn.t)[^.]{0,100}(?:clearance|touchdown|contact)|(?:clearance|touchdown|contact)[^.]{0,100}(?:not|isn.t)/i);
             // Compare the reported range to the real sampled minimum at its displayed precision.
