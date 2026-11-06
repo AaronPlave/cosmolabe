@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   GLYPH_FULL_PX, GLYPH_GONE_PX, NATURAL_RING_GONE_PX, PositionGlyphs,
-  glyphReplacesPlaceholder, glyphWeight, isNaturalBody, ringWeight, rasterizeGlyph, wantsGlyph, wantsPointMarker,
+  glyphReplacesPlaceholder, glyphWeight, isNaturalBody, placeholderMeshScale, ringWeight, rasterizeGlyph, wantsGlyph, wantsPointMarker,
 } from '../PositionGlyphs.js';
 import type { BodyMesh } from '../BodyMesh.js';
 
@@ -78,6 +78,34 @@ describe('glyphWeight', () => {
       const visibility = 1 - (1 - glyphWeight(px)) * (1 - model);
       expect(visibility).toBeGreaterThanOrEqual(0.5);
     }
+  });
+});
+
+describe('placeholderMeshScale: natural bodies are never inflated', () => {
+  const base = { sun: false, dist: 100, halfFovTan: Math.tan((50 * Math.PI / 180) / 2), canvasHeight: 600, displayRadius: 1737, scaleFactor: 1e-6 };
+  /** Projected radius, px, of a sphere rendered with `factor` (the renderer sets radius = displayRadius * factor). */
+  const projectedPx = (factor: number) => (base.displayRadius * factor) / (2 * base.dist * base.halfFovTan) * base.canvasHeight;
+  // A sub-pixel body: its real projected radius at this distance.
+  const tiny = { ...base, screenPixels: projectedPx(base.scaleFactor) };
+
+  it('renders a natural body at its real scale at the library default (minBodyPixels 4) and at 0', () => {
+    for (const minBodyPixels of [0, 1, 4, 12]) {
+      expect(placeholderMeshScale({ ...tiny, natural: true, minBodyPixels })).toBe(base.scaleFactor);
+    }
+    // Not inflated: the rendered projected radius is the real one (well under 1px), not the 4px floor.
+    const rendered = projectedPx(placeholderMeshScale({ ...tiny, natural: true, minBodyPixels: 4 }));
+    expect(rendered).toBeCloseTo(tiny.screenPixels, 12);
+    expect(rendered).toBeLessThan(0.1);
+  });
+
+  it('still clamps artificial placeholders to the floor, and never touches the Sun', () => {
+    const factor = placeholderMeshScale({ ...tiny, natural: false, minBodyPixels: 4 });
+    expect(factor).toBeGreaterThan(base.scaleFactor);
+    expect(projectedPx(factor)).toBeCloseTo(4, 9);
+    expect(placeholderMeshScale({ ...tiny, natural: false, minBodyPixels: 0 })).toBe(base.scaleFactor);
+    expect(placeholderMeshScale({ ...tiny, natural: false, sun: true, minBodyPixels: 4 })).toBe(base.scaleFactor);
+    // Once the artificial body is larger than the floor, it is real scale too.
+    expect(placeholderMeshScale({ ...base, screenPixels: 5, natural: false, minBodyPixels: 4 })).toBe(base.scaleFactor);
   });
 });
 

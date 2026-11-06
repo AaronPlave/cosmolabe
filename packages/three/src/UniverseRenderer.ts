@@ -62,7 +62,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
-import { PositionGlyphs, wantsGlyph, wantsPointMarker, glyphReplacesPlaceholder, type PositionGlyphReadout } from './PositionGlyphs.js';
+import { PositionGlyphs, wantsGlyph, wantsPointMarker, glyphReplacesPlaceholder, isNaturalBody, placeholderMeshScale, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -988,14 +988,16 @@ export class UniverseRenderer {
         bm.mesh.visible = true;
       }
 
-      // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot.
-      // applyMeshScale(factor) sets rendered radius = displayRadius * factor,
-      // so we need factor = minSceneRadius / displayRadius (not / realSceneRadius).
-      if (bm.mesh.visible && !bm.sunVisual && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
-        const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
-        bm.applyMeshScale(minSceneRadius / bm.displayRadius);
-      } else if (bm.mesh.visible) {
-        bm.applyMeshScale(this.scaleFactor);
+      // Placeholder sphere: an artificial placeholder is clamped to minBodyPixels so
+      // it's always a visible dot. Natural bodies always render at their real
+      // projected size, whatever the setting (see placeholderMeshScale).
+      // applyMeshScale(factor) sets rendered radius = displayRadius * factor, so the
+      // clamp factor is minSceneRadius / displayRadius (not / realSceneRadius).
+      if (bm.mesh.visible) {
+        bm.applyMeshScale(placeholderMeshScale({
+          natural: isNaturalBody(bm), sun: !!bm.sunVisual, minBodyPixels: this.minBodyPixels,
+          screenPixels, dist, halfFovTan, canvasHeight, displayRadius: bm.displayRadius, scaleFactor: this.scaleFactor,
+        }));
       }
     }
 

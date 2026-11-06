@@ -127,6 +127,36 @@ export function wantsPointMarker(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, hasCu
 }
 
 /**
+ * Scale applied to a body's placeholder/globe mesh (`BodyMesh.applyMeshScale`).
+ *
+ * Natural bodies always render at their real projected size, whatever the
+ * minimum-marker-size setting: inflating a planet or moon into an artificially
+ * large sphere misrepresents it. The `minBodyPixels` floor is reserved for
+ * artificial placeholders (spacecraft, landers), where a too-small sphere would
+ * otherwise vanish. The Sun is never clamped.
+ */
+export function placeholderMeshScale(o: {
+  natural: boolean;
+  sun: boolean;
+  minBodyPixels: number;
+  /** Real projected radius, CSS px. */
+  screenPixels: number;
+  /** Camera-to-body distance, scene units. */
+  dist: number;
+  halfFovTan: number;
+  canvasHeight: number;
+  /** Body radius in km (model units) and the km-to-scene scale. */
+  displayRadius: number;
+  scaleFactor: number;
+}): number {
+  if (!o.natural && !o.sun && o.minBodyPixels > 0 && o.screenPixels < o.minBodyPixels) {
+    const minSceneRadius = o.minBodyPixels * o.dist * 2 * o.halfFovTan / o.canvasHeight;
+    return minSceneRadius / o.displayRadius;
+  }
+  return o.scaleFactor;
+}
+
+/**
  * Whether the glyph stands in for the legacy lit minimum-size placeholder
  * sphere this frame. Only while glyphs are on, the body is eligible and its
  * projected radius is still unresolved; otherwise the old behaviour stands.

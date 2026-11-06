@@ -213,8 +213,13 @@ try {
     const appMinBodyPixels = r.minBodyPixels;
     r.minBodyPixels = 4;
     await frame();
+    // Real mesh scale at the library default: a natural body is never inflated to the
+    // minimum marker size (ratio 1 = real projected size); only an artificial placeholder is.
+    const realScale = (b) => b.mesh.scale.x / (r.scaleFactor * b.ellipsoidRatios[0]);
+    out.scale = { naturalTiny: realScale(tiny), naturalEuropa: realScale(r.getBodyMesh('Europa')), naturalJupiter: realScale(r.getBodyMesh('Jupiter')) };
     out.placeholderOn = { ...vis(), europa: r.getBodyMesh('Europa').mesh.visible };
     r.setPositionGlyphsEnabled(false); await frame(); out.placeholderOff = vis();
+    out.scale.artificialClipperGlyphsOff = realScale(sc); // legacy artificial placeholder keeps its floor
     r.setPositionGlyphsEnabled(true); await frame(); out.placeholderBack = vis();
     r.minBodyPixels = 0; await frame(); out.appDefault = vis();
     r.setPositionGlyphsEnabled(false); await frame(); out.appDefaultGlyphsOff = vis();
@@ -283,6 +288,10 @@ try {
   assert.notEqual(states.pickHidden, 'Hidden Probe', 'glyph behind Europa must not be pickable');
   assert.equal(states.pickRoverNear, 'Rover Near', 'surface-locked asset on the visible side stays pickable');
   assert.notEqual(states.pickRoverFar, 'Rover Far', 'surface-locked asset on the far side is occluded by its parent');
+  for (const [name, ratio] of Object.entries({ naturalTiny: states.scale.naturalTiny, naturalEuropa: states.scale.naturalEuropa, naturalJupiter: states.scale.naturalJupiter })) {
+    assert.ok(Math.abs(ratio - 1) < 1e-9, `${name} must render at its real projected size at minBodyPixels 4 (mesh scale ratio ${ratio})`);
+  }
+  assert.ok(states.scale.artificialClipperGlyphsOff > 1000, 'an artificial placeholder keeps its minimum-size floor (only natural bodies are exempt)');
   assert.deepEqual(states.placeholderOn, { clipper: false, tiny: true, europa: true }, 'glyph replaces the lit placeholder for unresolved artificial bodies only; natural bodies keep their real-scale rendering');
   assert.deepEqual(states.placeholderOff, { clipper: true, tiny: true }, 'legacy placeholder returns when glyphs are disabled');
   assert.deepEqual(states.placeholderBack, { clipper: false, tiny: true });
