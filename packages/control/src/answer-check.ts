@@ -2,8 +2,8 @@
  * An answer checked against what the viewer published (#345): the model's
  * prose may say anything, but a number, a date or a "flyby" it states must
  * agree with a typed fact a read returned during the request. This is a check
- * for contradiction, not a judge of style: an answer that states nothing
- * checkable passes.
+ * for contradiction, not a judge of style. A sampled recovery must also
+ * disclose its missing-data limit.
  */
 import type { EventResultFact, ResultFact } from './agent.js';
 
@@ -45,9 +45,11 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
  */
 export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
-  if (!events.length) return [];
-  const windows = facts.filter(f => f.kind === 'event-window');
   const issues: string[] = [];
+  const sampled = facts.filter(f => f.kind === 'sampled-range').filter(f => f.eventSearchUnavailable).at(-1);
+  if (sampled && !/\b(?:gaps?|missing)\b/i.test(text)) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
+  if (!events.length) return issues;
+  const windows = facts.filter(f => f.kind === 'event-window');
   // 1 AU is a unit people compare against, not a claim.
   const known = [AU_KM, ...events.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm]), ...windows.map(w => w.maxRangeKm)].filter((v): v is number => typeof v === 'number' && v > 0);
   for (const d of statedDistancesKm(text)) {
@@ -68,9 +70,13 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   return issues;
 }
 
-/** A plain account of published event facts: what the host shows when the model's answer contradicts them. */
+/** A plain account of published event or sampled-range facts: what the host shows when the model's answer contradicts them. */
 export function factSummary(facts: readonly ResultFact[]): string {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
+  const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
+  if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
+    return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
+  }
   if (!events.length) return '';
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Math.round(km).toLocaleString('en-US')} km`;

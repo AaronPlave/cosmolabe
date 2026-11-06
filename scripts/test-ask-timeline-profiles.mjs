@@ -26,7 +26,7 @@ const proxy = createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new
     const body = JSON.parse(options.body);
     assert.equal(body.model, model); assert.equal(body.fallbacks, undefined);
     return fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(60000)]) });
-  }, onUsage: row => { assert.equal(row.model, model); assert.equal(row.requestedModel, model); usage.push(row); },
+  }, onUsage: row => { console.log(`Haiku tokens: ${row.inputTokens + row.cacheReadTokens + row.cacheWriteTokens + row.outputTokens}`); assert.equal(row.model, model); assert.equal(row.requestedModel, model); usage.push(row); },
 });
 await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(8797, '127.0.0.1', resolve); });
 const browser = await chromium.launch({ headless: true, args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
@@ -39,10 +39,14 @@ try {
       if (request.url() !== 'http://127.0.0.1:8797/' || request.method() !== 'POST') return;
       const wire = request.postDataJSON();
       rounds.push(wire.tools.map(t => t.name));
+      console.log(`${scenario}: model round ${rounds.length}`);
+      report.pending = { scenario, rounds: rounds.length, messages: wire.messages };
+      writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
       for (const message of wire.messages) for (const block of message.content) if (block.type === 'tool_result') payloads.set(block.toolUseId, block.content);
     });
     try {
-      await page.goto(new URL('?catalog=test-catalogs/rosetta&test=1', base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
+      const closest = scenario.startsWith('closest-');
+      await page.goto(new URL(`?catalog=test-catalogs/rosetta${closest ? '' : '&test=1'}`, base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
       await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
       await page.evaluate(async () => {
         window.cosmo.setPlaying(false);
@@ -50,12 +54,34 @@ try {
         (await import(resource('/src/lib/shell.svelte.ts'))).openTool('ask');
         window.__askProfile = (await import(resource('/src/lib/ask/ask.svelte.ts'))).ask;
       });
+      if (closest) {
+        // Exercise the real worker. The success control furnishes ALL catalog
+        // dependencies only inside this browser, leaving #361's production
+        // kernel scoping and Rosetta's intentional bus identity untouched.
+        const control = await page.evaluate(async ({ success, resolverPath }) => {
+          const url = performance.getEntriesByType('resource').map(e => e.name).find(u => new URL(u).pathname === '/src/lib/loader.ts');
+          const loader = await import(url), worker = loader.getGeometryWorker();
+          if (!worker) throw new Error('Closest-approach acceptance requires the real geometry worker');
+          if (success) {
+            const kernels = worker.options.kernels;
+            const { loadCatalogFromUrl } = await import('/@fs' + resolverPath);
+            const graph = await loadCatalogFromUrl(loader.demoCatalogUrl('test-catalogs/rosetta'));
+            const dependencies = graph.kernels.map(k => k.url).filter(u => /\.(?:tf|tsc|bc)(?:\.gz)?$/i.test(new URL(u).pathname));
+            if (!dependencies.length) throw new Error('No catalog frame/attitude dependencies observed');
+            worker.options.kernels = async () => [...await kernels(), ...dependencies];
+            const search = worker.search.bind(worker);
+            worker.search = options => search({ ...options, scope: undefined });
+          }
+          return { worker: true, catalogFrameAttitudeDependencies: success };
+        }, { success: scenario === 'closest-success', resolverPath: new URL('../packages/core/src/catalog/CatalogResolver.ts', import.meta.url).pathname });
+        report.workerControl = { ...report.workerControl, [scenario]: control };
+      }
       const snapshot = () => page.evaluate(() => {
         const c = window.cosmo;
         return { time: c.getTime(), playing: c.isPlaying(), selected: c.getSelected(), tracked: c.getTracked(), camera: c.getCamera(), window: c.getTimelineWindow() };
       });
       const before = await snapshot();
-      const prompts = scenario === 'explore' ? ["show Philae's distance profile relative to 67P, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
+      const prompts = closest ? ['When did Philae get closest to comet 67P during its landing? Show me.'] : scenario === 'explore' ? ["show Philae's distance profile relative to 67P, tell me where the sampled center distance is smallest, and take me there"] : scenario === 'profile'
         ? ['show a distance profile between Philae and 67P in the timeline', 'not closest approach; I want the profile in the timeline']
         : ["show Philae's height above 67P's physical surface in the timeline", 'I accept a center-to-center distance profile instead; label it as center distance, not physical surface height.'];
       for (const [index, prompt] of prompts.entries()) {
@@ -63,13 +89,13 @@ try {
         console.log(`Running ${scenario} ${index + 1} (${model})`);
         await page.getByRole('textbox', { name: 'Request', exact: true }).fill(prompt);
         await page.getByRole('button', { name: 'Send request', exact: true }).click();
-        await page.waitForFunction(n => window.__askProfile.turns.length > n && window.__askProfile.turns.at(-1).status !== 'running', index, { timeout: 240000 });
+        await page.waitForFunction(n => window.__askProfile.turns.length > n && window.__askProfile.turns.at(-1).status !== 'running', index, { timeout: 360000 });
         const result = await page.evaluate(() => {
           const turn = window.__askProfile.turns.at(-1), c = window.cosmo;
-          return { status: turn.status, error: turn.error, reply: turn.reply,
+          return { status: turn.status, error: turn.error, reply: turn.reply, stats: turn.stats, verification: turn.result, visualization: c.getEventVisualization(),
             profiles: c.listProfiles().items.map(p => c.getProfile(p.id)), events: c.listEventQueries().length,
             steps: turn.steps.map(s => ({ id: s.id, name: s.name === 'invokeCapability' ? s.input.id : s.name, input: s.input,
-              ok: s.result?.ok, receipt: s.result?.receipt?.status, data: s.result?.ok ? s.result.data : undefined,
+              ok: s.result?.ok, code: s.result && !s.result.ok ? s.result.code : null, receipt: s.result?.receipt?.status, data: s.result?.ok ? s.result.data : undefined,
               error: s.result && !s.result.ok ? s.result.error : undefined })) };
         });
         const rows = usage.slice(usageStart);
@@ -78,10 +104,57 @@ try {
         const run = { scenario, turn: index + 1, prompt, factualWarnings, rounds: rounds.length - roundsStart, result, usage: rows,
           before, after, unchangedScene: JSON.stringify(after) === JSON.stringify(before),
           delivered: result.steps.map(s => ({ id: s.id, name: s.name, content: payloads.get(s.id) ?? null })) };
-        report.runs.push(run); writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
+        delete report.pending; report.runs.push(run); writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
         console.log(JSON.stringify({ scenario, turn: index + 1, rounds: run.rounds, status: result.status, reply: result.reply,
           profiles: result.profiles.map(p => ({ id: p.definition?.id, quantity: p.resolved?.quantity, status: p.status, timeline: p.timeline })), steps: result.steps.map(s => [s.name,s.ok,s.receipt]) }));
-        assert.equal(result.status, 'done', result.error);
+        assert.ok(result.status === 'done' || scenario === 'closest-failure' && result.status === 'step-limit' && result.reply, result.error ?? `Missing useful answer: ${result.status}`);
+        if (closest) {
+          assert.ok(run.rounds <= 10, 'Fixed Ask keeps its explicit request budget');
+          const searches = result.steps.filter(s => s.name === 'events.runEventQuery');
+          assert.equal(searches.length, 1, 'Only one Event Finder attempt');
+          assert.ok(result.steps.some(s => /checkGoal$/.test(s.name) && s.ok), 'Respect checkGoal');
+          assert.ok(!result.steps.some(s => /applyNamedViewpoint|goToViewpoint|findTrajectoryExtrema/.test(s.name)), 'No authored viewpoint or competing analysis substitution');
+          if (scenario === 'closest-success') {
+            assert.equal(searches[0].ok, true);
+            assert.equal(result.verification.status, 'verified');
+            assert.equal(result.steps.filter(s => s.name === 'profiles.sampleProfileData').length, 0, 'Do not substitute profiles for a successful event');
+            const presentation = result.steps.find(s => s.name === 'events.presentEventResult' && s.ok);
+            assert.ok(presentation, 'Present the computed event');
+            const page = result.steps.findLast(s => s.name === 'getEventResultPage' && s.ok || s.name === 'events.getEventResultPage' && s.ok);
+            assert.ok(page && payloads.get(page.id) && !payloads.get(page.id).includes('result-too-large'), 'Computed event must reach the model');
+            assert.equal(result.visualization.selected.id, JSON.parse((presentation.input.input ?? presentation.input).reference).id);
+            const event = page.data.items.find(item => item.reference.id === result.visualization.selected.id);
+            assert.equal(after.time, event.et);
+            assert.match(result.reply, /closest|minimum/i);
+          } else {
+            assert.equal(searches[0].code, 'missing-dependency');
+            assert.ok(payloads.get(searches[0].id)?.includes('missing-dependency'), 'The model must see the dependency failure');
+            assert.match(result.reply, /(?:SPICE|frame|dependency|search|Event Finder)/i);
+            const read = result.steps.findLast(s => s.name === 'profiles.sampleProfileData' && s.ok && s.data.minimum);
+            assert.ok(read, 'Recover with actual numerical profile samples');
+            const d = read.data;
+            const definition = result.steps.findLast(s => /(?:^|\.)upsertEventQuery$/.test(s.name) && s.ok)?.data?.query?.definition;
+            assert.deepEqual(d.requestedWindow, definition.window, 'Preserve the failed search interval');
+            assert.ok(d.samples.length >= 2 && d.samples.length <= 32);
+            assert.deepEqual(JSON.parse(payloads.get(read.id)).data, d, 'Numerical data delivered intact');
+            assert.deepEqual(Object.values(d.bodies).sort(), ['Philae', '67P/Churyumov-Gerasimenko'].sort());
+            assert.equal(d.minimum.value, Math.min(...d.samples.filter(s => s.value !== null).map(s => s.value)));
+            const actual = await page.evaluate(({ id, et }) => window.cosmo.getProfileValue(id, et), { id: d.id, et: d.minimum.et });
+            assert.equal(actual.samples[0].value, d.minimum.value, 'Independent point read agrees with samples');
+            assert.equal(after.time, d.minimum.et, 'Navigate to the returned ET');
+            assert.ok(result.verification.report.checks.some(c => c.slot === 'event' && c.ok === false), 'Computed-event goal remains unmet');
+            assert.equal(result.visualization.selected, null, 'A sampled minimum is not a selected computed event');
+            assert.match(result.reply, /sampl|approxim/i);
+            assert.match(result.reply, /not[^.]{0,90}(?:verified|certified|touchdown|surface)|(?:couldn.t|could not|unable|failed)[^.]{0,90}(?:comput|closest|search)/i);
+            assert.ok(result.reply.includes(String(d.samples.length)), 'Disclose sample count');
+            for (const sample of [d.samples[0], d.samples.at(-1)]) assert.ok(result.reply.includes(sample.utc.slice(0, 10)) || result.reply.includes(String(sample.et)), 'Disclose effective interval endpoints');
+            assert.match(result.reply, /gap|missing|no gaps|complete/i, 'Disclose gaps');
+            assert.equal(after.playing, false, 'The sampled epoch remains paused');
+            const profile = result.profiles.find(p => p.definition.id === d.id);
+            assert.equal(profile?.timeline?.traceVisible, true, 'Show the native trace');
+          }
+          continue;
+        }
         if (scenario !== 'explore') assert.equal(run.unchangedScene, true, 'Adding a profile must not move the scene');
         assert.equal(result.events, 0, 'Do not substitute Event Finder');
         if (scenario !== 'explore') assert.ok(!result.steps.some(s => /setTimelineWindow|setTime$/.test(s.name)), 'Do not change the window or epoch just to add a profile');

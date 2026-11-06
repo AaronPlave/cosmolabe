@@ -10,7 +10,7 @@ import { CAPABILITY_LIMITS, createCapabilityTools } from './capabilities.js';
 import { escalateDestructive, runAgent, systemPrompt, type AgentContent, type AgentEvent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import { checkAnswer, statedDistancesKm, statedDates } from './answer-check.js';
 import { registerVerb, type VerbSpec } from './verbs.js';
-import type { ScriptEventReference, ScriptEventResultPage, ScriptEventVisualization, ViewerControl } from './contracts.js';
+import type { ScriptEventQueryInfo, ScriptProfileData, ScriptEventReference, ScriptEventResultPage, ScriptEventVisualization, ViewerControl } from './contracts.js';
 import type { ResultFact } from './agent.js';
 
 const use = (id: string, name: string, input: unknown): AgentContent => ({ type: 'tool_use', id, name, input });
@@ -470,6 +470,21 @@ describe('round trips a closest-approach request does not need', () => {
     expect(host.calls.filter(c => c.startsWith('upsertEventQuery('))).toHaveLength(1);
   });
 
+  it('normalizes a namespaced operation alias when checking already-delivered usage notes', async () => {
+    const host = optionsHost();
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const invocation = upsert('alias') as Extract<AgentContent, { type: 'tool_use' }>;
+    const model = scripted([
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
+      call(goal(), use('alias', 'events.upsertEventQuery', (invocation.input as { input: unknown }).input)),
+      say('Configured.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(errorOf(run, 'alias')).toBeUndefined();
+    expect(host.calls.filter(c => c.startsWith('upsertEventQuery('))).toHaveLength(1);
+    tools.dispose();
+  });
+
   it('notes in a result the model never receives whole (too large, omitted) are not seen', async () => {
     const host = Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', label: 'x'.repeat(8000), step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
     const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
@@ -488,7 +503,7 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     const host = Object.assign(new EventScene(), {
       getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 10 }, error: null }) as never,
       runEventQuery: async () => { attempts++; throw new Error(frameError); },
-      sampleProfileData: () => ({
+      sampleProfileData: (): ScriptProfileData => ({
         scene: 3, id: probe.id, status: 'available', quantity: 'range', unit: 'km', bodies: { observer: 'Philae', target: '67P' },
         requestedWindow: { start: 0, end: 10 }, window: { start: 0, end: 10 },
         samples: [{ et: 0, utc: 't0', value: 4 }, { et: 10, utc: 't10', value: 3 }],
@@ -496,6 +511,8 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
         sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 10, coverage: 'not-certified', interpolation: 'none' }, limitations: [],
       }),
     });
+    host.objects.push('Philae', '67P');
+    host.searches['philae-landing'] = { observer: 'Philae', target: '67P', et: 10, km: 3 };
     return { host, attempts: () => attempts };
   }
   const runQuery = (id: string, query: string) => use(id, 'invokeCapability', { id: 'events.runEventQuery', input: { id: query } });
@@ -505,38 +522,209 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
 
   it('classifies the real worker error, refuses repeated event searches, and still allows a numerical profile read', async () => {
     const { host, attempts } = failingScene();
-    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
     const model = scripted([
-      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
-      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-first-touchdown')),
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' }), describe_('events.upsertEventQuery')),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
       call(runQuery('retry', 'philae-new-id')),
-      call(readSamples('sampled')),
-      say('The SPICE search worker cannot calculate a closest approach. The profile sampled 3 km at t10, only a sampled center-distance minimum, not touchdown.'),
+      call(use('new-query', 'invokeCapability', { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'replacement', enabled: true, visible: true, query: { id: 'replacement', kind: 'closest-approach', bodies: { observer: 'Philae', target: '67P' }, window: { start: 0, end: 10 }, step: 3600 } }) } }), readSamples('sampled')),
+      say('The SPICE search worker cannot calculate a closest approach. The profile sampled 3 km at t10, only a sampled center-distance minimum, not touchdown; 0 missing samples.'),
     ]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to 67P during landing? Show me.' });
     expect(resultOf(run, 'search')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('non-retryable') });
     expect(resultOf(run, 'retry')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('Not run') });
+    expect(resultOf(run, 'new-query').code, resultOf(run, 'new-query').error).toBe('missing-dependency');
+    expect(host.calls.some(c => c.startsWith('upsertEventQuery('))).toBe(false);
     expect(resultOf(run, 'sampled')).toMatchObject({ data: { minimum: { et: 10, value: 3 }, sampling: { coverage: 'not-certified' } } });
     expect(attempts()).toBe(1);
+    expect(resultOf(run, 'search').receipt).toMatchObject({ status: 'partial', verification: 'host-return' });
+    expect(tools.verify!(run.goals).checks.find(c => c.slot === 'event')?.ok).toBe(false);
     expect(run.answer).toContain('only a sampled center-distance minimum');
+    expect(run.stats.rounds).toBe(5);
     tools.dispose();
   });
 
-  it('caps additional model rounds after a frame-dependency error, instead of exhausting the full request budget', async () => {
+  it('uses the existing request budget for a model that ignores the non-retryable error', async () => {
     const { host, attempts } = failingScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([
-      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
       call(goal(), runQuery('search', 'philae-landing')),
       ...Array.from({ length: 9 }, (_, i) => call(runQuery('again-' + i, 'changed-' + i))),
     ]);
-    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to 67P?' });
+    const run = await runAgent({ transport: model.transport, tools, maxSteps: 4, prompt: 'When did Philae get closest to 67P?' });
     expect(attempts()).toBe(1);
-    expect(run.stats.rounds).toBe(7);
-    expect(run.answer).toContain('SPICE worker is missing a reference-frame dependency');
-    expect(run.answer).toContain('not verified closest approach');
+    expect(run.stats.rounds).toBe(4);
+    expect(run.outcome.kind).toBe('step-limit');
+    expect(run.answer).toBe(''); // ordinary stopped-request UI; no fabricated recovery answer
     tools.dispose();
   });
+
+  it('keeps a sampled navigation separate from an unmet computed-event goal', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('samples')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The SPICE dependency prevented computation. The smallest of 2 samples over ET 0 to 10 is 3 km at t10, with no gaps. The clock is there, but this sampled center-distance minimum is not verified closest approach, clearance or touchdown.'),
+      say('The clock is at a sampled center-distance minimum only; the requested computed closest approach remains unverified, with 0 missing samples.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(host.time).toBe(10);
+    expect(resultOf(run, 'seek')).toMatchObject({ receipt: { status: 'completed' } });
+    expect(run.stats.rounds).toBe(4); // an unrecoverable event predicate cannot be repaired with another search
+    expect(run.answer).toContain('not verified closest approach');
+    expect(run.result.status).toBe('failed');
+    expect(tools.verify!(run.goals).checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(host.selectedRef).toBeNull();
+    tools.dispose();
+  });
+
+  it('offers a scoped profile recovery only for a center-distance search and withholds raw solver text', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'missing-dependency', error: expect.stringContaining('sampleProfileData') });
+    if (!result.ok) {
+      expect(result.error).toContain('"observer":"Philae","target":"67P"');
+      expect(result.error).toContain('"window":{"start":0,"end":1000000000}');
+      expect(result.error).not.toContain('-226000');
+    }
+    const info = host.getEventQueryInfo.bind(host);
+    host.getEventQueryInfo = q => {
+      const result = info(q) as ScriptEventQueryInfo;
+      if (result.definition) result.definition.query.kind = 'occultation';
+      return result as never;
+    };
+    const occultation = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(occultation).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('No numerical profile substitution') });
+    if (!occultation.ok) expect(occultation.error).not.toContain('sampleProfileData');
+    tools.dispose();
+  });
+
+  it.each(['coverage unavailable', 'Event search timed-out', 'no results'])('does not classify other failures (%s) as frame dependencies', async message => {
+    const { host } = failingScene();
+    host.runEventQuery = async () => { throw new Error(message); };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining(message) });
+    tools.dispose();
+  });
+
+  it('still checks and repairs unrelated unmet goals after an event dependency failure', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }, { p: 'selected', object: 'Mars' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The sampled alternative has 0 missing samples and is approximate; the computed event is unverified.'),
+      call(use('select', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })),
+      say('Mars is selected, but the computed event remains unverified; the sampled alternative has 0 missing samples.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'Show the closest approach and select Mars.' });
+    expect(host.selected).toBe('Mars');
+    expect(run.result.report?.checks.find(c => c.slot === 'selected')?.ok).toBe(true);
+    expect(run.result.report?.checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(run.result.status).toBe('failed');
+    tools.dispose();
+  });
+
+  it('checks the model-facing sampled answer for omitted gap disclosure, with one correction only', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The approximate minimum among 2 samples is 3 km at t10; the computed event remains unverified.'),
+      say('The approximate minimum among 2 samples is 3 km at t10; the computed event remains unverified.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(attempts()).toBe(1);
+    expect(run.stats.rounds).toBe(5);
+    expect(run.result.answerIssues).toEqual([expect.stringContaining('missing-data limit')]);
+    expect(run.answer).toContain('(0 missing)');
+    expect(run.answer).toContain('not a verified closest approach');
+    expect(run.result.status).toBe('failed');
+    tools.dispose();
+  });
+
+  it('a budget stop reports the published sampled alternative without certifying the unmet event goal', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, maxSteps: 3, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(run.outcome.kind).toBe('step-limit');
+    expect(run.result.status).toBe('failed');
+    expect(run.result.report?.checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(run.answer).toContain('Event Finder could not compute');
+    expect(run.answer).toContain('minimum among 2 returned Philae–67P center-distance samples from t0 to t10 (0 missing) is 3 km at t10 (ET 10)');
+    expect(run.answer).toContain('not a verified closest approach');
+    expect(run.messages.at(-1)?.content).toEqual([{ type: 'text', text: run.answer }]);
+    expect(host.time).toBe(10);
+    tools.dispose();
+  });
+
+  it('a late frame failure after scene reload is stale, not an invitation to recover in the new scene', async () => {
+    const { host } = failingScene();
+    host.runEventQuery = async () => {
+      await Promise.resolve();
+      host.scene = { id: 4, catalog: 'new', ready: true }; host.emit('load', { objects: [] });
+      throw new Error(frameError);
+    };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'stale' });
+    tools.dispose();
+  });
+
+  it('normal computed event presentation still satisfies the exact Philae request', async () => {
+    const host = new EventScene();
+    host.searches['philae-landing'] = { observer: 'Philae', target: '67P', et: 10, km: 3 };
+    host.objects.push('Philae', '67P');
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(use('page', 'getEventResultPage', { query: 'philae-landing', order: 'range-ascending' })),
+      call(use('present', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('philae-landing') } })),
+      say('Presented the computed closest approach.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(resultOf(run, 'present')).toMatchObject({ receipt: { status: 'completed' } });
+    expect(host.time).toBe(10);
+    expect(host.presented).toEqual(['philae-landing-0']);
+    expect(run.result.status).toBe('verified');
+    tools.dispose();
+  });
+
+  it.each(['time', 'scene'] as const)('preserves %s takeover during frame recovery', async takeover => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal(), runQuery('search', 'philae-landing')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('Navigation was stopped.'),
+    ]);
+    const send = model.transport.send;
+    model.transport.send = async request => {
+      if (model.requests.length === 1) {
+        if (takeover === 'time') { host.time = 8; host.emit('time', { et: 8, cause: 'viewer' }); }
+        else { host.scene = { id: 4, catalog: 'new', ready: true }; host.emit('load', { objects: [] }); }
+      }
+      return send(request);
+    };
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(host.time).not.toBe(10);
+    if (takeover === 'scene') expect(run.outcome.kind).toBe('stale');
+    else expect(resultOf(run, 'seek')).toMatchObject({ code: 'interrupted' });
+    tools.dispose();
+  });
+
 });
 
 describe('the model-facing context stays bounded as operations are added', () => {

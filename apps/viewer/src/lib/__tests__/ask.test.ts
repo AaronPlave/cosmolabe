@@ -141,6 +141,18 @@ describe('the Ask session', () => {
     expect(transport.requests[0].tools.map((t) => t.name)).toContain('listCapabilities');
   });
 
+  it.each([['fixed', 10], ['discovery', 20]] as const)('bounds %s requests independently of the shared discovery bridge', async (mode, rounds) => {
+    let sequence = 0;
+    const transport = new MockTransport(() => ({ stop: 'tool_use', content: [{ type: 'tool_use', id: String(++sequence), name: 'describeScene', input: {} }] }));
+    setHostAskTransport(transport, {}, mode);
+    await submitAsk('inspect forever');
+    expect(transport.requests[0].tools.some(t => t.name === 'listCapabilities')).toBe(true);
+    expect(transport.requests).toHaveLength(rounds);
+    expect(ask.turns.at(-1)?.status).toBe('step-limit');
+    expect(ask.turns.at(-1)?.reply).toBe('');
+    expect(endNote(ask.turns.at(-1)!)?.text).toContain('Stopped after too many steps');
+  });
+
   it('applies the embedding host capability omissions to Ask discovery and execution', async () => {
     let round = 0;
     const transport = new MockTransport(() => ++round === 1

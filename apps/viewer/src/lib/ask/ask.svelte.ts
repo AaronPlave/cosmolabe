@@ -309,6 +309,8 @@ export async function submitAsk(prompt: string): Promise<void> {
     history,
     goals,
     prompt: text,
+    // Both surfaces expose listCapabilities; its presence does not identify mode.
+    maxSteps: ask.toolMode === 'fixed' ? 10 : 20,
     onEvent: (e) => {
       const view = live();
       if (!view) return;
