@@ -66,7 +66,7 @@
   $effect(() => { void vs.bodies; refreshViewpoints(); });
 
   const select = 'ui-control w-full min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary';
-  const btn = 'ui-control flex min-h-8 items-center justify-center gap-1 rounded border border-border bg-surface-3 px-2 text-text-secondary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40';
+  const btn = 'ui-control flex min-h-8 items-center justify-center gap-1 rounded border border-border bg-surface-3 px-2 text-text-primary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40';
 </script>
 
 <InstrumentPanel key="camera" title="Camera" width={toolDef('camera').width} {onClose}>
@@ -92,9 +92,10 @@
         </select>
       </label>
     </div>
+    <div class="mt-0.5 truncate text-metadata text-text-muted" title="Frame and Fly to act on the tracked object">Go to {tracked ?? 'the tracked object'}</div>
     <div class="grid grid-cols-2 gap-1">
-      <button class={btn} disabled={!tracked} title="Fit the tracked object in view" onclick={() => run('Frame', frameBody())}>Frame</button>
-      <button class={btn} disabled={!tracked} title="Animate to the framed view {shortcutFor('cam:fly-to') ?? ''}" onclick={() => run('Fly to', flyToTracked())}>Fly to</button>
+      <button class={btn} disabled={!tracked} title="Fit the tracked object in view. Clears the Looking-at aim." onclick={() => run('Frame', frameBody())}>Frame</button>
+      <button class={btn} disabled={!tracked} title="Animate to the framed view of the tracked object. Clears the Looking-at aim. {shortcutFor('cam:fly-to') ?? ''}" onclick={() => run('Fly to', flyToTracked())}>Fly to</button>
     </div>
     {#if message}<p class="helper text-error" role="alert">{message}</p>{/if}
     <label class="flex items-center gap-2 text-xs text-text-primary">
