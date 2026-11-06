@@ -259,6 +259,8 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
               keys: keys(
                 'url', 'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
                 'residentLevel', 'maxBlocksPerTile', 'retryFailedMs', 'maxLevel',
+                // Relighting provenance of the single legacy product (#204), not `temporal.illumination`.
+                'illumination',
               ),
             },
           },

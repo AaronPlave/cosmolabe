@@ -10,7 +10,7 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
-import { combineImageryIllumination, DEFAULT_IMAGERY_ILLUMINATION, injectAsIsDisplayIntoShader, surfaceLightingPath, type ImageryIllumination } from './SurfaceIllumination.js';
+import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, type ImageryIllumination, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
@@ -34,9 +34,10 @@ export interface TerrainImageryConfig {
    *  - `'unknown'` (default when omitted): legacy path, relit as before and not
    *    asserted to be physically relightable.
    *
-   *  A stack is `baked` or `reflectance` only when every contributing layer (visible,
-   *  opacity above zero) agrees; any mixture is `unknown`, so a bounded baked overlay
-   *  never switches the Sun off for the whole surface. */
+   *  Applied per pixel, weighted by the layer's own alpha: a baked overlay is shown
+   *  as-is inside its footprint, and the layers beneath it keep their own behaviour
+   *  outside it. This is not `temporal.illumination` (#214), which only records that a
+   *  dated image carries its acquisition-time Sun and changes nothing here. */
   illumination?: ImageryIllumination;
   /** Imagery source type. Default 'xyz'.
    *
@@ -477,7 +478,7 @@ type ImageryOverlay = XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMS
 interface PreparedOverlay { id: string; overlay: ImageryOverlay; generation: number }
 
 /** Upstream overlay members the shipped typings leave out. */
-type OverlayInternals = { opacity: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
+type OverlayInternals = { opacity: number; asIs: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
 /** Upstream tile loading states (`3d-tiles-renderer/core` constants, missing from its typings). */
 const FAILED = -1, LOADED = 4;
 type CoverageTile = {
@@ -675,6 +676,7 @@ function createImageryOverlay(img: TerrainImageryConfig, date?: string): Imagery
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
 const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
+const _viewInverse = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export interface SurfaceAppearanceStatus {
@@ -706,26 +708,46 @@ export class TerrainManager {
   /** Declared illumination provenance by layer id, and the fallback with no imagery (#204). */
   private readonly illuminationById = new Map<string, ImageryIllumination>();
   private readonly noImageryIllumination: ImageryIllumination;
-  /** Shared by every tile program: 1 shows tiles as-is (baked), 0 relights them with the Sun. */
-  private readonly asIsUniform = { value: 0 };
-
   /**
-   * Resolved illumination provenance of what is drawn now (#204): the layers that
-   * contribute pixels (visible, opacity above zero) must all agree for a claim, so
-   * a baked overlay over another source leaves the surface on the legacy relit
-   * path instead of disabling the Sun outside its footprint.
+   * Shared by every tile program. `surfaceAsIs` is the weight of a pixel no imagery
+   * layer covers (1 shows it as-is, 0 relights it with the Sun); each layer then blends
+   * its own weight over it by alpha in the shader.
    */
-  get surfaceIllumination(): ImageryIllumination {
-    const layers = this.cubeImagery && this.layers.length ? this.cubeImagery.imageryLayers : this.layers;
+  private readonly asIs = createSurfaceAsIsUniforms();
+  /** The lighting mode's `bakedNightFloor`; the shader sees 1 (no gate) on frames without a body centre. */
+  private bakedNightFloor = LIGHTING_MODES.natural.bakedNightFloor;
+
+  /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
+  get surfaceIllumination(): SurfaceIlluminationSummary {
+    // Cube layers carry their own declaration, including the single legacy `cubeSphere.imagery` product.
+    const cube = this.cubeImagery?.imageryLayers;
+    const layers = cube ?? this.layers;
     const visible = layers.filter(l => l.visible && l.opacity > 0);
     return visible.length > 0
-      ? combineImageryIllumination(visible.map(l => this.illuminationById.get(l.id)))
+      ? combineImageryIllumination(visible.map(l => cube ? l.illumination : this.illuminationById.get(l.id)))
       : this.noImageryIllumination;
   }
 
-  /** Push the current provenance to the tile shaders. No recompile: it is a uniform. */
+  /** Weight of a pixel no layer draws: the base map of an imagery-only body, else the tileset's own texture. */
   private refreshIllumination(): void {
-    this.asIsUniform.value = surfaceLightingPath(this.surfaceIllumination) === 'as-is' ? 1 : 0;
+    const uncovered = this.isImageryOnly ? this.illuminationById.get(this.layers[0]?.id ?? '') : this.noImageryIllumination;
+    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered);
+  }
+
+  /**
+   * Body centre in the view space the tile shaders see, for baked imagery's terminator
+   * gate. Without a centre the local horizon is unknown, so there is no gate.
+   */
+  private updateTerminatorGate(camera: THREE.Camera, bodyWorldPos?: THREE.Vector3): void {
+    if (bodyWorldPos) {
+      this.asIs.centerView.value.copy(bodyWorldPos).applyMatrix4(_viewInverse.copy(camera.matrixWorld).invert());
+      this.asIs.nightFloor.value = this.bakedNightFloor;
+    } else this.asIs.nightFloor.value = 1;
+  }
+
+  /** The scene's lighting mode, for the night floor of baked imagery. */
+  setLightingMode(mode: LightingMode): void {
+    this.bakedNightFloor = LIGHTING_MODES[mode].bakedNightFloor;
   }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
@@ -898,6 +920,7 @@ export class TerrainManager {
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
+    // What a pixel no imagery draws is: the tileset's own texture, never the imagery's declaration.
     this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
@@ -1334,6 +1357,7 @@ export class TerrainManager {
     // tile's bounding volume fails the frustum test → 0 tiles rendered.
     _camPos.setFromMatrixPosition(camera.matrixWorld);
     const distToBody = bodyWorldPos ? _camPos.distanceTo(bodyWorldPos) : 0;
+    this.updateTerminatorGate(camera, bodyWorldPos);
 
     // Near the surface, distToBody ≈ bodyRadius so distToBody*0.001 clips terrain
     // for km around the camera (e.g., 3.4 km near clip at Mars surface).
@@ -2230,6 +2254,8 @@ export class TerrainManager {
       }
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
+      // Uploaded per layer into the overlay shader's LayerInfo (injectOverlayAsIsIntoShader).
+      o.asIs = imageryAsIsWeight(layer.illumination);
       const inner = o.preprocessURL;
       o.preprocessURL = (url: string) => {
         // The plugin queues overlay fetches on the shared download queue, and
@@ -2868,8 +2894,8 @@ export class TerrainManager {
     // Illumination-baked imagery is displayed as-is, never relit by the Sun (#204).
     // Always injected and driven by a shared uniform, so provenance changes
     // (layer visibility) need no recompile and every tile shares one program.
-    const asIsUniform = this.asIsUniform;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v1';
+    const asIs = this.asIs;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2';
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -2924,7 +2950,8 @@ export class TerrainManager {
           if (hasOverlayWrap && overlayOnBeforeCompile) {
             (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
           }
-          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          injectOverlayAsIsIntoShader(shader);
+          injectAsIsDisplayIntoShader(shader, asIs);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };
@@ -2966,7 +2993,8 @@ export class TerrainManager {
         const prevOBC = (mat as any).onBeforeCompile;
         (mat as any).onBeforeCompile = (shader: any) => {
           prevOBC?.(shader);
-          injectAsIsDisplayIntoShader(shader, asIsUniform);
+          injectOverlayAsIsIntoShader(shader);
+          injectAsIsDisplayIntoShader(shader, asIs);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };

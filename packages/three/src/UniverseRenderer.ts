@@ -2661,6 +2661,7 @@ export class UniverseRenderer {
     // ambient/Sun pair. Only `natural` is a physical claim. Baked photogrammetry
     // in `tileScene` is mode-independent by design.
     applyLightingMode(mode, this.ambientLight, this.sunLight);
+    for (const bm of this.bodyMeshes.values()) bm.setSurfaceLightingMode(mode);
   }
 
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
@@ -4162,6 +4163,7 @@ export class UniverseRenderer {
       // Attach before any load below: the mesh registers its own models and
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
+      bm.setSurfaceLightingMode(this._lightingMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);
       this.scene.add(bm);

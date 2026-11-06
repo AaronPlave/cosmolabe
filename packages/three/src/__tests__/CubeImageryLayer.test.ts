@@ -373,6 +373,36 @@ describe('CubeImageryLayer paged imagery', () => {
     l.setLayerVisible('b',true);for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
     expect(l.sampleAt(southPole).find(x=>x.id==='b')?.enabled).toBe(1);l.dispose();
   });
+  it('gives each source its own as-is weight, blended by its alpha beside its colour (#204)',async()=>{
+    const layers=[{type:'cube' as const,id:'base',url:'http://base/imagery.json',illumination:'reflectance' as const},
+      {type:'cube' as const,id:'detail',url:'http://detail/imagery.json',illumination:'baked' as const},
+      {type:'cube' as const,id:'legacy',url:'http://legacy/imagery.json'}];
+    const l=new CubeImageryLayer({url:layers[0].url,layers,residentLevel:0},{fetchManifest:async()=>manifest(5),loadTexture:async()=>({texture:new THREE.DataTexture(new Uint8Array([90,80,70,255]),1,1),bytes:4,downloadBytes:4})});
+    await l.ready;const a=directionToTexel(southPole,3,256,4).address,{scene,mesh}=geometryTile(a),parent=new THREE.Group();parent.add(scene);l.addTile(scene,scene,a);
+    const tick=()=>l.update(camera(5000),parent.matrixWorld,.001,null);
+    for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
+    const shader=compile(mesh.material as THREE.Material);
+    for(const i of [0,1,2])expect(shader.fragmentShader).toContain(`surfaceAsIs = mix(surfaceAsIs, cubeLayer${i}_asIs, alpha);`);
+    // Weights are per source: a relit base, a baked overlay, and an undeclared (legacy relit) source.
+    expect([0,1,2].map(i=>(shader.uniforms[`cubeLayer${i}_asIs`] as {value:number}).value)).toEqual([0,1,0]);
+    // They follow the source when the stack is reordered, so a weight never lands on the wrong layer.
+    l.moveLayer('legacy',1);tick();
+    expect([0,1,2].map(i=>(shader.uniforms[`cubeLayer${i}_asIs`] as {value:number}).value)).toEqual([0,0,1]);
+    l.dispose();
+  });
+  it('lets the legacy single-product config declare illumination, and defaults it to the relit path (#204)',async()=>{
+    const baked=await setup({residentLevel:0,illumination:'baked'});
+    expect(baked.layer.imageryLayers[0].illumination).toBe('baked');
+    expect((compile(baked.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(0); // set on the first update
+    await drain(baked);
+    expect((compile(baked.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(1);
+    baked.layer.dispose();
+    const legacy=await setup({residentLevel:0});
+    expect(legacy.layer.imageryLayers[0].illumination).toBe('unknown');
+    await drain(legacy);
+    expect((compile(legacy.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(0);
+    legacy.layer.dispose();
+  });
   it('preserves contour/style fields and dynamic upstream shader hooks without derived geometry',async()=>{
     const fade={value:1};
     const s=await setup({residentLevel:0},mesh=>{

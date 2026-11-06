@@ -1,0 +1,97 @@
+{
+ "note": "Real hosted terrain/imagery, real viewer, software WebGL (SwiftShader). Captured with a scratch script that sets epoch, camera and lighting mode, waits for streaming to settle, and reads solarGeometryAt. Before/after is the same build with the imagery layer provenance overridden at runtime (unknown = legacy relit path).",
+ "lro-shackleton": {
+  "epoch": "2025-01-15T00:00:00Z",
+  "sun": {
+   "elevationDeg": 1.1676804792023994,
+   "azimuthDeg": 222.28114307149596,
+   "cosIncidence": 0.020378458243375672
+  },
+  "streamingFinished": [
+   true,
+   true,
+   true
+  ],
+  "sources": [
+   {
+    "id": "layer-0",
+    "illumination": "baked",
+    "source": {
+     "type": "cube",
+     "endpoint": "http://127.0.0.1:5199",
+     "layer": null,
+     "tileMatrixSet": null
+    }
+   }
+  ],
+  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+ },
+ "transition-meanLuma": {
+  "sunEl60": {
+   "r2500km": {
+    "globe": 131.0,
+    "streamedRelit": 48.4,
+    "streamedBaked": 52.0
+   },
+   "r700km": {
+    "globe": 131.3,
+    "streamedRelit": 43.7,
+    "streamedBaked": 43.9
+   }
+  },
+  "sunEl8": {
+   "r2500km": {
+    "globe": 47.7,
+    "streamedRelit": 16.1,
+    "streamedBaked": 45.5
+   },
+   "r700km": {
+    "globe": 54.5,
+    "streamedRelit": 17.7,
+    "streamedBaked": 56.2
+   }
+  }
+ },
+ "gale-ctx-edge-meanLuma": {
+  "oldAllRelit": {
+   "ctx": 61.6,
+   "viking": 60.5
+  },
+  "newPerPixel": {
+   "ctx": 117.6,
+   "viking": 60.5
+  },
+  "allBaked": {
+   "ctx": 117.6,
+   "viking": 98.6
+  }
+ },
+ "moon-neutral-albedo": {
+  "westSun": {
+   "left": 135.0,
+   "right": 138.1,
+   "std": 3.64
+  },
+  "eastSun": {
+   "left": 125.9,
+   "right": 122.0,
+   "std": 4.6
+  },
+  "flood": {
+   "std": 0.0
+  }
+ },
+ "softwareGlFrameMs": {
+  "relit": [
+   366.6,
+   366.7
+  ],
+  "baked": [
+   350.0,
+   366.7
+  ],
+  "programs": 10,
+  "drawCalls": 46,
+  "note": "SwiftShader; no GPU or mobile claim"
+ }
+}
