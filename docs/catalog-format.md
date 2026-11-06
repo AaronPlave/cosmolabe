@@ -689,7 +689,7 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 
 | File | What it shows |
 |---|---|
-| `iss.json` | Minimal TLE-driven Earth + ISS — no SPICE kernels needed |
+| `iss.json` | Earth from Orbit: NOAA-20 VIIRS daily imagery over Blue Marble plus a TLE-driven ISS — no SPICE kernels needed |
 | `lro-moon.json` | LRO at the Moon with high-res Moon textures |
 | `cassini-soi.json` | Cassini at Saturn-Orbit-Insertion with rings, sensor frustums, multiple viewpoints |
 | `europa-clipper.json` | Multi-body Jupiter system + Galilean moons |

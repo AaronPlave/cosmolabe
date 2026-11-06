@@ -37,7 +37,7 @@ The Imagery section shows `Acquired <date> · follows time | fixed | latest` und
 
 ## Earth pilot: `test-catalogs/earth-gibs-daily`
 
-Open with `?catalog=test-catalogs/earth-gibs-daily` (or from the developer index). Layers, bottom to top: the static `earth-5k.jpg` map; streamed **Blue Marble** (no acquisition date); **MODIS Terra corrected reflectance, true colour**, daily, following simulation time. Viewpoints: *Earth from orbit* (default), *Regional close-up* (central California coast) and *Track ISS* (the 2011 TLE of `iss.json`, so the layer follows to 2011 when the clock is moved there; the ISS mesh is a Git LFS object).
+Open with `?catalog=test-catalogs/earth-gibs-daily` (or from the developer index). Layers, bottom to top: the static `earth-5k.jpg` map; streamed **Blue Marble** (no acquisition date); **MODIS Terra corrected reflectance, true colour**, daily, following simulation time. Viewpoints: *Earth from orbit* (default), *Regional close-up* (central California coast) and *Track ISS* (a 2011 TLE kept in this fixture, so the layer follows to 2011 when the clock is moved there; the ISS mesh is a Git LFS object).
 
 **What the imagery shows.** One composite per UTC day of what MODIS on Terra recorded that day: clouds are real weather, not a cloud product. Expect black swath gaps between orbits (opaque in the JPEG, clearest from orbit), no data in polar night, sun glint, and imagery that is not matched to the simulated Sun's position.
 
@@ -60,6 +60,16 @@ The catalog also carries a second, **switched-off** layer, *MODIS daily (provide
 * Not checked: how rate limiting answers.
 
 `node scripts/test-time-indexed-imagery.mjs --live` repeats the CORS, two-day and pre-start checks, and the same rendering checks, against the real service. It passes here: day changes follow the simulation clock, a scrub keeps one overlay, and a day before the product shows nothing.
+
+## Public entry: Earth from Orbit (`iss`)
+
+The public `iss` entry (`test-catalogs/iss.json`, issue [#368](https://github.com/AaronPlave/cosmolabe/issues/368)) uses the same contract with a VIIRS daily layer over Blue Marble, so it is the first view most people get of dated imagery. The `earth-gibs-daily` MODIS fixture above is unchanged.
+
+* **Product.** NASA GIBS `VIIRS_NOAA20_CorrectedReflectance_TrueColor`, `epsg3857/best`, `GoogleMapsCompatible_Level9`, JPEG, with CORS headers. VIIRS's wide, overlapping swaths leave no regular black inter-orbit gaps in the global mosaic (checked on 2026-03-31 and 2026-04-01 at zoom 3); what remains is polar night, sun-glint streaks and real cloud. NOAA-20 was preferred over `VIIRS_SNPP_…` because its provider time dimension is one unbroken run, 2022-01-14 → present, while SNPP's has eight runs with missing days (for example 2024-06-01 to 2024-06-03 answer `404`), and because the SNPP mosaic of the first view's day showed black corners near the poles that NOAA-20's did not. The catalog declares `start: 2022-01-14` and `latencyDays: 1`; a day before the start shows *Before data* and requests nothing. Capabilities checked 2026-11-06.
+* **Dates.** The layer follows the simulation day by default (`Acquired 2026-03-31 · follows time`); *Fixed date* in the Imagery section pins any day in range. Open **Surface layers** in the left rail. 2026-03-31 and 2026-04-01 were both served and differ visibly.
+* **ISS.** The orbit is one TLE, epoch 2026-03-31 03:11:39 UTC (`1 25544U 98067A   26090.13309952 …`), and the ISS exists only within 3 days of it (`startTime` / `endTime` on the item; `windowDays` does not hide a body). Beyond that the imagery can still be explored but no ISS is drawn, instead of an extrapolated SGP4 position. The default time (2026-03-31 11:00 UTC) puts the ISS over the Atlantic off West Africa on the sunlit side. Checks: both line checksums are valid; Cosmolabe's own sub-point (11.35°N, 20.15°W) agrees with an independent SGP4 propagation; and the TLE's node, advanced by J2 precession to NASA's published ISS ascending node for 2026-11-06 13:30:24 UTC (`nasa-public-data` ISS OEM, Earth-fixed longitude 67.17°), lands at 68.07°, within the accuracy of a J2-only extrapolation over 220 days. The TLE text is the one already used in this repository's tests; its original download source was not recorded, so replace it with a fresh Space-Track or CelesTrak element set (and update the epoch and window) if a cited source is required.
+* **Not claimed.** The imagery was captured by NOAA-20, not by the ISS. Sunlight is baked into the daily composite and the viewer also shades the globe by the simulated Sun (#204, #365), so the day/night boundary will not match the image. Blue Marble is a static composite, not contemporaneous.
+* **Check.** `node scripts/test-earth-from-orbit.mjs [viewer-url] [dir]` (real GIBS, dev or preview): the first view, the date shown in the Imagery section, two days drawing differently, a fixed day ignoring the clock, a day before the product showing Blue Marble with no tile requests, and the ISS present only within its window.
 
 ## Verification
 
