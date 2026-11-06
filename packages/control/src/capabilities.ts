@@ -368,7 +368,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         const verified = observation.state !== null && result.ok && (effectOf(def) === 'read' ? true : outcome?.report?.status === 'met');
         const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
-            : result.code === 'failed' ? 'partial' : 'refused';
+            : ['failed', 'missing-dependency'].includes(result.code) ? 'partial' : 'refused';
         const outcomeWarnings = !result.ok || effectOf(def) === 'read' ? [] : !outcome?.report ? [`Not observable: ${outcome?.unobservable ?? 'no result declared'}.`]
           : outcome.report.status === 'met' ? [] : [`Viewer check ${outcome.report.status}: ${outcome.report.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}.`];
         const resolvedTarget: Record<string, string> = {};
@@ -400,7 +400,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const receipt: OperationReceipt = {
         id: `${instance}:${++sequence}`, operation: def ? idOf(def) : `unknown.${name.slice(0, 160)}`,
         version: CAPABILITY_VERSION, scope: bound, task: task.id,
-        status: !result.ok && result.code === 'stale' ? 'stale' : !result.ok && ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled' : !result.ok && result.code === 'failed' ? 'partial' : 'refused',
+        status: !result.ok && result.code === 'stale' ? 'stale' : !result.ok && ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled' : !result.ok && ['failed', 'missing-dependency'].includes(result.code) ? 'partial' : 'refused',
         requestedTarget: {}, resolvedTarget: {}, observation: observe(), warnings: result.ok ? [] : [result.error],
         provenance: 'viewer-observation', verification: 'host-return',
       };
