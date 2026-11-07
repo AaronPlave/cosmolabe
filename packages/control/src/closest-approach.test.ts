@@ -22,8 +22,8 @@ function fixture(windows = [window]) {
   host.findClosestApproach = (request, opts = {}) => findClosestApproach(host, request, opts);
   return host;
 }
-const request = { observer: 'Cassini', target: 'Titan' };
-const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: request, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }], missing: 0, gaps: [], minimum: { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
+const request = { observer: 'Cassini', target: 'Titan', windowMode: 'coverage' as const };
+const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: { observer: request.observer, target: request.target }, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }], missing: 0, gaps: [], minimum: { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
 
 describe('bounded closest-approach composition', () => {
   it('ranks the complete native set and verifies the actual result presentation', async () => {
@@ -36,15 +36,20 @@ describe('bounded closest-approach composition', () => {
   it('uses the requested interval even when discovery reports the wider catalog as unavailable', async () => {
     const host = fixture(), options = host.getEventSearchOptions!();
     host.getEventSearchOptions = () => ({ ...options, error: { code: 'unavailable' } });
-    expect(await findClosestApproach(host, { ...request, start: 0, end: 100 })).toMatchObject({ status: 'computed' });
+    expect(await findClosestApproach(host, { ...request, windowMode: 'interval', start: 0, end: 100 })).toMatchObject({ status: 'computed' });
   });
   it('prevents another compound attempt for the pair, even with changed bounds', async () => {
     const host = fixture(), spy = vi.spyOn(host, 'findClosestApproach');
     const tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
     expect(await task.call('findClosestApproach', request)).toMatchObject({ ok: true });
-    expect(await task.call('findClosestApproach', { ...request, start: 20, end: 80 })).toMatchObject({ ok: false, code: 'refused' });
+    expect(await task.call('findClosestApproach', { ...request, windowMode: 'interval', start: 20, end: 80 })).toMatchObject({ ok: false, code: 'refused' });
     expect(spy).toHaveBeenCalledOnce();
     task.finish(); tools.dispose();
+  });
+  it('resolves UTC endpoints using the shared calendar parser and rejects omitted phase bounds', async () => {
+    const host = fixture();
+    expect(await findClosestApproach(host, { ...request, windowMode: 'interval', start: '2000-01-01T11:58:55.816Z', end: '2000-01-01T12:00:35.816Z' })).toMatchObject({ status: 'computed', windows: [{ start: 0, end: 100 }] });
+    expect(await findClosestApproach(host, { ...request, windowMode: 'interval' })).toMatchObject({ status: 'unavailable', reason: 'invalid-window' });
   });
   it('compares all assessed windows while bounding configuration and work', async () => {
     const host = fixture([window, { start: 200, end: 300 }]);
@@ -62,7 +67,7 @@ describe('bounded closest-approach composition', () => {
   });
   it('refuses an explicit interval across a coverage gap without silently clipping it', async () => {
     const host = fixture([window, { start: 200, end: 300 }]);
-    expect(await findClosestApproach(host, { ...request, start: 50, end: 250 })).toMatchObject({ status: 'unavailable', reason: 'missing-coverage' });
+    expect(await findClosestApproach(host, { ...request, windowMode: 'interval', start: 50, end: 250 })).toMatchObject({ status: 'unavailable', reason: 'missing-coverage' });
     expect(host.upsertEventQuery).not.toHaveBeenCalled();
   });
   it('returns structured frame failure, labels the sampled alternative and does not certify it, and does not certify navigation', async () => {

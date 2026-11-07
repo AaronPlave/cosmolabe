@@ -23,13 +23,16 @@ const cases = [
 const report = { model, fallback: false, renderer: 'Chromium SwiftShader', cache: 'warmth uncontrolled', runs: [] };
 const proxy = createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new URL(base).origin], provider: anthropicProvider, model, escalationModel: model, fallback: false, maxTokens: 1536, tokenBudget: 600000, costBudgetUsd: 0.5, perMinute: 100, cache: true,
   fetchImpl: (url, options) => { const body = JSON.parse(options.body); assert.equal(body.model, model); assert.equal(body.fallbacks, undefined); return fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(60000)]) }); },
-  onUsage: row => { assert.equal(row.model, model); assert.equal(row.requestedModel, model); usage.push(row); },
+  onUsage: row => { assert.equal(row.model, model); assert.equal(row.requestedModel, model); usage.push(row); console.log(`Haiku completed: ${row.inputTokens+row.cacheReadTokens+row.cacheWriteTokens+row.outputTokens} processed tokens`); },
 });
 await new Promise(resolve => proxy.listen(8797, '127.0.0.1', resolve));
-const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+let browser;
+const launch = () => chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   for (const scenario of cases.filter(c => !process.env.ASK_ANALYSIS_CASE || process.env.ASK_ANALYSIS_CASE.split(',').includes(c.id))) {
+    browser = await launch();
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    page.on('response', response => { if (response.url() === 'http://127.0.0.1:8797/') console.log(`${scenario.id}: proxy HTTP ${response.status()}`); });
     page.on('pageerror', e => console.error(`${scenario.id}: browser ${e.message}`));
     const start = usage.length, payloads = new Map(); let rounds = 0;
     page.on('request', request => {
@@ -125,7 +128,7 @@ try {
       }
       console.log(JSON.stringify({ id: scenario.id, rounds, tokens: run.tokens, status: result.status, answer: result.answer, checks: run.checks }));
     } catch (e) { report.runs.push({ ...scenario, rounds, error: String(e) }); console.error(`${scenario.id}: ${e}`); }
-    finally { writeFileSync(output, JSON.stringify(report,null,2)+'\n'); await page.close(); }
+    finally { writeFileSync(output, JSON.stringify(report,null,2)+'\n'); await browser.close(); }
   }
-} finally { await browser.close(); await new Promise(resolve => proxy.close(resolve)); }
+} finally { await browser?.close(); await new Promise(resolve => proxy.close(resolve)); }
 if (report.runs.some(r => r.error)) process.exitCode = 1;

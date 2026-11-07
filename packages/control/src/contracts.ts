@@ -477,16 +477,18 @@ export interface ScriptReadiness {
 export interface ScriptClosestApproachRequest {
   observer: string;
   target: string;
-  /** Both ET endpoints, or neither to search assessed overlap with the catalog window. */
-  start?: number;
-  end?: number;
+  /** Choose the user's temporal scope explicitly; a phase never defaults to the whole mission. */
+  windowMode: 'coverage' | 'interval';
+  /** Both UTC calendar/ET endpoints for interval mode; omitted for coverage mode. */
+  start?: number | string;
+  end?: number | string;
   present?: boolean;
 }
 export interface ScriptClosestApproachResult {
   /** Identity allocated for this attempt, even if preflight cannot save/run it. */
   query: string;
   status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
-  reason: 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
+  reason: 'invalid-window' | 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
   computedEventVerified: boolean;
   windows: { start: number; end: number }[];
   stepSeconds: number | null;

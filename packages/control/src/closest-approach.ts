@@ -1,4 +1,5 @@
 import type { ScriptCancelSignal, ScriptClosestApproachRequest, ScriptClosestApproachResult, ScriptSceneOptions, ViewerControl } from './contracts.js';
+import { etFromCalendarString } from '@cosmolabe/core';
 import { evaluate } from './outcome.js';
 
 let sequence = 0;
@@ -16,9 +17,14 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
   const bodies = { observer: request.observer, target: request.target };
   const options = host.getEventSearchOptions({ kind: 'closest-approach', bodies });
   const kind = options.kinds.find(k => k.kind === 'closest-approach');
-  const explicit = request.start !== undefined || request.end !== undefined;
-  const scope = explicit ? { start: request.start!, end: request.end! } : options.catalogWindow;
-  if (![scope.start, scope.end].every(Number.isFinite) || scope.end <= scope.start || !kind || !Number.isFinite(kind.step) || kind.step <= 0) return stop('missing-coverage');
+  const explicit = request.windowMode === 'interval';
+  if (!['coverage','interval'].includes(request.windowMode) || !explicit && (request.start !== undefined || request.end !== undefined)) return stop('invalid-window');
+  const epoch = (value: number | string | undefined) => typeof value === 'number' ? value : typeof value === 'string' ? etFromCalendarString(value) : NaN;
+  let scope: { start: number; end: number };
+  try { scope = explicit ? { start: epoch(request.start), end: epoch(request.end) } : options.catalogWindow; }
+  catch { return stop('invalid-window'); }
+  if (![scope.start, scope.end].every(Number.isFinite) || scope.end <= scope.start) return stop('invalid-window');
+  if (!kind || !Number.isFinite(kind.step) || kind.step <= 0) return stop('search-failed');
   const coverage = options.coverage;
   if (!coverage || coverage.status === 'unknown') return stop('coverage-unassessed');
   if (coverage.status === 'none') return stop('missing-coverage');
