@@ -14,11 +14,12 @@
    * without turning into a dashboard. On a phone the row stacks its label,
    * value and controls in a header line over a full-width plot.
    */
+  import { observeProfileRow, profileSignature, profileControl } from '../../lib/profile-control';
   import type { ConfiguredContinuousProfile, ContinuousProfileConfiguration } from '@cosmolabe/core';
   import { vs, getRenderer } from '../../lib/viewer-state.svelte';
   import {
-    resolveProfile, setConfiguredItemVisible, updateConfiguredProfile,
-    moveConfiguredProfile, removeConfiguredItem,
+    resolveProfile,
+    moveConfiguredProfile,
   } from '../../lib/analysis.svelte';
   import {
     timeline, timelineFraction, toggleRowExpanded, ghostEt, TL_HEAD_PX,
@@ -65,6 +66,11 @@
   const tall = $derived(expanded);
   const inspectedRow = $derived(timeline.hoverRow === rowId);
 
+  const shown = $derived(item.enabled && item.visible);
+  function toggleVisible() {
+    profileControl.upsertProfile({ id: item.id, profile: item.profile, enabled: true, visible: !shown });
+  }
+
   const spec = $derived(profileQuantity(item.profile.quantity));
 
   const bodies = $derived.by((): ProfileBodies | null => {
@@ -87,8 +93,9 @@
   const series = $derived.by(() => {
     // `getRenderer()` is not reactive; the scene flag is what changes with it.
     void vs.sceneLoaded;
+    void vs.kernelRevision;
     const pos = positionOf();
-    if (!item.visible || !spec || !bodies || !pos || !(axisWidth > 0)) return null;
+    if (!shown || !spec || !bodies || !pos || !(axisWidth > 0)) return null;
     return sampleProfile(
       spec, bodies, { start: vs.scrubMin, end: vs.scrubMax },
       sampleCountFor(axisWidth), pos, item.profile.window,
@@ -102,6 +109,11 @@
   const yOf = (value: number) => PAD + valueY(value, series!, IH);
   const path = $derived(series ? profilePath(series, W, IH) : '');
   const hasData = $derived(!!series && series.values.some((v) => v != null));
+  $effect(() => observeProfileRow(item.id, {
+    signature: profileSignature(item.id), samples: series?.values.length ?? 0,
+    missing: series?.values.filter((v, i) => v === null && (!item.profile.window || series!.ets[i] >= item.profile.window.start && series!.ets[i] <= item.profile.window.end)).length ?? 0,
+    traceVisible: shown && hasData && axisWidth > 0 && path.includes('L'),
+  }));
   const grid = $derived(tall && series && hasData ? gridValues(series) : []);
 
   // Value at the ghost when previewing, otherwise at committed time —
@@ -109,7 +121,7 @@
   const ghost = $derived(ghostEt());
   const readout = $derived.by(() => {
     const pos = positionOf();
-    if (!item.visible || !spec || !bodies || !pos) return null;
+    if (!shown || !spec || !bodies || !pos) return null;
     return quantityAt(spec.id, bodies, ghost ?? vs.et, pos);
   });
 
@@ -133,7 +145,7 @@
   let configOpen = $state(false);
 
   function apply(profile: ContinuousProfileConfiguration) {
-    updateConfiguredProfile(item.id, profile, profileQuantity(profile.quantity)?.label ?? profile.quantity);
+    profileControl.upsertProfile({ id: item.id, profile, label: profileQuantity(profile.quantity)?.label ?? profile.quantity });
     configOpen = false;
   }
 
@@ -148,11 +160,11 @@
   class="tl-row"
   class:stacked={!wide}
   class:boundary
-  class:hidden-row={!item.visible}
+  class:hidden-row={!shown}
   class:inspected={inspectedRow}
   data-tl-row={rowId}
   data-tl-no-axis={!wide || undefined}
-  style="height: {item.visible ? H : TL_HEAD_PX}px"
+  style="height: {shown ? H : TL_HEAD_PX}px"
 >
   <!-- One grammar for every row: the label opens its configuration; expand,
        the eye and the trash sit beside it. Units live with the value. -->
@@ -169,18 +181,18 @@
             initial={item.profile}
             submitLabel="Apply"
             onSubmit={apply}
-            visible={item.visible}
-            onToggleVisible={() => { setConfiguredItemVisible(item.id, !item.visible); configOpen = false; }}
+            visible={shown}
+            onToggleVisible={() => { toggleVisible(); configOpen = false; }}
             onMoveUp={first ? undefined : () => moveConfiguredProfile(item.id, -1)}
             onMoveDown={last ? undefined : () => moveConfiguredProfile(item.id, 1)}
-            onRemove={() => { configOpen = false; removeConfiguredItem(item.id); }}
+            onRemove={() => { configOpen = false; profileControl.removeProfile(item.id); }}
           />
           {/if}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
     <span class="tl-label-controls">
-      {#if item.visible}
+      {#if shown}
         <button
           class="tl-icon-btn"
           onclick={() => toggleRowExpanded(item.id)}
@@ -193,15 +205,15 @@
       {/if}
       <button
         class="tl-icon-btn"
-        onclick={() => setConfiguredItemVisible(item.id, !item.visible)}
-        aria-label={item.visible ? 'Hide profile' : 'Show profile'}
-        title={item.visible ? 'Hide profile' : 'Show profile'}
+        onclick={toggleVisible}
+        aria-label={shown ? 'Hide profile' : 'Show profile'}
+        title={shown ? 'Hide profile' : 'Show profile'}
       >
-        {#if item.visible}<Eye size={icon} />{:else}<EyeOff size={icon} />{/if}
+        {#if shown}<Eye size={icon} />{:else}<EyeOff size={icon} />{/if}
       </button>
       <button
         class="tl-icon-btn danger"
-        onclick={() => removeConfiguredItem(item.id)}
+        onclick={() => profileControl.removeProfile(item.id)}
         aria-label="Remove profile"
         title="Remove profile"
       >
@@ -210,7 +222,7 @@
     </span>
   </div>
 
-  {#if item.visible}
+  {#if shown}
     <div
       class="tl-plot plot"
       data-tl-plot

@@ -1,4 +1,4 @@
-import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, ContinuousProfileConfiguration, EventQuery, GeometryEvent } from '@cosmolabe/core';
 import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
@@ -22,6 +22,51 @@ import type { GridSettings } from './grid.js';
  * `Universe.getBody`. The host does not raise: it does not know the line number.
  * The interpreter, which does, turns that `false` into a located error.
  */
+
+/** Existing timeline profile definition; IDs belong to the current scene. */
+export interface ScriptProfileDefinition {
+  id: string;
+  label?: string;
+  profile: ContinuousProfileConfiguration;
+  enabled?: boolean;
+  visible?: boolean;
+}
+export interface ScriptProfileInfo {
+  scene: number | null;
+  status: 'available' | 'partial' | 'unavailable' | 'missing-profile' | 'scene-reloaded';
+  definition: ScriptProfileDefinition | null;
+  resolved: ContinuousProfileConfiguration | null;
+  timeline: { present: boolean; traceVisible: boolean; window: { start: number; end: number }; samples: number; missing: number };
+  limitations: string[];
+}
+/** Exact evaluations of the existing display quantity; never interpolated. */
+export interface ScriptProfileSample { et: number; utc: string; value: number | null }
+export interface ScriptProfileSampleRequest { start: number; end: number; count?: number }
+export interface ScriptProfileData {
+  scene: number | null;
+  id: string;
+  status: ScriptProfileInfo['status'];
+  quantity: string | null;
+  unit: string | null;
+  bodies: ContinuousProfileConfiguration['bodies'] | null;
+  requestedWindow: { start: number; end: number };
+  /** Intersection with the configured profile window; null when disjoint. */
+  window: { start: number; end: number } | null;
+  samples: ScriptProfileSample[];
+  missing: number;
+  /** Runs of missing sampled epochs, not certified continuous coverage intervals. */
+  gaps: { start: number; end: number; samples: number }[];
+  /** Earliest on ties; extrema of these samples only, never refined/certified. */
+  minimum: ScriptProfileSample | null;
+  maximum: ScriptProfileSample | null;
+  sampling: { method: 'exact-point' | 'uniform'; requestedCount: number; maxCount: number; stepSeconds: number | null; coverage: 'not-certified'; interpolation: 'none' };
+  limitations: string[];
+}
+export interface ScriptProfileOptions {
+  quantities: { id: string; label: string; unit: string }[];
+  window: { start: number; end: number };
+  limitations: string[];
+}
 
 /** A three-component vector, in the units the method documents. */
 export type ScriptVec3 = readonly [number, number, number];
@@ -448,6 +493,32 @@ export interface ScriptReadiness {
   readonly limitations: readonly string[];
 }
 
+/** Bounded composition of the existing Event Finder primitives, not another solver. */
+export interface ScriptClosestApproachRequest {
+  observer: string;
+  target: string;
+  /** Choose the user's temporal scope explicitly; a phase never defaults to the whole mission. */
+  windowMode: 'coverage' | 'interval';
+  /** Both UTC calendar/ET endpoints for interval mode; omitted for coverage mode. */
+  start?: number | string;
+  end?: number | string;
+  present?: boolean;
+}
+export interface ScriptClosestApproachResult {
+  /** Identity allocated for this attempt, even if preflight cannot save/run it. */
+  query: string;
+  status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
+  reason: 'invalid-window' | 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
+  computedEventVerified: boolean;
+  windows: { start: number; end: number }[];
+  stepSeconds: number | null;
+  candidates: number;
+  result: ScriptEventResultPage | null;
+  presentation: ScriptEventFocusReceipt | null;
+  samples: ScriptProfileData | null;
+  limitations: readonly string[];
+}
+
 export interface ViewerControl {
   findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
   /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
@@ -747,6 +818,14 @@ export interface ViewerControl {
     suggestedWindow: { start: number; end: number } | null;
     error: { code: string } | null;
   };
+  findClosestApproach?(request: ScriptClosestApproachRequest, opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptClosestApproachResult>;
+  getProfileOptions?(): ScriptProfileOptions;
+  listProfiles?(): { scene: number | null; total: number; items: ScriptProfileDefinition[] };
+  getProfile?(id: string, opts?: ScriptSceneOptions): ScriptProfileInfo;
+  getProfileValue?(id: string, et: number, opts?: ScriptSceneOptions): ScriptProfileData;
+  sampleProfileData?(id: string, request: ScriptProfileSampleRequest, opts?: ScriptSceneOptions): ScriptProfileData;
+  upsertProfile?(definition: ScriptProfileDefinition, opts?: ScriptSceneOptions): boolean;
+  removeProfile?(id: string, opts?: ScriptSceneOptions): boolean;
   listEventQueries?(): readonly ConfiguredEventQuery[];
   upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
   openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;

@@ -1,7 +1,7 @@
 export type { MeasurementDefinition, SpatialEndpoint, ReferenceVector, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 // The port
 export type {
-  ViewerControl,
+  ScriptClosestApproachRequest, ScriptClosestApproachResult, ViewerControl, ScriptProfileDefinition, ScriptProfileInfo, ScriptProfileOptions, ScriptProfileSample, ScriptProfileSampleRequest, ScriptProfileData,
   ScriptEventQuery, ScriptEventSearch, ScriptInstrument, ScriptBookmark,
   ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptSurfacePolicy,
   ScriptEventReference, ScriptEventProvenance, ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization, ScriptEventFocusReceipt,
@@ -90,3 +90,5 @@ export type {
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';
+
+export { findClosestApproach } from './closest-approach.js';

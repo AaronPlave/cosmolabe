@@ -28,6 +28,8 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  */
 import type {
   ScriptActivity,
+  ScriptProfileData,
+  ScriptClosestApproachRequest,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -40,6 +42,7 @@ import type {
 import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { missingFrameDependency } from './closest-approach.js';
 import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
@@ -98,6 +101,7 @@ export interface AgentToolDef {
  * - `refused`: the viewer refused — usually no such name; the message says
  *   which names exist.
  * - `failed`: the viewer tried and could not (an unreachable place, say).
+ * - `missing-dependency`: an environment dependency cannot be repaired by retrying the same operation.
  * - `no-scene`: nothing is loaded.
  * - `stale`: the scene changed since the task began.
  * - `superseded`: a newer request replaced this task.
@@ -105,12 +109,12 @@ export interface AgentToolDef {
  * - `interrupted`: the person took over the camera during this task.
  */
 export type AgentErrorCode =
-  | 'invalid-input' | 'unknown-tool' | 'refused' | 'failed' | 'no-scene'
+  | 'invalid-input' | 'unknown-tool' | 'refused' | 'failed' | 'missing-dependency' | 'no-scene'
   | 'stale' | 'superseded' | 'cancelled' | 'interrupted';
 
 export type AgentToolResult = (
   | { readonly ok: true; readonly summary: string; readonly data?: unknown; readonly completion?: { readonly kind: 'flight'; readonly id: number; readonly outcome: 'arrived' } }
-  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string }
+  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string; readonly data?: unknown }
 ) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[] };
 
 /**
@@ -130,7 +134,7 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export type ResultFact = { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface EventResultFact {
   readonly kind: 'event-result';
   readonly query: string;
@@ -233,6 +237,7 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'circleCenterDown', effect: 'camera' },
   { verb: 'dolly', effect: 'camera' },
   { verb: 'composeView', effect: 'camera' },
+  { verb: 'findClosestApproach', effect: 'camera' },
   { verb: 'stopFlight', effect: 'camera' },
   { verb: 'setTime', effect: 'time' },
   { verb: 'setTimeRate', effect: 'time' },
@@ -301,9 +306,14 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 export type AgentDefinition = AgentToolDef & { readonly method?: keyof ViewerControl; readonly contract: OperationContract };
 
 const READ_TOOLS: readonly AgentDefinition[] = [
+  { name: 'getProfileOptions', effect: 'read', method: 'getProfileOptions', contract: { namespace: 'profiles', writes: [] }, description: 'Supported continuous timeline profile quantities: distance/range (center-to-center), relative speed, range rate and phase angle. Parameter meanings, units, window and sampling limits. No SPICE GF search; not physical surface clearance.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listProfiles', effect: 'read', method: 'listProfiles', contract: { namespace: 'profiles', writes: [] }, description: 'List existing continuous timeline profile IDs/configurations and enabled/visible flags in this scene. Native UI, scripts, embedding and Ask share these profiles.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getProfile', effect: 'read', method: 'getProfile', contract: { namespace: 'profiles', writes: [] }, description: 'Read an existing continuous timeline profile: quantity, body pair, time window, enabled/visible, native timeline presence, sampled trace visibility and gaps. Partial/unavailable never proves success. Does not seek or move the scene.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
+  { name: 'getProfileValue', effect: 'read', method: 'getProfileValue', contract: { namespace: 'profiles', writes: [], guide: 'Evaluate the existing profile at the exact ET; null is missing position data or outside its configured window, never zero. No interpolation. For a sampled minimum/maximum use sampleProfileData, then navigate with existing setTime at the returned ET only when asked. Center minimum is not clearance/contact/first touchdown.' }, description: 'Numerical value of an existing timeline profile at one ET, with quantity/unit, exact epoch/UTC, missing positions and sampling limits. Read only; independent of visibility. Not surface clearance.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, et: { type: 'number' } }, required: ['id', 'et'], additionalProperties: false } },
+  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. In the final answer give both effective interval endpoints as UTC dates or ET numbers, the actual sample count or spacing, and explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
   { name: 'getTimelineWindow', effect: 'read', method: 'getTimelineWindow', contract: { namespace: 'time', writes: [] }, description: 'The timeline\'s visible window, ET and UTC. Moves nothing.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getViewComposition', contract: { namespace: 'camera', writes: [] }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
-  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
+  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. Before creating a search, use eventSelected/eventRun without query; eventFramed/eventEpoch/eventDrawn require an already-saved exact query ID. Presenting a result checks epoch/framing/drawing automatically. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
     require: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, required: ['p'], properties: {
       p: { type: 'string', enum: [...PREDICATE_KINDS] }, object: { type: ['string', 'null'] }, maxKm: { type: 'number' }, minKm: { type: 'number' }, et: { type: 'number' }, utc: { type: 'string' },
       value: { type: ['boolean', 'number'] }, query: { type: 'string' }, id: { type: ['string', 'null'] }, pick: { type: 'string', enum: ['closest'] }, encounter: { type: 'boolean' },
@@ -316,7 +326,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['rendered','reference','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', contract: { namespace: 'spatial', writes: [], guide: 'The pin is transient display, not a saved point. When the person asks for a point after a pin ("place a point", "save it"), they mean a saved annotation at the pin: make it with geographic.editAnnotation (describe it for its notes); never report the pin itself as that point.' }, effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'Registry kinds, defaults and coverage for custom Event Finder work. For routine find/show closest-approach requests prefer findClosestApproach, which composes these controls and reports structured results. Catalog dates alone do not prove coverage. Custom searches require exact scene participant names, numeric ET bounds and the kind default step; do not change body IDs or frames to evade failures.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventResultPage', contract: { namespace: 'events', writes: [], guide: 'For "closest", order range-ascending: it compares every measured candidate before paging; the first chronological result is not the smallest range. State the searched start and end dates (windowUtc) and step limits; never imply all-time coverage. Each result says whether its range minimum is an encounter and by which criterion: quote its distances and classification, not your own.' }, effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -422,10 +432,10 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   },
   {
     name: 'getSurfaceData',
-    contract: { namespace: 'surface', writes: [], guide: 'Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
+    contract: { namespace: 'surface', writes: [], guide: 'This inventory does not assess DSK or irregular mesh availability: terrain:null never establishes no physical surface model. Physical-surface clearance timeline profiles are unsupported; say that capability limit without inferring absent geometry. Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
     effect: 'read',
     method: 'getSurfaceData',
-    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
+    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Does not assess DSK/irregular mesh availability; terrain:null does not mean no physical surface model. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -622,7 +632,7 @@ export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
   for (const { verb } of AGENT_VERBS) {
     if (!VERBS.has(verb)) throw new Error(`Unregistered fixed agent verb: ${verb}`);
   }
-  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult']);
+  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult', 'findClosestApproach']);
   return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
 }
 
@@ -807,7 +817,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const name = input.object as string;
     const data = host.getSurfaceData!(name);
     if (!data) return { ok: false, code: 'refused', error: `surface data unavailable for ${JSON.stringify(name)}` };
-    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data: metadata.surface(data) };
+    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null. Physical-surface/DSK/irregular mesh availability is not assessed by this inventory; null terrain does not establish absent geometry.`, data: metadata.surface(data) };
   }
 
   function getImagery(input: Input): AgentToolResult {
@@ -877,12 +887,29 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       ...(base.data !== undefined ? { data: base.data } : back?.data !== undefined ? { data: back.data } : {}), outcome };
   }
 
+  function profileRead(data: ScriptProfileData): AgentToolResult {
+      const first = data.samples[0], last = data.samples.at(-1);
+      const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
+      const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
+      const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
+        ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false, samples: data.samples.flatMap(s => s.value === null ? [] : [{ km: s.value, utc: s.utc, et: s.et }]) }] : [];
+      return { ok: true, facts, summary: `${minimum} In the final answer, name BOTH interval endpoints above (UTC dates or ET numbers), report count or spacing, and say minimum among the returned samples. Do not replace the endpoints with full timeline or mission window. This is only a minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+
+  }
+
   const reads: Record<string, (input: Input) => AgentToolResult> = {
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
     getSpatialContext: input => ({ ok: true, summary: 'Targeted body/state/Draw conventions; missing layers can be created after approval.', data: metadata.spatialContext(host.getSpatialContext!(input.object as string)) }),
     getObjectState: input => ({ ok: true, summary: 'Targeted state and availability; unapproved provenance stays local.', data: metadata.objectState(host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined })) }),
     projectGroundPoint: input => ({ ok: true, summary: 'Shared radial ground projection; inspect status/source before placing a marker.', data: metadata.groundProjection(host.projectGroundPoint!(input.object as string, input.policy as import('./contracts.js').ScriptSurfacePolicy | undefined)) }),
     getProbePoint: () => ({ ok: true, summary: 'Actual native/UI Point Probe state; draw-enabled does not promise unoccluded pixels.', data: metadata.probePoint(host.getProbePoint!()) }),
+    getProfileOptions: () => ({ ok: true, summary: 'Continuous timeline profile quantities and limits.', data: host.getProfileOptions!() }),
+    listProfiles: () => ({ ok: true, summary: 'Shared configured timeline profiles.', data: host.listProfiles!() }),
+    getProfile: input => ({ ok: true, summary: 'Native profile readback; partial/unavailable is not visual acceptance.', data: host.getProfile!(input.id as string) }),
+    getProfileValue: input => ({ ok: true, summary: 'Exact profile value at the returned epoch; no interpolation or surface-clearance claim.', data: host.getProfileValue!(input.id as string, input.et as number) }),
+    sampleProfileData: input => {
+      return profileRead(host.sampleProfileData!(input.id as string, { start: input.start as number, end: input.end as number, ...(input.count === undefined ? {} : { count: input.count as number }) }));
+    },
     getTimelineWindow: () => { const w = host.getTimelineWindow!(); return { ok: true, summary: 'Timeline window.', data: { ...w, ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(w.start)), endUtc: attempt(() => opts.formatTime!(w.end)) } : {}) } }; },
     getViewComposition: input => ({ ok: true, summary: 'Current view composition.', data: compositionData(host.getViewComposition!(input.objects as string[])) }),
     checkGoal: input => {
@@ -897,7 +924,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const coverage = options.coverage;
       // A named kind gets its own defaults only; an unknown one still lists every kind.
       const kind = options.kinds.filter(k => k.kind === input.kind);
-      return { ok: true, summary: 'Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
+      return { ok: true, summary: `Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.${input.kind === 'closest-approach' ? ' For a new closest-approach search, checkGoal require:[{p:"eventSelected",pick:"closest"}] without query can precede upsertEventQuery and runEventQuery in the same reply. Presentation checks framing later; do not name an unsaved query or demand a contact/encounter criterion for a center-distance question.' : ''}`, data: {
         ...options, kinds: kind.length ? kind : options.kinds, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
       } };
     },
@@ -1012,6 +1039,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     ownFlight: number | null = null;
     /** Outcome checks this request has made; bounded so a failing goal cannot loop. */
     goalChecks = 0;
+    /** A required worker frame cannot be repaired by changing a query in this task. */
+    eventFrameUnavailable = false;
+    private readonly closestPairs = new Set<string>();
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -1044,7 +1074,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         this.end('stale');
         return { ok: false, code: 'stale', error: 'the scene changed since this request began; nothing was done' };
       }
+      if (this.eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery', 'findClosestApproach'].includes(def.name)) {
+        return { ok: false, code: 'missing-dependency', error: 'Not run: Event Finder already encountered a non-retryable SPICE frame dependency in this request. Do not create or run another query. Follow the original failure recovery guidance if it matches the requested quantity, or report the event as uncomputed.' };
+      }
       if (def.effect !== 'read' && !hasScene()) return { ok: false, code: 'no-scene', error: 'no scene is loaded' };
+      if (available().find(d => d.name === def.name)?.contract.writes.includes('time') && this.clockTaken) {
+        return { ok: false, code: 'interrupted', error: 'the person moved the clock during this request; leaving the time to them' };
+      }
       if (def.effect === 'camera' && this.cameraTaken) {
         return { ok: false, code: 'interrupted', error: 'the person moved the camera during this request; leaving the view to them' };
       }
@@ -1070,6 +1106,32 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
+
+      if (name === 'findClosestApproach') {
+        const pair = JSON.stringify([args.observer, args.target].sort());
+        if (this.closestPairs.has(pair)) return { ok: false, code: 'refused', error: 'This pair already received its bounded closest-approach analysis in this request. Report its result or structured failure; do not change the window to evade it.' };
+        const blocked = ['upsertEventQuery','runEventQuery', ...(args.present === false ? [] : ['presentEventResult','setTime','setPlaying']), 'upsertProfile','sampleProfileData'].find(operation => opts.omittedTools?.[operation]);
+        if (blocked) return { ok: false, code: 'refused', error: `Closest-approach analysis requires ${blocked}: ${opts.omittedTools![blocked]}` };
+        this.closestPairs.add(pair);
+        this.writing = true;
+        try {
+          const response = await host.findClosestApproach!(args as unknown as ScriptClosestApproachRequest, { signal: this.signal });
+          this.writing = false;
+          const late = this.gate(def);
+          if (late) return late;
+          if (response.status === 'interrupted') { this.clockTaken = true; this.cameraTaken = true; return { ok: false, code: 'interrupted', error: 'Analysis interrupted; leaving clock and camera to the person.' }; }
+          if (response.reason === 'missing-dependency') this.eventFrameUnavailable = true;
+          const facts: ResultFact[] = response.status === 'computed' ? [] : [{ kind: 'event-search-failure', reason: response.reason ?? response.status }];
+          if (response.samples) facts.push(...(profileRead(response.samples).facts ?? []));
+          if (response.result) facts.push(...(reads.getEventResultPage({ query: response.result.items[0].reference.query, order: 'range-ascending' }).facts ?? []));
+          const data = { ...response, samples: response.samples ? { ...response.samples, samples: undefined, count: response.samples.samples.length } : null, result: response.result ? eventPageMetadata(response.result, metadata.text) : null,
+            presentation: response.presentation ? { status: response.presentation.status, reference: response.presentation.reference, observation: eventVisualizationMetadata(response.presentation.observation) } : null };
+          const sampleRead = response.samples ? profileRead(response.samples) : null;
+          const base = { summary: `Closest-approach analysis ${response.status}${response.reason ? ` (${response.reason})` : ''}. Computed-event presentation verified: ${response.computedEventVerified}.${response.reason === 'missing-dependency' ? ' A required SPICE reference-frame dependency is unavailable; this does not establish absent trajectory data. Changing the time window, body IDs or frames will not repair it.' : ''} ${sampleRead?.ok ? sampleRead.summary : 'Report the actual searched windows, candidates and step limits. A structured failure is final; do not retry.'}`, data };
+          return response.status === 'computed' ? { ...judged(def, name, args, base), facts } : { ok: true, ...base, outcome: outcomeOf(def, args, data), facts };
+        } catch { return { ok: false, code: 'failed', error: 'Closest-approach analysis failed; no verified result.' }; }
+        finally { this.writing = false; }
+      }
 
       if (name === 'findTrajectoryExtrema') {
         measuredResults.clear();
@@ -1138,8 +1200,17 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           await running;
         } catch (err) {
           this.writing = false;
+          const late = this.gate(def);
+          if (late) return late;
           if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
           const p = err.problems[0];
+          if (name === 'runEventQuery' && missingFrameDependency(p.message)) {
+            this.eventFrameUnavailable = true;
+            const query = attempt(() => host.getEventQueryInfo?.(args.id as string));
+            const definition = query ? eventQueryMetadata(query, metadata.text).definition : null;
+            return { ok: false, code: 'missing-dependency', data: { query: definition, alternative: definition?.kind === 'closest-approach' ? 'sampled-center-distance' : null },
+              error: `Event Finder lacks a required SPICE frame dependency. non-retryable in this request; do not change IDs, frames or coverage. The event is uncomputed. ${definition?.kind === 'closest-approach' ? 'Center-distance profile samples may be an explicitly approximate alternative; they cannot establish surface clearance or touchdown.' : 'No numerical profile substitution is established for this event kind.'}` };
+          }
           const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended ?? 'cancelled')
             : p.kind === 'unknown-target' ? 'refused'
               : 'failed';

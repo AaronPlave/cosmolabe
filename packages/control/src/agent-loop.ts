@@ -118,7 +118,7 @@ export interface AgentRunOptions {
   readonly history?: readonly AgentMessage[];
   readonly prompt: string;
   readonly system?: string;
-  /** Model round trips before the loop gives up. Default 20 with discovery, 10 with fixed tools. */
+  /** Model round trips before the loop gives up. Default 20 when a discovery bridge is offered, otherwise 10; the viewer sets its mode budget explicitly. */
   readonly maxSteps?: number;
   /** Tool result budget; oversized pages shrink structurally, other results are explicitly omitted. Default 6000. */
   readonly maxResultChars?: number;
@@ -198,7 +198,7 @@ const callInput = (use: { name: string; input: unknown }) => use.name === 'invok
 /** The name an action is known by: a capability's own ID rather than the bridge's. */
 function actionName(use: { name: string; input: unknown }): string {
   const id = use.name === 'invokeCapability' ? (use.input as { id?: unknown } | null)?.id : undefined;
-  return typeof id === 'string' ? id.split('.').at(-1)! : use.name;
+  return (typeof id === 'string' ? id : use.name).split('.').at(-1)!;
 }
 
 /**
@@ -277,7 +277,7 @@ function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>, read: bo
 /** Preserve JSON and explicit page boundaries even when a host returns oversized data. */
 export const resultText = (result: AgentToolResult, max: number, read = false): string => {
   const receipt = result.receipt ? { receipt: modelReceipt(result.receipt, read) } : {};
-  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt } : { error: result.error, code: result.code, ...receipt };
+  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt } : { error: result.error, code: result.code, ...(result.data !== undefined ? { data: result.data } : {}), ...receipt };
   const text = JSON.stringify(payload);
   if (text.length <= max) return text;
   if (result.ok && result.data && typeof result.data === 'object' && 'activities' in result.data) {
@@ -362,6 +362,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const status = (): RequestStatus => !wrote ? 'no-change' : !report ? 'unverified' : report.status === 'unmet' ? 'failed'
     : report.status === 'inconclusive' || unobservable.length ? 'unverified' : report.status === 'partial' ? 'partial' : 'verified';
   const finish = (outcome: AgentOutcome): AgentRun => {
+    // A budget stop can still report facts already returned; it certifies no goal.
+    if (!answer && outcome.kind === 'step-limit') {
+      answer = factSummary(facts);
+      if (answer) messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
+    }
     if (wrote && !report) report = verify();
     if (answer) opts.onEvent?.({ type: 'text', text: answer, final: true });
     return { messages, stats: stats(), outcome, goals: [...held], answer,
@@ -468,7 +473,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         // end state and the answer agrees with what the reads published.
         report = wrote ? verify() : null;
         // Repair is for a known unmet predicate only; what cannot be observed is reported, not retried.
-        const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot)) ?? [];
+        const missingEventDependency = facts.some(f => f.kind === 'event-search-failure' || f.kind === 'sampled-range' && f.eventSearchUnavailable);
+        const unavailableEventSlots = new Set(missingEventDependency
+          ? held.filter(p => ['eventSelected', 'eventRun', 'eventEpoch', 'eventFramed', 'eventDrawn'].includes(p.p)).map(slotOf) : []);
+        const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot) && !unavailableEventSlots.has(c.slot)) ?? [];
         const issues = outcome.kind === 'done' ? checkAnswer(text, facts) : [];
         if (outcome.kind === 'done' && !repaired && step + 1 < maxSteps && (unseen.length || issues.length)) {
           repaired = true;

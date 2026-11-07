@@ -59,6 +59,9 @@ export interface Predicate {
   readonly equals?: unknown;
   /** state: `equals` need only be contained in the value (the fields given), for a host that fills defaults. */
   readonly subset?: boolean;
+  /** Internal operation contract only: incomplete presentation evidence is partial,
+   * while definition/configuration mismatches remain hard failures. Stripped from model goals. */
+  readonly soft?: boolean;
   /** state: numeric tolerance for a number `equals` (seconds, km). */
   readonly within?: number;
   /** ready: a readiness request kind. */
@@ -164,7 +167,7 @@ export function parsePredicate(input: unknown): Predicate {
   if (g.framing !== undefined) need(g.framing === 'pair' || g.framing === 'target', 'framing is pair|target');
   if (g.policy !== undefined) need(['reference', 'rendered', 'terrain'].includes(g.policy as string), 'policy is reference|rendered|terrain');
   // Only the loop marks what the person stated.
-  const { stated: _stated, ...rest } = g;
+  const { stated: _stated, soft: _soft, ...rest } = g;
   return rest as unknown as Predicate;
 }
 
@@ -203,8 +206,8 @@ export function adopt(held: readonly Predicate[], incoming: readonly Predicate[]
     const old = next.get(slotOf(p));
     const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && (old.query === p.query || (!!old.stated && !old.query));
     if (old?.stated && by === 'action') {
-      // The person's requirement stays; an action only fills in which result it selected.
-      if (sameSearch && p.id !== undefined) next.set(slotOf(p), { ...old, query: p.query, id: p.id });
+      // The requirement stays; bind the actual search even if it produced no selectable result.
+      if (sameSearch && p.query !== undefined) next.set(slotOf(p), { ...old, query: p.query, ...(p.id === undefined ? {} : { id: p.id }) });
       continue;
     }
     // A selected result inherits what was required of it (the closest, a real encounter).
@@ -232,7 +235,7 @@ export const retireDomain = (held: readonly Predicate[], domain: 'camera' | 'tim
 
 // ── Evaluation ──
 
-const check = (p: Predicate, ok: boolean | null, detail: string): GoalCheck => ({ slot: slotOf(p), ok, detail, soft: SOFT.has(p.p) });
+const check = (p: Predicate, ok: boolean | null, detail: string): GoalCheck => ({ slot: slotOf(p), ok, detail, soft: SOFT.has(p.p) || p.p === 'state' && p.soft === true });
 const round = (v: number) => Math.round(v * 1000) / 1000;
 /** Smallest centre-to-edge size, in vertical NDC, that reads as an object rather than a dot. */
 const LEGIBLE_NDC = 0.005;

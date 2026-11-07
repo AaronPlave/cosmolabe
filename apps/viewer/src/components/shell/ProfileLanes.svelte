@@ -24,9 +24,8 @@
 
   let { axisWidth, wide, ticks, afterLanes }: Props = $props();
 
-  // Disabled items are out of the analysis, as with event lanes. Hidden ones
-  // stay listed (dimmed, with their eye toggle) so they can be shown again.
-  const profiles = $derived(configuredProfiles().filter((item) => item.enabled));
+  // Keep disabled profiles manageable through the ordinary native controls.
+  const profiles = $derived(configuredProfiles());
 </script>
 
 {#each profiles as item, i (item.id)}
