@@ -62,19 +62,10 @@ describe('surface illumination provenance resolution', () => {
     expect(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'baked' }).surfaceIllumination).toBe('baked');
   });
 
-  it('reads the legacy cubeSphere.imagery declaration for the imagery, not for pixels it does not draw (#204)', () => {
-    const cube = (imageryIllumination?: 'baked' | 'reflectance', terrain?: 'baked' | 'reflectance') => make({
-      type: '3dtiles', url: 'https://example.invalid/t.json', illumination: terrain,
-      cubeSphere: { cpuGrids: 'https://example.invalid/cpu-grids.json', imagery: { url: 'https://example.invalid/imagery.json', illumination: imageryIllumination } },
-    });
-    expect(cube().surfaceIllumination).toBe('unknown'); // nothing declared: legacy relit
-    expect(cube('baked').surfaceIllumination).toBe('baked');
-    expect(cube('reflectance', 'baked').surfaceIllumination).toBe('reflectance'); // the imagery's own declaration wins for the imagery
-    expect(cube(undefined, 'baked').surfaceIllumination).toBe('unknown'); // the tileset's texture does not declare the cube imagery
-    // The declaration never turns untextured geometry (no imagery, or imagery off) into a flat as-is surface.
-    const baked = cube('baked');
+  it('keeps a declaration on imagery from turning pixels it does not draw into a flat as-is surface', () => {
+    // A 3D-tiles surface whose imagery is baked: pixels no layer draws are the tileset's own texture, still relit.
     const { scene, mesh } = litTile();
-    customize(baked, scene);
+    customize(make({ type: '3dtiles', url: 'https://example.invalid/t.json', imagery: imagery('baked') }), scene);
     expect(uniformOf(mesh.material as THREE.Material).value).toBe(0);
   });
 });

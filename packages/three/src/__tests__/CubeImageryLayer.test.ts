@@ -390,19 +390,6 @@ describe('CubeImageryLayer paged imagery', () => {
     expect([0,1,2].map(i=>(shader.uniforms[`cubeLayer${i}_asIs`] as {value:number}).value)).toEqual([0,0,1]);
     l.dispose();
   });
-  it('lets the legacy single-product config declare illumination, and defaults it to the relit path (#204)',async()=>{
-    const baked=await setup({residentLevel:0,illumination:'baked'});
-    expect(baked.layer.imageryLayers[0].illumination).toBe('baked');
-    expect((compile(baked.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(0); // set on the first update
-    await drain(baked);
-    expect((compile(baked.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(1);
-    baked.layer.dispose();
-    const legacy=await setup({residentLevel:0});
-    expect(legacy.layer.imageryLayers[0].illumination).toBe('unknown');
-    await drain(legacy);
-    expect((compile(legacy.mesh.material as THREE.Material).uniforms.cubeLayer0_asIs as {value:number}).value).toBe(0);
-    legacy.layer.dispose();
-  });
   it('preserves contour/style fields and dynamic upstream shader hooks without derived geometry',async()=>{
     const fade={value:1};
     const s=await setup({residentLevel:0},mesh=>{

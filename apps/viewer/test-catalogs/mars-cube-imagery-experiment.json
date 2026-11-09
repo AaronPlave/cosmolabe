@@ -151,11 +151,21 @@
           },
           "errorTarget": 3,
           "fadeDurationMs": 0,
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "viking",
+              "name": "Global \u00b7 Viking",
+              "description": "Viking MDIM 2.1 color mosaic",
+              "attribution": "NASA Trek",
+              "resolutionMeters": 232,
+              "illumination": "baked",
+              "url": "data/mars-imagery-cube/viking/imagery.json"
+            }
+          ],
           "cubeSphere": {
             "cpuGrids": "data/mars-terrain-cube-jezero/cpu-grids.json",
             "imagery": {
-              "url": "data/mars-imagery-cube/viking/imagery.json",
-              "illumination": "baked",
               "maxTextureBytes": 100663296,
               "maxConcurrentRequests": 6,
               "maxBlocksPerTile": 64

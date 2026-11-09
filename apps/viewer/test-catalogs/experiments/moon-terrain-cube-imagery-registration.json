@@ -133,11 +133,19 @@
             "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
             "kind": "height-grid"
           },
-          "cubeSphere": {
-            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json",
-            "imagery": {
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "registration",
+              "name": "Registration texels",
+              "description": "Texel coordinates encoded as colour; linear data, never relit",
+              "attribution": "Cosmolabe fixture",
+              "illumination": "baked",
               "url": "../data/moon-imagery-cube-registration/imagery.json"
             }
+          ],
+          "cubeSphere": {
+            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json"
           }
         }
       },

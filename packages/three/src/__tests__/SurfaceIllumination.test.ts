@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
   LIGHTING_MODES, aimSunLight, applyLightingMode, combineImageryIllumination, createSurfaceAsIsUniforms, declareSurfaceAsIs,
   directTerm, imageryAsIsWeight, incidenceCosine, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader,
-  isPhysicallyRelit, pickIlluminationReceiver, solarGeometryAt, sunDirectionAt, surfaceLightingPath,
+  isPhysicallyRelit, pickIlluminationReceiver, solarGeometryAt, sunDirectionAt,
 } from '../SurfaceIllumination.js';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -30,13 +30,6 @@ describe('imagery illumination provenance (#204)', () => {
     expect(imageryAsIsWeight(undefined)).toBe(0);
   });
 
-  it('relights reflectance and legacy unknown, shows baked as-is', () => {
-    expect(surfaceLightingPath('reflectance')).toBe('relit');
-    expect(surfaceLightingPath('unknown')).toBe('relit'); // legacy behaviour is preserved
-    expect(surfaceLightingPath('mixed')).toBe('relit'); // the per-pixel weights decide, not this
-    expect(surfaceLightingPath('baked')).toBe('as-is');
-  });
-
   it('asserts physical relighting only for reflectance in natural mode', () => {
     expect(isPhysicallyRelit('reflectance', 'natural')).toBe(true);
     expect(isPhysicallyRelit('unknown', 'natural')).toBe(false);
@@ -60,12 +53,6 @@ describe('imagery illumination provenance (#204)', () => {
     const later = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= eclipse();\n#include <opaque_fragment>');
     expect(later.indexOf('surfaceAsIs);')).toBeLessThan(later.indexOf('eclipse()'));
     expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' }, uniforms)).toThrow(/hook changed/);
-    // The legacy single-uniform form still works, with the terminator gate off.
-    const legacy = { fragmentShader: 'void main() {\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
-    const flag = { value: 1 };
-    injectAsIsDisplayIntoShader(legacy, flag);
-    expect(legacy.uniforms.uSurfaceAsIs).toBe(flag);
-    expect((legacy.uniforms.uBakedNightFloor as { value: number }).value).toBe(1);
   });
 
   it('declares the per-fragment weight once, whichever compositor or hook comes first', () => {
@@ -77,20 +64,6 @@ describe('imagery illumination provenance (#204)', () => {
     expect(declared(a.fragmentShader)).toBe(1);
     expect(a.fragmentShader.split('surfaceAsIs = uSurfaceAsIs;').length - 1).toBe(1);
     expect(() => declareSurfaceAsIs({ fragmentShader: 'nothing' })).toThrow(/main/);
-  });
-
-  it('lets a bounded baked layer blend over a relit base: the weight follows the layer alpha', () => {
-    // The compositors add `surfaceAsIs = mix(surfaceAsIs, layerWeight, alpha)` beside their colour blend;
-    // replay it in JS for a reflectance base under a baked overlay that covers half the pixel run.
-    const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-    const pixel = (coverage: number, overlayOpacity = 1) => {
-      let weight = imageryAsIsWeight('reflectance') * 1; // base alpha 1, relit
-      weight = mix(weight, imageryAsIsWeight('baked'), coverage * overlayOpacity);
-      return weight;
-    };
-    expect(pixel(0)).toBe(0); // outside the footprint: the Sun lights the base
-    expect(pixel(1)).toBe(1); // inside: baked pixels are shown as-is, not lit twice
-    expect(pixel(1, 0.5)).toBeCloseTo(0.5, 12); // a half-opaque overlay: half as-is, half relit
   });
 
   it('gates baked imagery on the local horizon only, per lighting mode', () => {

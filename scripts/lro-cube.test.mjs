@@ -23,7 +23,7 @@ describe('LRO hosted lunar surface migration', () => {
     const root = 'https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/';
     expect(terrain.url).toBe(root + 'tileset.json');
     expect(terrain.cubeSphere.cpuGrids).toBe(root + 'cpu-grids.json');
-    expect(terrain.cubeSphere.imagery.url).toBe('https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json');
+    expect(terrain.imagery[0].url).toBe('https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json');
     expect(catalog.items.find(i => i.name === 'Moon').geometry.terrain.url).toBe('data/moon-terrain-cube/tileset.json');
   });
 

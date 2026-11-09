@@ -141,15 +141,6 @@ describe('validateCatalog', () => {
     }))).toEqual([]);
   });
 
-  it('accepts the legacy cube imagery declaration and still rejects a misspelling of it (#204)', () => {
-    const terrain = (imagery: Record<string, unknown>) => withItem({
-      geometry: { type: 'Globe', radius: 1737.4, terrain: { type: '3dtiles', url: 'y', cubeSphere: { cpuGrids: 'g', imagery } } },
-    });
-    expect(validateCatalog(terrain({ url: 'x', illumination: 'baked' }))).toEqual([]);
-    const ds = validateCatalog(terrain({ url: 'x', ilumination: 'baked' }));
-    expect(ds.map((d) => d.suggestion)).toEqual(['illumination']);
-  });
-
   it('reports an unknown trajectory or rotation type, and its nearest spelling', () => {
     const ds = validateCatalog(withItem({
       trajectory: { type: 'Keplerain' },

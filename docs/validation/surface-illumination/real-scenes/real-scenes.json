@@ -1,85 +1,205 @@
 {
- "note": "Real hosted terrain/imagery, real viewer, software WebGL (SwiftShader). Captured with a scratch script that sets epoch, camera and lighting mode, waits for streaming to settle, and reads solarGeometryAt. Before/after is the same build with the imagery layer provenance overridden at runtime (unknown = legacy relit path).",
- "lro-shackleton": {
-  "epoch": "2025-01-15T00:00:00Z",
-  "sun": {
-   "elevationDeg": 1.1676804792023994,
-   "azimuthDeg": 222.28114307149596,
-   "cosIncidence": 0.020378458243375672
-  },
-  "streamingFinished": [
-   true,
-   true,
-   true
-  ],
-  "sources": [
-   {
-    "id": "layer-0",
-    "illumination": "baked",
-    "source": {
-     "type": "cube",
-     "endpoint": "http://127.0.0.1:5199",
-     "layer": null,
-     "tileMatrixSet": null
-    }
-   }
-  ],
-  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+ "method": "Real hosted terrain/imagery through the real viewer on software WebGL (SwiftShader). Fixed camera per view, fixed epochs, Natural lighting. Every frame waited for the displayed imagery level to equal the wanted level with no fallback blocks. A = provenance forced to unknown (pre-#372 relit path), B = baked as-is, C = a reflectance layer. A was checked against a build of the base commit on the same catalog: mean pixel difference 0.00, 0% of pixels differ.",
+ "gpu": "ANGLE SwiftShader (software); no desktop GPU or mobile-class hardware available",
+ "normalizedStandIn": {
+  "source": "NASA SVS CGI Moon Kit colour map (textures/moon-16k.jpg), derived from the Hapke-normalized LROC WAC mosaic; LOLA albedo fills the poles",
+  "resolution": "16384x8192 equirectangular, about 660 m/px at the equator",
+  "calibration": "luminance scaled so the mean linear value over |lat|<60 deg is 0.115 (LROC global mean reflectance at 643 nm)",
+  "levels": "cube pyramid to level 5",
+  "notReached": "WAC_EMP_643NM (100 m): host pds.lroc.im-ldi.com not reachable from the build environment"
  },
- "transition-meanLuma": {
-  "sunEl60": {
+ "shackleton": {
+  "views": {
+   "shk-t0": {
+    "epoch": "2025-01-15T00:00:00Z",
+    "sunElevationDeg": 1.17,
+    "sunAzimuthDeg": 222.3
+   },
+   "shk-t1": {
+    "epoch": "2025-01-22T00:00:00Z",
+    "sunElevationDeg": 1.08,
+    "sunAzimuthDeg": 137.3
+   },
+   "shk-t2": {
+    "epoch": "2025-01-29T00:00:00Z",
+    "sunElevationDeg": 1.4,
+    "sunAzimuthDeg": 52.0
+   },
+   "shk-t3": {
+    "epoch": "2025-02-05T00:00:00Z",
+    "sunElevationDeg": 1.33,
+    "sunAzimuthDeg": 326.7
+   }
+  },
+  "meanLuma": {
+   "A": [
+    20.9,
+    15.6,
+    16.1,
+    23.7
+   ],
+   "B": [
+    72.0,
+    71.9,
+    72.2,
+    72.2
+   ],
+   "C": [
+    27.0,
+    24.1,
+    22.6,
+    27.5
+   ]
+  }
+ },
+ "equator": {
+  "views": {
+   "eq-t0": {
+    "epoch": "2025-01-03T12:00:00Z",
+    "sunElevationDeg": 20.26,
+    "sunAzimuthDeg": 91.6
+   },
+   "eq-t1": {
+    "epoch": "2025-01-09T12:00:00Z",
+    "sunElevationDeg": 86.46,
+    "sunAzimuthDeg": 245.7
+   },
+   "eq-t2": {
+    "epoch": "2025-01-15T00:00:00Z",
+    "sunElevationDeg": 20.06,
+    "sunAzimuthDeg": 268.5
+   }
+  },
+  "meanLuma": {
+   "A": [
+    28.2,
+    50.7,
+    31.4
+   ],
+   "B": [
+    49.1,
+    49.1,
+    49.1
+   ],
+   "C": [
+    35.3,
+    63.0,
+    39.0
+   ]
+  }
+ },
+ "jezero": {
+  "views": {
+   "jez-t0": {
+    "epoch": "2021-07-05T05:30:00Z",
+    "sunElevationDeg": 50.45,
+    "sunAzimuthDeg": 75.6
+   },
+   "jez-t1": {
+    "epoch": "2021-07-05T09:00:00Z",
+    "sunElevationDeg": 80.37,
+    "sunAzimuthDeg": 301.2
+   },
+   "jez-t2": {
+    "epoch": "2021-07-05T13:30:00Z",
+    "sunElevationDeg": 20.82,
+    "sunAzimuthDeg": 288.5
+   }
+  },
+  "meanLuma": {
+   "A": [
+    69.6,
+    78.6,
+    42.9
+   ],
+   "B": [
+    98.9,
+    98.9,
+    98.9
+   ]
+  }
+ },
+ "globeToStreamed": {
+  "hiSun60": {
    "r2500km": {
-    "globe": 131.0,
-    "streamedRelit": 48.4,
-    "streamedBaked": 52.0
+    "globe": 85.7,
+    "A": 44.7,
+    "B": 46.2,
+    "C": 58.6
    },
    "r700km": {
-    "globe": 131.3,
-    "streamedRelit": 43.7,
-    "streamedBaked": 43.9
+    "globe": 76.7,
+    "A": 41.0,
+    "B": 39.1,
+    "C": 53.6
    }
   },
-  "sunEl8": {
+  "loSun8": {
    "r2500km": {
-    "globe": 47.7,
-    "streamedRelit": 16.1,
-    "streamedBaked": 45.5
+    "globe": 34.2,
+    "A": 15.9,
+    "B": 45.3,
+    "C": 21.9
    },
    "r700km": {
-    "globe": 54.5,
-    "streamedRelit": 17.7,
-    "streamedBaked": 56.2
+    "globe": 39.2,
+    "A": 17.5,
+    "B": 56.0,
+    "C": 24.9
    }
   }
  },
- "gale-ctx-edge-meanLuma": {
-  "oldAllRelit": {
-   "ctx": 61.6,
-   "viking": 60.5
-  },
-  "newPerPixel": {
-   "ctx": 117.6,
-   "viking": 60.5
-  },
-  "allBaked": {
-   "ctx": 117.6,
-   "viking": 98.6
+ "galeCtxEdge": {
+  "epoch": "2014-02-05T14:30:00Z",
+  "meanLuma": {
+   "allRelit": {
+    "ctx": 61.6,
+    "viking": 60.5
+   },
+   "vikingReflectanceCtxBaked": {
+    "ctx": 117.6,
+    "viking": 60.5
+   },
+   "allBaked": {
+    "ctx": 117.6,
+    "viking": 98.6
+   }
   }
  },
- "moon-neutral-albedo": {
-  "westSun": {
-   "left": 135.0,
-   "right": 138.1,
-   "std": 3.64
+ "overlayPluginRealViewer": {
+  "epoch": "2021-07-05T13:30:00Z",
+  "meanLuma": {
+   "allRelit": {
+    "hirise": 60.4,
+    "ctx": 54.9
+   },
+   "ctxRelitHiriseBaked": {
+    "hirise": 70.1,
+    "ctx": 54.9
+   },
+   "allBaked": {
+    "hirise": 139.0,
+    "ctx": 133.0
+   }
   },
-  "eastSun": {
-   "left": 125.9,
-   "right": 122.0,
-   "std": 4.6
+  "perLayerAsIsWeights": {
+   "allRelit": {
+    "ctx-global": 0,
+    "jezero-ctx": 0,
+    "jezero-hirise": 0
+   },
+   "mixed": {
+    "ctx-global": 0,
+    "jezero-ctx": 0,
+    "jezero-hirise": 1
+   },
+   "allBaked": {
+    "ctx-global": 1,
+    "jezero-ctx": 1,
+    "jezero-hirise": 1
+   }
   },
-  "flood": {
-   "std": 0.0
-  }
+  "preExistingError": "`Cannot read properties of undefined (reading width)` from three.js uploadTexture while overlays stream: identical on the pre-#372 build, so not introduced here"
  },
  "softwareGlFrameMs": {
   "relit": [

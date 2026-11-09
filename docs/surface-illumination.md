@@ -26,7 +26,7 @@ Traced from `UniverseRenderer`, `BodyMesh` and `TerrainManager`.
 | Imagery-only ellipsoid (`Globe.imagery`) | main | same light; tiles swapped to `MeshStandardMaterial` | `imagery[].illumination` |
 | Quantized-mesh / 3D Tiles terrain | main | same light | `imagery[].illumination`, else `terrain.illumination` |
 | Multi-imagery overlays | main | composited into `diffuseColor`, then the same light | per layer, blended by each layer's alpha |
-| Cube-sphere terrain and cube imagery | main | same light, physical normals | per cube layer; the legacy single product via `cubeSphere.imagery.illumination` |
+| Cube-sphere terrain and cube imagery | main | same light, physical normals | per cube layer (`terrain.imagery[]`, `type: cube`) |
 | DSK / mesh surfaces | main | same light (`MeshStandardMaterial`) | n/a |
 | `surfaceTiles` mission-site photogrammetry | camera-relative `tileScene` | full ambient only, every mode | **baked**, always |
 
@@ -114,8 +114,7 @@ tiles and is not run in CI.
 
 ## Imagery illumination provenance
 
-`imagery[].illumination` (a cube layer, a geographic overlay), the legacy
-`terrain.cubeSphere.imagery.illumination` (the single cube product) and
+`imagery[].illumination` (a cube layer or a geographic overlay) and
 `terrain.illumination` (a tileset's own textures) declare what the pixels mean:
 
 | Value | Meaning | Behaviour |
@@ -172,7 +171,8 @@ never a ridge's shadow: a crater floor facing the Sun is still treated as lit
 `1/π`), so Natural, Shadow and Flood of a baked surface differ only at night.
 
 `illumination` is accepted by the catalog schema on `imagery[]`,
-`terrain.imagery[]`, `terrain` and `terrain.cubeSphere.imagery`.
+`terrain.imagery[]` and `terrain`. Cube imagery is declared as `terrain.imagery[]` layers
+(`type: cube`); `cubeSphere.imagery` now only carries budget and selection options.
 
 ### Source provenance
 
@@ -185,16 +185,15 @@ where the primary source is thin.
 | --- | --- | --- |
 | LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product exists; it is **not** what the composite uses. | `baked` |
 | LROC NAC south pole **controlled average** mosaic, 1 m (Nov 2025; NAC half of the composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
-| WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (`cubeSphere.imagery`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` (`cubeSphere.imagery.illumination`) |
+| WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (`terrain.imagery[]`, id `wac-nac`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` |
 | Viking MDIM 2.1 (Mars base, `viking`) | USGS Astropedia: the B/W mosaic "is processed to emphasize local topographic features"; the colour product is blended over it. | `baked` |
 | Murray Lab CTX global mosaic and Jezero/Gale CTX orthomosaics | Single-pass image mosaics seam-blended at acquisition lighting; no albedo normalization found in the product documentation. **Medium confidence**: the V01 processing section was not retrieved. | `baked` |
 | HiRISE orthomosaics (Jezero, Gale) | Single-acquisition lighting; not normalized. | `baked` |
 
-No reflectance-like (photometrically normalized) product is in a production
-catalog yet, so no real scene exercises "reflectance base, baked overlay" except
-by forcing a declaration (see the Gale capture below). If a normalized WAC mosaic
-is added as the lunar base, the per-pixel contract already handles the NAC
-overlay on top of it. That, and any broader imagery decision, belongs to #147.
+No photometrically normalized product is in a production catalog yet, so no
+real scene exercises "reflectance base, baked overlay" except by forcing a
+declaration. The comparison below tests that option on the Moon with the
+Hapke-normalized LROC WAC albedo already in the repo as the globe texture.
 
 ### Relation to `temporal.illumination` (#214)
 
@@ -225,90 +224,128 @@ shading is the image's. In particular **Natural cannot reveal more detail than
 the source carries**: where the LRO Natural view looked muddy, the detail was in
 the texels and the geometry was only darkening it (next section).
 
-## Why LRO Natural looked muddy and Flood did not
+## Comparison on real scenes, and the recommended default
 
-Hosted LRO/MoonFall scene, Shackleton (-89.67°, 129.78°), 2025-01-15T00:00Z, Sun
-elevation 1.17° (azimuth 222°, `cos i` 0.02 on the local radial):
-
-![WAC+NAC at Shackleton: relit Natural, Flood, baked Natural](validation/surface-illumination/real-scenes/lro-shackleton-natural-flood.jpg)
-
-- The textures are illumination-baked (provenance table), but were declared
-  nothing, so Natural multiplied them by `2·cos(i)` computed from the LOLA
-  normals (118 m globally, 5-10 m at the pole). With the Sun at 1° almost every
-  texel is at grazing incidence, so the product is dark and smooth: the baked
-  detail is attenuated by the geometry's coarse, weakly varying normals.
-- Flood has no Sun term, so it shows the raw texels: the detail is real and
-  comes from the imagery. Its black crater interior is **source**: the NAC
-  mosaic is black in permanently shadowed floors (and `0` is nodata, so a faint
-  arc where the footprint ends and WAC shows through is a compositing seam in
-  the offline composite, visible in Flood too, not a lighting effect).
-- Geometry alone (neutral albedo, imagery off) is smooth by comparison; see
-  the equatorial capture below. At 118 m the global terrain cannot supply the
-  decimetre detail that the 1 m NAC texture does.
-- Declared `baked`, Natural now shows the image once. A lit crater floor is
-  still lit if it faces the Sun; terrain occlusion by the rim is #205, and is
-  not imitated by darkening.
-
-## Real-scene validation
-
-Captured from the hosted products through the real viewer on software WebGL
-(SwiftShader): fixed camera, epoch and lighting mode, streaming complete, Sun
-geometry from `UniverseRenderer.solarGeometryAt`. Metadata and numbers:
+Question: what should Natural show for real mission scenes, given that the
+highest-resolution imagery (NAC, CTX, HiRISE) carries the Sun it was acquired
+under? Same hosted terrain, camera, display settings and fixed epochs; real viewer
+on software WebGL; every frame fully streamed (displayed imagery level equal to
+the wanted level, no fallback blocks). **A** is the pre-#372 behaviour (baked
+imagery relit; pixel-identical to a build of the base commit on the same catalog:
+mean difference 0.00, 0 % of pixels differ), **B** is #372 (baked as-is), **C** is a
+physically relit normalized reflectance layer. Scripts, numbers and Sun geometry:
 [`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
-"Before" is the same build with the layer provenance set back to `unknown`, which
-is the legacy relit path.
 
-**Globe to streamed.** Equatorial Moon, mean luma of the central patch (0-255):
+**C on the Moon** is the NASA SVS CGI Moon Kit colour map (the repo's globe
+texture, `textures/moon-16k.jpg`): derived from the Hapke-normalized LROC WAC
+mosaic, with LOLA albedo filling the poles. Drawn here as luminance, scaled to the
+LROC global mean reflectance 0.115, as a cube layer declared `reflectance`. It is a
+stand-in: **660 m/px, blurry polar filler**, not the 100 m `WAC_EMP_643NM`
+normalized mosaic, whose host (`pds.lroc.im-ldi.com`) was not reachable from the
+build environment. It tests the principle, not the final resolution.
 
-| Sun elevation | range | static globe | streamed, relit (legacy) | streamed, baked |
+![Shackleton at four epochs: A relit, B baked, C normalized and relit](validation/surface-illumination/real-scenes/moon-shackleton-abc-time.jpg)
+
+**What changes as the Sun moves** (mean luma of the frame, four epochs, Sun
+elevation 1.1-1.4°, azimuth 222°, 137°, 52°, 327°):
+
+| | A relit | B baked | C normalized, relit |
+| --- | --- | --- | --- |
+| Shackleton, 4 epochs | 15.6-23.7 | **71.9-72.2** | 22.6-27.5 |
+| Equator, Sun 20° E / 86° / 20° W | 28 / 51 / 31 | **49.1 / 49.1 / 49.1** | 35 / 63 / 39 |
+| Jezero, Sun 50° / 80° / 21° | 70 / 79 / 43 | **98.9 / 98.9 / 98.9** | no product |
+
+- **B does not change with the Sun at all.** Rim lighting, crater-wall
+  shading and the dark floor are the acquisition Sun's (WAC at 55-75° incidence,
+  NAC polar mosaics), for every epoch. Only the night gate responds to the epoch.
+  Natural of a baked surface is a photograph with a terminator.
+- **A changes, but wrongly:** the physical term multiplies a frozen one, so the
+  detail is attenuated and the shadows are neither the photograph's nor the
+  simulation's.
+- **C is the only one whose lit slopes follow the simulated epoch**: the sunward
+  wall lights and the shaded side flips with the azimuth, from the 5-10 m polar
+  DEM; at a near-overhead equatorial Sun it is correctly flat (no relief signal at
+  noon). It loses the imagery detail: terrain detail is the DEM's (5-10 m polar,
+  118 m elsewhere) and imagery detail is the texture's, and C has only 660 m of
+  the latter. Visible crater interiors are still sunlit when their normals face the
+  Sun regardless of rim occlusion: that is #205, not faked here.
+- **Frozen in the sources:** the black Shackleton floor and rim shading in B
+  (NAC black in permanently shadowed floors; WAC high-incidence shading).
+
+**Globe to streamed** (equatorial Moon, real globe texture; mean luma of the
+central patch; globe / streamed ratio in brackets):
+
+| Sun, range | globe | A relit | B baked | C relit |
 | --- | --- | --- | --- | --- |
-| 60° | 2500 km / 700 km | 131 / 131 | 48 / 44 | 52 / 44 |
-| 8° | 2500 km / 700 km | 48 / 55 | 16 / 18 | 46 / 56 |
+| 60°, 2500 km | 85.7 | 44.7 (1.9) | 46.2 (1.9) | 58.6 (1.5) |
+| 60°, 700 km | 76.7 | 41.0 (1.9) | 39.1 (2.0) | 53.6 (1.4) |
+| 8°, 2500 km | 34.2 | 15.9 (2.2) | 45.3 (0.8) | 21.9 (1.6) |
+| 8°, 700 km | 39.2 | 17.5 (2.2) | 56.0 (0.7) | 24.9 (1.6) |
 
-At low Sun the legacy relit tiles were three times darker than the globe they
-replace; as-is baked tiles match it within about 5 %. At high Sun the globe is
-2.5× brighter either way: it is a different source image (the NASA SVS CGI Moon
-Kit colour map, `textures/moon-16k.jpg`), not a lighting difference, and is
-unchanged here. Choosing another globe base is a data decision (#147).
+Relit streamed tiles keep a constant ratio to the (relit) globe at both Sun
+angles; the constant is a texture-gain difference (the globe map is display
+stretched). A baked surface does not: its ratio swings between 2.0 and 0.7 with the
+epoch, so the sphere-to-tiles switch is sometimes a jump up and sometimes down.
+(An earlier revision of this page compared against an untextured globe because
+the texture was an unfetched Git LFS pointer in the build environment; that
+table was wrong and is replaced.)
 
-**Mixed stack, per pixel.** Gale CTX footprint edge, Natural, Sun 31.6°, mean luma:
+**Per pixel, on real data.** The per-pixel contract was exercised on both
+compositors. Cube imagery, Gale CTX footprint edge (Natural, Sun 31.6°; mean luma
+baked CTX side | Viking side): every layer relit 61.6 | 60.5; Viking forced to
+`reflectance`, CTX baked 117.6 | 60.5; as declared (all baked) 117.6 | 98.6.
 
 ![Per-pixel provenance across the Gale CTX edge](validation/surface-illumination/real-scenes/gale-ctx-edge-per-pixel.jpg)
 
-| | baked CTX side | Viking side |
-| --- | --- | --- |
-| before: every layer relit | 61.6 | 60.5 |
-| after: Viking forced to `reflectance`, CTX baked | 117.6 | 60.5 |
-| catalog as declared (all baked) | 117.6 | 98.6 |
+The geographic `ImageOverlayPlugin` path, in the real viewer with real Trek/Esri
+tiles (Jezero stack, HiRISE footprint edge, Sun 20.7°; HiRISE side | CTX side): all
+relit 60.4 | 54.9; CTX relit and HiRISE baked 70.1 | 54.9; all baked 139.0 | 133.0.
 
-The CTX side stops being lit twice, and the relit Viking side is unchanged.
-(Viking is declared `baked` in the catalogs; forcing it `reflectance` is only to
-exercise a mixed stack on real data.) With the Sun 2.9° below the horizon at the
-Gale epoch 2014-02-05T12:00Z, relit imagery is black, baked imagery drops to its
-natural night floor (luma 19), and Flood stays uniform (101).
+![Overlay-plugin per-pixel provenance](validation/surface-illumination/real-scenes/overlay-plugin-per-pixel.jpg)
 
-**Geometry only.** Equatorial Moon, imagery off (neutral albedo), 12 km oblique:
+and, repeatably in CI-grade form, `scripts/test-surface-illumination-webgl.mjs`
+runs the library's own overlay compositor (`wrapOverlaysMaterial`, real `layerMaps`
+and `layerInfo`) on a plane: the baked half reads exactly its own texel (0.502), an
+all-relit stack is lit everywhere (0.058), a half-opaque baked layer lands between
+(0.210).
 
-![Neutral albedo with the Sun in the west and in the east](validation/surface-illumination/real-scenes/moon-neutral-albedo-sun-flip.jpg)
+**Cost.** Real Shackleton scene, software GL: median frame 367 ms relit vs
+350-367 ms baked, 10 programs and 46 draw calls in both (the WebGL script asserts
+one program for relit, baked, flood, mixed and overlay tiles). SwiftShader is not a
+GPU or mobile measurement: no desktop GPU or mobile hardware was available, so
+those remain unmeasured.
 
-Flood is exactly uniform (σ 0.00). Natural varies with slope (σ 3.6-4.6 levels)
-and the gradient flips with the epoch: right side +3.1 levels with the Sun in
-the west (2025-01-15T00:00Z, el 20.1°, az 268.5°), left side +3.9 with the Sun
-in the east (2025-01-03T12:00Z, el 20.3°, az 91.6°). The cube terrain keeps its
-physical normals; nothing was smoothed.
+### Recommendation
 
-**Jezero**, Ingenuity's shadow-caster override disabled so the receiver-aimed Sun
-is exercised (2021-07-05T13:30Z, el 20.8°, az 288.5°): neutral-albedo Natural
-shades the delta scarps by slope on streamed terrain, and the stack renders as
-declared. The default Ingenuity demo is unchanged by design and is not used as
-evidence.
+Keep the per-layer, per-pixel provenance contract and the night gate: they are
+needed under any choice, they make mixed stacks correct, and they keep baked
+layers honest. The product question is which layer is visible by default, and
+that is a catalog decision, not a mode:
 
-**Cost.** Real Shackleton scene on software GL: median frame 367 ms relit and
-350-367 ms baked, 10 programs and 46 draw calls in both; the hook adds no
-program variant (the WebGL script asserts one program for relit, baked, flood
-and per-pixel mixed tiles). SwiftShader is not a GPU or mobile-class
-measurement; no desktop GPU or mobile hardware was available, so those timings
-remain unmeasured.
+1. **One workflow:** the existing layer stack with per-layer provenance; no
+   "Imagery" vs "Simulated Sun" switch. The existing opacity control already
+   crossfades a relit base and a baked layer per pixel.
+2. **Where a reflectance base exists** (Moon: normalized WAC), make it the base
+   layer, relit, so Natural means simulation-driven light. Put the baked
+   mission imagery above it as an ordinary layer, labelled in the layer details as
+   frozen lighting. For illumination-study scenes (polar, MoonFall, anything about
+   when something is lit) the baked layer starts hidden; the NAC/WAC detail is one
+   toggle away. For detail-first scenes it starts visible.
+3. **Where none exists** (Jezero, Gale: no high-resolution reflectance product
+   was found), default to the baked layers as a photograph, say so in the layer
+   details, and do not present the result as simulated illumination. Do not relight
+   them to look dynamic: that is A, whose shading is neither the photograph's nor
+   the simulation's.
+4. Physical direct sunlight and terrain visibility (#205) stay separate
+   quantities from photographic brightness; nothing here darkens or brightens a
+   final image to imitate either.
+
+**Open and unverified.** Item 2 for the Moon rests on a 660 m stand-in. Before
+changing the LRO/MoonFall default, build the `WAC_EMP_643NM` 100 m normalized mosaic
+as a cube layer and repeat the Shackleton comparison; the LRO/MoonFall catalogs
+therefore still declare the WAC+NAC composite `baked` and show it by default. NAC
+(1 m) has no normalized counterpart: at the south pole its footprint covers the whole
+scene, so a baked NAC layer there is the scene.
 
 ## Normals
 
@@ -334,7 +371,12 @@ SwiftShader, so repeatable acceptance evidence and not a GPU benchmark),
   Sun elevation and mode; relit imagery on the same back-facing slope is ~0.
 - `flood` is identical across slopes and elevations.
 - Relit, baked and flood tiles compile **one** program.
-- Frame cost: the hook measured 1.02 ms against 1.25 ms for a plain Standard
+- Per pixel: a plane half relit and half baked reads the baked texel exactly on its
+  half and the lit value on the other; the real `ImageOverlayPlugin` compositor does
+  the same with its own `layerMaps` / `layerInfo`.
+- Terminator gate: baked pixels read their own value with the Sun up, the mode's
+  night floor below the local horizon (natural 3 %, shadow 33 %), nothing in flood.
+- Frame cost: the hook measured about 1.2 ms against 1.1 ms for a plain Standard
   material per software-GL frame, i.e. no measurable cost above noise. This says
   nothing about desktop GPU or mobile-class hardware, which was not available.
 

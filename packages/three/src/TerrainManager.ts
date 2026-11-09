@@ -705,8 +705,7 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
-  /** Declared illumination provenance by layer id, and the fallback with no imagery (#204). */
-  private readonly illuminationById = new Map<string, ImageryIllumination>();
+  /** What a pixel no imagery draws is (#204): the tileset's own texture. */
   private readonly noImageryIllumination: ImageryIllumination;
   /**
    * Shared by every tile program. `surfaceAsIs` is the weight of a pixel no imagery
@@ -719,18 +718,16 @@ export class TerrainManager {
 
   /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
   get surfaceIllumination(): SurfaceIlluminationSummary {
-    // Cube layers carry their own declaration, including the single legacy `cubeSphere.imagery` product.
-    const cube = this.cubeImagery?.imageryLayers;
-    const layers = cube ?? this.layers;
+    const layers = this.cubeImagery ? this.cubeImagery.imageryLayers : this.layers;
     const visible = layers.filter(l => l.visible && l.opacity > 0);
     return visible.length > 0
-      ? combineImageryIllumination(visible.map(l => cube ? l.illumination : this.illuminationById.get(l.id)))
+      ? combineImageryIllumination(visible.map(l => l.illumination))
       : this.noImageryIllumination;
   }
 
   /** Weight of a pixel no layer draws: the base map of an imagery-only body, else the tileset's own texture. */
   private refreshIllumination(): void {
-    const uncovered = this.isImageryOnly ? this.illuminationById.get(this.layers[0]?.id ?? '') : this.noImageryIllumination;
+    const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.noImageryIllumination;
     this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered);
   }
 
@@ -940,7 +937,6 @@ export class TerrainManager {
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
     }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
-    this.layers.forEach((l, i) => this.illuminationById.set(l.id, imageryConfigs[i].illumination ?? DEFAULT_IMAGERY_ILLUMINATION));
     this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this.initTemporal(imageryConfigs);

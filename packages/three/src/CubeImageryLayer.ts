@@ -1,7 +1,7 @@
 import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
-import { declareSurfaceAsIs, imageryAsIsWeight, type ImageryIllumination } from './SurfaceIllumination.js';
+import { declareSurfaceAsIs, imageryAsIsWeight } from './SurfaceIllumination.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
@@ -22,10 +22,6 @@ import {
 export interface CubeImageryConfig {
   /** `imagery.json` written by `scripts/terrain/cube_imagery.py`. */
   url: string;
-  /** What the single (legacy `cubeSphere.imagery.url`) product's pixels mean for relighting (#204):
-   *  `baked` shows it as-is, `reflectance` and the default `unknown` let the Sun light it.
-   *  A `layers` stack declares this per layer instead. Not `temporal.illumination` (#214). */
-  illumination?: ImageryIllumination;
   /** Globe.imagery cube products, bottom to top. Shares geometry, draws and one texture budget. */
   layers?: TerrainImageryConfig[];
   /** Target projected size of one imagery texel, px. Default 1.5. */
@@ -323,7 +319,7 @@ export class CubeImageryLayer {
   private readonly tiles = new Map<object, TileRecord>();
   private readonly shared = { debug: { value: 0 }, srgb: { value: 1 } };
   private readonly manifestAbort = new AbortController();
-  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers' | 'illumination'>> & { maxLevel: number | undefined };
+  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly sources: Source[];
   private readonly order: Source[];
@@ -377,7 +373,7 @@ export class CubeImageryLayer {
       retryFailedMs: config.retryFailedMs ?? 30_000,
       maxLevel: config.maxLevel,
     };
-    const configs = config.layers ?? [{ type: 'cube' as const, url: config.url, illumination: config.illumination }];
+    const configs = config.layers ?? [{ type: 'cube' as const, url: config.url }];
     if (configs.length === 0 || configs.length > 4) throw new Error('Cube imagery supports one to four sources');
     this.sources = describeImageryLayers(configs, 1).map((info, index) => ({
       index, info, baseUrl: new URL(configs[index].url, globalThis.location?.href ?? 'http://localhost/').href,

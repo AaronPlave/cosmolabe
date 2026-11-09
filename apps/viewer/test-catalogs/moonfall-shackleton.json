@@ -623,11 +623,20 @@
             "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
             "kind": "height-grid"
           },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "wac-nac",
+              "name": "Moon \u00b7 WAC + NAC",
+              "description": "LROC WAC global morphology mosaic (100 m) with the LROC NAC south pole controlled mosaic (1 m) composited over it offline; illumination is baked into both",
+              "attribution": "LROC team / USGS Astrogeology / ASU",
+              "illumination": "baked",
+              "url": "data/moon-imagery-cube-wac-nac/imagery.json"
+            }
+          ],
           "cubeSphere": {
             "cpuGrids": "data/moon-terrain-cube/cpu-grids.json",
             "imagery": {
-              "url": "data/moon-imagery-cube-wac-nac/imagery.json",
-              "illumination": "baked",
               "maxTextureBytes": 536870912
             }
           }

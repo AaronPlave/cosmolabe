@@ -75,17 +75,6 @@ export function imageryAsIsWeight(illumination: ImageryIllumination | undefined)
   return illumination === 'baked' ? 1 : 0;
 }
 
-/**
- * How a surface material takes the Sun:
- * - `relit`: the simulated Sun lights it (`reflectance`, and legacy `unknown`).
- * - `as-is`: shown unlit by the Sun; its source pixels already carry lighting.
- */
-export type SurfaceLightingPath = 'relit' | 'as-is';
-
-export function surfaceLightingPath(illumination: SurfaceIlluminationSummary): SurfaceLightingPath {
-  return illumination === 'baked' ? 'as-is' : 'relit';
-}
-
 /** True only when the Sun's direct term is a physical claim for this source. */
 export function isPhysicallyRelit(illumination: SurfaceIlluminationSummary, mode: LightingMode): boolean {
   return illumination === 'reflectance' && LIGHTING_MODES[mode].physical;
@@ -310,14 +299,12 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
  */
 export function injectAsIsDisplayIntoShader(
   shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
-  uniforms: SurfaceAsIsUniforms | { value: number },
+  u: SurfaceAsIsUniforms,
 ): void {
   const hook = '#include <opaque_fragment>';
   if (!shader.fragmentShader.includes(hook)) {
     throw new Error('Baked-imagery display: Three.js opaque_fragment shader hook changed.');
   }
-  const u: SurfaceAsIsUniforms = 'surfaceAsIs' in uniforms ? uniforms
-    : { surfaceAsIs: uniforms, centerView: { value: new THREE.Vector3() }, nightFloor: { value: 1 } };
   if (shader.uniforms) {
     shader.uniforms.uSurfaceAsIs = u.surfaceAsIs;
     shader.uniforms.uSurfaceCenterView = u.centerView;

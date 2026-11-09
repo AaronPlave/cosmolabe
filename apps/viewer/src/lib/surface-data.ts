@@ -16,7 +16,8 @@ const unknownRuntime = (): ScriptSurfaceProduct['runtime'] => ({ ready: null, lo
 export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: readonly ScriptImageryLayer[]): ScriptSurfaceData {
   const geo = body.geometryData ?? {};
   const terrain = record(geo.terrain);
-  const cube = record(record(terrain.cubeSphere).imagery);
+  // The base cube product: the first `type: 'cube'` layer of the imagery stack.
+  const cubeUrl = (Array.isArray(terrain.imagery) ? terrain.imagery : [terrain.imagery]).map(record).find(layer => layer.type === 'cube')?.url;
   const metadata = bm?.terrainSourceMetadata ?? record(terrain.sourceMetadata);
   const cubeMetadata = bm?.terrainCubeImageryMetadata;
   const datum = bm?.terrainDatum ?? record(terrain.datum);
@@ -37,8 +38,8 @@ export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: read
       failedRequests: metrics?.network.failed ?? null,
       drawn: metrics ? bm?.visible === true && bm.surfaceTransitionState === 'streamed' && metrics.tiles.drawn > 0 : null },
   } satisfies ScriptSurfaceProduct : null;
-  const cubeImagery = typeof cube.url === 'string' ? {
-    ...product('cube-imagery', cube.url),
+  const cubeImagery = typeof cubeUrl === 'string' ? {
+    ...product('cube-imagery', cubeUrl),
     source: { id: cubeMetadata?.source.id ?? null, revision: cubeMetadata?.source.version ?? cubeStats?.version ?? null, kind: cubeMetadata?.source.kind ?? null, attribution: cubeMetadata?.source.attribution ?? null, url: endpoint(cubeMetadata?.source.url) },
     crsId: cubeMetadata?.registration.crsId ?? null,
     lod: cubeMetadata ? { minLevel: cubeMetadata.minLevel, maxLevel: cubeMetadata.maxLevel } : null,
