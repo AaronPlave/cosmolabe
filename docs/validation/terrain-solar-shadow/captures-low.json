@@ -1,0 +1,165 @@
+{
+  "generator": "scripts/capture-terrain-solar-shadow.mjs",
+  "created": "2026-11-09T18:22:17.766Z",
+  "catalog": "test-catalogs/experiments/moon-terrain-cube-solar-shadow",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "cpuThrottle": 1,
+  "quality": "low",
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "hardwareConcurrency": 16,
+    "launch": "playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host)"
+  },
+  "host": {
+    "platform": "darwin 25.6.0",
+    "cpus": 16,
+    "cpuModel": "Apple M4 Max",
+    "memoryGB": 48
+  },
+  "captures": [
+    {
+      "view": "polar-ridge",
+      "mode": "on",
+      "file": "polar-ridge-on-low.png",
+      "epochEt": 914961909.184,
+      "sun": {
+        "elevationDeg": 1.8036602971030071,
+        "azimuthDeg": 4.016691866363033,
+        "cosIncidence": 0.03147461172702275
+      },
+      "frameMeanMs": 329,
+      "frameMaxMs": 441.8,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 15,
+            "lastBuildMs": 74.89999997615814
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 70.59999990463257
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 103.69999992847443
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 93,
+        "visible": 74,
+        "drawn": 23,
+        "loaded": 639,
+        "inCache": 639,
+        "cpu": 467
+      },
+      "pose": {
+        "eye": [
+          50.11611861197915,
+          18.240775431714834,
+          -1745.5854630372355
+        ],
+        "target": [
+          41.31280133232293,
+          15.03662997911865,
+          -1736.8436637201828
+        ],
+        "fov": 55
+      },
+      "settleMs": 34373
+    },
+    {
+      "view": "polar-ridge",
+      "errors": []
+    },
+    {
+      "view": "equatorial-crater",
+      "mode": "on",
+      "file": "equatorial-crater-on-low.png",
+      "epochEt": 914655909.184,
+      "sun": {
+        "elevationDeg": 2.864776323920278,
+        "azimuthDeg": 90.77632443787707,
+        "cosIncidence": 0.04997894873222607
+      },
+      "frameMeanMs": 145.7,
+      "frameMaxMs": 175.4,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 14,
+            "lastBuildMs": 129.400000333786
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 142.89999997615814
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 129.40000021457672
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 75,
+        "visible": 75,
+        "drawn": 10,
+        "loaded": 718,
+        "inCache": 718,
+        "cpu": 431
+      },
+      "pose": {
+        "eye": [
+          1653.6883174498291,
+          -605.1639873707746,
+          275.75579254017197
+        ],
+        "target": [
+          1606.0660263560783,
+          -587.1010845074107,
+          289.84063820489325
+        ],
+        "fov": 55
+      },
+      "settleMs": 17273
+    },
+    {
+      "view": "equatorial-crater",
+      "errors": []
+    }
+  ]
+}

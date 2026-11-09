@@ -11,6 +11,7 @@ import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
+import type { SolarShadowFrame, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
@@ -1179,6 +1180,13 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+  /** Terrain-cast solar shadows (#205): per-frame update, status, toggle and debug view. Inert unless `terrain.solarShadows` is set. */
+  updateSolarShadow(frame: SolarShadowFrame): void { this.terrainManager?.updateSolarShadow(frame); }
+  get hasSolarShadow(): boolean { return this.terrainManager?.hasSolarShadow ?? false; }
+  get solarShadowStatus(): SolarShadowStatus | null { return this.terrainManager?.solarShadowStatus ?? null; }
+  setSolarShadowsEnabled(on: boolean): void { this.terrainManager?.setSolarShadowsEnabled(on); }
+  setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.terrainManager?.setSolarShadowDebug(mode); }
+  setSolarShadowQuality(q: SolarShadowQuality): void { this.terrainManager?.setSolarShadowQuality(q); }
   setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }

@@ -12,7 +12,7 @@ import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } fro
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, type ImageryIllumination, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { TerrainSampler, bodyFixedToGeodetic, geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
 import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
@@ -21,6 +21,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
+import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus } from './SolarShadowClipmap.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
@@ -137,6 +138,13 @@ export interface TerrainConfig {
    *  `imagery` is configured. See {@link TerrainImageryConfig.illumination}. Default:
    *  `'reflectance'` for an untextured quantized mesh, otherwise `'unknown'`. */
   illumination?: ImageryIllumination;
+  /**
+   * Terrain-cast solar shadows and horizon occlusion on relit surfaces (#205), off by default.
+   * `true` uses the default clipmap (8 / 64 / 320 km); an object tunes it. A visual aid
+   * driven by the resident source terrain, not a certified illumination product; see
+   * docs/terrain-solar-visibility.md.
+   */
+  solarShadows?: boolean | SolarShadowConfig;
   /** Terrain source type. 'imagery' uses XYZ image tiles projected onto an ellipsoid (no terrain mesh needed). */
   type: 'quantized-mesh' | 'cesium-ion' | '3dtiles' | 'imagery';
   /** Base URL for quantized-mesh or 3dtiles tileset.json */
@@ -743,10 +751,28 @@ export class TerrainManager {
     } else this.asIs.nightFloor.value = 1;
   }
 
-  /** The scene's lighting mode, for the night floor of baked imagery. */
+  /** The scene's lighting mode, for the night floor of baked imagery and the Sun-less `flood` mode (#205). */
   setLightingMode(mode: LightingMode): void {
     this.bakedNightFloor = LIGHTING_MODES[mode].bakedNightFloor;
+    this.lightingModeAllowsShadow = mode !== 'flood';
+    this.solarShadow?.setActive(this.lightingModeAllowsShadow && this.solarShadowsOn);
   }
+
+  /** Terrain-cast solar shadows (#205); null unless `terrain.solarShadows` is configured. */
+  private readonly solarShadow: SolarShadowClipmap | null = null;
+  private lightingModeAllowsShadow = true;
+  private solarShadowsOn = true;
+  /** Every frame, after the camera is final: refresh the clipmap and its uniforms. */
+  updateSolarShadow(frame: SolarShadowFrame): void { this.solarShadow?.update(frame); }
+  /** Turn the configured effect on or off without recompiling tile shaders. */
+  setSolarShadowsEnabled(on: boolean): void {
+    this.solarShadowsOn = on;
+    this.solarShadow?.setActive(on && this.lightingModeAllowsShadow);
+  }
+  get hasSolarShadow(): boolean { return this.solarShadow !== null; }
+  get solarShadowStatus(): SolarShadowStatus | null { return this.solarShadow?.status ?? null; }
+  setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.solarShadow?.setDebug(mode); }
+  setSolarShadowQuality(q: SolarShadowQuality): void { this.solarShadow?.setQuality(q); }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -899,6 +925,29 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
+    if (config.solarShadows) {
+      const revision = () => this.cpuRevision;
+      const source: ClipmapSource = {
+        datum,
+        elevationKm: (latDeg, lonDeg, texelKm) => {
+          const cube = this.cube?.source;
+          if (!this.cubeConfigured) return this.sampleResident(latDeg, lonDeg)?.elevationKm ?? null;
+          if (!cube) return null;
+          // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of
+          // resident LODs would put steps (walls, to a low Sun) at its tile seams.
+          const cell = (cube.manifest.grid.width - 1) * texelKm;
+          const level = Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / cell)));
+          const radius = cube.radiusAtLevel(latDeg, lonDeg, level);
+          if (radius === null) return null;
+          const shape = datum.referenceShape;
+          const zero = shape.kind === 'sphere' ? shape.radiusKm
+            : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg, heightKm: 0 }, datum)));
+          return radius - zero;
+        },
+        get revision() { return revision(); },
+      };
+      this.solarShadow = new SolarShadowClipmap(source, config.solarShadows === true ? {} : config.solarShadows);
+    }
     // Other tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.
     this.surfaceStyle = config.type === 'quantized-mesh' &&
@@ -2718,6 +2767,7 @@ export class TerrainManager {
     this.contourLabels.dispose();
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
+    this.solarShadow?.dispose();
     this.cubeImagery?.dispose();
     this.cubeScenes.clear();
     if (this.terrainCam) {
@@ -2888,7 +2938,8 @@ export class TerrainManager {
     // Always injected and driven by a shared uniform, so provenance changes
     // (layer visibility) need no recompile and every tile shares one program.
     const asIs = this.asIs;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2';
+    const solar = this.solarShadow?.uniforms;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '');
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -2945,6 +2996,7 @@ export class TerrainManager {
           }
           injectOverlayAsIsIntoShader(shader);
           injectAsIsDisplayIntoShader(shader, asIs);
+          if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };
@@ -2988,6 +3040,7 @@ export class TerrainManager {
           prevOBC?.(shader);
           injectOverlayAsIsIntoShader(shader);
           injectAsIsDisplayIntoShader(shader, asIs);
+          if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };

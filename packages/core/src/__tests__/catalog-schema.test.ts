@@ -141,6 +141,14 @@ describe('validateCatalog', () => {
     }))).toEqual([]);
   });
 
+  it('accepts terrain.solarShadows as a flag or a clipmap config, and catches a misspelt key (#205)', () => {
+    const terrain = (solarShadows: unknown) => withItem({ geometry: { type: 'Globe', radius: 1737.4, terrain: { type: '3dtiles', url: 'y', solarShadows } } });
+    expect(validateCatalog(terrain(true))).toEqual([]);
+    expect(validateCatalog(terrain({ levels: [{ halfKm: 8, size: 256 }, { halfKm: 64, size: 256 }], budgetMs: 2, biasKm: 0.002, maxAltitudeKm: 300 }))).toEqual([]);
+    const ds = validateCatalog(terrain({ levels: [{ halfKm: 8, sise: 256 }] }));
+    expect(ds.map((d) => d.suggestion)).toEqual(['size']);
+  });
+
   it('reports an unknown trajectory or rotation type, and its nearest spelling', () => {
     const ds = validateCatalog(withItem({
       trajectory: { type: 'Keplerain' },

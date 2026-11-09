@@ -451,6 +451,12 @@ Policy:
 
 To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
+#### `solarShadows`
+
+`"solarShadows": true` turns on terrain-cast Sun shadows and horizon occlusion on the terrain's **relit** surface (#205). It is off by default. A ridge, crater wall or massif that blocks the Sun from a point shades that point, from the actual Sun direction and epoch, including terrain beyond the screen. It works from the resident source heights, not the drawn tiles, so it does not change with LOD. Baked imagery is shown as it is (its shadows are already in the pixels), and `flood` mode has no Sun. It is a visual aid, not a certified illumination or permanently-shadowed-region product: terrain the clipmap does not hold is drawn lit and labelled in the debug view, never presented as shadowed or sunlit.
+
+An object tunes it: `levels` (`[{ "halfKm": 8, "size": 256 }, …]`, finest first, at most three, `size` a power of two; default 8 / 64 / 320 km at 256²), `quality` (`high` default, `medium`, `low`), `budgetMs` (CPU per frame while a level fills, default 3), `biasKm`, `maxAltitudeKm`, `unknownReliefKm`. Design, accuracy, cost and limits: [terrain-solar-visibility.md](terrain-solar-visibility.md).
+
 The other tuning keys (`errorTarget`, `referenceRadiusOffsetKm`, `skirtScale`, `fadeDurationMs`, …) are listed with the rest of the accepted keys in `packages/core/src/catalog/CatalogSchema.ts`.
 
 ## Frames

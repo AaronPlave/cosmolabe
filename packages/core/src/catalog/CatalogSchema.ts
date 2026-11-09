@@ -242,9 +242,10 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
         'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere', 'frame', 'bodyId',
-        'illumination',
+        'illumination', 'solarShadows',
       ),
       children: {
+        solarShadows: { keys: keys('levels', 'budgetMs', 'biasKm', 'maxAltitudeKm', 'quality', 'unknownReliefKm'), children: { levels: { keys: keys('halfKm', 'size') } } },
         imagery: IMAGERY,
         cubeSphere: {
           keys: keys(

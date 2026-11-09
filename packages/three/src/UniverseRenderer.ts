@@ -1,6 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
+import type { SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
@@ -1256,6 +1257,7 @@ export class UniverseRenderer {
           if (bm.followsImageryTime) bm.updateImageryTime(etToDate(et).getTime());
           bm.updateTerrain(this.camera, this.renderer, screenPx, null);
           bm.observeSurfaceView(this.camera, this.renderer, et);
+          if (bm.hasSolarShadow) this.updateTerrainSolarShadow(bm);
         }
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
@@ -3555,6 +3557,47 @@ export class UniverseRenderer {
     cam.top = halfSize;
     cam.bottom = -halfSize;
     cam.updateProjectionMatrix();
+  }
+
+  private readonly _shadowQuat = new THREE.Quaternion();
+
+  /** #205: refresh a body's terrain-shadow clipmap around what the camera is looking at. */
+  private updateTerrainSolarShadow(bm: BodyMesh): void {
+    const sun = this.bodyMeshes.get('Sun');
+    if (!sun || sun === bm) return;
+    // Centre on the orbit target when it is a surface point, else under the camera.
+    const target = this.cameraController.controls.target;
+    const sceneRadius = bm.displayRadius * this.scaleFactor;
+    const targetR = target.distanceTo(bm.position);
+    this.camera.updateMatrixWorld();
+    bm.updateSolarShadow({
+      camera: this.camera, bodyPosition: bm.position, bodyToScene: bm.bodyToWorldQuaternion(this._shadowQuat),
+      sunPosition: sun.position, scaleFactor: this.scaleFactor,
+      focus: targetR > 0.8 * sceneRadius && targetR < 1.2 * sceneRadius ? target : undefined,
+    });
+  }
+
+  /**
+   * Terrain-cast solar shadows (#205) on every body whose catalog sets `terrain.solarShadows`:
+   * on by default there, off in `flood` mode. Visual only.
+   */
+  setTerrainShadows(enabled: boolean): void {
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowsEnabled(enabled);
+  }
+
+  /** Residency and quality of a body's terrain-shadow clipmap, or null when it has none. */
+  terrainShadowStatus(bodyName: string): SolarShadowStatus | null {
+    return this.bodyMeshes.get(bodyName)?.solarShadowStatus ?? null;
+  }
+
+  /** March quality of the terrain shadow on every body that has one: `high` (default), `medium`, `low` (cheaper, softer far edges). */
+  setTerrainShadowQuality(quality: SolarShadowQuality): void {
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowQuality(quality);
+  }
+
+  /** Debug view of the terrain shadow: 0 off, 1 visibility, 2 unknown cells tinted, 3 frame/data alignment. */
+  setTerrainShadowDebug(mode: 0 | 1 | 2 | 3): void {
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowDebug(mode);
   }
 
   private readonly _illumCandidates: { position: THREE.Vector3; radius: number }[] = [];
