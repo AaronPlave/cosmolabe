@@ -16,9 +16,13 @@ export interface ItemUpdate {
   value: number;
   /** The source's own timestamp, ms since the Unix epoch UTC. NaN when it could not be parsed. */
   sourceTimeMs: number;
+  /** False when the provider flagged the value as not good (e.g. ISS Live `Status.Class` other than 24). Default true. */
+  valid?: boolean;
 }
 
 export type RejectReason =
+  /** The provider's own status flag says the value is not good. */
+  | 'invalid-status'
   | 'unknown-item'
   | 'non-finite-value'
   | 'bad-timestamp'
@@ -55,7 +59,7 @@ export class CoherentAssembler {
   private readonly latest = new Map<string, { value: number; t: number }>();
   private lastEmittedMs = -Infinity;
   readonly rejected: Record<RejectReason, number> = {
-    'unknown-item': 0, 'non-finite-value': 0, 'bad-timestamp': 0, future: 0, stale: 0, 'out-of-order': 0,
+    'unknown-item': 0, 'invalid-status': 0, 'non-finite-value': 0, 'bad-timestamp': 0, future: 0, stale: 0, 'out-of-order': 0,
   };
   emitted = 0;
   private readonly toleranceMs: number;
@@ -74,6 +78,7 @@ export class CoherentAssembler {
   accept(update: ItemUpdate): AssembleResult {
     const reject = (reason: RejectReason): AssembleResult => { this.rejected[reason]++; return { kind: 'rejected', reason }; };
     if (!this.items.includes(update.item)) return reject('unknown-item');
+    if (update.valid === false) return reject('invalid-status');
     if (!Number.isFinite(update.value)) return reject('non-finite-value');
     if (!Number.isFinite(update.sourceTimeMs)) return reject('bad-timestamp');
     const now = this.now();

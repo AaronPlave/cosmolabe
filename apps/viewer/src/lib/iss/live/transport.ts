@@ -76,6 +76,13 @@ export interface LightstreamerConfig {
    * and deliberately has no default: the format is not confirmed.
    */
   parseSourceTime(raw: string): number;
+  /**
+   * Optional provider status field and the value that means "good" (ISS Live:
+   * `Status.Class`, `'24'`). Updates with any other value are delivered as
+   * `valid: false` and refused by the assembler, not shown.
+   */
+  statusField?: string;
+  goodStatus?: string;
   /** Requested maximum update frequency (items/s), or undefined for unfiltered. */
   maxFrequency?: number;
 }
@@ -117,6 +124,7 @@ export function lightstreamerTransport(ls: LightstreamerLike, config: Lightstrea
             item: update.getItemName(),
             value: raw === null ? NaN : Number(raw),
             sourceTimeMs: rawTime === null ? NaN : config.parseSourceTime(rawTime),
+            ...(config.statusField ? { valid: update.getValue(config.statusField) === config.goodStatus } : {}),
           });
         },
       });
