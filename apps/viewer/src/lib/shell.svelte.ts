@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture, MessageCircleQuestionMark } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture, MessageCircleQuestionMark, Camera } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 import { resettable } from './session.svelte';
 
@@ -42,7 +42,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'camera', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -79,8 +79,6 @@ export interface ToolDef {
   dock: 'left' | 'right';
   /** Panel width in px at the desktop layout; ignored when compact. */
   width: number;
-  /** Single-key shortcut, where one already existed. */
-  shortcut?: string;
   /**
    * Offered only when something enables it (`enableTool`): the Ask prompt
    * exists only where a deployment or host configured a model.
@@ -89,33 +87,28 @@ export interface ToolDef {
 }
 
 /**
- * The tool table — the single source of truth for the rail, the keyboard map
- * and the command palette, which previously kept three partial copies of this
- * list between `App.svelte` and `BottomBar.svelte`.
+ * Tool surfaces and their placement. Keyboard bindings live in `keymap.ts`;
+ * this table owns only the tools themselves.
  */
 export const TOOLS: readonly ToolDef[] = [
-  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
+  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300 },
   // A place on a body by latitude and longitude (#190). A panel, not a
   // dialog: it stays beside the scene for trying the next place or view.
   { id: 'navigate', label: 'Navigate', icon: MapPin,  presentation: 'panel',  dock: 'left',  width: 288 },
-  // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
-  // renderer controls while the canvas has focus.
-  // Imagery and vector layers per body, in one place (#198). No shortcut: the
-  // free letters are reserved for #15's keymap.
+  // Imagery and vector layers per body, in one place (#198).
   { id: 'layers',  label: 'Surface layers', icon: Layers, presentation: 'panel', dock: 'left', width: 340 },
+  // Camera state and controls (#224). Opening it changes nothing about the view; `M` still cycles modes.
+  { id: 'camera', label: 'Camera', icon: Camera, presentation: 'panel', dock: 'right', width: 340 },
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // The view from a physical instrument (#192): a second camera, not a
   // replacement for the main one, so it is a window like any other tool.
-  { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440, shortcut: 'i' },
-  // Backtick: the universal console idiom, unclaimed, and not a letter, so it
-  // cannot collide with a renderer control or #15's keymap. The app's input
-  // guard runs first, so a backtick typed into a text field stays a backtick.
-  // Natural-language control (#311), only where a model is configured. No
-  // shortcut: Cmd/Ctrl-K stays the command palette and backtick the Script
-  // tool, which remains the deterministic way to author the same actions.
+  { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440 },
+  // Natural-language control (#311), only where a model is configured. Cmd/Ctrl-K
+  // stays the command palette; Script remains the deterministic way to author
+  // the same actions.
   { id: 'ask', label: 'Ask Cosmolabe', icon: MessageCircleQuestionMark, presentation: 'panel', dock: 'right', width: 360, optional: true },
-  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380, shortcut: '`' },
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380 },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];

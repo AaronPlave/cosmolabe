@@ -1,14 +1,12 @@
 <script lang="ts">
   import { CameraModeName } from '@cosmolabe/three';
+  import { cameraFrameLabel } from '../lib/camera-summary';
+  import { openTool } from '../lib/shell.svelte';
   import type { PluginOverlay } from '@cosmolabe/three';
   import { vs, clearLookAt, getRenderer, stopFlight, releaseSurfaceTarget } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
 
-  const frameLabel = $derived.by(() => {
-    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return vs.surfaceTarget ? 'Surface orbit' : 'Free orbit';
-    const mode = vs.cameraMode.replaceAll('-', ' ');
-    return vs.trackedBodyName ? `${vs.trackedBodyName} ${mode}` : mode;
-  });
+  const frameLabel = $derived(cameraFrameLabel());
 
   /** Collect plugin overlays grouped by corner position */
   function getPluginOverlays(): Record<string, PluginOverlay[]> {
@@ -91,10 +89,11 @@
       </span>
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
-    <span class="context-group min-w-0">
+    <!-- The way into the Camera panel, which shows the same state in full. -->
+    <button class="context-group context-open min-w-0" title="Open the Camera panel" onclick={() => openTool('camera')}>
       <span class="context-label">Frame</span>
       <span class="frame-value truncate">{frameLabel}</span>
-    </span>
+    </button>
   </div>
 {/if}
 
@@ -139,6 +138,9 @@
 {/each}
 
 <style>
+  .context-open { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .context-open:hover .frame-value { color: var(--color-text-primary); }
+  .context-open:focus-visible { outline: 1px solid var(--color-border-strong); outline-offset: 2px; }
   .view-context {
     min-height: 34px;
     padding: 0 10px;

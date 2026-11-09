@@ -1,18 +1,16 @@
 <script lang="ts">
-  import { presentationControl } from '../lib/presentation-control';
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setLighting } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
-  import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
-  import { CameraModeName } from '@cosmolabe/three';
-  import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
+  import { Camera, Video, Square } from 'lucide-svelte';
   import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
   import GeographicNames from './GeographicNames.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
+  import { shortcutFor } from '../lib/keymap';
 
   interface Props {
     onClose: () => void;
@@ -21,17 +19,11 @@
   }
   let { onClose, debugActive, onToggleDebug }: Props = $props();
 
-  let fov = $state(60);
-  let viewpoints = $state<{ name: string }[]>([]);
-  let selectedViewpoint = $state('');
-  let vpCounter = $state(0);
   let recording = $state(false);
 
   $effect(() => {
     const r = getRenderer();
-    if (!r) return;
-    viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-    recording = isRecordingVideo(r);
+    if (r) recording = isRecordingVideo(r);
   });
 
   // Followed per frame like the Instrument view window, so a scene bound after
@@ -42,30 +34,15 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
-
-  // A permalink or host can change FOV while this panel is already open.
-  // Read the same live projection the renderer uses, including wheel gestures.
-  $effect(() => {
-    void vs.frameTick;
-    const r = getRenderer();
-    if (r) fov = r.camera.fov;
-  });
-
-  function onFovInput(e: Event) {
-    const val = Number((e.target as HTMLInputElement).value);
-    fov = val;
-    setFov(val);
-  }
-
 </script>
 
 <InstrumentPanel key="display" title="Display" width={toolDef('display').width} {onClose}>
 
     <!-- Toggle rows -->
     {#each [
-      { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
-      { key: 'grid' as const, label: 'Grid', shortcut: 'G', value: vs.showGrid },
-      { key: 'axes' as const, label: 'Axes', shortcut: 'X', value: vs.showAxes },
+      { key: 'trajectories' as const, label: 'Trajectories', shortcut: shortcutFor('disp:traj'), value: vs.showTrajectories },
+      { key: 'grid' as const, label: 'Grid', shortcut: shortcutFor('disp:grid'), value: vs.showGrid },
+      { key: 'axes' as const, label: 'Axes', shortcut: shortcutFor('disp:axes'), value: vs.showAxes },
       { key: 'sensors' as const, label: 'Sensors', shortcut: '', value: vs.showSensors },
       { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
@@ -81,8 +58,8 @@
     <Separator class="my-1" />
     <div class="ui-section-label px-3 py-1">Labels</div>
     {#each [
-      { key: 'labels' as const, label: 'Body labels', shortcut: 'L', value: vs.showLabels },
-      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
+      { key: 'labels' as const, label: 'Body labels', shortcut: shortcutFor('disp:labels'), value: vs.showLabels },
+      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: undefined, value: vs.showSensorLabels },
     ] as opt}
       <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
         <Checkbox checked={opt.value} onCheckedChange={() => setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />
@@ -168,76 +145,6 @@
         <option value="flood">Flood</option>
       </select>
     </div>
-
-    <!-- FOV -->
-    <div class="ui-body flex items-center gap-2 px-3 py-1">
-      <span class="text-text-primary">FOV</span>
-      <input type="range" class="fov-slider flex-1 min-w-15" min="1" max="120" value={fov} oninput={onFovInput} />
-      <span class="ui-readout text-text-secondary min-w-7 text-right">{fov}&deg;</span>
-    </div>
-
-    <!-- Camera mode -->
-    <div class="ui-body flex items-center gap-2 px-3 py-1">
-      <span class="flex-1 text-text-primary">Camera</span>
-      <select
-        class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
-        value={vs.cameraMode}
-        onchange={(e) => setCameraMode((e.target as HTMLSelectElement).value as CameraModeName)}
-      >
-        <option value="free-orbit">Free Orbit</option>
-        <option value="sc-fixed">Locked</option>
-        <option value="body-fixed">Body Fixed</option>
-        <option value="lvlh">LVLH</option>
-        <option value="chase">Chase</option>
-        <option value="surface">Surface Flight</option>
-        <option value="surface-explorer">Surface Explorer</option>
-        <option value="instrument">Instrument</option>
-      </select>
-    </div>
-
-    <!-- Viewpoints -->
-    {#if viewpoints.length > 0}
-      <Separator class="my-1" />
-      <div class="px-3 py-1">
-        <div class="ui-section-label mb-1">Viewpoint</div>
-        <div class="mb-1">
-          <select
-            class="ui-control w-full bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
-            bind:value={selectedViewpoint}
-            onchange={() => {
-              // Also seeks the clock when the viewpoint declares a `time`.
-              if (selectedViewpoint) applyViewpoint(selectedViewpoint, { animate: true });
-            }}
-          >
-            <option value="">-- select --</option>
-            {#each viewpoints as vp}<option value={vp.name}>{vp.name}</option>{/each}
-          </select>
-        </div>
-        <div class="grid grid-cols-4 gap-1">
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Save current view to session" onclick={() => {
-            const r = getRenderer();
-            if (r) {
-              vpCounter++;
-              const name = `Saved ${vpCounter}`;
-              presentationControl.saveBookmark(name);
-              viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-              selectedViewpoint = name;
-            }
-          }}><Save size={12} /></button>
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Fly to tracked body" onclick={() => flyToTracked()}><Navigation size={12} /></button>
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Download current view as JSON" onclick={() => {
-            const r = getRenderer();
-            if (r) exportCameraView(r);
-          }}><Download size={12} /></button>
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Load view from JSON file" onclick={async () => {
-            const r = getRenderer();
-            if (!r) return;
-            await importCameraViewFromFile(r);
-            viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-          }}><Upload size={12} /></button>
-        </div>
-      </div>
-    {/if}
 
     <!-- Capture -->
     <Separator class="my-1" />

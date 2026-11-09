@@ -20,10 +20,11 @@
   import PanelDock from './components/shell/PanelDock.svelte';
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
+  import KeyboardHelp from './components/shell/KeyboardHelp.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, dismissGeographicContext, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
-    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
+    shell, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
     isToolOpen, openTool, setLayout, COMPACT_MAX_WIDTH, enableTool,
   } from './lib/shell.svelte';
@@ -43,6 +44,10 @@
   } from './lib/catalog-nav';
   import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
   import { cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
+  import { heldCameraBindingForCode, matchKeyBinding } from './lib/keymap';
+  import { startHeldCameraMove, stopHeldCameraMove, stopAllHeldCameraMoves } from './lib/held-camera-moves';
+  import FaultToast from './components/shell/FaultToast.svelte';
+  import { isIncidentalRuntimeError, recordViewerFault, recordViewerLog } from './lib/viewer-log.svelte';
   import { workspace, setWorkspaceRoot, toWorkspace, workspaceNode } from './lib/workspace.svelte';
   import { BitsConfig } from 'bits-ui';
   import type { CatalogFetcher } from '@cosmolabe/core';
@@ -229,7 +234,8 @@
 
   function onKeydown(e: KeyboardEvent) {
     if (!ui.shortcuts) return;
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const binding = matchKeyBinding(e);
+    if (binding?.id === 'search:open') {
       e.preventDefault();
       commandPaletteOpen = !commandPaletteOpen;
       return;
@@ -274,57 +280,55 @@
       if (e.key === 'Escape' && cancelDrawing()) return;
     }
 
-    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      switch (e.key) {
-        case ' ': e.preventDefault(); togglePlay(); return;
-        case 'ArrowLeft': e.preventDefault(); stepBackward(); return;
-        case 'ArrowRight': e.preventDefault(); stepForward(); return;
-        case 'ArrowDown': slower(); return;
-        case 'ArrowUp': faster(); return;
-        case 'r': reverse(); return;
-        case 'f': flyToTracked(); return;
-        case 't': setDisplayOption('trajectories', !vs.showTrajectories); return;
-        case 'l': setDisplayOption('labels', !vs.showLabels); return;
-        case 'g': setDisplayOption('grid', !vs.showGrid); return;
-        case 'x': setDisplayOption('axes', !vs.showAxes); return;
-        case 'm': cycleCamera(); return;
-        case 'p': toggleProbe(); return;
-        case 'o': if (ui.catalogBrowser) shell.catalogBrowserOpen = true; return;
-        case 'Escape':
-          if (cancelAppearancePick()) return;
-          if (cancelMeasurementPick()) return;
-          if (shell.shortcutsOpen) shell.shortcutsOpen = false;
-          // A flight is the most transient thing on screen: Escape stops it
-          // where it is before it dismisses anything.
-          else if (vs.flight) stopFlight();
-          // An active mode is what Escape is for: the probe goes before any
-          // selection. The pinned point stays until a second Escape (or its
-          // panel's close) clears it.
-          else if (vs.probeActive) setProbeActive(false);
-          else if (measurements.selectedId) selectMeasurement(null);
-          // A selected surface feature is as small as an event selection.
-          else if (geo.selected) clearGeographicSelection();
-          // An event selection is the smallest thing on screen to dismiss:
-          // it goes before any panel does.
-          else if (ef.selectedId) clearSelection();
-          else if (dismissTopSurface()) return;
-          else if (dismissGeographicContext()) return;
-          else if (vs.selectedBodyName) selectBody(null);
-          else resetCamera();
-          return;
-        case '\\': e.preventDefault(); uiHidden = !uiHidden; return;
-      }
-
-      // Tool shortcuts come from the shell's own table, so adding a tool does
-      // not mean remembering to add a case above as well.
-      const tool = TOOLS.find((t) => t.shortcut === e.key);
-      // `I` opens, restores or raises the Instrument view without changing its
-      // sensor (#192). Closing stays with the rail, Escape and X.
-      if (tool && !e.repeat) {
-        if (tool.id === 'instrument') openTool('instrument');
-        else toggleTool(tool.id);
-      }
+    if (!binding) return;
+    if (binding.id.startsWith('cam:dolly-') || binding.id.startsWith('cam:crane-')) {
+      e.preventDefault();
+      if (!e.repeat) startHeldCameraMove(binding.id);
+      return;
     }
+    if (e.repeat) return;
+    e.preventDefault();
+
+    switch (binding.id) {
+      case 'time:play': togglePlay(); return;
+      case 'time:step-back': stepBackward(); return;
+      case 'time:step-fwd': stepForward(); return;
+      case 'time:slower': slower(); return;
+      case 'time:faster': faster(); return;
+      case 'time:reverse': reverse(); return;
+      case 'cam:fly-to': flyToTracked(); return;
+      case 'cam:cycle': cycleCamera(); return;
+      case 'disp:traj': setDisplayOption('trajectories', !vs.showTrajectories); return;
+      case 'disp:labels': setDisplayOption('labels', !vs.showLabels); return;
+      case 'disp:grid': setDisplayOption('grid', !vs.showGrid); return;
+      case 'disp:axes': setDisplayOption('axes', !vs.showAxes); return;
+      case 'probe:toggle': toggleProbe(); return;
+      case 'catalog:open': shell.catalogBrowserOpen = true; return;
+      case 'tool:catalog': toggleTool('catalog'); return;
+      case 'instr:open': openTool('instrument'); return;
+      case 'tool:script': toggleTool('script'); return;
+      case 'help:toggle': shell.shortcutsOpen = !shell.shortcutsOpen; return;
+      case 'shell:zen': uiHidden = !uiHidden; return;
+      case 'cam:escape':
+        if (cancelAppearancePick()) return;
+        if (cancelMeasurementPick()) return;
+        if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+        else if (vs.flight) stopFlight();
+        else if (vs.probeActive) setProbeActive(false);
+        else if (measurements.selectedId) selectMeasurement(null);
+        else if (geo.selected) clearGeographicSelection();
+        else if (ef.selectedId) clearSelection();
+        else if (dismissTopSurface()) return;
+        else if (dismissGeographicContext()) return;
+        else if (vs.selectedBodyName) selectBody(null);
+        else resetCamera();
+        return;
+    }
+  }
+
+  function onKeyup(e: KeyboardEvent) {
+    const binding = heldCameraBindingForCode(e.code);
+    if (binding?.id.startsWith('cam:dolly-') || binding?.id.startsWith('cam:crane-')) stopHeldCameraMove(binding.id);
   }
 
   /**
@@ -426,6 +430,7 @@
       const message = err instanceof Error ? err.message : String(err);
       if (generation !== navGeneration || loadToken !== loadGeneration) return;
       catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
+      recordViewerLog('error', 'Catalog load', catalogs.loadError, { showStatus: false });
       console.error('[Cosmolabe] Catalog load failed:', err);
     } finally {
       if (loadToken === loadGeneration) loadInFlight = false;
@@ -522,6 +527,7 @@
       }
     } catch (err) {
       catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+      recordViewerLog('error', 'View restore', catalogs.loadError, { showStatus: false });
     }
   }
 
@@ -538,6 +544,7 @@
       const item = state ? findEntry([state], param) : null;
       if (!item) {
         catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
+        recordViewerLog('error', 'Catalog source', catalogs.loadError, { showStatus: false });
         return;
       }
       if (loadInFlight || vs.showLoading) { navPending = true; return; }
@@ -565,6 +572,7 @@
     } catch (err) {
       if (generation === navGeneration) {
         catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+        recordViewerLog('error', 'View restore', catalogs.loadError, { showStatus: false });
       }
     }
   }
@@ -602,12 +610,16 @@
     // (Typed as an element: the window takes the same listeners.)
     const input = (embedded ? rootEl : window) as HTMLElement;
     input.addEventListener('keydown', onKeydown);
+    input.addEventListener('keyup', onKeyup);
+    window.addEventListener('blur', stopAllHeldCameraMoves);
     // Capture phase so we see right-clicks before CameraController stops propagation
     input.addEventListener('pointerdown', onWindowPointerDown, true);
     input.addEventListener('pointerup', onWindowPointerUp);
     const stopInput = () => {
       resizeObserver.disconnect();
       input.removeEventListener('keydown', onKeydown);
+      input.removeEventListener('keyup', onKeyup);
+      window.removeEventListener('blur', stopAllHeldCameraMoves);
       input.removeEventListener('pointerdown', onWindowPointerDown, true);
       input.removeEventListener('pointerup', onWindowPointerUp);
     };
@@ -618,6 +630,19 @@
         setWorkspaceRoot(null);
       };
     }
+    // Standalone only: an embedded workspace must not log its host page's errors.
+    const onRuntimeError = (event: ErrorEvent) => {
+      if (isIncidentalRuntimeError({ message: event.message, filename: event.filename, stack: event.error?.stack })) return;
+      const location = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : '';
+      recordViewerFault('Runtime error', `${event.message || 'Uncaught browser error'}${location}`);
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isIncidentalRuntimeError({ message: event.reason?.message, stack: event.reason?.stack })) return;
+      const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+      recordViewerFault('Unhandled rejection', reason);
+    };
+    window.addEventListener('error', onRuntimeError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
     // Visual-regression / deep-link entry: `?catalog=<name>` auto-loads a demo
     // (combine with `?test=1` for deterministic offscreen capture — see
     // scripts/visual-regression.mjs).
@@ -645,6 +670,8 @@
       stopLayoutWatch();
       stopInput();
       window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('error', onRuntimeError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
       document.removeEventListener('dragover', onDocDragOver);
       document.removeEventListener('drop', onDocDrop);
       setWorkspaceRoot(null);
@@ -706,8 +733,13 @@
     </div>
   {/if}
 
+  {#if !uiHidden}
+    <FaultToast />
+  {/if}
+
   {#if !loading && !uiHidden}
     <ViewportHud />
+    <KeyboardHelp />
     <GeographicLabels />
     <GeographicCallout />
     <GeographicEditOverlay />
