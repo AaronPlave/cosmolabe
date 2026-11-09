@@ -22,12 +22,16 @@
    * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
+  import { Search, Crosshair, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
+  import * as Popover from '$lib/components/ui/popover';
+  import KeyboardHelp from './KeyboardHelp.svelte';
+  import { viewerLog } from '../../lib/viewer-log.svelte';
   import { availableTools, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { shortcutFor } from '../../lib/keymap';
   import { onDestroy } from 'svelte';
   import { copyViewLink } from '../../lib/view-link';
   import { ef } from '../../lib/event-finder.svelte';
-  import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
+  import { vs, selectBody } from '../../lib/viewer-state.svelte';
   import { workspace } from '../../lib/workspace.svelte';
 
   interface Props {
@@ -64,9 +68,20 @@
   }
 
   const compact = $derived(shell.layout === 'compact');
+  // Popovers open beside the vertical rail, above the compact bottom row.
+  const side = $derived(compact ? 'top' : 'right');
+  const faulted = $derived(viewerLog.activeFaultId !== null);
+  // The compact rail scrolls sideways; opening help by key must bring its anchor into view.
+  let keyboardButton = $state<HTMLButtonElement | null>(null);
+  $effect(() => { if (shell.shortcutsOpen && compact) keyboardButton?.scrollIntoView({ inline: 'center', block: 'nearest' }); });
+  const popoverClass = 'p-2.5 w-[min(22rem,calc(100cqw-16px))] border border-border-default bg-popover shadow-xl';
 
   function hint(tool: ToolDef): string {
-    return tool.shortcut ? `${tool.label} (${tool.shortcut.toUpperCase()})` : tool.label;
+    if (tool.id === 'camera') return `Camera (${shortcutFor('cam:cycle')} cycles mode)`;
+    if (tool.id === 'debug' && faulted) return 'Diagnostics — a fault is active';
+    const id = tool.id === 'instrument' ? 'instr:open' : `tool:${tool.id}`;
+    const shortcut = shortcutFor(id);
+    return shortcut ? `${tool.label} (${shortcut})` : tool.label;
   }
 
   /**
@@ -125,6 +140,7 @@
     <button
       class="rail-btn"
       class:stowed={s === 'stowed'}
+      class:faulted={tool.id === 'debug' && faulted}
       aria-pressed={s === 'active'}
       aria-label={tool.label}
       title={hint(tool)}
@@ -144,10 +160,6 @@
     onclick={onToggleProbe}
   >
     <Crosshair size={16} />
-  </button>
-
-  <button class="rail-btn" aria-label="Camera mode" title="Camera mode (M)" onclick={() => cycleCamera()}>
-    <Camera size={16} />
   </button>
 
   <button
@@ -173,17 +185,19 @@
     </button>
   {/if}
 
-  {#if !compact}
-    <button
-      class="rail-btn"
-      aria-pressed={shell.shortcutsOpen}
-      aria-label="Keyboard shortcuts"
-      title="Keyboard shortcuts"
-      onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
-    >
-      <Keyboard size={16} />
-    </button>
-  {/if}
+  <Popover.Root bind:open={shell.shortcutsOpen}>
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <button {...props} bind:this={keyboardButton} class="rail-btn" aria-label="Keyboard shortcuts" title={`Keyboard shortcuts (${shortcutFor('help:toggle')})`}>
+          <Keyboard size={16} />
+        </button>
+      {/snippet}
+    </Popover.Trigger>
+    <Popover.Content {side} align="end" sideOffset={8} class={popoverClass} data-scene-occluder>
+      <KeyboardHelp />
+    </Popover.Content>
+  </Popover.Root>
+
 {/snippet}
 
 <nav
@@ -297,6 +311,7 @@
     color: var(--color-text-secondary);
     opacity: 0.72;
   }
+  .rail-btn.faulted { color: var(--color-error); }
   .rail-btn :global(svg) {
     stroke-width: 1.75;
   }

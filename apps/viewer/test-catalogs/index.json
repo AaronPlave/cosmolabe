@@ -12,9 +12,9 @@
     },
     {
       "id": "iss",
-      "name": "ISS",
+      "name": "Earth from Orbit",
       "catalog": "./iss.json",
-      "description": "Explore the ISS in Earth orbit (2011).",
+      "description": "Real daily satellite imagery of Earth (NASA VIIRS, 2026) with the ISS in orbit.",
       "group": "Explore"
     },
     {

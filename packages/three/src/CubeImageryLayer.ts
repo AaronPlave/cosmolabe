@@ -1,6 +1,7 @@
 import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
+import { declareSurfaceAsIs, imageryAsIsWeight } from './SurfaceIllumination.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
@@ -118,6 +119,8 @@ interface SourceUniforms {
   root: { value: number }; enabled: { value: number }; srgb: { value: number };
   fallback: { value: Int32Array };
   opacity: { value: number }; bounded: { value: number }; bounds: { value: THREE.Vector4 };
+  /** 1 when this source's pixels carry their own lighting and are shown as-is (#204). */
+  asIs: { value: number };
 }
 interface Uniforms {
   layers: SourceUniforms[];
@@ -138,7 +141,7 @@ interface TileRecord { scene: THREE.Object3D; address: ImageryAddress; meshes: M
 
 /** Compatibility for physical picking. All imagery now draws on original meshes. */
 export function isDrawnCubeImagerySource(_object: THREE.Object3D): boolean { return false; }
-const CACHE_KEY = '_cubeimg_pages_v2';
+const CACHE_KEY = '_cubeimg_pages_v3';
 const DEBUG_CODE: Record<CubeImageryDebug, number> = { none: 0, unlit: 1, level: 2 };
 const FACES: CubeFace[] = ['px','nx','py','ny','pz','nz'];
 const _bodyFrustum = new THREE.Frustum(), _box = new THREE.Box3();
@@ -190,10 +193,11 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
   Object.assign(shader.uniforms, flat);
   layers.forEach((u, i) => { for (const [key, uniform] of Object.entries(u)) shader.uniforms[`cubeLayer${i}_${key}`] = uniform; });
   if (shader.vertexShader.includes(VERTEX_PARS)) return;
+  declareSurfaceAsIs(shader);
   shader.vertexShader = VERTEX_PARS + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCubeImageryUvw = cubeImageryUvw;');
   const pars = layers.map((_, i) => `uniform int cubeLayer${i}_root; uniform ivec4 cubeLayer${i}_fallback; uniform float cubeLayer${i}_enabled;
     uniform float cubeLayer${i}_bounded; uniform vec4 cubeLayer${i}_bounds;
-    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity;`).join('\n');
+    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity; uniform float cubeLayer${i}_asIs;`).join('\n');
   let fragment = FRAGMENT_PARS + pars + '\n' + shader.fragmentShader;
   fragment = fragment.replace('void main() {', 'void main() {\n  vec4 cubeImageryTexel = vec4(0.0); float shownLevel = -1.0;');
   const coordinates = `
@@ -217,6 +221,8 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
           if (!longitude || lonLat.y < b.y || lonLat.y > b.w) alpha = 0.0;
         }
         vec3 color = cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb;
+        // Each source lights (or not) by its own provenance, weighted by its coverage.
+        surfaceAsIsLayer(diffuseColor.rgb, color * alpha, cubeLayer${i}_asIs, alpha);
         diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
         cubeImageryTexel.rgb = mix(cubeImageryTexel.rgb, sampleValue.rgb, alpha);
         cubeImageryTexel.a = alpha + cubeImageryTexel.a * (1.0 - alpha);
@@ -809,6 +815,7 @@ export class CubeImageryLayer {
         u.srgb.value = s.manifest?.colorSpace === 'srgb' ? 1 : 0;
         u.opacity.value = s.info.opacity; u.bounded.value = s.info.bounds ? 1 : 0;
         u.bounds.value.fromArray(s.info.bounds ?? [-180, -90, 180, 90]);
+        u.asIs.value = imageryAsIsWeight(s.info.illumination);
       }
     }
     // Prioritize complete coarse feedback across all layers, followed by local
@@ -938,7 +945,7 @@ export class CubeImageryLayer {
     return {
       cubeImageryToBody: { value: new THREE.Matrix3().set(u[0] * size, v[0] * size, n[0] + u0*u[0] + v0*v[0], u[1] * size, v[1] * size, n[1] + u0*u[1] + v0*v[1], u[2] * size, v[2] * size, n[2] + u0*u[2] + v0*v[2]) },
       cubeGeometryAddress: { value: new Int32Array([address.level, address.x, address.y]) },
-      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) } })),
+      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) }, asIs: { value: 0 } })),
       cubeImageryDebug: this.shared.debug, cubePages: { value: this.pages?.array ?? this.emptyPages }, cubePageTable: { value: this.pages?.tableUniform.value ?? this.emptyPageTable }, cubePagePixels: { value: new THREE.Vector2() },
     };
   }

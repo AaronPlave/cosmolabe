@@ -1,6 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
+import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -26,6 +27,7 @@ import {
   geodeticToBodyFixed,
   bodyFixedToSurfacePosition,
   isSupportedGeodeticDatum,
+  etToDate,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
@@ -62,6 +64,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
+import { PositionGlyphs, wantsGlyph, wantsPointMarker, glyphReplacesPlaceholder, isNaturalBody, placeholderMeshScale, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -89,6 +92,7 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+const _tmpGlyphRay = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
@@ -157,6 +161,12 @@ export interface UniverseRendererOptions {
   trajectoryFilter?: (body: Body) => boolean;
   /** Minimum screen pixels for any body (ensures visibility). Default 4. Set 0 for real scale. */
   minBodyPixels?: number;
+  /**
+   * Draw a small unlit position glyph (dot; open ring when selected/tracked) at
+   * entities whose shape is too small to recognise, handing off to the model or
+   * globe as it resolves (#337). Default true.
+   */
+  positionGlyphs?: boolean;
   /** Resolve a model source path (from catalog geometry.source) to a loadable URL */
   modelResolver?: (source: string) => string | undefined;
   /** Resolve a texture path (from catalog geometry.baseMap/normalMap) to a loadable URL.
@@ -379,6 +389,10 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
+  private readonly positionGlyphs: PositionGlyphs;
+  private _positionGlyphsEnabled = true;
+  /** Bodies whose small placeholder sphere the glyph has hidden (restored when it hands off). */
+  private readonly _placeholderHiddenByGlyph = new Set<string>();
   private _devicePixelObserver: ResizeObserver | null = null;
   private _devicePixelBox: {
     pixels: ResizeObserverSize;
@@ -576,8 +590,16 @@ export class UniverseRenderer {
     this.ambientLight.layers.enableAll();
     this.scene.add(this.ambientLight);
 
-    // Separate scene for surface tile CRR rendering.
-    // Full ambient light: surface tiles are photogrammetric with baked lighting.
+    this._positionGlyphsEnabled = options.positionGlyphs ?? true;
+    this.positionGlyphs = new PositionGlyphs(OVERLAY_LAYER);
+    this.scene.add(this.positionGlyphs.group);
+
+    // Separate scene for surface tile CRR rendering (`surfaceTiles` overlays).
+    // Full ambient light, in every lighting mode: these overlays are mission-site
+    // photogrammetry with baked lighting, i.e. `illumination: 'baked'` in the
+    // contract of SurfaceIllumination.ts, displayed as-is. This is deliberately
+    // NOT the streamed-terrain path: `TerrainManager` tiles live in the main
+    // scene and are lit by the Sun light below (#204).
     this.tileScene = new THREE.Scene();
     this.tileScene.add(new THREE.AmbientLight(0xffffff, 1));
 
@@ -927,10 +949,19 @@ export class UniverseRenderer {
 
       bm.scale.setScalar(1); // Always real scale
 
+      // The unlit position glyph replaces the legacy lit minimum-size
+      // placeholder (and the sphere standing in while a model fades in) for
+      // eligible, still-unresolved artificial bodies. Disabled glyphs or ineligible bodies
+      // keep exactly the old behaviour.
+      // Natural bodies are never replaced: they keep their real-scale rendering (and,
+      // at the library default, the legacy minimum-size sphere) with no point marker.
+      const glyphActive = glyphReplacesPlaceholder(
+        this._positionGlyphsEnabled, wantsPointMarker(bm, this._customVisuals.has(bm.body.name)), screenPixels);
+
       if (bm.hasModel && !bm.attitudeAvailable) {
         // Position known, attitude not: the marker, never a model at a held attitude.
         bm.setModelVisible(false);
-        bm.mesh.visible = true;
+        bm.mesh.visible = !glyphActive;
       } else if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
@@ -949,22 +980,30 @@ export class UniverseRenderer {
         } else if (this.minBodyPixels > 0) {
           // Too small for model: show placeholder as a dot (respects minBodyPixels)
           bm.setModelVisible(false);
-          bm.mesh.visible = true;
+          bm.mesh.visible = !glyphActive;
         } else {
           // No minBodyPixels: hide everything when too small
           bm.setModelVisible(false);
           bm.mesh.visible = false;
         }
+      } else if (glyphActive && screenPixels < this.minBodyPixels) {
+        // No model: the clamped minimum-size sphere would draw an inflated lit
+        // body at this position. The glyph marks it instead.
+        if (bm.mesh.visible) { bm.mesh.visible = false; this._placeholderHiddenByGlyph.add(bm.body.name); }
+      } else if (this._placeholderHiddenByGlyph.delete(bm.body.name)) {
+        bm.mesh.visible = true;
       }
 
-      // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot.
-      // applyMeshScale(factor) sets rendered radius = displayRadius * factor,
-      // so we need factor = minSceneRadius / displayRadius (not / realSceneRadius).
-      if (bm.mesh.visible && !bm.sunVisual && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
-        const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
-        bm.applyMeshScale(minSceneRadius / bm.displayRadius);
-      } else if (bm.mesh.visible) {
-        bm.applyMeshScale(this.scaleFactor);
+      // Placeholder sphere: an artificial placeholder is clamped to minBodyPixels so
+      // it's always a visible dot. Natural bodies always render at their real
+      // projected size, whatever the setting (see placeholderMeshScale).
+      // applyMeshScale(factor) sets rendered radius = displayRadius * factor, so the
+      // clamp factor is minSceneRadius / displayRadius (not / realSceneRadius).
+      if (bm.mesh.visible) {
+        bm.applyMeshScale(placeholderMeshScale({
+          natural: isNaturalBody(bm), sun: !!bm.sunVisual, minBodyPixels: this.minBodyPixels,
+          screenPixels, dist, halfFovTan, canvasHeight, displayRadius: bm.displayRadius, scaleFactor: this.scaleFactor,
+        }));
       }
     }
 
@@ -1213,6 +1252,8 @@ export class UniverseRenderer {
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
         if (bm.hasTerrain) {
+          // Time-indexed imagery follows the simulation's UTC day (#214).
+          if (bm.followsImageryTime) bm.updateImageryTime(etToDate(et).getTime());
           bm.updateTerrain(this.camera, this.renderer, screenPx, null);
           bm.observeSurfaceView(this.camera, this.renderer, et);
         }
@@ -1236,6 +1277,7 @@ export class UniverseRenderer {
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
+      this.labelManager.setTrackedName(this.cameraController.trackedBody?.body.name ?? null);
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this.labelManager.update(
         bodyMeshArr,
@@ -1253,6 +1295,24 @@ export class UniverseRenderer {
         );
       }
     }
+
+    // Position glyphs read the same final camera and the label manager's stable
+    // label decisions, so a marker is shown only while its label explains it
+    // (selected/tracked entities always keep both) and shares its anchor.
+    if (this._positionGlyphsEnabled) {
+      const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
+      this._terrainOccluders = null;
+      this.positionGlyphs.update(bodyMeshArr, this.camera, {
+        viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
+        isEligible: (bm) => wantsGlyph(bm, this._customVisuals.has(bm.body.name)),
+        isPinned: (name) => this.labelManager?.isLabelPinnedByHost(name) ?? false,
+        trackedName: this.cameraController.trackedBody?.body.name ?? null,
+        hoveredName: this._hoveredBody,
+        labelState: (name) => this.labelManager?.getLabelState(name) ?? null,
+        terrainOccluded: (bm) => this._glyphTerrainOccluded(bm),
+      });
+    } else this.positionGlyphs.group.visible = false;
 
     // Solar optics use the final camera, physical body radius, and the same
     // transmittance LUT/profile as the visible atmosphere shell.
@@ -2648,24 +2708,12 @@ export class UniverseRenderer {
    */
   setLightingMode(mode: 'natural' | 'shadow' | 'flood'): void {
     this._lightingMode = mode;
-    if (!this.ambientLight) return;
-    switch (mode) {
-      case 'natural':
-        this.ambientLight.color.setHex(0x080808);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 2;
-        break;
-      case 'shadow':
-        this.ambientLight.color.setHex(0x555555);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 1.5;
-        break;
-      case 'flood':
-        this.ambientLight.color.setHex(0xffffff);
-        this.ambientLight.intensity = 1;
-        if (this.sunLight) this.sunLight.intensity = 0;
-        break;
-    }
+    // One definition of each mode (SurfaceIllumination.ts) for every surface:
+    // fallback globe, streamed terrain and imagery-only tiles all take this
+    // ambient/Sun pair. Only `natural` is a physical claim. Baked photogrammetry
+    // in `tileScene` is mode-independent by design.
+    applyLightingMode(mode, this.ambientLight, this.sunLight);
+    for (const bm of this.bodyMeshes.values()) bm.setSurfaceLightingMode(mode);
   }
 
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
@@ -2795,6 +2843,23 @@ export class UniverseRenderer {
    */
   setLabelPinned(name: string, pinned: boolean): void {
     this.labelManager?.setLabelPinned(name, pinned);
+  }
+
+  /**
+   * Observable state of every entity currently drawn as a position glyph (#337):
+   * anchor in canvas CSS px, projected extent of its actual representation,
+   * glyph weight/ring/footprint, and whether the anchor is inside the canvas.
+   * Depth occlusion is applied on the GPU and is deliberately not reported —
+   * callers must not read a listed entity as proof its pixels are visible.
+   */
+  getPositionGlyphReadout(): PositionGlyphReadout[] {
+    return this._positionGlyphsEnabled ? this.positionGlyphs.readout() : [];
+  }
+
+  /** Turn position glyphs on or off at runtime. */
+  setPositionGlyphsEnabled(enabled: boolean): void {
+    this._positionGlyphsEnabled = enabled;
+    this.positionGlyphs.group.visible = enabled;
   }
 
   /** Unpin all labels (e.g. on selection clear). */
@@ -3458,8 +3523,15 @@ export class UniverseRenderer {
 
     if (!caster) {
       light.castShadow = false;
-      light.target.position.set(0, 0, 0);
-      light.target.updateMatrixWorld();
+      // Aim at the streamed surface being viewed, so its Sun direction is the
+      // Sun direction *there*. The scene origin is the camera's origin body,
+      // which is only the same on that body. No such surface: origin, as before.
+      const receiver = this.illuminationReceiver();
+      if (!receiver || !aimSunLight(light, sun.position, receiver)) {
+        light.position.copy(sun.position);
+        light.target.position.set(0, 0, 0);
+        light.target.updateMatrixWorld();
+      }
       return;
     }
 
@@ -3483,6 +3555,59 @@ export class UniverseRenderer {
     cam.top = halfSize;
     cam.bottom = -halfSize;
     cam.updateProjectionMatrix();
+  }
+
+  private readonly _illumCandidates: { position: THREE.Vector3; radius: number }[] = [];
+
+  /** Scene position of the streamed surface the Sun light should be aimed at, or null. */
+  private illuminationReceiver(): THREE.Vector3 | null {
+    const candidates = this._illumCandidates;
+    candidates.length = 0;
+    for (const bm of this.bodyMeshes.values()) {
+      if (!(bm.hasTerrain || bm.hasSurfaceTiles) || !bm.present || !bm.visible) continue;
+      candidates.push({ position: bm.position, radius: bm.displayRadius * this.scaleFactor });
+    }
+    return pickIlluminationReceiver(this.camera.position, candidates)?.position ?? null;
+  }
+
+  /**
+   * Sun elevation/azimuth and incidence at a planetocentric latitude/longitude
+   * on `bodyName`, at the current simulation time. For fixed-pose diagnostics
+   * and screenshot captions (#204). Null if the body or Sun is not in the scene.
+   */
+  solarGeometryAt(bodyName: string, latitudeDeg: number, longitudeDeg: number): SolarGeometry | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    const sun = this.bodyMeshes.get('Sun');
+    if (!bm || !sun) return null;
+    // Body-fixed (Z north) to world. `mesh.quaternion` also carries the globe
+    // geometry's own axis rotation, so it is not that frame.
+    return solarGeometryAt(bm.position, bm.bodyToWorldQuaternion(new THREE.Quaternion()), sun.position,
+      bm.displayRadius * this.scaleFactor, latitudeDeg, longitudeDeg);
+  }
+
+  /**
+   * Fixed-pose diagnostic of the **unshadowed direct solar term** a surface
+   * receiver gets in the current lighting mode (#204): `sunIntensity × cos(incidence)`
+   * for a surface whose normal is the local radial, or for `normal` (body-fixed
+   * east/north/up components) to probe a slope. Zero past the terminator and in
+   * `flood`. Ambient and baked terms are not included, and neither is terrain
+   * occlusion (#205): a receiver facing the Sun can still be behind a ridge.
+   * The result does not depend on the camera or on what it can see.
+   */
+  directSolarTermAt(
+    bodyName: string, latitudeDeg: number, longitudeDeg: number,
+    normal: { east: number; north: number; up: number } = { east: 0, north: 0, up: 1 },
+  ): (SolarGeometry & { mode: 'natural' | 'shadow' | 'flood'; physical: boolean; directTerm: number }) | null {
+    const g = this.solarGeometryAt(bodyName, latitudeDeg, longitudeDeg);
+    if (!g) return null;
+    const el = g.elevationDeg * Math.PI / 180, az = g.azimuthDeg * Math.PI / 180;
+    const n = new THREE.Vector3(normal.east, normal.north, normal.up).normalize();
+    // Sun direction in the local east/north/up frame.
+    const cosEl = Math.cos(el);
+    const sunEnu = new THREE.Vector3(cosEl * Math.sin(az), cosEl * Math.cos(az), Math.sin(el));
+    const params = LIGHTING_MODES[this._lightingMode];
+    return { ...g, mode: this._lightingMode, physical: params.physical,
+      directTerm: params.sunIntensity * Math.max(0, n.dot(sunEnu)) };
   }
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
@@ -3971,6 +4096,7 @@ export class UniverseRenderer {
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.positionGlyphs.dispose();
     this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
@@ -4107,6 +4233,7 @@ export class UniverseRenderer {
       // Attach before any load below: the mesh registers its own models and
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
+      bm.setSurfaceLightingMode(this._lightingMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);
       this.scene.add(bm);
@@ -4974,7 +5101,9 @@ export class UniverseRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     return this.labelManager.pickNearest(
       screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
-    ) ?? null;
+    ) ?? (this._positionGlyphsEnabled
+      ? this.positionGlyphs.pickNearest(screenX, screenY, 6)
+      : null);
   }
 
   /**
@@ -4983,21 +5112,21 @@ export class UniverseRenderer {
    * is hidden (see BodyMesh frame logic) and only the terrain mesh is visible —
    * so the terrain group is raycast too, otherwise the planet becomes unpickable.
    */
-  private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {
-    if (!this._dblClickRaycaster) return null;
-    this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+  /**
+   * Everything a body pick can hit: visible placeholder spheres, visible DSK
+   * plates and, where a sphere is hidden (camera near the surface), terrain.
+   * `exclude` leaves one body out, e.g. a marker's own geometry.
+   */
+  private _pickTargets(exclude?: string): { meshTargets: THREE.Object3D[]; terrainOwner: Map<THREE.Object3D, BodyMesh> } {
     const meshTargets: THREE.Object3D[] = [];
     const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
     for (const bm of this.bodyMeshes.values()) {
       // Raycasting ignores visibility, including bodies outside their existence window.
-      if (!bm.visible) continue;
+      if (!bm.visible || bm.body.name === exclude) continue;
       if (bm.mesh.visible) {
         meshTargets.push(bm.mesh);
       } else {
         meshTargets.push(...bm.getDskMeshes());
-        // Sphere hidden (camera near surface) — fall back to terrain mesh so the
-        // body remains pickable. Skipped when sphere is visible to avoid
-        // raycasting hundreds of tile meshes the sphere already covers.
         const terrain = bm.terrainTileGroup;
         if (terrain && terrain.visible) {
           meshTargets.push(terrain);
@@ -5005,6 +5134,53 @@ export class UniverseRenderer {
         }
       }
     }
+    return { meshTargets, terrainOwner };
+  }
+
+  private _terrainOccluders: THREE.Object3D[] | null = null;
+
+  /**
+   * Whether streamed terrain or reconstructed (DSK) plates hide an entity's
+   * anchor from the camera. Bodies' globes are handled analytically by the
+   * label occlusion fade; this covers relief that a sphere cannot (a crater rim
+   * in front of a rover). It is asked once per drawn glyph per frame, about the
+   * anchor only, so the whole symbol is shown or hidden together. Hits within a
+   * few pixels (or a small fraction of the range) of the anchor itself are not
+   * occluders, so an asset standing on terrain is not hidden by it.
+   */
+  private _glyphTerrainOccluded(bm: BodyMesh): boolean {
+    const ray = this._dblClickRaycaster;
+    if (!ray) return false;
+    if (!this._terrainOccluders) {
+      const targets: THREE.Object3D[] = [];
+      for (const other of this.bodyMeshes.values()) {
+        if (!other.visible) continue;
+        targets.push(...other.getDskMeshes());
+        const terrain = other.terrainTileGroup;
+        if (terrain && terrain.visible) targets.push(terrain);
+      }
+      this._terrainOccluders = targets;
+    }
+    if (this._terrainOccluders.length === 0) return false;
+    const origin = this.camera.position;
+    const toBody = _tmpGlyphRay.copy(bm.position).sub(origin);
+    const dist = toBody.length();
+    if (!(dist > 0)) return false;
+    const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
+    const worldPerPx = (2 * dist * halfFovTan) / Math.max(1, this.renderer.domElement.clientHeight);
+    const savedNear = ray.near, savedFar = ray.far;
+    ray.set(origin, toBody.divideScalar(dist));
+    ray.near = 0;
+    ray.far = Math.max(0, dist - Math.max(8 * worldPerPx, 0.02 * dist));
+    const hit = ray.intersectObjects(this._terrainOccluders, true).length > 0;
+    ray.near = savedNear; ray.far = savedFar;
+    return hit;
+  }
+
+  private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {
+    if (!this._dblClickRaycaster) return null;
+    this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const { meshTargets, terrainOwner } = this._pickTargets();
     const hits = this._dblClickRaycaster.intersectObjects(meshTargets, true);
     if (hits.length === 0) return null;
     // Walk up from hit to find owning BodyMesh: either via terrainOwner map

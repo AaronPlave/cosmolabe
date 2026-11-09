@@ -212,8 +212,13 @@ const IMAGERY: NestedSpec = {
     'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
-    'attribution', 'description', 'resolutionMeters', 'visible',
+    'attribution', 'description', 'resolutionMeters', 'visible', 'temporal', 'illumination',
   ),
+  children: {
+    temporal: {
+      keys: keys('semantics', 'cadence', 'policy', 'date', 'start', 'end', 'latencyDays', 'outOfRange', 'illumination'),
+    },
+  },
 };
 
 const SURFACE_LOCK: NestedSpec = { keys: keys('mode') };
@@ -237,6 +242,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
         'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere', 'frame', 'bodyId',
+        'illumination',
       ),
       children: {
         imagery: IMAGERY,
@@ -251,7 +257,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
             // A cube-face imagery config (CubeImageryLayer), not a layer like the others.
             imagery: {
               keys: keys(
-                'url', 'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
+                'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
                 'residentLevel', 'maxBlocksPerTile', 'retryFailedMs', 'maxLevel',
               ),
             },

@@ -296,16 +296,43 @@ The bottom layer is the **base**: it should cover the whole body, and it is alwa
 | `bounds` | Coverage `[west, south, east, north]` in degrees. Tiles outside it are not requested |
 | `minZoom` | First zoom level with data. Regional products have none below it |
 | `opacity`, `color` | Overlay opacity (0–1) and tint. Ignored on the base of an imagery-only Globe |
-| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS |
+| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS. A fixed date; the same system as `temporal` below |
+| `temporal` | Time-indexed imagery: which observation day the layer depicts and how it is chosen. See [time-indexed imagery](#time-indexed-imagery) |
 | `layer`, `tileMatrixSet`, `crs`, `format`, `styles`, `version`, `transparent` | WMS/WMTS service parameters |
 | `id`, `name`, `attribution` | How the viewer's Imagery control identifies the layer. Defaults: `layer-<index>`, the product name in the URL path, the service host. Keep `name` short (`Jezero · HiRISE`) |
 | `description` | The full product name, shown in the layer's details |
 | `resolutionMeters` | Native ground resolution in m/px, as the provider advertises it. The control shows it under the name. The tile pyramid's pixel size is listed separately, in details, since providers often pad levels past the data |
 | `visible` | `false` makes an overlay start switched off. It requests nothing until it is switched on |
+| `illumination` | `reflectance`, `baked` or `unknown` (default). What the pixels mean for relighting: `baked` imagery is shown as-is where the layer draws (never lit by the Sun a second time), `reflectance` and `unknown` are lit. Applied per pixel, weighted by the layer's own alpha, so layers of different provenance can be stacked. Cube imagery is declared as `terrain.imagery[]` layers with `type: cube`. This is **not** `temporal.illumination`, which only labels a dated image's acquisition lighting. See [surface-illumination.md](surface-illumination.md) |
 
 **Distance transition.** From far away the Globe draws its static `baseMap`. Streaming starts once the body is `preloadAtPixels` (default 40) tall on screen, behind the static map. At `showAtPixels` (default 80) the streamed surface replaces it, but only once the coarsest tiles in view (the level-0 tiles of an imagery-only Globe) have loaded, and then once the request queue has drained, or after 1.5 s of continuous loading if the camera keeps moving. Backing out returns to the static map. If the stream fails outright (the base layer cannot be set up, the root tileset or one of those coarsest tiles fails, or tiles fail before any loads and nothing else is loading), the static map stays for the rest of the session and nothing more is requested. A failed overlay never triggers this, because the layers beneath it still render.
 
 **Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, one row each: a checkbox (a lock for the base, which is always on), the name, and the source and native resolution beneath. A row's expander holds its opacity, order and details: the full product name, coverage, the source's resolution next to the finest its tile pyramid offers, what the view is drawing, and the session's request counts. A badge appears only when it explains why an enabled layer is not showing, or is showing worse than it can, judged against the tiles on screen (in the main camera's frustum and facing it): *Out of view* (none of its coverage is on screen), *Zoom in* (too far out for its data), *Cache full* (close enough, but the tile cache is full so finer tiles cannot load; raise `maxCacheBytes`), *Gaps* (tiles in view could not load it, so the layers beneath show through), *Lower res* (failed source tiles in view are drawn from coarser ones) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. Hovering a regional layer outlines its footprint, faint where it lies past the horizon, and its crosshair button flies the camera over it in free orbit. At most ten layers can be shown at once.
+
+#### Time-indexed imagery
+
+A layer may depict one **observation (acquisition) day**, which is not the simulation epoch the Sun, bodies and spacecraft are drawn at. `time` fixes that day; `temporal` also lets it follow simulation time. Both go through one date substitution (a `/default/YYYY-MM-DD/` path segment, or a WMTS `{Time}` dimension), so existing `time` layers behave as before. Daily products are only as old as their publication, so nothing is ever shown for a day later than the clock allows.
+
+```json
+{
+  "id": "modis-daily", "name": "MODIS daily true colour",
+  "url": "https://…/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-06-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg",
+  "levels": 9, "projection": "EPSG:3857",
+  "temporal": { "policy": "follow-simulation", "start": "2000-02-24", "end": "present", "latencyDays": 1 }
+}
+```
+
+| `temporal` field | Meaning |
+|---|---|
+| `policy` | `fixed` (the UTC `date`), `follow-simulation` (the simulation's UTC day) or `latest` (the newest day the provider declares; `wmts-capabilities` sources only, never guessed). Default `fixed` with a `date`, else `follow-simulation` |
+| `date` | The `fixed` day, `YYYY-MM-DD` |
+| `start`, `end` | First and last day the source has; `end: "present"` leaves it to the clock. A `wmts-capabilities` source fills in what the catalog leaves out from its time dimension, including the gaps between runs of days (a day in a gap is *No data*) |
+| `latencyDays` | Days between acquisition and publication; the newest day shown is today (UTC) minus this. Default 0 |
+| `outOfRange` | For `follow-simulation` outside `[start, end]`: `hide` (default; the layers beneath show) or `nearest` (the closest available day, labelled as such). An explicit `fixed` date is never swapped |
+| `semantics`, `cadence` | `acquisition` and `day`, the only values so far |
+| `illumination` | `baked` (default): the image carries its acquisition-time Sun, and the viewer still shades the globe by the simulated Sun, so the two stack (nothing un-lights the image); `reflectance` when the product has no baked lighting |
+
+Following is throttled to the source cadence: a new day must hold 0.4 s, no two changes are less than 1 s apart, and one is forced after 3 s of continuous change, so fast playback or scrubbing asks for a handful of days, not one per frame. A day change replaces the layer's overlay: the old day's fetches are aborted and its textures released before the new day's loads, so two days never share a layer. The base layer can only be `fixed` (put a daily layer above a static backdrop). `Imagery` shows the acquisition day under the layer's name, with date mode, a date picker, cadence, range and the lighting note in the expander, and badges for *Before data*, *After data*, *No data*, *Not published*, *Nearest day* and *No imagery*. Full notes and the Earth GIBS pilot: [time-indexed imagery](time-indexed-imagery.md).
 
 `terrain.imagery` (below) is still accepted. When both are present, `imagery` wins and a warning is logged. Tuning fields for an imagery-only Globe (`showAtPixels`, `preloadAtPixels`, `overlayResolution`, `errorTarget`, …) go in a `terrain` block of `"type": "imagery"` with no layers of its own; it then takes the sibling stack:
 
@@ -663,7 +690,7 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 
 | File | What it shows |
 |---|---|
-| `iss.json` | Minimal TLE-driven Earth + ISS — no SPICE kernels needed |
+| `iss.json` | Earth from Orbit: NOAA-20 VIIRS daily imagery over Blue Marble plus a TLE-driven ISS — no SPICE kernels needed |
 | `lro-moon.json` | LRO at the Moon with high-res Moon textures |
 | `cassini-soi.json` | Cassini at Saturn-Orbit-Insertion with rings, sensor frustums, multiple viewpoints |
 | `europa-clipper.json` | Multi-body Jupiter system + Galilean moons |

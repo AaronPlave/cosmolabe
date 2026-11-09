@@ -25,17 +25,26 @@ export interface KeyboardControlsConfig {
  * Pitch and yaw are handled by mouse orbit (TrackballControls left-drag).
  * Translation is also available via right-click drag (TrackballControls pan).
  */
+export const CAMERA_KEY_BINDINGS = {
+  forward: { code: 'KeyW', key: 'w', display: 'W', label: 'Move forward' },
+  backward: { code: 'KeyS', key: 's', display: 'S', label: 'Move backward' },
+  left: { code: 'KeyA', key: 'a', display: 'A', label: 'Move left' },
+  right: { code: 'KeyD', key: 'd', display: 'D', label: 'Move right' },
+  up: { code: 'KeyZ', key: 'z', display: 'Z', label: 'Crane up' },
+  down: { code: 'KeyC', key: 'c', display: 'C', label: 'Crane down' },
+  rollLeft: { code: 'KeyE', key: 'e', display: 'E', label: 'Roll left' },
+  rollRight: { code: 'KeyQ', key: 'q', display: 'Q', label: 'Roll right' },
+} as const;
+
 const ACTIONS = {
-  // Translation
-  forward:   ['KeyW'],
-  backward:  ['KeyS'],
-  left:      ['KeyA'],
-  right:     ['KeyD'],
-  up:        ['KeyZ'],
-  down:      ['KeyC'],
-  // Roll
-  rollLeft:  ['KeyE'],
-  rollRight: ['KeyQ'],
+  forward:   [CAMERA_KEY_BINDINGS.forward.code],
+  backward:  [CAMERA_KEY_BINDINGS.backward.code],
+  left:      [CAMERA_KEY_BINDINGS.left.code],
+  right:     [CAMERA_KEY_BINDINGS.right.code],
+  up:        [CAMERA_KEY_BINDINGS.up.code],
+  down:      [CAMERA_KEY_BINDINGS.down.code],
+  rollLeft:  [CAMERA_KEY_BINDINGS.rollLeft.code],
+  rollRight: [CAMERA_KEY_BINDINGS.rollRight.code],
 } as const;
 
 /** All key codes we handle — used for preventDefault */
@@ -71,6 +80,16 @@ export class KeyboardControls {
    * Null when no Globe is nearby — falls back to dist-to-orbit-target.
    */
   altitudeRefSceneUnits: number | null = null;
+
+  /**
+   * Scene-unit length one second of full-speed translation covers: the orbit
+   * distance, capped by the ground-aware altitude when near a surface. The one
+   * policy for WASD and the held dolly/crane moves.
+   */
+  speedReference(orbitDistance: number): number {
+    const altRef = this.altitudeRefSceneUnits;
+    return altRef != null ? Math.min(orbitDistance, altRef) : orbitDistance;
+  }
 
   private readonly _keys = new Set<string>();
   private readonly _onKeyDown: (e: KeyboardEvent) => void;
@@ -216,9 +235,7 @@ export class KeyboardControls {
     // surface ops aren't kilometric per keypress. `altitudeRefSceneUnits` is
     // set by `CameraController.adaptSpeeds()` with the ground floor already
     // applied — see comment there for the floor logic.
-    const dist = camera.position.distanceTo(orbitTarget);
-    const altRef = this.altitudeRefSceneUnits;
-    const speedRef = altRef != null ? Math.min(dist, altRef) : dist;
+    const speedRef = this.speedReference(camera.position.distanceTo(orbitTarget));
     const transAmt = speedRef * this.translateSpeed * dt * speedMod;
     const move = new THREE.Vector3();
 

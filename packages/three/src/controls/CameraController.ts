@@ -22,6 +22,7 @@ import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
 import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
 import { surfaceEntryPose } from './surfaceEntry.js';
+import type { CameraFrameFault } from './modes/FrameLockedMode.js';
 
 /** A camera pose in scene coordinates. */
 export interface ViewpointPose {
@@ -455,6 +456,11 @@ export class CameraController {
 
   /** Current camera mode name */
   get mode(): CameraModeName { return this._activeMode.name; }
+
+  /** Exact fault from a locked frame, or null when the active camera mode is healthy. */
+  get frameFault(): CameraFrameFault | null {
+    return (this._activeMode as ICameraMode & { frameFault?: CameraFrameFault | null }).frameFault ?? null;
+  }
 
   /** Bound event handlers (for cleanup) */
   private readonly _detachPointerInput: () => void;
@@ -1778,6 +1784,17 @@ export class CameraController {
    */
   crane(distance: number, duration = 0): boolean {
     return this._startMove('crane', distance, duration);
+  }
+
+  /** Whether the active camera mode takes dolly and crane moves (not placed by a locked frame). */
+  get acceptsOrbitMoves(): boolean { return this._activeMode.allowsOrbitControls; }
+
+  /**
+   * Scene units per second of a held dolly or crane: the keyboard translation
+   * policy, so near a surface it follows altitude, not the orbit-centre range.
+   */
+  get moveSpeedReference(): number {
+    return this.keyboard.speedReference(this.camera.position.distanceTo(this.controls.target));
   }
 
   /** Whether a scripted camera move (swing, dolly or crane) is still playing. */

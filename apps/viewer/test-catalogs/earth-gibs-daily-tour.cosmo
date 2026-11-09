@@ -1,0 +1,26 @@
+# Time-indexed imagery pilot (#214): one MODIS daily composite per UTC day, following simulation time.
+# Imagery shows the acquisition day, not the simulation epoch; its sunlight is baked in as acquired, and the globe is also shaded by the simulated Sun.
+# Needs network access to gibs.earthdata.nasa.gov (the viewer shows "No imagery" for a day the service lacks).
+setPlaying off
+viewpoint "Earth from orbit"
+setTime "2024-06-01T18:00:00Z"
+showImagery Earth modis-daily on
+waitUntilReady "{\"kind\":\"imagery\",\"body\":\"Earth\",\"layer\":\"modis-daily\"}" 60
+displayNote "Acquired 2024-06-01 (UTC day). Open Imagery > MODIS daily true colour for the date."
+# One-day step: the layer changes day once, never mixing the two.
+setTime "2024-06-02T18:00:00Z"
+waitUntilReady "{\"kind\":\"imagery\",\"body\":\"Earth\",\"layer\":\"modis-daily\"}" 60
+displayNote "Acquired 2024-06-02. Same view, next UTC day."
+# Regional close-up: same layer, same date policy.
+viewpoint "Regional close-up"
+waitUntilReady "{\"kind\":\"imagery\",\"body\":\"Earth\",\"layer\":\"modis-daily\"}" 60
+displayNote "Regional close-up, still 2024-06-02. MODIS true colour has gaps between swaths and under cloud."
+# Layer toggle falls back to Blue Marble, then the static map.
+showImagery Earth modis-daily off
+displayNote "Daily layer off: Blue Marble (no acquisition date) shows through."
+showImagery Earth modis-daily on
+# A day before MODIS Terra (2000-02-24): the layer shows nothing and says so; Blue Marble stays.
+setTime "1999-12-31T12:00:00Z"
+displayNote "1999-12-31 predates the source: no imagery is shown, never a substitute day."
+setTime "2024-06-01T18:00:00Z"
+viewpoint "Earth from orbit"
