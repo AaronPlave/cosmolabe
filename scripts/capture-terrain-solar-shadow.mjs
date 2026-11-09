@@ -39,6 +39,9 @@ const OUT = resolve(args.out ?? join(ROOT, 'work/terrain-solar-shadow'));
 const VIEWPORT = { width: Number(args.width ?? 1280), height: Number(args.height ?? 720) };
 const THROTTLE = Number(args.throttle ?? 1);
 const QUALITY = args.quality ?? 'high';
+const RES_TAG = VIEWPORT.width === 1280 ? '' : `-${VIEWPORT.width}w`;
+const SCREENSHOTS = !args['no-screenshots'];
+const FRAMES = Number(args.frames ?? (args.gpu ? 160 : 40));
 const R = 1737.4;
 const at = (latDeg, lonDeg, hKm) => {
   const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180, r = R + hKm;
@@ -58,8 +61,13 @@ const MODES = String(args.modes ?? 'off,on,flood,visibility,unknown,alignment').
 const SETTLE_POLLS = Number(args.stable ?? 6);
 const TIMEOUT_MS = Number(args.timeout ?? 900_000);
 
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'] });
+// --gpu: the machine's real GPU through the installed Chrome (Metal on macOS), with the frame-rate limit and vsync off so the
+// frame interval is the cost of the frame, not the display refresh. Default: software WebGL (SwiftShader).
+const GPU = !!args.gpu;
+const browser = await chromium.launch(GPU
+  ? { channel: 'chrome', headless: true, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', '--disable-gpu-vsync', '--disable-frame-rate-limit'] }
+  : { headless: true, executablePath: process.env.CHROMIUM_PATH,
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'] });
 mkdirSync(OUT, { recursive: true });
 const results = [];
 let env = {};
@@ -124,8 +132,7 @@ try {
     const applyMode = (mode) => page.evaluate(({ mode, quality }) => {
       const r = window.cap.getRenderer();
       r.setLightingMode(mode === 'flood' ? 'flood' : 'natural');
-      r.setTerrainShadows(mode !== 'off' && mode !== 'flood');
-      r.setTerrainShadowQuality(quality);
+      r.setTerrainShadowMode(mode === "off" || mode === "flood" ? "off" : quality);
       r.setTerrainShadowDebug(mode === 'visibility' ? 1 : mode === 'unknown' ? 2 : mode === 'alignment' ? 3 : 0);
     }, { mode, quality: QUALITY });
     const state = () => page.evaluate(() => {
@@ -157,21 +164,23 @@ try {
       await page.waitForTimeout(1500);
       await pose();
       await page.waitForTimeout(500);
-      // Frame time over 40 frames, then the screenshot and the state it shows.
-      const frameMs = await page.evaluate(() => new Promise(resolveFrames => {
+      // Frame time over FRAMES frames (the first 10 dropped), then the screenshot and the state it shows.
+      const frameMs = await page.evaluate((frames) => new Promise(resolveFrames => {
         const times = [];
         let prev = performance.now(), n = 0;
-        const tick = (now) => { times.push(now - prev); prev = now; if (++n < 40) requestAnimationFrame(tick); else resolveFrames(times.slice(5)); };
+        const tick = (now) => { times.push(now - prev); prev = now; if (++n < frames) requestAnimationFrame(tick); else resolveFrames(times.slice(10)); };
         requestAnimationFrame(tick);
-      }));
+      }), FRAMES);
       const mean = frameMs.reduce((a, b) => a + b, 0) / frameMs.length;
+      const sorted = [...frameMs].sort((a, b) => a - b);
+      const p50 = sorted[Math.floor(sorted.length * 0.5)], p95 = sorted[Math.floor(sorted.length * 0.95)];
       const { metrics, shadow } = await state();
       const geometry = await page.evaluate(({ site }) => window.cap.getRenderer().solarGeometryAt('Moon', site[0], site[1]), { site: view.site });
-      const file = `${viewName}-${mode}${QUALITY === 'high' ? '' : '-' + QUALITY}${THROTTLE > 1 ? '-throttle' + THROTTLE : ''}.png`;
-      await page.screenshot({ path: join(OUT, file), type: 'png' });
-      results.push({ view: viewName, mode, file, epochEt: epoch.et, sun: geometry, frameMeanMs: +mean.toFixed(1), frameMaxMs: +Math.max(...frameMs).toFixed(1),
+      const file = `${viewName}-${mode}${QUALITY === 'high' ? '' : '-' + QUALITY}${THROTTLE > 1 ? '-throttle' + THROTTLE : ''}${GPU ? '-gpu' : ''}${RES_TAG}.png`;
+      if (SCREENSHOTS) await page.screenshot({ path: join(OUT, file), type: 'png' });
+      results.push({ view: viewName, mode, file, epochEt: epoch.et, sun: geometry, frameMeanMs: +mean.toFixed(2), frameP50Ms: +p50.toFixed(2), frameP95Ms: +p95.toFixed(2), frameMaxMs: +Math.max(...frameMs).toFixed(1),
         shadow, tiles: metrics.tiles, pose: { eye: view.eye, target: view.target, fov: view.fov }, settleMs });
-      console.log(`${file}: frame ${mean.toFixed(0)} ms (software WebGL), clipmap ${shadow?.state}, `
+      console.log(`${file}: frame mean ${mean.toFixed(1)} / p50 ${p50.toFixed(1)} / p95 ${p95.toFixed(1)} ms (${GPU ? 'hardware GPU' : 'software WebGL'}), clipmap ${shadow?.state}, `
         + `unknown ${shadow?.levels.map(l => (l.unknownFraction * 100).toFixed(0) + '%').join('/')}, build ${shadow?.levels.map(l => l.lastBuildMs.toFixed(0) + ' ms').join('/')}`);
     }
     results.push({ view: viewName, errors });
@@ -182,10 +191,10 @@ try {
 }
 const record = {
   generator: 'scripts/capture-terrain-solar-shadow.mjs', created: new Date().toISOString(), catalog: CATALOG, viewport: VIEWPORT,
-  cpuThrottle: THROTTLE, quality: QUALITY,
-  browser: { ...env, launch: 'playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host)' },
+  cpuThrottle: THROTTLE, quality: QUALITY, gpu: GPU,
+  browser: { ...env, launch: GPU ? 'playwright, installed Chrome headless, --use-angle=metal, vsync and frame limit off (hardware GPU)' : 'playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host)' },
   host: { platform: `${platform()} ${release()}`, cpus: cpus().length, cpuModel: cpus()[0]?.model, memoryGB: Math.round(totalmem() / 2 ** 30) },
   captures: results,
 };
-writeFileSync(join(OUT, `captures${QUALITY === 'high' ? '' : '-' + QUALITY}${THROTTLE > 1 ? `-throttle${THROTTLE}` : ''}.json`), JSON.stringify(record, null, 2) + '\n');
+writeFileSync(join(OUT, `captures${QUALITY === 'high' ? '' : '-' + QUALITY}${THROTTLE > 1 ? `-throttle${THROTTLE}` : ''}${GPU ? '-gpu' : ''}${RES_TAG}.json`), JSON.stringify(record, null, 2) + '\n');
 console.log(`wrote ${OUT}`);

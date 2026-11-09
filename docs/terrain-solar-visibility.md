@@ -3,7 +3,8 @@
 **Status: implemented, opt-in, visual only.** A ridge, crater wall or massif that blocks the Sun from a point on
 streamed terrain now shades that point, from the actual Sun direction and epoch, including terrain beyond the screen
 and across tile and LOD boundaries. It is not a certified illumination, permanently-shadowed-region or solar-power
-product, and it has **not been measured on a GPU** (see [Cost](#cost)).
+product. Its cost is measured on a hardware GPU below: cheap on a desktop GPU at 1080p, **too heavy to default on** for
+low-end or high-resolution targets (see [Cost](#cost)).
 
 Builds on #204 ([surface-illumination.md](surface-illumination.md): Sun direction at the receiver, the direct term this
 attenuates, imagery provenance). Not in scope: #182 hillshade, #134 scattering, #242 camera→Sun-disk visibility, #217
@@ -11,14 +12,21 @@ numeric site→target geometry.
 
 ## Use it
 
-Catalog: `"terrain": { …, "solarShadows": true }` ([catalog-format.md](catalog-format.md#solarshadows)). It is **off by
-default**, so no existing scene changes. The fixture catalog is
-`apps/viewer/test-catalogs/experiments/moon-terrain-cube-solar-shadow.json`.
+**Viewer: Display panel → Terrain shadows → Off / Low / Medium / High.** It appears whenever a loaded body has terrain
+with heights a shadow can be built from (cube-sphere grids, quantized mesh), and it works on **any** such terrain, with
+no catalog change: picking a quality builds the clipmap and adds the effect to the tiles already loaded. It follows the
+catalog until you choose (Off, unless the catalog sets `solarShadows`), then remembers your choice
+(`terrainShadowMode` in the viewer prefs). A line under it says what is happening: building, some terrain not loaded
+(drawn lit, not shadowed), or on; and "Off in Flood lighting", since `flood` has no Sun.
 
-Renderer (`UniverseRenderer`): `setTerrainShadows(on)`, `setTerrainShadowQuality('high'|'medium'|'low')`,
-`setTerrainShadowDebug(0|1|2|3)`, `terrainShadowStatus(body)`. Debug views: `1` Sun fraction (white lit, black
-shadowed), `2` the same with terrain the clipmap does not hold tinted magenta, `3` frame/data alignment (green: the drawn
-surface is within 10 m of the clipmap). There is no viewer UI control yet.
+Catalog: `"terrain": { …, "solarShadows": true }` ([catalog-format.md](catalog-format.md#solarshadows)) turns it on for
+that terrain by default at `high` (`{ "quality": "low" }` etc. tunes it). It is off by default, so no existing scene
+changes. The fixture catalog is `apps/viewer/test-catalogs/experiments/moon-terrain-cube-solar-shadow.json`.
+
+Renderer (`UniverseRenderer`): `setTerrainShadowMode('off' | 'low' | 'medium' | 'high' | null)` (`null` follows the
+catalog), `terrainShadowSummary()`, `terrainShadowStatus(body)`, `setTerrainShadowDebug(0|1|2|3)`. Debug views: `1` Sun
+fraction (white lit, black shadowed), `2` the same with terrain the clipmap does not hold tinted magenta, `3`
+frame/data alignment (green: the drawn surface is within 10 m of the clipmap).
 
 What it touches: only the **direct** diffuse/specular term of **relit** surfaces (`reflectance` and legacy `unknown`
 imagery; `mixed` stacks per pixel). Baked imagery is shown as it is (its shadows are in the pixels), ambient and eclipse
@@ -133,29 +141,41 @@ so Mars is covered by the synthetic-ridge test at Mars's radius.
 
 ## Cost
 
-**Measured here (software WebGL, 1280×720, no GPU in the capture host). These are repeatable proxies, not hardware or
-mobile numbers.** Mean frame time with shadows off → on:
+All numbers are mean frame time with shadows off → on, from `scripts/capture-terrain-solar-shadow.mjs` on the real Moon
+terrain at the three views below, same pose and epoch. **Hardware: Apple M4 Max (Metal via the installed Chrome, vsync and
+frame limit off, so the interval is the cost of the frame).** This is a high-end desktop/laptop GPU; there is no phone or
+integrated-GPU number, and the 4K rows are a fill-rate stress test, not a mobile measurement.
 
-| View | off | on `high` | on `medium` | on `low` |
-| --- | --- | --- | --- | --- |
-| Shackleton rim | 63 ms | 662 ms | not run | not run |
-| Polar ridge | 37 ms | 520 ms | 414 ms | 329 ms |
-| Equatorial crater | 24 ms | 221 ms | 203 ms | 146 ms |
+| View (Sun at site) | 1280×720 `high` | `medium` | `low` | 3840×2160 `high` | `medium` | `low` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shackleton rim (0.74°) | 1.3 → 4.3 ms | 3.6 | 2.8 | 2.4 → 35.7 ms | 29.6 | 21.2 |
+| Polar ridge field (1.8°) | 1.2 → 3.4 ms | 2.7 | 2.5 | 1.4 → 31.2 ms | 23.4 | 16.7 |
+| Equatorial crater (2.9°) | 1.2 → 1.5 ms | 1.4 | 1.3 | 1.5 → 12.8 ms | 10.2 | 8.0 |
 
-The software rasteriser is fragment-bound, so this overstates a GPU's cost by a large, unknown factor; what it shows is
-that the effect is per-pixel and heavy, that cost scales with how much of the screen is lit terrain at a low Sun, and that
-the presets help (`low` is about 1.6–1.7× cheaper than `high`).
+(`medium` and `low` give the shadows-on time; the off time is the same as `high`'s.) The p95 is about twice the mean
+(`captures-gpu*.json` has mean / p50 / p95 per row).
 
-**CPU clipmap fill** (real terrain, per level, from `status.levels[].lastBuildMs`): 44–143 ms for 256² samples, spread over
-frames at 3 ms each. With a 4× CPU throttle it was 257–511 ms (about 3.5–5×), still incremental, never a single stall.
-Re-centring rebuilds only the level whose hysteresis box (25 % of its half-width) was left. The throttle does not slow the
-software rasteriser, so it gives no frame-time proxy.
+- On this GPU at 720p the effect costs **0.3–3 ms**. It scales with lit pixels at a low Sun, so Shackleton (low Sun over
+  mostly lit rim terrain) is the worst case and the equatorial crater the best.
+- Cost is linear in pixels: about **3 ms per megapixel at `high`** in the worst view, so 4K is ~9× the 720p cost. A phone
+  or integrated GPU at 1080p with a device pixel ratio of 2–3 has several times more pixels *and* a GPU far slower per
+  pixel than an M4 Max, so `high` is not viable there. `low` is 20–40 % cheaper than `high`, not free, and moves far
+  shadow edges further toward the occluder (see Evidence). **Do not default this on for mobile or low-end targets.**
+- Two optimisations came out of the measurements and are in the shader: bilinear taps use one hardware fetch when the device
+  filters float textures (4 → 1 fetches, about 20 % faster; the manual path is kept and tested for devices that cannot), and
+  the march stops as soon as terrain covers the whole Sun disk, which more terrain cannot undo, so it is exact (about 3×
+  faster over a shadowed floor: Shackleton went from 13.1 to 4.5 ms). The earliest software-WebGL runs (40 → 500 ms) were
+  ~100× more pessimistic than this GPU and are no proxy for it.
 
-**Memory**: three levels of RG32F with mips, about 2.1 MB (0.5 MB at 128²). **Draw calls**: none added.
+**CPU clipmap fill** (per level, `status.levels[].lastBuildMs`): 44–143 ms for 256² samples, spread over frames at 3 ms each,
+so no frame stalls. With a 4× CPU throttle in software WebGL (which does not slow GL) it was 257–511 ms (3.5–5×), still
+incremental. Re-centring rebuilds only the level whose hysteresis box (25 % of its half-width) was left.
 
-Not measured, and needed before any default-on decision: GPU frame time on desktop and mobile hardware, and the real cost
-on a non-polar, mostly-lit scene. A separate GPU capture should set the default `quality` and say whether `low` is enough
-for phones.
+**Memory**: three levels of RG32F with mips, about 2.1 MB (0.5 MB at 128²). **Draw calls**: none added. Turning it on for
+terrain that was loaded without it recompiles the tile program once (the hook is appended to the loaded tiles' shaders).
+
+Still missing: a phone or integrated-GPU capture, which should set the default `quality` per device class; until then the
+catalog default stays off.
 
 ## Limits
 
@@ -169,7 +189,7 @@ for phones.
 - **Anchor.** One anchor frame serves the whole clipmap and resets when the focus moves more than 2° (~60 km on the Moon),
   rebuilding the levels. Fragments outside every level, or while a level is building, are drawn lit.
 - **Quantized-mesh terrain** mixes LODs in its CPU samples; cube-sphere terrain is the supported low-Sun path.
-- **Baked imagery** (e.g. the shipped Shackleton WAC+NAC) cannot show terrain shadows: its lighting is in the pixels.
+- **Imagery declared `baked`** cannot show terrain shadows: its lighting is in the pixels (the viewer says so under the control). The shipped Shackleton WAC+NAC layer is *described* as baked but declares no provenance, so it is relit as `unknown` and does show them; declaring it `baked` would be right for the data and would hide them.
 - **Overhangs.** A radial height field cannot represent a mesh with overhangs; `clipmapSourceFromSurface` keeps the highest surface.
 - **Sampler statistics.** Fills read the same CPU sampler as readouts, so `terrain.sample` counters include them.
 
@@ -182,17 +202,16 @@ for phones.
 | Offscreen / adjacent-tile occluders within a documented radius and accuracy budget | `occluderRangeKm` table; edge-shift bounds |
 | No abrupt toggling across LOD; precision / peter-panning / acne verified | Source read at one level; no depth map; ray starts on the clipmap surface; alignment view |
 | No regression: spacecraft/lander shadows, eclipses, instrument parity, imagery overlays | Opt-in; `updateSunLightAndShadow` untouched; direct term only; existing 2248 tests and the #204 WebGL test pass |
-| Before/after capture at fixed physical times; benchmark desktop and slower proxy | Captures above; software WebGL and CPU-throttle only, **no hardware numbers** |
+| Before/after capture at fixed physical times; benchmark desktop and slower proxy | Captures above; hardware GPU (M4 Max) at 720p and 4K, three presets; no phone/integrated GPU |
 | Recommendation, slices, limits, whether a numeric visibility query is justified | This page |
 
 ## Next
 
-1. **Hardware benchmark and default.** GPU frame time on desktop/mobile; then decide default `quality`, and whether shipped
-   relit-terrain catalogs should turn it on.
-2. **Viewer control** (toggle, quality, status readout) once the cost is known.
-3. **Numeric visibility query (#217).** The same clipmap answers "is the Sun above the local horizon at this site" without
+1. **Mobile / integrated-GPU benchmark.** Then set the default `quality` per device class, and decide whether shipped
+   relit-terrain catalogs should opt in.
+2. **Numeric visibility query (#217).** The same clipmap answers "is the Sun above the local horizon at this site" without
    the GPU: `solarVisibility` in `TerrainSunVisibility.ts` is already that function over a height source. Exposing it as a
    physical-surface query (site, direction, coverage/accuracy, unavailable) is justified, but is a separate issue with its
    own validation; no change to #205's visual gate.
-4. **Clipmap scroll** (shift texels instead of rebuilding), **max-supersampled coarse levels** for narrow far ridges, and a
+3. **Clipmap scroll** (shift texels instead of rebuilding), **max-supersampled coarse levels** for narrow far ridges, and a
    real Mars terrain fixture.

@@ -138,6 +138,8 @@ export function buildMaxMips(base: Float32Array, size: number): { data: Float32A
 }
 
 export interface SolarShadowUniforms {
+  /** Not a uniform: the shader variant. True when float textures filter in hardware (one fetch instead of four). */
+  hardwareLinear: boolean;
   enabled: { value: number };
   debug: { value: number };
   jitter: { value: number };
@@ -222,6 +224,8 @@ export class SolarShadowClipmap {
   constructor(
     private readonly source: ClipmapSource,
     config: SolarShadowConfig = {},
+    /** The device filters float textures (`OES_texture_float_linear`): bilinear taps cost one fetch, not four. */
+    private readonly hardwareLinear = false,
   ) {
     const cfgs = (config.levels?.length ? config.levels : DEFAULT_CLIPMAP_LEVELS).slice(0, 3);
     for (const l of cfgs) {
@@ -231,11 +235,13 @@ export class SolarShadowClipmap {
     }
     this.budgetMs = config.budgetMs ?? 3;
     this.unknownReliefKm = config.unknownReliefKm ?? 10;
+    this._quality = config.quality ?? 'high';
     this.maxAltitudeKm = config.maxAltitudeKm ?? cfgs[cfgs.length - 1].halfKm;
     this.levels = cfgs.map(cfg => this.makeLevel(cfg));
     const dummy = () => placeholder();
     const U = this.levels;
     this.uniforms = {
+      hardwareLinear: this.hardwareLinear,
       enabled: { value: 0 }, debug: { value: 0 }, jitter: { value: 1 }, ...qualityUniforms(config.quality ?? 'high'),
       viewToTan: { value: new THREE.Matrix3() }, originView: { value: new THREE.Vector3() },
       sun: { value: new THREE.Vector3(0, 0, 1) }, sunRad: { value: 0.00465 }, rc: { value: 1 },
@@ -259,8 +265,11 @@ export class SolarShadowClipmap {
     };
   }
 
+  private _quality: SolarShadowQuality = 'high';
+  get quality(): SolarShadowQuality { return this._quality; }
   /** Change the march quality preset at run time (a uniform write: no recompile). */
   setQuality(q: SolarShadowQuality): void {
+    this._quality = q;
     const u = qualityUniforms(q);
     this.uniforms.stepGrowth.value = u.stepGrowth.value; this.uniforms.maxSteps.value = u.maxSteps.value;
   }
@@ -366,7 +375,7 @@ export class SolarShadowClipmap {
     const mips = buildMaxMips(l.back, n);
     // A fresh array each build: the texture keeps the one it was given, and `back` is the next build's scratch.
     const base = mips[0].data.slice();
-    const tex = makeTexture(base, n, mips.map((m, k) => k === 0 ? { ...m, data: base } : m));
+    const tex = makeTexture(base, n, mips.map((m, k) => k === 0 ? { ...m, data: base } : m), this.hardwareLinear);
     l.texture.dispose();
     l.texture = tex;
     l.offset = b.offset;
@@ -456,14 +465,15 @@ export class SolarShadowClipmap {
 
 function makeTexture(
   base: Float32Array, size: number,
-  mips: { data: Float32Array; width: number; height: number }[],
+  mips: { data: Float32Array; width: number; height: number }[], linear: boolean,
 ): THREE.DataTexture {
   const t = new THREE.DataTexture(base, size, size, THREE.RGFormat, THREE.FloatType);
   t.mipmaps = mips.map(m => ({ data: m.data, width: m.width, height: m.height }));
   t.generateMipmaps = false;
-  // The shader reads texels exactly (texelFetch) and filters by hand, so no float-linear extension is needed.
-  t.minFilter = THREE.NearestMipmapNearestFilter;
-  t.magFilter = THREE.NearestFilter;
+  // Coarse taps read exact texels (texelFetch); full-resolution taps filter in hardware when float textures allow it,
+  // else by hand, so the extension is optional.
+  t.minFilter = linear ? THREE.LinearMipmapNearestFilter : THREE.NearestMipmapNearestFilter;
+  t.magFilter = linear ? THREE.LinearFilter : THREE.NearestFilter;
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   t.needsUpdate = true;
   return t;
@@ -544,6 +554,12 @@ vec2 ssCoord(int l, vec2 g, int n) { return ((g - ssOff(l)) / (2.0 * ssHalf(l)) 
 // (height above the anchor sphere, valid) of level l at g, bilinear at full resolution. Heights are read exactly
 // and blended by hand, so no float-linear texture extension is needed. valid is 1 only if all four texels are.
 vec2 ssBilinear(int l, vec2 g) {
+#ifdef SS_HW_LINEAR
+  vec2 uv = (g - ssOff(l)) / (2.0 * ssHalf(l)) + 0.5;
+  if (l == 0) return textureLod(uSsTex0, uv, 0.0).rg;
+  if (l == 1) return textureLod(uSsTex1, uv, 0.0).rg;
+  return textureLod(uSsTex2, uv, 0.0).rg;
+#else
   int n = ssSize(l);
   vec2 x = ssCoord(l, g, n) - 0.5;
   vec2 f = x - floor(x);
@@ -554,6 +570,7 @@ vec2 ssBilinear(int l, vec2 g) {
   vec2 c = ssTexelAt(l, clamp(i0 + ivec2(0, 1), ivec2(0), hi), 0);
   vec2 d = ssTexelAt(l, clamp(i0 + ivec2(1, 1), ivec2(0), hi), 0);
   return vec2(mix(mix(a.x, b.x, f.x), mix(c.x, d.x, f.x), f.y), min(min(a.y, b.y), min(c.y, d.y)));
+#endif
 }
 
 // Conservative footprint of the step from g to g2: the max-reduced mip texels containing both ends. A step is at most
@@ -635,6 +652,8 @@ float solarShadowVisibility(vec3 viewPos, out float unknown) {
     if (s.y < 0.999) unknown = 1.0;
     else worst = max(worst, (s.x - hRay - uSsBias) / t);
     t += dt;
+    // Terrain only ever adds shadow: once it covers the whole Sun disk (angle >= the Sun's radius) nothing can undo it.
+    if (worst >= uSsSunRad) break;
   }
   float ang = atan(worst);
   // Sun-ray elevation is not part of ang: both the Sun centre and the terrain are measured from the same ray.
@@ -663,7 +682,7 @@ export function injectSolarShadowIntoShader(
   }
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Solar shadow: fragment shader has no main().');
-  shader.fragmentShader = solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0;')
+  shader.fragmentShader = (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0;')
     .replace(end, `${end}
 #if NUM_DIR_LIGHTS > 0
 if (uSsEnabled > 0.5 && dot(normal, directionalLights[0].direction) > 0.0) {

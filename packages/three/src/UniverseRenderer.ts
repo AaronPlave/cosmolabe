@@ -3578,21 +3578,43 @@ export class UniverseRenderer {
   }
 
   /**
-   * Terrain-cast solar shadows (#205) on every body whose catalog sets `terrain.solarShadows`:
-   * on by default there, off in `flood` mode. Visual only.
+   * Terrain-cast solar shadows (#205) on terrain with CPU heights (cube-sphere grids, quantized mesh): `'off'`, or a
+   * quality (`low` | `medium` | `high`) that turns them on **even where the catalog does not configure them**; `null`
+   * (the default) follows the catalog. Applies to bodies whose terrain loads later too. Off in `flood` mode, which has no Sun.
    */
-  setTerrainShadows(enabled: boolean): void {
-    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowsEnabled(enabled);
+  setTerrainShadowMode(mode: 'off' | SolarShadowQuality | null): void {
+    this._terrainShadowMode = mode;
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowMode(mode);
+  }
+  private _terrainShadowMode: 'off' | SolarShadowQuality | null = null;
+
+  /**
+   * What the viewer's control shows: null when no body has terrain a shadow can be built from, else the effective mode
+   * (the choice made, or what the catalog configured: `off` when nothing is), and the least-finished clipmap state and
+   * largest unknown fraction across the bodies that have one, and whether all of them are drawn from baked imagery
+   * (which carries its own lighting, so shadows cannot show on it).
+   */
+  terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; bakedOnly: boolean } | null {
+    const rank: Record<SolarShadowStatus['state'], number> = { off: 0, 'out-of-range': 1, building: 2, partial: 3, ready: 4 };
+    const order = ['off', 'low', 'medium', 'high'] as const;
+    let supported = false, bakedOnly = true, mode: 'off' | SolarShadowQuality = 'off', worst: SolarShadowStatus['state'] | null = null, unknown = 0;
+    for (const bm of this.bodyMeshes.values()) {
+      const support = bm.solarShadowSupport;
+      if (!support?.supported) continue;
+      supported = true;
+      bakedOnly &&= support.bakedOnly;
+      if (order.indexOf(support.mode) > order.indexOf(mode)) mode = support.mode;
+      const s = bm.solarShadowStatus;
+      if (!s || support.mode === 'off') continue;
+      if (worst === null || rank[s.state] < rank[worst]) worst = s.state;
+      unknown = Math.max(unknown, ...s.levels.map(l => l.unknownFraction));
+    }
+    return supported ? { mode, state: worst, unknownFraction: unknown, bakedOnly } : null;
   }
 
   /** Residency and quality of a body's terrain-shadow clipmap, or null when it has none. */
   terrainShadowStatus(bodyName: string): SolarShadowStatus | null {
     return this.bodyMeshes.get(bodyName)?.solarShadowStatus ?? null;
-  }
-
-  /** March quality of the terrain shadow on every body that has one: `high` (default), `medium`, `low` (cheaper, softer far edges). */
-  setTerrainShadowQuality(quality: SolarShadowQuality): void {
-    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowQuality(quality);
   }
 
   /** Debug view of the terrain shadow: 0 off, 1 visibility, 2 unknown cells tinted, 3 frame/data alignment. */
@@ -4277,6 +4299,7 @@ export class UniverseRenderer {
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
       bm.setSurfaceLightingMode(this._lightingMode);
+      bm.setSolarShadowMode(this._terrainShadowMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);
       this.scene.add(bm);

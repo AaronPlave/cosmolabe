@@ -53,6 +53,7 @@ try {
     if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('Float readback unavailable');
     const debug = gl.getExtension('WEBGL_debug_renderer_info');
     const gpu = gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+    const floatLinear = renderer.extensions.has('OES_texture_float_linear');
     const W = 800, H = 8;
     const target = new THREE.WebGLRenderTarget(W, H, { type: THREE.FloatType });
 
@@ -66,14 +67,14 @@ try {
     const E0 = -25, E1 = 55; // km east of the anchor covered by the image
     const ridgeAt = (c) => (lonDeg) => Math.abs(lonDeg * DEG * R - c.d0) <= c.width / 2 ? c.height : 0; // N-S crest by longitude
 
-    function render({ elDeg, azDeg, ridge, mode, holeFromKm = null, quality = 'high' }) {
+    function render({ elDeg, azDeg, ridge, mode, holeFromKm = null, quality = 'high', hardwareLinear = floatLinear }) {
       const crest = ridgeAt(ridge);
       const source = {
         datum, revision: 0,
         elevationKm: (lat, lon) => (holeFromKm !== null && lon * DEG * R > holeFromKm ? null : crest(lon)),
         probe: () => 'finest',
       };
-      const clip = new SolarShadowClipmap(source, { budgetMs: 1e9 });
+      const clip = new SolarShadowClipmap(source, { budgetMs: 1e9 }, hardwareLinear);
       // Ground strip along the equator, geometry relative to the anchor point so float32 keeps metres.
       const O = [R, 0, 0], positions = [], index = [];
       const cols = Math.round((E1 - E0) / 0.05), rows = 3;
@@ -94,7 +95,7 @@ try {
       geo.computeVertexNormals();
       const material = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, side: THREE.DoubleSide });
       material.onBeforeCompile = shader => injectSolarShadowIntoShader(shader, clip.uniforms);
-      material.customProgramCacheKey = () => '_ss_test_v1';
+      material.customProgramCacheKey = () => '_ss_test_v1' + (hardwareLinear ? 'hw' : 'sw');
       const mesh = new THREE.Mesh(geo, material);
       mesh.quaternion.copy(rot); mesh.scale.setScalar(SCALE);
       mesh.position.copy(toScene(O));
@@ -152,7 +153,7 @@ try {
     // 2. Sun fraction per receiver against the CPU reference, over solar elevation and azimuth.
     const crest = ridgeAt(ridge);
     const heightAbs = (e) => crest(e / R / DEG); // ridge by arc distance east
-    const sweep = (quality) => {
+    const sweep = (quality, hardwareLinear = floatLinear) => {
     const sweeps = [];
     let worstMean = 0, worstMax = 0, leaks = 0, falseShadow = 0, compared = 0;
     // The Sun is one direction in space; each receiver has its own horizon, so its elevation and azimuth differ
@@ -163,7 +164,7 @@ try {
       return { el: Math.asin(d(s, up)) / DEG, az: (Math.atan2(d(s, east), d(s, north)) / DEG + 360) % 360 };
     };
     for (const azDeg of [90, 125]) for (const elDeg of [1.5, 2.5, 4, 7, 12]) {
-      const r = render({ elDeg, azDeg, ridge, mode: 1, quality });
+      const r = render({ elDeg, azDeg, ridge, mode: 1, quality, hardwareLinear });
       const s = [Math.sin(elDeg * DEG), Math.cos(elDeg * DEG) * Math.sin(azDeg * DEG), Math.cos(elDeg * DEG) * Math.cos(azDeg * DEG)];
       let sum = 0, n = 0, max = 0;
       const samples = [], profile = [];
@@ -202,6 +203,8 @@ try {
     return { sweeps, edges, compared, worstMean, worstMax, leaks, falseShadow };
     };
     Object.assign(out, sweep('high'));
+    out.floatLinear = floatLinear;
+    { const r = sweep('high', !floatLinear); out.otherFilterPath = { hardwareLinear: !floatLinear, worstMean: r.worstMean, leaks: r.leaks, falseShadow: r.falseShadow }; }
     out.quality = {};
     for (const q of ['medium', 'low']) { const r = sweep(q); out.quality[q] = { worstMean: r.worstMean, leaks: r.leaks, falseShadow: r.falseShadow, edges: r.edges }; }
 
@@ -235,9 +238,10 @@ try {
       assert.equal(r.quality[q].leaks, 0, `${r.body} ${q}: light leaks`);
       assert.ok(r.quality[q].worstMean < tolerance, `${r.body} ${q}: mean |GPU - reference| ${r.quality[q].worstMean}`);
     }
+    assert.ok(r.otherFilterPath.worstMean < 0.03 && r.otherFilterPath.leaks === 0, `${r.body}: the other filtering path (hardwareLinear ${r.otherFilterPath.hardwareLinear}): ${JSON.stringify(r.otherFilterPath)}`);
     assert.ok(r.unknown.vis > 0.95, `${r.body}: unknown coverage drawn dark: ${r.unknown.vis}`);
     assert.ok(r.unknown.tintedMagenta, `${r.body}: unknown coverage not tinted in debug view 2`);
-    summary[r.body] = { alignment: r.alignment, worstMean: r.worstMean, worstMax: r.worstMax, compared: r.compared, leaks: r.leaks,
+    summary[r.body] = { floatLinear: r.floatLinear, otherFilterPath: r.otherFilterPath, alignment: r.alignment, worstMean: r.worstMean, worstMax: r.worstMax, compared: r.compared, leaks: r.leaks,
       falseShadow: r.falseShadow, quality: Object.fromEntries(Object.entries(r.quality).map(([q, v]) => [q, { worstMean: v.worstMean, leaks: v.leaks, falseShadow: v.falseShadow, maxEdgeShiftKm: Math.max(...v.edges.map(e => Math.abs(e.shiftKm ?? 0))) }])), maxEdgeShiftKm: Math.max(...r.edges.map(e => Math.abs(e.shiftKm ?? 0))), unknown: r.unknown };
   }
   console.log(JSON.stringify(summary, null, 2));

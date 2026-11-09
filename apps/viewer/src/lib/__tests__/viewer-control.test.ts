@@ -280,6 +280,7 @@ function makeFakeRenderer(objects: string[]) {
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
+    setTerrainShadowMode: (m: string | null) => log(`setTerrainShadowMode(${m})`),
     // Point Probe: bound on every scene, not a script verb.
     placeNames: { selectedRef: null as string | null },
     geographicVectors: { setSelected: vi.fn(), setSourceEnabled: () => {} },

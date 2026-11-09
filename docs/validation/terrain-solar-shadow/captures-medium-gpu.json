@@ -1,0 +1,446 @@
+{
+  "generator": "scripts/capture-terrain-solar-shadow.mjs",
+  "created": "2026-11-09T18:47:46.254Z",
+  "catalog": "test-catalogs/experiments/moon-terrain-cube-solar-shadow",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "cpuThrottle": 1,
+  "quality": "medium",
+  "gpu": true,
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "hardwareConcurrency": 16,
+    "launch": "playwright, installed Chrome headless, --use-angle=metal, vsync and frame limit off (hardware GPU)"
+  },
+  "host": {
+    "platform": "darwin 25.6.0",
+    "cpus": 16,
+    "cpuModel": "Apple M4 Max",
+    "memoryGB": 48
+  },
+  "captures": [
+    {
+      "view": "shackleton-rim",
+      "mode": "off",
+      "file": "shackleton-rim-off-medium-gpu.png",
+      "epochEt": 914054709.184,
+      "sun": {
+        "elevationDeg": 0.7391888691770022,
+        "azimuthDeg": 21.666524216784865,
+        "cosIncidence": 0.012900921676234248
+      },
+      "frameMeanMs": 1.29,
+      "frameP50Ms": 1.1,
+      "frameP95Ms": 2,
+      "frameMaxMs": 2.6,
+      "shadow": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 14,
+            "lastBuildMs": 44.00000011920929
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 66.60000002384186
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 94.89999997615814
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 622,
+        "inCache": 622,
+        "cpu": 468
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 5609
+    },
+    {
+      "view": "shackleton-rim",
+      "mode": "on",
+      "file": "shackleton-rim-on-medium-gpu.png",
+      "epochEt": 914054709.184,
+      "sun": {
+        "elevationDeg": 0.7391888691770022,
+        "azimuthDeg": 21.666524216784865,
+        "cosIncidence": 0.012900921676234248
+      },
+      "frameMeanMs": 3.56,
+      "frameP50Ms": 3.6,
+      "frameP95Ms": 6.7,
+      "frameMaxMs": 9.9,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 14,
+            "lastBuildMs": 44.00000011920929
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 66.60000002384186
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 94.89999997615814
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 622,
+        "inCache": 622,
+        "cpu": 468
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 5609
+    },
+    {
+      "view": "shackleton-rim",
+      "errors": []
+    },
+    {
+      "view": "polar-ridge",
+      "mode": "off",
+      "file": "polar-ridge-off-medium-gpu.png",
+      "epochEt": 914961909.184,
+      "sun": {
+        "elevationDeg": 1.8036602971030071,
+        "azimuthDeg": 4.016691866363033,
+        "cosIncidence": 0.03147461172702275
+      },
+      "frameMeanMs": 1.28,
+      "frameP50Ms": 1,
+      "frameP95Ms": 2.4,
+      "frameMaxMs": 3.5,
+      "shadow": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 16,
+            "lastBuildMs": 73.2000002861023
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 65.200000166893
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 97.49999988079071
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 93,
+        "visible": 74,
+        "drawn": 23,
+        "loaded": 612,
+        "inCache": 612,
+        "cpu": 482
+      },
+      "pose": {
+        "eye": [
+          50.11611861197915,
+          18.240775431714834,
+          -1745.5854630372355
+        ],
+        "target": [
+          41.31280133232293,
+          15.03662997911865,
+          -1736.8436637201828
+        ],
+        "fov": 55
+      },
+      "settleMs": 5599
+    },
+    {
+      "view": "polar-ridge",
+      "mode": "on",
+      "file": "polar-ridge-on-medium-gpu.png",
+      "epochEt": 914961909.184,
+      "sun": {
+        "elevationDeg": 1.8036602971030071,
+        "azimuthDeg": 4.016691866363033,
+        "cosIncidence": 0.03147461172702275
+      },
+      "frameMeanMs": 2.72,
+      "frameP50Ms": 2.5,
+      "frameP95Ms": 4.7,
+      "frameMaxMs": 7.5,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 16,
+            "lastBuildMs": 73.2000002861023
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 65.200000166893
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 97.49999988079071
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 93,
+        "visible": 74,
+        "drawn": 23,
+        "loaded": 612,
+        "inCache": 612,
+        "cpu": 482
+      },
+      "pose": {
+        "eye": [
+          50.11611861197915,
+          18.240775431714834,
+          -1745.5854630372355
+        ],
+        "target": [
+          41.31280133232293,
+          15.03662997911865,
+          -1736.8436637201828
+        ],
+        "fov": 55
+      },
+      "settleMs": 5599
+    },
+    {
+      "view": "polar-ridge",
+      "errors": []
+    },
+    {
+      "view": "equatorial-crater",
+      "mode": "off",
+      "file": "equatorial-crater-off-medium-gpu.png",
+      "epochEt": 914655909.184,
+      "sun": {
+        "elevationDeg": 2.864776323920278,
+        "azimuthDeg": 90.77632443787707,
+        "cosIncidence": 0.04997894873222607
+      },
+      "frameMeanMs": 1.21,
+      "frameP50Ms": 1.1,
+      "frameP95Ms": 2.1,
+      "frameMaxMs": 3.9,
+      "shadow": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 15,
+            "lastBuildMs": 132.49999964237213
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 140.69999969005585
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 128.49999976158142
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 75,
+        "visible": 75,
+        "drawn": 10,
+        "loaded": 697,
+        "inCache": 697,
+        "cpu": 454
+      },
+      "pose": {
+        "eye": [
+          1653.6883174498291,
+          -605.1639873707746,
+          275.75579254017197
+        ],
+        "target": [
+          1606.0660263560783,
+          -587.1010845074107,
+          289.84063820489325
+        ],
+        "fov": 55
+      },
+      "settleMs": 6589
+    },
+    {
+      "view": "equatorial-crater",
+      "mode": "on",
+      "file": "equatorial-crater-on-medium-gpu.png",
+      "epochEt": 914655909.184,
+      "sun": {
+        "elevationDeg": 2.864776323920278,
+        "azimuthDeg": 90.77632443787707,
+        "cosIncidence": 0.04997894873222607
+      },
+      "frameMeanMs": 1.36,
+      "frameP50Ms": 1.2,
+      "frameP95Ms": 2.5,
+      "frameMaxMs": 2.9,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 15,
+            "lastBuildMs": 132.49999964237213
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 140.69999969005585
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 128.49999976158142
+          }
+        ],
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 75,
+        "visible": 75,
+        "drawn": 10,
+        "loaded": 697,
+        "inCache": 697,
+        "cpu": 454
+      },
+      "pose": {
+        "eye": [
+          1653.6883174498291,
+          -605.1639873707746,
+          275.75579254017197
+        ],
+        "target": [
+          1606.0660263560783,
+          -587.1010845074107,
+          289.84063820489325
+        ],
+        "fov": 55
+      },
+      "settleMs": 6589
+    },
+    {
+      "view": "equatorial-crater",
+      "errors": []
+    }
+  ]
+}

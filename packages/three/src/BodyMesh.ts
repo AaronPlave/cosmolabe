@@ -1184,9 +1184,17 @@ export class BodyMesh extends THREE.Object3D {
   updateSolarShadow(frame: SolarShadowFrame): void { this.terrainManager?.updateSolarShadow(frame); }
   get hasSolarShadow(): boolean { return this.terrainManager?.hasSolarShadow ?? false; }
   get solarShadowStatus(): SolarShadowStatus | null { return this.terrainManager?.solarShadowStatus ?? null; }
-  setSolarShadowsEnabled(on: boolean): void { this.terrainManager?.setSolarShadowsEnabled(on); }
+  // Kept here as well, so a choice made before the terrain exists (it is created lazily) applies when it does.
+  private solarShadowMode: 'off' | SolarShadowQuality | null = null;
+  /** The viewer's terrain-shadow choice: `null` follows the catalog; `off`, or a quality that also turns it on. */
+  setSolarShadowMode(mode: 'off' | SolarShadowQuality | null): void { this.solarShadowMode = mode; this.terrainManager?.applySolarShadowMode(mode); }
+  /** Whether this body's terrain has heights a shadow can be built from, and the effective mode. */
+  get solarShadowSupport(): { supported: boolean; mode: 'off' | SolarShadowQuality; bakedOnly: boolean } | null {
+    const t = this.terrainManager;
+    // Baked imagery carries its own lighting, so terrain shadows cannot show on it (#204): worth telling the user.
+    return t ? { supported: t.supportsSolarShadow, mode: t.solarShadowMode, bakedOnly: t.surfaceIllumination === 'baked' } : null;
+  }
   setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.terrainManager?.setSolarShadowDebug(mode); }
-  setSolarShadowQuality(q: SolarShadowQuality): void { this.terrainManager?.setSolarShadowQuality(q); }
   setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
@@ -1384,6 +1392,7 @@ export class BodyMesh extends THREE.Object3D {
     }
     this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
     this.terrainManager.setLightingMode(this.lightingMode);
+    this.terrainManager.applySolarShadowMode(this.solarShadowMode);
     this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
     this.terrainManager.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
     if (this.graticule) {

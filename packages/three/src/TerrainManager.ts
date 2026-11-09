@@ -758,21 +758,89 @@ export class TerrainManager {
     this.solarShadow?.setActive(this.lightingModeAllowsShadow && this.solarShadowsOn);
   }
 
-  /** Terrain-cast solar shadows (#205); null unless `terrain.solarShadows` is configured. */
-  private readonly solarShadow: SolarShadowClipmap | null = null;
+  /** Terrain-cast solar shadows (#205); null until the catalog configures them or the viewer turns them on. */
+  private solarShadow: SolarShadowClipmap | null = null;
+  private solarQuality: SolarShadowQuality = 'high';
+  private floatLinear = false;
   private lightingModeAllowsShadow = true;
   private solarShadowsOn = true;
+
+  /** Whether this terrain has CPU heights a shadow can be built from: cube-sphere grids or decoded quantized-mesh tiles. */
+  get supportsSolarShadow(): boolean {
+    return !this.isImageryOnly && (this.cubeConfigured || this.config.type === 'quantized-mesh');
+  }
+
+  private createSolarShadow(config: SolarShadowConfig): void {
+    const datum = this.sampler.datum;
+    const revision = () => this.cpuRevision;
+    const source: ClipmapSource = {
+      datum,
+      elevationKm: (latDeg, lonDeg, texelKm) => {
+        const cube = this.cube?.source;
+        if (!this.cubeConfigured) return this.sampleResident(latDeg, lonDeg)?.elevationKm ?? null;
+        if (!cube) return null;
+        // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of
+        // resident LODs would put steps (walls, to a low Sun) at its tile seams.
+        const cell = (cube.manifest.grid.width - 1) * texelKm;
+        const level = Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / cell)));
+        const radius = cube.radiusAtLevel(latDeg, lonDeg, level);
+        if (radius === null) return null;
+        const shape = datum.referenceShape;
+        const zero = shape.kind === 'sphere' ? shape.radiusKm
+          : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg, heightKm: 0 }, datum)));
+        return radius - zero;
+      },
+      get revision() { return revision(); },
+    };
+    this.solarQuality = config.quality ?? 'high';
+    this.solarShadow = new SolarShadowClipmap(source, config, this.floatLinear);
+  }
+
+  /**
+   * The viewer's choice (#205), applied on top of the catalog: `null` follows the catalog (on at its quality when it sets
+   * `solarShadows`, else absent); `'off'` disables it; a quality turns it on, **creating the clipmap and adding it to tiles
+   * already loaded** when the catalog did not configure one. A no-op where there are no CPU heights to build from.
+   */
+  applySolarShadowMode(mode: 'off' | SolarShadowQuality | null): void {
+    this.solarShadowsOn = mode !== 'off';
+    if (mode === null || mode === 'off') {
+      if (mode === null) this.solarShadow?.setQuality(this.solarQuality);
+      this.solarShadow?.setActive(this.solarShadowsOn && this.lightingModeAllowsShadow);
+      return;
+    }
+    if (!this.solarShadow) {
+      if (!this.supportsSolarShadow) return;
+      this.createSolarShadow({});
+      this.addSolarShadowToLoadedTiles();
+    }
+    this.solarShadow!.setQuality(mode);
+    this.solarShadow!.setActive(this.lightingModeAllowsShadow);
+  }
+
+  /** Tiles customized before the clipmap existed get the hook appended to their shader chain (new tiles get it on load). */
+  private addSolarShadowToLoadedTiles(): void {
+    const solar = this.solarShadow!.uniforms;
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => scene.traverse((child) => {
+      if (!isMesh(child) || !child.material) return;
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) {
+        if (!this.customizedMaterials.has(mat)) continue; // not yet customized: customizeTileMaterial will include it
+        const previous = mat.onBeforeCompile, key = (mat.customProgramCacheKey?.() ?? '') + '_ss_v1';
+        mat.onBeforeCompile = (shader, renderer) => { previous?.call(mat, shader, renderer); injectSolarShadowIntoShader(shader, solar); };
+        mat.customProgramCacheKey = () => key;
+        mat.needsUpdate = true;
+      }
+    }));
+  }
+
   /** Every frame, after the camera is final: refresh the clipmap and its uniforms. */
   updateSolarShadow(frame: SolarShadowFrame): void { this.solarShadow?.update(frame); }
-  /** Turn the configured effect on or off without recompiling tile shaders. */
-  setSolarShadowsEnabled(on: boolean): void {
-    this.solarShadowsOn = on;
-    this.solarShadow?.setActive(on && this.lightingModeAllowsShadow);
-  }
   get hasSolarShadow(): boolean { return this.solarShadow !== null; }
+  /** The effective mode, for the viewer's control. */
+  get solarShadowMode(): 'off' | SolarShadowQuality {
+    return this.solarShadow && this.solarShadowsOn ? this.solarShadow.quality : 'off';
+  }
   get solarShadowStatus(): SolarShadowStatus | null { return this.solarShadow?.status ?? null; }
   setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.solarShadow?.setDebug(mode); }
-  setSolarShadowQuality(q: SolarShadowQuality): void { this.solarShadow?.setQuality(q); }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -925,29 +993,8 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
-    if (config.solarShadows) {
-      const revision = () => this.cpuRevision;
-      const source: ClipmapSource = {
-        datum,
-        elevationKm: (latDeg, lonDeg, texelKm) => {
-          const cube = this.cube?.source;
-          if (!this.cubeConfigured) return this.sampleResident(latDeg, lonDeg)?.elevationKm ?? null;
-          if (!cube) return null;
-          // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of
-          // resident LODs would put steps (walls, to a low Sun) at its tile seams.
-          const cell = (cube.manifest.grid.width - 1) * texelKm;
-          const level = Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / cell)));
-          const radius = cube.radiusAtLevel(latDeg, lonDeg, level);
-          if (radius === null) return null;
-          const shape = datum.referenceShape;
-          const zero = shape.kind === 'sphere' ? shape.radiusKm
-            : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg, heightKm: 0 }, datum)));
-          return radius - zero;
-        },
-        get revision() { return revision(); },
-      };
-      this.solarShadow = new SolarShadowClipmap(source, config.solarShadows === true ? {} : config.solarShadows);
-    }
+    this.floatLinear = renderer?.extensions?.has('OES_texture_float_linear') ?? false;
+    if (config.solarShadows) this.createSolarShadow(config.solarShadows === true ? {} : config.solarShadows);
     // Other tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.
     this.surfaceStyle = config.type === 'quantized-mesh' &&

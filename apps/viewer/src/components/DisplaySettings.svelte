@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setLighting } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -34,6 +34,28 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
+
+  // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
+  // is the viewer's choice when it has made one, else what the catalog configured (Off unless it sets `solarShadows`).
+  // Followed per frame: the terrain, and its clipmap, are created and filled after the scene loads.
+  const shadowSummary = $derived.by(() => {
+    void vs.frameTick;
+    const s = getRenderer()?.terrainShadowSummary() ?? null;
+    return s && JSON.stringify({ mode: s.mode, state: s.state, unknown: Math.round(s.unknownFraction * 100), baked: s.bakedOnly });
+  });
+  const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; baked: boolean } : null);
+  const shadowStatusText = $derived.by(() => {
+    if (!shadow) return '';
+    if (shadow.mode === 'off') return vs.lightingMode === 'flood' ? 'Off in Flood lighting: it has no Sun.' : '';
+    if (vs.lightingMode === 'flood') return 'Off in Flood lighting: it has no Sun.';
+    if (shadow.baked) return 'This surface\'s imagery has its lighting baked in, so shadows will not show on it.';
+    switch (shadow.state) {
+      case 'building': return 'Building terrain data…';
+      case 'partial': return `Some terrain not loaded (${shadow.unknown} %): drawn lit, not shadowed.`;
+      case 'ready': return 'On, from the loaded terrain heights.';
+      default: return 'Starts when the camera is near the surface.';
+    }
+  });
 </script>
 
 <InstrumentPanel key="display" title="Display" width={toolDef('display').width} {onClose}>
@@ -145,6 +167,24 @@
         <option value="flood">Flood</option>
       </select>
     </div>
+
+    {#if shadow}
+      <div class="ui-body flex items-center gap-2 px-3 py-1">
+        <span class="flex-1 text-text-primary" title="Terrain-cast Sun shadows and horizon occlusion on relit terrain. A visual aid, not a certified illumination product. Higher quality costs more GPU time.">Terrain shadows</span>
+        <select
+          class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+          data-testid="terrain-shadow-mode"
+          value={shadow.mode}
+          onchange={(e) => setTerrainShadowMode((e.target as HTMLSelectElement).value as 'off' | 'low' | 'medium' | 'high')}
+        >
+          <option value="off">Off</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      {#if shadowStatusText}<p class="ui-meta text-text-secondary px-3 pb-1" data-testid="terrain-shadow-status">{shadowStatusText}</p>{/if}
+    {/if}
 
     <!-- Capture -->
     <Separator class="my-1" />
