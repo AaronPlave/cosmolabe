@@ -6,7 +6,11 @@
  * Names are sanitised as GLTFLoader does (spaces to underscores).
  */
 import * as THREE from 'three';
-import tree from './iss-node-tree.json';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Read at runtime: a JSON import would need to be listed in the viewer tsconfig.
+const tree = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'iss-node-tree.json'), 'utf8')) as { roots: TreeNode[] };
 
 interface TreeNode {
   name: string;
@@ -37,7 +41,7 @@ function build(n: TreeNode): THREE.Object3D {
 /** A container like the viewer's `modelContainer`: the model's axes, ready for placement. */
 export function buildIssModel(): THREE.Group {
   const root = new THREE.Group();
-  for (const r of (tree as { roots: TreeNode[] }).roots) root.add(build(r));
+  for (const r of tree.roots) root.add(build(r));
   root.updateMatrixWorld(true);
   return root;
 }
