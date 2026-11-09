@@ -19,9 +19,11 @@ change). To move it, copy this directory; nothing else needs to change.
 | `live/frames.ts` | LVLH, quaternion composition, the model-to-body axis rotation |
 | `live/orbit.ts` | TLE parsing, validity window, CelesTrak fetch |
 | `live/transport.ts` | Transport seam, replay transport, Lightstreamer adapter (client injected) |
+| `live/channels.ts` | Observed ISS Live item mapping, timestamp parser, ready-made configs |
 | `live/source.ts` | `MissionStateSource` + joint source + status |
 | `__fixtures__/`, `live/__fixtures__/` | Node-tree extract of the real model; TLE; synthetic replay |
 | `browser-check.mjs` | Real-browser check against the `iss` catalog |
+| `live-smoke.mjs` | Optional real-provider smoke (network; not CI) |
 | `extract-node-tree.mjs` | Regenerates the node-tree fixture from the real glb |
 
 ## #370: the model, as inspected (`ISS_stationary.glb`, NASA ISS 3D model)
@@ -43,21 +45,28 @@ The truss angle is an absolute rotation about X relative to the unrotated parent
 
 ## #371: live channels, and what is and is not confirmed
 
-Network access to `push.lightstreamer.com` and `live.celestrak.org` was **not available** where this was written,
-so **no real telemetry has been observed**. Everything about the real feed below is therefore unconfirmed:
+Checked from a networked machine on 2026-11-09 (`probe` via Playwright + `lightstreamer-client-web`; `live-smoke.mjs` is the repeatable form).
+The mapping lives in `live/channels.ts`.
 
 | Item | Status |
 | --- | --- |
-| Server `https://push.lightstreamer.com`, adapter set `ISSLIVE`, MERGE mode, fields `Value`/`TimeStamp` | From the earlier prototype (`apps/cesium-viewer/src/iss-live.ts`); **unconfirmed** |
-| Attitude items `USLAB000018..21` as q0..q3 | From the prototype; **unconfirmed**, including component order |
-| Quaternion frame (LVLH vs J2000), direction (A to B), sign convention | **Unconfirmed.** Stated explicitly in `LiveIssConfig.attitude`, with `verification: 'unverified'` echoed in status/provenance |
-| `TimeStamp` format and epoch | **Unconfirmed.** `parseSourceTime` is a required argument with no default |
-| SARJ alpha and the eight BGA beta item IDs, units, sign, zero offset | **Unknown. No IDs are shipped.** Joints stay `unavailable` until a host supplies a validated `JointChannels` |
-| Provider usage conditions and update rate | Not reviewed |
+| `https://push.lightstreamer.com`, adapter `ISSLIVE`, MERGE, fields `TimeStamp`/`Value`/`Status.Class` | **Observed working** from a normal browser (WS-STREAMING, CORS fine) |
+| Attitude `USLAB000018..21` | **Observed.** Names from the community ISS-Mimic table: `USGNC_PS_Pointing_LVLH_Att_Quatrn_0..3`; `USLAB000017` reads "LVLH". `_0` ~ 1.0 so scalar-first. Reference = LVLH is therefore supported; **direction (A to B) is not stated and not confirmed** |
+| SARJ `S0000004` (port) / `S0000003` (starboard); BGAs `S4000007/8`, `S6000008/7`, `P4000007/8`, `P6000008/7` | **Observed** delivering degrees (0-360, SARJ values mirrored: 69.06 / 290.98). IDs from ISS-Mimic, **not NASA definitions**. Which wing of a truss is the model's `_01` vs `_02`, the rotation sign per side and the zero offset are **not established** (`CANDIDATE_JOINT_ITEMS`), so joints are opt-in |
+| `TimeStamp` | Fractional hours since 00:00 UTC 31 Dec of the previous year (1 Jan 00:00 = 24.0), per ISS-Mimic's freshness test. **Not confirmed against a ticking feed** (see below) |
+| `Status.Class` | `24` on every observed item; ISS-Mimic treats 24 as good. Anything else is refused |
+| CelesTrak GP TLE (NORAD 25544) | **Observed**: HTTP 200, `access-control-allow-origin: *`, parses and passes checksum. `live.celestrak.org` did not resolve |
+| Provider usage conditions / rate | Not reviewed; the transport asks for the feed's own rate only |
 
-To validate (needs a normal browser): subscribe to the candidate items; confirm names/values against NASA's field
-definitions; check `TimeStamp` against wall-clock UTC; check the attitude against an independent reference
-(for example the JSC ISS OEM/attitude products) for several instants; only then set `verification: 'verified'`.
+**The feed was frozen when tested.** Every item carried an old stamp (about 05:04 UTC, nine or more hours before
+the 14:0x UTC probes) and none updated in 60 s, though the connection was healthy (`TIME_000001` too). The adapter refused all of them as `stale` and reported
+`unavailable`, which is the intended behaviour, but it means a pose from the real feed has **not** been seen end to end,
+and the quaternion direction, the timestamp epoch (the calibrated clock string and the stamp disagree by a day, so the
+convention above is a hypothesis) and the joint signs/offsets remain open.
+
+To finish validation when the feed is ticking: run `live-smoke.mjs` (expects `LIVE`), compare `TimeStamp` with wall-clock UTC
+to settle the epoch, compare the composed attitude and joint angles with an independent reference (the JSC ISS OEM
+or imagery), and only then set `verification: 'verified'`.
 
 ### What is verified here (offline)
 
@@ -70,7 +79,10 @@ definitions; check `TimeStamp` against wall-clock UTC; check the attitude agains
 ### Wiring (host)
 
 ```ts
-const feed = createLiveIssFeed({ config, transport: lightstreamerTransport(await import('lightstreamer-client-web'), lsConfig) });
+const feed = createLiveIssFeed({
+  config: issLiveConfig(),                          // add { joints } only after validating CANDIDATE_JOINT_ITEMS
+  transport: lightstreamerTransport(await import('lightstreamer-client-web'), issLiveTransportConfig()),
+});
 feed.setOrbit(await fetchCelestrakIss(fetch));
 missionState.addSource(feed.source);               // catalog: trajectory/rotationModel { type: 'MissionState', source: 'ISS-LIVE' }
 plugin.setJointSource('ISS', feed.jointSource);    // only for the body that should receive the feed
@@ -81,7 +93,7 @@ that does not is unaffected, and removing the source (catalog unload) stops the 
 
 ## Not done / open
 
-- Real-feed validation (above) and the optional real-provider smoke test.
+- Real-feed validation against a *ticking* feed (above).
 - A **Live ISS on/off** control and compact status in the viewer UI, and a live catalog that binds `ISS-LIVE` (kept out of the core viewer by design; belongs to the plugin).
 - `ISS_MODEL_TO_BODY` (`live/frames.ts`) is the model-to-body rotation implied by the inspected axes
   (quaternion `[0.5, -0.5, 0.5, -0.5]`). The public `iss` catalog's `meshRotation [0,1,0,0]` is a different, visual-only offset;
