@@ -59,6 +59,7 @@ import { stopHero, resizeHero } from './hero';
 import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
 import { categorizeFiles, resolveCatalogOrder, rememberLocalFilePath } from './local-files';
 import { workspace } from './workspace.svelte';
+import { installBuiltInMissionPlugins } from './mission-plugins';
 
 /**
  * What an embedding host adds to every scene (`embed.ts`): asset locations
@@ -692,6 +693,8 @@ function initScene(
   renderer.use(new ScreenshotPlugin());
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
+  // Trusted built-in mission plugins that apply to this scene (host-owned; see mission-plugins.ts).
+  installBuiltInMissionPlugins(renderer, universe);
 
   // Double-click a body → select it for the info panel and fly there: the
   // same "go to this body" the body browser and the palette mean, through the

@@ -132,6 +132,8 @@ export type { SiteMeshConfig, SiteMeshRegistration } from './SiteMeshPlacement.j
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
+export { installMissionPlugins } from './plugins/MissionPlugin.js';
+export type { MissionPluginRegistration } from './plugins/MissionPlugin.js';
 export type { RendererContext } from './plugins/RendererContext.js';
 export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 export type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
