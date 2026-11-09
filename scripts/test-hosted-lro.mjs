@@ -12,13 +12,13 @@ await mkdir(out, { recursive: true });
 const source = JSON.parse(await readFile('apps/viewer/test-catalogs/lro-moon.json', 'utf8'));
 const expected = rewriteCatalog(source, 'test-catalogs/lro-moon.json', loadDatasets().datasets, 'https://data.aaronplave.com').json;
 const terrain = expected.items.find(i => i.name === 'Moon').geometry.terrain;
-const terrainRoot = new URL('.', terrain.url).href, imageryRoot = new URL('.', terrain.cubeSphere.imagery.url).href;
+const terrainRoot = new URL('.', terrain.url).href, imageryRoot = new URL('.', terrain.imagery[0].url).href;
 const browser = await chromium.launch({ headless: true,
   executablePath: process.env.CHROMIUM_PATH ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : undefined),
   args: [...(process.env.CHROMIUM_HOST_RESOLVER_RULES ? [`--host-resolver-rules=${process.env.CHROMIUM_HOST_RESOLVER_RULES}`] : []),
     '--enable-gpu', '--ignore-gpu-blocklist', process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader'] });
 const report = { passed: false, baseUrl: base, catalogInterception: false,
-  productUrls: { terrain: terrain.url, cpu: terrain.cubeSphere.cpuGrids, imagery: terrain.cubeSphere.imagery.url }, runs: [] };
+  productUrls: { terrain: terrain.url, cpu: terrain.cubeSphere.cpuGrids, imagery: terrain.imagery[0].url }, runs: [] };
 try {
   for (const deterministic of [true, false]) {
     // Separate contexts also discard localStorage, IndexedDB and kernel caches.

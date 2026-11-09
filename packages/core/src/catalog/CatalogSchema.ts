@@ -257,7 +257,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
             // A cube-face imagery config (CubeImageryLayer), not a layer like the others.
             imagery: {
               keys: keys(
-                'url', 'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
+                'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
                 'residentLevel', 'maxBlocksPerTile', 'retryFailedMs', 'maxLevel',
               ),
             },

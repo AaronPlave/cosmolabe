@@ -133,11 +133,18 @@
             "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
             "kind": "height-grid"
           },
-          "cubeSphere": {
-            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json",
-            "imagery": {
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "grid",
+              "name": "Diagnostic grid",
+              "description": "Synthetic graticule and bullseye markers; data, not relit",
+              "attribution": "Cosmolabe fixture",
               "url": "../data/moon-imagery-cube-grid/imagery.json"
             }
+          ],
+          "cubeSphere": {
+            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json"
           }
         }
       },

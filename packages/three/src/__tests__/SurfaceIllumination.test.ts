@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  LIGHTING_MODES, aimSunLight, applyLightingMode, combineImageryIllumination, directTerm,
-  incidenceCosine, injectAsIsDisplayIntoShader, isPhysicallyRelit, pickIlluminationReceiver,
-  solarGeometryAt, sunDirectionAt, surfaceLightingPath,
+  LIGHTING_MODES, aimSunLight, applyLightingMode, combineImageryIllumination, createSurfaceAsIsUniforms, declareSurfaceAsIs,
+  directTerm, imageryAsIsWeight, incidenceCosine, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader,
+  isPhysicallyRelit, pickIlluminationReceiver, solarGeometryAt, sunDirectionAt,
 } from '../SurfaceIllumination.js';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -11,43 +11,116 @@ const deg = (d: number) => d * Math.PI / 180;
 const AU = 1.496e8 * 1e-6; // scene units at scaleFactor 1e-6
 
 describe('imagery illumination provenance (#204)', () => {
-  it('claims baked or reflectance only when every contributing source agrees', () => {
+  it('summarises a stack: shared provenance, or `mixed` when sources differ', () => {
     expect(combineImageryIllumination([])).toBe('unknown');
     expect(combineImageryIllumination([undefined])).toBe('unknown');
     expect(combineImageryIllumination(['reflectance', 'reflectance'])).toBe('reflectance');
     expect(combineImageryIllumination(['baked', 'baked'])).toBe('baked');
-    // A mixture never disables the Sun for the whole surface: it is the legacy relit path.
-    expect(combineImageryIllumination(['reflectance', 'baked'])).toBe('unknown');
-    expect(combineImageryIllumination(['baked', 'unknown'])).toBe('unknown');
-    expect(combineImageryIllumination(['reflectance', undefined])).toBe('unknown');
+    // A summary only: the lighting path is chosen per pixel, never from this.
+    expect(combineImageryIllumination(['reflectance', 'baked'])).toBe('mixed');
+    expect(combineImageryIllumination(['baked', 'unknown'])).toBe('mixed');
+    expect(combineImageryIllumination(['unknown', undefined])).toBe('unknown');
     expect(combineImageryIllumination(['bogus' as never])).toBe('unknown');
   });
 
-  it('relights reflectance and legacy unknown, shows baked as-is', () => {
-    expect(surfaceLightingPath('reflectance')).toBe('relit');
-    expect(surfaceLightingPath('unknown')).toBe('relit'); // legacy behaviour is preserved
-    expect(surfaceLightingPath('baked')).toBe('as-is');
+  it('weights only baked sources as shown as-is; reflectance and legacy unknown are relit', () => {
+    expect(imageryAsIsWeight('baked')).toBe(1);
+    expect(imageryAsIsWeight('reflectance')).toBe(0);
+    expect(imageryAsIsWeight('unknown')).toBe(0); // legacy behaviour is preserved
+    expect(imageryAsIsWeight(undefined)).toBe(0);
   });
 
   it('asserts physical relighting only for reflectance in natural mode', () => {
     expect(isPhysicallyRelit('reflectance', 'natural')).toBe(true);
     expect(isPhysicallyRelit('unknown', 'natural')).toBe(false);
+    expect(isPhysicallyRelit('mixed', 'natural')).toBe(false);
     expect(isPhysicallyRelit('baked', 'natural')).toBe(false);
     expect(isPhysicallyRelit('reflectance', 'shadow')).toBe(false);
     expect(isPhysicallyRelit('reflectance', 'flood')).toBe(false);
   });
 
-  it('injects a uniform-driven as-is display ahead of later injections and fails loudly if the hook moves', () => {
-    const uniform = { value: 1 };
-    const shader = { fragmentShader: 'a\n#include <opaque_fragment>\nb', uniforms: {} as Record<string, unknown> };
-    injectAsIsDisplayIntoShader(shader, uniform);
-    expect(shader.uniforms.uSurfaceAsIs).toBe(uniform); // shared by reference: a write needs no recompile
+  it('injects a per-fragment, uniform-driven as-is display ahead of later injections and fails loudly if the hook moves', () => {
+    const uniforms = createSurfaceAsIsUniforms();
+    uniforms.surfaceAsIs.value = 1;
+    const shader = { fragmentShader: 'void main() {\nvec3 totalDiffuse = vec3(0.0);\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
+    injectAsIsDisplayIntoShader(shader, uniforms);
+    expect(shader.uniforms.uSurfaceAsIs).toBe(uniforms.surfaceAsIs); // shared by reference: a write needs no recompile
+    expect(shader.uniforms.uBakedNightFloor).toBe(uniforms.nightFloor);
     expect(shader.fragmentShader).toContain('uniform float uSurfaceAsIs;');
-    expect(shader.fragmentShader).toContain('outgoingLight = mix(outgoingLight, diffuseColor.rgb, uSurfaceAsIs);');
+    expect(shader.fragmentShader).toContain('surfaceAsIs = uSurfaceAsIs;'); // each fragment starts at the uncovered weight
+    expect(shader.fragmentShader).toContain('diffuseColor.rgb * surfaceBakedShare * surfaceBakedGate');
+    expect(shader.fragmentShader).toContain('totalDiffuse * (1.0 - surfaceBakedShare)'); // relit share lit, baked share as-is
     // A later injection that replaces the same token still lands after ours.
     const later = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= eclipse();\n#include <opaque_fragment>');
-    expect(later.indexOf('diffuseColor.rgb')).toBeLessThan(later.indexOf('eclipse()'));
-    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' }, uniform)).toThrow(/hook changed/);
+    expect(later.indexOf('surfaceBakedShare * surfaceBakedGate;')).toBeLessThan(later.indexOf('eclipse()'));
+    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' }, uniforms)).toThrow(/hook changed/);
+    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'void main() {\n#include <opaque_fragment>\n}' }, uniforms)).toThrow(/totalDiffuse/);
+  });
+
+  it('declares the per-fragment weight once, whichever compositor or hook comes first', () => {
+    const declared = (src: string) => src.split('float surfaceAsIs;').length - 1;
+    const a = { fragmentShader: 'void main() {\nvec3 totalDiffuse = vec3(0.0);\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
+    declareSurfaceAsIs(a);
+    injectAsIsDisplayIntoShader(a, createSurfaceAsIsUniforms());
+    declareSurfaceAsIs(a);
+    expect(declared(a.fragmentShader)).toBe(1);
+    expect(a.fragmentShader.split('surfaceAsIs = uSurfaceAsIs;').length - 1).toBe(1);
+    expect(() => declareSurfaceAsIs({ fragmentShader: 'nothing' })).toThrow(/main/);
+  });
+
+  it('gates baked imagery on the local horizon only, per lighting mode', () => {
+    expect(LIGHTING_MODES.natural.bakedNightFloor).toBeCloseTo(8 / 255, 12);
+    expect(LIGHTING_MODES.shadow.bakedNightFloor).toBeCloseTo(0x55 / 255, 12);
+    expect(LIGHTING_MODES.flood.bakedNightFloor).toBe(1); // flood is uniform: no gate
+    expect(createSurfaceAsIsUniforms('flood').nightFloor.value).toBe(1);
+  });
+});
+
+describe('ImageOverlayPlugin overlay compositor hook (#204)', () => {
+  // The real upstream shader text, produced by the real wrapOverlaysMaterial. It is an internal module
+  // of 3d-tiles-renderer (not exported), so it is loaded from the installed package: an upgrade that
+  // moves or reshapes it fails here instead of silently double-lighting baked overlays.
+  type Wrap = (material: unknown, previous: unknown) => unknown;
+  let wrapOverlaysMaterial: Wrap;
+  beforeAll(async () => {
+    const file = new URL('../../../../node_modules/3d-tiles-renderer/src/three/plugins/images/overlays/wrapOverlaysMaterial.js', import.meta.url);
+    wrapOverlaysMaterial = (await import(/* @vite-ignore */ file.href)).wrapOverlaysMaterial;
+  });
+  const wrapped = () => {
+    const material = { defines: {} as Record<string, unknown>, onBeforeCompile: undefined as unknown };
+    wrapOverlaysMaterial(material, undefined);
+    const shader = { uniforms: {}, vertexShader: 'void main() {\n}', fragmentShader: 'void main() {\n#include <color_fragment>\n#include <opaque_fragment>\n}' };
+    (material.onBeforeCompile as (s: typeof shader) => void)(shader);
+    return shader;
+  };
+
+  it('adds a per-layer weight to LayerInfo and blends it by the layer alpha', () => {
+    const shader = wrapped();
+    injectOverlayAsIsIntoShader(shader);
+    expect(shader.fragmentShader).toMatch(/struct LayerInfo\s*\{[^}]*float opacity;\s*float asIs;/);
+    const blend = shader.fragmentShader.indexOf('diffuseColor = tint + diffuseColor * ( 1.0 - tint.a );');
+    const weight = shader.fragmentShader.indexOf('surfaceAsIsLayer( diffuseColor.rgb, tint.rgb, layerInfo[ i ].asIs, tint.a );');
+    const premultiplied = shader.fragmentShader.indexOf('tint.rgb *= tint.a;');
+    expect(blend).toBeGreaterThan(0);
+    // The layer is handed over premultiplied (what the library adds to the colour) and before the colour blend
+    // overwrites diffuseColor, which is the colour beneath it.
+    expect(premultiplied).toBeGreaterThan(0);
+    expect(weight).toBeGreaterThan(premultiplied);
+    expect(weight).toBeLessThan(blend);
+    expect(shader.fragmentShader).toContain('float surfaceAsIs;');
+    // Idempotent.
+    const once = shader.fragmentShader;
+    injectOverlayAsIsIntoShader(shader);
+    expect(shader.fragmentShader).toBe(once);
+  });
+
+  it('is a no-op without the compositor, and throws if the compositor changed shape', () => {
+    const plain = { fragmentShader: 'void main() {\n#include <opaque_fragment>\n}' };
+    injectOverlayAsIsIntoShader(plain);
+    expect(plain.fragmentShader).toBe('void main() {\n#include <opaque_fragment>\n}');
+    const drifted = wrapped();
+    drifted.fragmentShader = drifted.fragmentShader.replace('diffuseColor = tint + diffuseColor * ( 1.0 - tint.a );', 'diffuseColor = blend( tint );');
+    expect(() => injectOverlayAsIsIntoShader(drifted)).toThrow(/overlay shader changed/);
   });
 });
 

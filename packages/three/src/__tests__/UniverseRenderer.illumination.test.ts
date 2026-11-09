@@ -14,6 +14,8 @@ const body = (x: number, y: number, z: number, radiusKm: number, terrain = true,
   position: new THREE.Vector3(x, y, z), displayRadius: radiusKm, hasTerrain: terrain, hasSurfaceTiles: false,
   present: true, visible: true, bodyToWorld: new THREE.Quaternion(),
   bodyToWorldQuaternion(out: THREE.Quaternion) { return out.copy(this.bodyToWorld); },
+  lightingMode: 'natural' as string,
+  setSurfaceLightingMode(mode: string) { this.lightingMode = mode; },
 });
 
 function harness(bodies: Record<string, ReturnType<typeof body>>, cameraPos: THREE.Vector3) {
@@ -138,8 +140,10 @@ describe('UniverseRenderer physical Sun illumination (#204)', () => {
     const flood = state.directSolarTermAt('Moon', 0, 0)!;
     expect(flood.directTerm).toBe(0);
     expect(flood.physical).toBe(false);
+    expect(moon.lightingMode).toBe('flood'); // streamed terrain learns the mode for baked imagery's night floor
     state.setLightingMode('shadow');
     expect(state.directSolarTermAt('Moon', 0, 0)!.physical).toBe(false);
+    expect(moon.lightingMode).toBe('shadow');
   });
 
   describe('on a real Globe BodyMesh (mesh.quaternion is not the body-fixed frame)', () => {
