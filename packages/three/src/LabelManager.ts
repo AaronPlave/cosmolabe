@@ -102,6 +102,14 @@ interface LabelEntry {
   // Drawn box after slot placement: left edge and vertical center.
   boxX0: number;
   boxCY: number;
+  // Stable (hysteresis) "this label is actually being shown" decision, for
+  // annotations that must stay coordinated with it (position glyphs, #337).
+  // Derived from the intent channels only — collision, self-size and the user's
+  // show/hide — never from momentary occlusion, so it does not flicker.
+  legible: boolean;
+  /** Consecutive frames the intent has held above the on-mark / below the off-mark (dwell). */
+  legibleOnFrames: number;
+  legibleOffFrames: number;
 }
 
 /** Priority for keeping a label visible when bboxes overlap. Higher wins. */
@@ -136,6 +144,7 @@ export class LabelManager {
   private readonly _corner = new THREE.Vector3();
   private readonly _bodyScreen = new THREE.Vector3();
   private readonly _pinnedNames = new Set<string>();
+  private _trackedName: string | null = null;
   // Hover highlight: at most one label highlighted at a time. `_hoverPinned`
   // tracks whether *we* pinned it (so un-highlight only unpins if a host's
   // selection didn't also pin the same label).
@@ -207,6 +216,9 @@ export class LabelManager {
       slot: 'right',
       boxX0: 0,
       boxCY: 0,
+      legible: false,
+      legibleOnFrames: 0,
+      legibleOffFrames: 0,
     });
   }
 
@@ -219,6 +231,57 @@ export class LabelManager {
   isLabelVisible(name: string): boolean | null {
     const entry = this.labels.get(name);
     return entry ? entry.sprite.visible : null;
+  }
+
+  /**
+   * The camera-tracked body. Like a selected one it keeps a readable label:
+   * exempt from collision hiding and the self-size fade, so a tracked entity
+   * never loses its identity at any zoom (unless truly occluded).
+   */
+  setTrackedName(name: string | null): void {
+    this._trackedName = name;
+  }
+
+  /** Pinned by the host (selection / event highlight), by hover, or tracked. */
+  private isPinned(name: string): boolean {
+    return this._pinnedNames.has(name) || name === this._trackedName;
+  }
+
+  /**
+   * Whether this entity is the user's focus: pinned by the host or tracked.
+   * Transient hover pins do not count.
+   */
+  isFocused(name: string): boolean {
+    return this.isLabelPinnedByHost(name) || name === this._trackedName;
+  }
+
+  /**
+   * Stable view of a label for coordinated annotations: whether the label is
+   * deliberately shown right now (not culled by collision/LOD) — with hysteresis
+   * — its current occlusion fade, and whether labels are enabled for it at all.
+   * `enabled` is false when the user turned labels off (the global switch, or
+   * this body's own label); annotations tied to the label (position glyphs) must
+   * then be off too, even for a selected/tracked entity. Null for a body without
+   * a label.
+   */
+  getLabelState(name: string): { legible: boolean; occlusion: number; enabled: boolean } | null {
+    const entry = this.labels.get(name);
+    if (!entry) return null;
+    const enabled = this._globalVisible && entry.sprite.visible;
+    return {
+      legible: enabled && entry.legible,
+      occlusion: entry.occlusionOpacity,
+      enabled,
+    };
+  }
+
+  /**
+   * Whether the host pinned this label (selected/tracked focus). The transient
+   * pin `setLabelHighlighted` adds while a body is hovered does not count, so
+   * hover alone never reads as selection.
+   */
+  isLabelPinnedByHost(name: string): boolean {
+    return this._pinnedNames.has(name) && this._hoverPinned !== name;
   }
 
   setAllVisible(visible: boolean): void {
@@ -284,7 +347,7 @@ export class LabelManager {
       const halfH = entry.heightPx * 0.5;
       rects.push({
         name,
-        pinned: this._pinnedNames.has(name),
+        pinned: this.isPinned(name),
         x0: entry.boxX0,
         x1: entry.boxX0 + entry.widthPx,
         y0: entry.boxCY - halfH,
@@ -533,7 +596,7 @@ export class LabelManager {
       // beats "you can see it."
       let selfSizeFade = 1;
       const hasSilhouette = isGlobe || isMesh;
-      if (hasSilhouette && !this._pinnedNames.has(bm.body.name)) {
+      if (hasSilhouette && !this.isPinned(bm.body.name)) {
         const start = this.selfSizeFadeStartPx;
         const end = this.selfSizeFadeEndPx;
         if (silhouettePx > start) {
@@ -584,6 +647,39 @@ export class LabelManager {
       const drawn = entry.sprite.visible && entry.widthPx > 0
         && (entry.sprite.material as THREE.SpriteMaterial).opacity > 0;
       if (drawn) this.snapToDevicePixels(entry, camera, deviceViewport);
+      this.updateLegibility(entry);
+    }
+  }
+
+  // Schmitt trigger on the label's *intent* fades (collision × self-size × host
+  // multiplier, which already ease frame to frame), with dwell: a label must hold
+  // above the high mark for `_legibleOnFrames` frames before it counts as shown,
+  // and below the low mark for `_legibleOffFrames` before it stops. A label that
+  // only wins its collision for a moment while the view is moving therefore never
+  // earns an annotation, and a decision never chatters.
+  private static readonly _legibleOn = 0.6;
+  private static readonly _legibleOff = 0.25;
+  private static readonly _legibleOnFrames = 12;
+  private static readonly _legibleOffFrames = 3;
+
+  private updateLegibility(entry: LabelEntry): void {
+    const bm = entry.bodyMesh;
+    const hidden = !entry.sprite.visible || bm.body.classification === 'instrument'
+      || entry.widthPx <= 0 || !bm.present;
+    // A body behind the camera has no box; keep the previous decision rather
+    // than flipping on a transient.
+    if (hidden && bm.present && entry.sprite.visible && entry.widthPx <= 0) return;
+    const intent = hidden ? 0 : entry.collisionFade * entry.selfSizeFade * entry.opacityMultiplier;
+    if (entry.legible) {
+      entry.legibleOnFrames = 0;
+      if (intent < LabelManager._legibleOff) {
+        if (++entry.legibleOffFrames >= LabelManager._legibleOffFrames) { entry.legible = false; entry.legibleOffFrames = 0; }
+      } else entry.legibleOffFrames = 0;
+    } else {
+      entry.legibleOffFrames = 0;
+      if (intent > LabelManager._legibleOn) {
+        if (++entry.legibleOnFrames >= LabelManager._legibleOnFrames) { entry.legible = true; entry.legibleOnFrames = 0; }
+      } else entry.legibleOnFrames = 0;
     }
   }
 
@@ -660,7 +756,7 @@ export class LabelManager {
         continue;
       }
       const dist = entry.bodyMesh.position.distanceTo(camPos);
-      const pinned = this._pinnedNames.has(entry.bodyMesh.body.name);
+      const pinned = this.isPinned(entry.bodyMesh.body.name);
       entries.push(Object.assign(entry, { _camDist: dist, _pinned: pinned }));
     }
     // Pinned labels first (so their bbox lands in `placed` before anything

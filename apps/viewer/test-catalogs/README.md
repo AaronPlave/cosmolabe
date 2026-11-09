@@ -35,7 +35,11 @@ products need their own build scripts. No new datasets are published here.
   analytical `solar-system.json` and both inner-planet propagation variants stay
   intact. No duplicate body declarations were merged because their propagation
   and sample geometry differ.
-- ISS uses its authored historical 2011 TLE, not a current station position.
+- Earth from Orbit (`iss`) pairs NOAA-20 VIIRS daily true-colour imagery (NASA GIBS) with one CelesTrak
+  ISS TLE (epoch 2026-11-05 20:28 UTC). The ISS item's catalog `startTime`/`endTime` limit it to 3 days either
+  side of that epoch (a TLE's `windowDays` only bounds propagation and does not hide the body), so scrubbing
+  elsewhere leaves the imagery but not an extrapolated station. The imagery was not captured by the ISS.
+  `earth-gibs-daily` keeps its own historical 2011 TLE and the MODIS pilot as the independent fixture.
 - Ingenuity terrain and four imagery products have pinned published builds in
   `scripts/data-hosting/datasets.json`. Reconstruction is estimated, not full
   3D telemetry; datum, clock and frame uncertainty remain in the catalog.
