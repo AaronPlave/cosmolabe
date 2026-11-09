@@ -1,6 +1,6 @@
 # Issue #359 / PR #363 validation
 
-PR #363 remains **draft / hold merge**. Numerical readback and the composed analytical operation are implemented and locally checked. The complete final-head live transfer gate is **not established**: repeated controls encountered cold-scene load deadlines, model-service HTTP 502s, and requests that did not settle within the harness deadline. Those runs are failures/inconclusive, not passes.
+The complete eight-case Haiku transfer control passed on production source **`7850fb4d`**. The subsequent evidence commit changes only this document. PR #363 remains draft; no merge or readiness transition was performed. These are smoke controls, not a statistical reliability benchmark.
 
 ## Analytical boundary
 
@@ -16,26 +16,28 @@ The earlier direct commits' frame classification and receipt semantics remain. T
 
 ## Natural-language evidence
 
-All inference below used `claude-haiku-5-5` for normal and escalation requests, fallback disabled, fixed Ask routing, output capped at 1,536 tokens. Raw processed tokens include cache reads/writes; cache warmth was uncontrolled. Chromium used SwiftShader, not a physical-GPU acceptance control.
+All cases used `claude-haiku-5-5` for normal and escalation requests, fallback disabled, fixed Ask routing, and output capped at 1,536 tokens. Raw processed tokens include cache reads/writes; cache warmth was uncontrolled. Each case had a fresh scene/conversation. The renderer was Chromium SwiftShader, not a physical-GPU control.
 
-The final atomic sampled path passed the exact prompt: **“When did Philae get closest to comet 67P during its landing? Show me.”** It took **5 rounds / 56,987 tokens**, compared with the previous **10 / 146,069**. The model selected 2014-11-12 08:30–16:00 UTC. The 32 samples (870.9677-second spacing, zero missing) returned **2.451742069646693 km at ET 469079196.2162581 / 15:45:29 UTC**. Independent point evaluation, native trace, exact seek, paused state and the returned pair-view observation agreed. The answer disclosed interval/count/spacing/gaps and denied a certified minimum, surface height or verified computed event. The event goal remained failed; both projected participant centers were in view. This is a sampled estimate, not touchdown.
+| Natural question / control | Observed outcome and presentation | Rounds / tokens |
+| --- | --- | --- |
+| When did Cassini get closest to Titan? Show me | Computed 3,601.5 km range at 2005-04-16 19:11:45 UTC; actual event/run/epoch, framing and drawing verified | 3 / 33,330 |
+| Exact Philae landing question; test worker dependencies furnished | Computed ~2.39 km center distance at 2014-11-12 15:34:03 UTC; actual event/run/epoch and native presentation verified | 3 / 31,158 |
+| Exact Philae landing question; normal missing frame | Qualified 32-sample minimum; native trace observed, no encounter seek/framing; computed-event goal remains unmet | 6 / 73,088 |
+| How did Philae's distance change during descent? | Grounded 32-point history over the model-chosen 08:35:42–15:33:52 UTC interval, ~22.6 to ~2.40 km; profile configured visible, native drawing not observed, clock/camera unchanged | 7 / 100,941 |
+| When was Rosetta closest to Earth? | Only a coarse 32-point alternative over 2004–2016, minimum 7,793 km at the first point; no automatic seek or verified event | 4 / 41,747 |
+| When did Philae first touch down? | Catalog-authored Agilkia date, 2014-11-12; no exact time inferred or computed contact claim; no navigation requested | 2 / 19,078 |
+| When were Philae and Earth closest during 1980? Show me. | Structured missing coverage, no search execution, profile substitution or navigation | 3 / 30,705 |
+| Find the smallest distance between Cassini and Saturn in the loaded data and show it. | Held-out pair: computed ~80,246 km range at 2004-07-01 02:38:22 UTC; actual event/run/epoch and native presentation verified | 4 / 41,120 |
 
-The small transfer set produced the following useful controls during implementation. **Earlier passes are identified explicitly; they do not establish a clean full-set pass on the final hardened interface.**
+The exact prompt was **“When did Philae get closest to comet 67P during its landing? Show me.”** In the failure case the chosen interval was 2014-11-12 08:00–18:00 UTC, with 32 samples, 1,161.2903-second spacing and zero missing samples. Its minimum was **2.4470415658470572 km at ET 469079138.1517419 / 15:44:30 UTC**. Independent point evaluation agreed. Because this trace exceeds the navigation-spacing policy, the viewer retained its epoch/camera. Subsequent granular framing attempts were refused, and the answer disclosed that the event was not selected and 67P was not in view. The native profile trace was observed. This is useful exploratory data, not a verified closest approach or touchdown.
 
-| Natural question / control | Legitimate observed outcome | Rounds / tokens | Evidence limit |
-| --- | --- | --- | --- |
-| Cassini closest to Titan; show me | Computed result and exact native presentation | 4 / 42,281 | Earlier composed-operation control; final repeat inconclusive |
-| Exact Philae prompt; dependencies furnished | Computed 2.382505840723018 km at 2014-11-12T15:34:03.978Z, exact event/run/epoch and native presentation | 4 / 43,316 | Earlier control; final repeat hit provider/load failures |
-| Exact Philae prompt; normal missing frame | Qualified 32-sample estimate, seek and framing; computed goal unmet | 5 / 56,987 | Final atomic sampled implementation passed |
-| How did Philae's distance change during descent? | Numerical profile, native trace and sampled change, with stated chosen interval | 5 / 69,158; another run 9 / 144,574 | Earlier controls; variable orchestration cost remains |
-| When was Rosetta closest to Earth? | Only a coarse sampled alternative after frame failure; no verified event | 4 / 41,029 | Hardened interval/payload contract passed before the framing-only addition; 32 points over 2004–2016 do not establish the real closest approach |
-| When did Philae first touch down? | Catalog-authored Agilkia date; no computed contact or precise time inferred | 2 / 18,815 | Annotation evidence only; no solver substitution |
-| Philae and Earth closest during 1980; show me | Structured missing coverage; no profile substitution or invented result | 3 / 30,207 | Earlier transfer control; later provider failure is not a pass |
-| Cassini–Saturn smallest distance in loaded data; show it | Computed ~80,246 km center range and exact native presentation | 3 / 28,669 | Held out from implementation design; earlier control, final repeats inconclusive |
+Compared with the earlier same-question controls, routine computed Philae orchestration fell from 8 rounds / 101,862 tokens to 3 / 31,158; missing-frame recovery fell from 10 / 146,069 to 6 / 73,088. These individual measurements do not guarantee future cost. History remained relatively expensive, and its chosen endpoints are not an independently established full descent phase. A configured-visible profile is not proof it was drawn; that history case has no native trace observation.
 
-The real worker success control furnishes existing catalog frame/attitude dependencies only in its test browser and disables window kernel pruning there. Production dependencies and the intentional Rosetta `-226000` bus identity are untouched: #361 owns that repair. #360 owns physical surface/contact analysis. Authored viewpoints remain separate annotations; null terrain inventory does not establish absent DSK geometry.
+Computed searches use the default one-hour step and assessed catalog/kernel overlap. The held-out Cassini–Saturn scope was 2004-01-02 to 2005-04-07, not an all-time or outside-catalog global minimum. Coarse Rosetta–Earth samples do not locate a real encounter. Physical DSK/mesh clearance/contact remains unsupported here.
 
-The evidence shows lower routine search orchestration in successful controls, not statistical reliability or universally low cost. The final full-set gate, including a clean final computed-success landing repeat, remains required before readiness. No reliability follow-up issue was created.
+The computed Philae success control furnishes existing catalog frame/attitude dependencies only in its test browser and disables window kernel pruning there. Production worker dependencies and Rosetta's intentional `-226000` bus-origin identity are unchanged: #361 owns that repair. #360 owns physical surface/contact analysis. Authored viewpoints remain distinct annotations; null terrain metadata never establishes absent DSK geometry.
+
+Earlier attempts exposed a genuine granular-navigation bypass and a redundant UTC seek that shifted the exact sampled ET by 34 ms; both are now blocked. An explicit steady-trend claim contradicted a sampled rebound; the numerical checker now rejects that captured answer. Other attempts failed on overly prescriptive assertions (ISO-only dates, mandatory profile/trace reads or wording) and a terminated dedicated viewer causing connection refusals. Those attempts remain failed/inconclusive; they are not counted as final passes. The final full run exited zero with no provider/loading failures. Raw reports remain outside the repository.
 
 ## Repeat and local checks
 
