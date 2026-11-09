@@ -34,7 +34,7 @@ try {
     const page = await context.newPage();
     page.on('response', response => { if (response.url() === 'http://127.0.0.1:8797/') console.log(`${scenario.id}: proxy HTTP ${response.status()}`); });
     page.on('pageerror', e => console.error(`${scenario.id}: browser ${e.message}`));
-    const start = usage.length, payloads = new Map(); let rounds = 0;
+    const start = usage.length, payloads = new Map(); let rounds = 0, runRecord = null;
     page.on('request', request => {
       if (request.url() !== 'http://127.0.0.1:8797/' || request.method() !== 'POST') return;
       const wire = request.postDataJSON(); rounds++;
@@ -79,7 +79,7 @@ try {
           state: { et: c.getTime(), playing: c.isPlaying(), tracked: c.getTracked(), camera: c.getCamera(), event: c.getEventVisualization(), profiles: c.listProfiles().items.map(p => c.getProfile(p.id)) } };
       });
       const run = { ...scenario, rounds, tokens: usage.slice(start).reduce((n,r) => n+r.inputTokens+r.cacheReadTokens+r.cacheWriteTokens+r.outputTokens,0), result, checks: [] };
-      report.runs.push(run);
+      report.runs.push(run); runRecord = run;
       assert.ok(result.answer, 'Useful final answer required');
       assert.deepEqual(checkAnswer(result.answer, result.verification.facts), [], 'Final numerical claims grounded in published facts');
       for (const s of result.steps.filter(s => s.result?.data?.status === 'computed' || s.result?.data?.status === 'sampled')) {
@@ -135,7 +135,8 @@ try {
       console.log(JSON.stringify({ id: scenario.id, rounds, tokens: run.tokens, status: result.status, answer: result.answer, checks: run.checks }));
     } catch (e) {
       const diagnostic = await Promise.race([page.evaluate(() => ({ scene: window.cosmo?.getScene(), flight: window.cosmo?.getFlight(), turns: window.__analysisAsk?.turns.map(t => ({status:t.status,reply:t.reply,steps:t.steps.map(s => ({name:s.name,result:!!s.result}))})), requestVisible: !!document.querySelector('[aria-label=\"Request\"]'), stopVisible: !!document.querySelector('[aria-label=\"Stop request\"]') })), new Promise(resolve => setTimeout(() => resolve({unresponsive:true}),3000))]).catch(() => ({closed:true}));
-      report.runs.push({ ...scenario, rounds, error: String(e), diagnostic }); console.error(`${scenario.id}: ${e}`); console.log(JSON.stringify(diagnostic));
+      if (runRecord) Object.assign(runRecord, { error: String(e), diagnostic });
+      else report.runs.push({ ...scenario, rounds, error: String(e), diagnostic }); console.error(`${scenario.id}: ${e}`); console.log(JSON.stringify(diagnostic));
     }
     finally { clearInterval(loading); writeFileSync(output, JSON.stringify(report,null,2)+'\n'); await page.close(); }
   }

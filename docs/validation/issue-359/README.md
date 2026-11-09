@@ -1,39 +1,54 @@
-# Issue #359 / PR #363 acceptance
+# Issue #359 / PR #363 validation
 
-2026-11-06. Exact request: “When did Philae get closest to comet 67P during its landing? Show me.” Both controls use the regular fixed Ask panel and real Rosetta catalog. Normal and escalation requests are pinned to `claude-haiku-5-5`, fallback disabled. Chromium uses SwiftShader; cache warmth is uncontrolled. These are smoke controls, not a statistical reliability benchmark. Raw reports remain outside the repository.
+PR #363 remains **draft / hold merge**. Numerical readback and the composed analytical operation are implemented and locally checked. The complete final-head live transfer gate is **not established**: repeated controls encountered cold-scene load deadlines, model-service HTTP 502s, and requests that did not settle within the harness deadline. Those runs are failures/inconclusive, not passes.
 
-## Audit of the handoff commits
+## Analytical boundary
 
-- Retained `d37bcdb` / `c6b56b4` frame-error classification, while withholding raw solver text and scoping the alternative to closest-approach center distance.
-- Retained `b1660a1` receipt classification: missing dependencies are partial failures, never successful computations.
-- Replaced `2054d9e`'s loop-level Event Finder block and five-round recovery counter with a per-task tool guard. Changing query IDs cannot rerun the worker or create another search; direct tool consumers get the same protection. Unrelated failures do not set this guard.
-- Retained and corrected `c0d57f0` / `c7315a1` regressions, including the fixture type that failed handoff CI run 42237267957. Added focused checks for normal success, other errors/kinds, manual takeover, reload, actual sampled navigation and truthful bounded answers.
-- Replaced `d8e0d87`'s generic closest-approach exhaustion answer with the existing published-facts summary. At a step limit it reports actual numerical scope and gaps, preserves the stopped status, and does not certify an event or navigation.
+`events.findClosestApproach` composes the existing coverage inspection, query configuration, Event Finder, complete candidate ranking and native presentation. The model chooses the pair and temporal scope; it no longer needs to orchestrate those implementation steps. Granular controls remain available. No solver, generic planner, mission-specific branch, kernel repair or contact analysis was added.
 
-There is no new planning framework. The loop retains its existing checks and one answer correction. Its small changes normalize namespaced operation aliases, report existing facts on a budget stop, and skip futile repairs of event predicates after a known missing dependency. Those predicates still report false; unrelated unmet goals still receive the ordinary repair. Camera/time takeover and scene reload remain authoritative.
+`windowMode` explicitly selects `coverage` for an unqualified question or `interval` for a requested phase/date, with both UTC or ET endpoints. An interval is never silently clipped or bridged across a gap. Unknown coverage remains unassessed, not evidence of absent data. Bounds are four assessed windows, one million total search steps, and a shared 30-second native search allowance. A task cannot rerun the pair with changed bounds; the known frame error also closes its Event Finder path.
 
-Fixed Ask now explicitly requests **10 rounds**, discovery 20. Previously both exposed `listCapabilities`, causing the budget heuristic to give fixed mode 20 as well. Results retain the existing 6,000-character budget, with the existing larger schema-description allowance. Numerical reads remain 2–32 samples. There is no promise of a fixed token total or cheap inference: the final missing-frame trial still used **10 rounds / 146,069 raw processed tokens**, including cached tokens. It returns useful evidence instead of repeating the failed search. The proxy's separate token/cost guards remain in force.
+A known missing frame can return a distinct 32-point center-distance alternative for one contiguous interval. It uses the existing native profile sampler, pauses/seeks the returned minimum and reuses native pair framing. The compact model payload contains actual interval/count/gaps/units/extrema and a distinct sampled-view observation; the granular data API still returns every sample. `computedEventVerified` stays false. The actual failed attempt binds the event goal even if an older event remains selected; successful seeking/framing never certifies it. Sampled clock/pause predicates remain held. Manual takeover and scene reload still win.
 
-## Exact-query controls
+`answer-check.ts` now grounds sampled distances and epochs without requiring an `event-result`: kilometre/metre/AU claims, dates, ISO clock times and ET claims are compared to published facts, with rounding tolerance. Tests reject fabricated `999 km`, wrong dates/times, negative ranges and unsupported AU claims. One existing answer correction runs; persistent contradiction uses the host's numerical summary. This is a contradiction check for supported numeric forms, not a proof of arbitrary prose.
 
-With the ordinary worker, one Event Finder run returns `missing-dependency`. Ask creates the native Philae–67P range trace, reads **32 samples** over **2014-11-12 00:00 to 2014-11-13 00:00 UTC**, with **0 missing**, and seeks ET **469108868**. The returned sampled minimum is **2.4727981065148414 km** at the interval end. The reply says this is only a sampled center-distance result, not computed closest approach, continuous coverage, surface clearance or touchdown. The original computed-event predicate remains false, even though the time change succeeds. This coarse sampling misses the smaller continuous result below; that is why its limits are material.
+The earlier direct commits' frame classification and receipt semantics remain. Their loop-level recovery counter/global retry block were replaced at the tool boundary, regressions were corrected/extended, and the generic exhaustion answer was replaced with actual published facts. There is no new recovery-round framework.
 
-The success control furnishes catalog frame/attitude dependencies only inside its browser's worker and disables window kernel pruning there. Production furnishing and Rosetta's intentional `-226000` bus identity are untouched; #361 owns that repair. The real solver found **2.382505840723018 km at 2014-11-12T15:34:03.978Z** (ET **469078511.16268986**) in its declared window, 2014-11-11 23:59:59.816Z through 2014-11-12 23:59:59.816Z, `abcorr=NONE`, step 3,600 seconds. The reply reports 2.38 km, the smallest of three returned computed minima. This final success trial took **8 rounds / 101,862 raw processed tokens**. Ask presented that exact run reference and epoch with observed native event drawing; the request checked as verified. No sampled-profile substitute or authored touchdown viewpoint was used. Physical surface/contact analysis remains #360.
+## Natural-language evidence
 
-Acceptance checks the provider-delivered error and numerical payload, actual position-derived point value, requested/effective interval, sample comparison, exact navigation ET, native trace or computed-event selection/drawing, and the final answer. A missing gap disclosure gets one factual correction; persistent omission uses the published facts. No mandatory redundant `getProfile` sequence is imposed. Other failures and event kinds do not acquire an automatic distance substitution.
+All inference below used `claude-haiku-5-5` for normal and escalation requests, fallback disabled, fixed Ask routing, output capped at 1,536 tokens. Raw processed tokens include cache reads/writes; cache warmth was uncontrolled. Chromium used SwiftShader, not a physical-GPU acceptance control.
 
-Earlier native/profile controls cover shared IDs, edit/hide/show/remove, disabled recovery, narrow-window clipping, exact values and null gaps. The previous explicitly sampled exploration and unsupported-clearance controls also passed; null terrain inventory never establishes absent DSK geometry. These older controls are separate from the exact landing question.
+The final atomic sampled path passed the exact prompt: **“When did Philae get closest to comet 67P during its landing? Show me.”** It took **5 rounds / 56,987 tokens**, compared with the previous **10 / 146,069**. The model selected 2014-11-12 08:30–16:00 UTC. The 32 samples (870.9677-second spacing, zero missing) returned **2.451742069646693 km at ET 469079196.2162581 / 15:45:29 UTC**. Independent point evaluation, native trace, exact seek, paused state and the returned pair-view observation agreed. The answer disclosed interval/count/spacing/gaps and denied a certified minimum, surface height or verified computed event. The event goal remained failed; both projected participant centers were in view. This is a sampled estimate, not touchdown.
 
-## Repeat
+The small transfer set produced the following useful controls during implementation. **Earlier passes are identified explicitly; they do not establish a clean full-set pass on the final hardened interface.**
 
-Start a dedicated dev viewer with `VITE_ASK_ENDPOINT=http://127.0.0.1:8797` on port 5200. With the explicitly approved provider key configured:
+| Natural question / control | Legitimate observed outcome | Rounds / tokens | Evidence limit |
+| --- | --- | --- | --- |
+| Cassini closest to Titan; show me | Computed result and exact native presentation | 4 / 42,281 | Earlier composed-operation control; final repeat inconclusive |
+| Exact Philae prompt; dependencies furnished | Computed 2.382505840723018 km at 2014-11-12T15:34:03.978Z, exact event/run/epoch and native presentation | 4 / 43,316 | Earlier control; final repeat hit provider/load failures |
+| Exact Philae prompt; normal missing frame | Qualified 32-sample estimate, seek and framing; computed goal unmet | 5 / 56,987 | Final atomic sampled implementation passed |
+| How did Philae's distance change during descent? | Numerical profile, native trace and sampled change, with stated chosen interval | 5 / 69,158; another run 9 / 144,574 | Earlier controls; variable orchestration cost remains |
+| When was Rosetta closest to Earth? | Only a coarse sampled alternative after frame failure; no verified event | 4 / 41,029 | Hardened interval/payload contract passed before the framing-only addition; 32 points over 2004–2016 do not establish the real closest approach |
+| When did Philae first touch down? | Catalog-authored Agilkia date; no computed contact or precise time inferred | 2 / 18,815 | Annotation evidence only; no solver substitution |
+| Philae and Earth closest during 1980; show me | Structured missing coverage; no profile substitution or invented result | 3 / 30,207 | Earlier transfer control; later provider failure is not a pass |
+| Cassini–Saturn smallest distance in loaded data; show it | Computed ~80,246 km center range and exact native presentation | 3 / 28,669 | Held out from implementation design; earlier control, final repeats inconclusive |
+
+The real worker success control furnishes existing catalog frame/attitude dependencies only in its test browser and disables window kernel pruning there. Production dependencies and the intentional Rosetta `-226000` bus identity are untouched: #361 owns that repair. #360 owns physical surface/contact analysis. Authored viewpoints remain separate annotations; null terrain inventory does not establish absent DSK geometry.
+
+The evidence shows lower routine search orchestration in successful controls, not statistical reliability or universally low cost. The final full-set gate, including a clean final computed-success landing repeat, remains required before readiness. No reliability follow-up issue was created.
+
+## Repeat and local checks
+
+Start a dedicated viewer with `VITE_ASK_ENDPOINT=http://127.0.0.1:8797`. With the explicitly approved Haiku key and scene metadata authorization:
 
 ```sh
-ASK_PROFILE_LIVE=1 ASK_PROFILE_SCENARIO=closest-failure node scripts/test-ask-timeline-profiles.mjs
-ASK_PROFILE_LIVE=1 ASK_PROFILE_SCENARIO=closest-success node scripts/test-ask-timeline-profiles.mjs
-# Earlier configuration/clearance/readback controls:
+CL_VIEWER_URL=http://127.0.0.1:5202/ ASK_ANALYSIS_LIVE=1 caffeinate -i node scripts/test-ask-analysis-transfer.mjs
+# Select one or more cases without changing their natural prompts:
+ASK_ANALYSIS_LIVE=1 ASK_ANALYSIS_CASE=philae-success,philae node scripts/test-ask-analysis-transfer.mjs
+# Earlier profile/configuration/clearance controls:
 ASK_PROFILE_LIVE=1 node scripts/test-ask-timeline-profiles.mjs
-CL_VIEWER_URL=http://127.0.0.1:5199 node scripts/test-timeline-profiles.mjs
 ```
 
-Local build, test/viewer typechecks, changed-source lint, the 122-operation capability gate and **442 tests in 22 files** pass. Final-head CI is checked separately. No merge is performed by these controls.
+The transfer harness awaits the ordinary Ask panel's `submitAsk` entry point, uses timer-based readiness polling, shares only the asset cache between fresh scenes/conversations, and independently checks call-ID-matched provider payloads, numerical values and native state. Failed/inconclusive cells exit nonzero. Raw provider/browser reports stay outside the repository.
+
+**461 tests in 23 files pass**, including boundary composition, complete ranking, scoped UTC windows, unknown/missing coverage, other failures, old-selection isolation, numerical contradiction correction, takeover and reload. Package build, test/viewer typechecks, changed-source ESLint, 123-operation capability coverage, script syntax and diff checks pass. Exact remote-head CI is checked separately. No merge was performed.
