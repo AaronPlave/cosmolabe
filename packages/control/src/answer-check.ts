@@ -46,6 +46,16 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  const existence = facts.filter(f => f.kind === 'scene-existence');
+  for (const sentence of sentences(text).filter(s => /exist|scene|configur/i.test(s))) {
+    const later = /\b(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|hours?|hrs?)(?:\s*(?:and\s*)?(\d+(?:\.\d+)?)\s*(seconds?|secs?|s))?\s+later\b/ig;
+    for (const m of sentence.matchAll(later)) {
+      const unit = /^h/i.test(m[2]) ? 3600 : /^m/i.test(m[2]) ? 60 : 1;
+      const seconds = Number(m[1]) * unit + Number(m[3] ?? 0);
+      const tolerance = Math.max(1, m[3] ? 0.5 : unit / 2);
+      if (existence.length && !existence.some(f => Math.abs(f.secondsBeforeStart - seconds) <= tolerance)) issues.push('The relative scene-existence time contradicts the returned ET difference. Quote the configured start UTC or the provided seconds-before-start; this is a rendering boundary, not a physical release time.');
+    }
+  }
   const samples = facts.filter(f => f.kind === 'sampled-range');
   const sampled = samples.filter(f => f.eventSearchUnavailable).at(-1);
   const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(text);
@@ -104,7 +114,10 @@ export function factSummary(facts: readonly ResultFact[]): string {
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
   }
-  if (!events.length) return '';
+  if (!events.length) {
+    const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
+    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : '';
+  }
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;
   const kind = closest.encounter === true ? 'a flyby' : closest.encounter === false ? 'a distant range minimum, not a flyby' : 'a closest approach';

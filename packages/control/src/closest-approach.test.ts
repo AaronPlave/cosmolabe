@@ -244,3 +244,13 @@ describe('numeric grounding from sampled facts without computed events', () => {
     expect(checkAnswer('999 km', [{ ...facts[0], eventSearchUnavailable: false } as ResultFact])).toEqual([expect.stringMatching(/matches no distance/)]);
   });
 });
+
+describe('configured existence timing is grounded independently of physical release', () => {
+  const facts: ResultFact[] = [{ kind: 'scene-existence', object: 'Probe', startEt: 300, startUtc: '2014-11-12T08:35:15Z', observedEt: 99, secondsBeforeStart: 201 }];
+  it('rejects a false relative start time and accepts rounded or exact intervals', () => {
+    expect(checkAnswer('The scene configures existence to start about 1 s later.', facts)).toEqual([expect.stringMatching(/ET difference/)]);
+    expect(checkAnswer('Its scene existence starts about 3 minutes later.', facts)).toEqual([]);
+    expect(checkAnswer('Its scene existence starts 3 minutes and 21 seconds later.', facts)).toEqual([]);
+    expect(checkAnswer('Its configured scene existence starts 201 seconds later.', facts)).toEqual([]);
+  });
+});
