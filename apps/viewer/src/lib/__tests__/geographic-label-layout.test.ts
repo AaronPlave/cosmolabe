@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { parseGeographicGeoJson, type BodyFixedPosition, type GeographicLayer } from '@cosmolabe/core';
 import type { UniverseRenderer } from '@cosmolabe/three';
-import { layoutGeographicLabels, areaContains, featureSamples, type LabelLayer, type LabelView } from '../geographic-label-layout';
+import { layoutGeographicLabels, areaContains, featureSamples, viewHeightKm, type LabelLayer, type LabelView } from '../geographic-label-layout';
 import { createDrawnSurfaceProjector, type DrawnScreenPosition } from '../drawn-surface';
 
 /** A layer of named points at lon = index / 100°, so a position says which feature it is. */
@@ -76,6 +76,13 @@ describe('layoutGeographicLabels', () => {
     const layer = points(4);
     const v = view(() => true, { project: (_l, ps) => ps.map(() => ({ x: 100, y: 100, facing: true, inFront: true })), place: (_l, ps) => ps.map(() => ({ x: 100, y: 100, facing: true, inFront: true })) });
     expect(layoutGeographicLabels([{ layer, labels: style(), filter: null }], v, new Set())).toHaveLength(1);
+  });
+});
+
+describe('viewHeightKm', () => {
+  it('is the median drawn height under the probes, ignoring misses, else the datum', () => {
+    expect(viewHeightKm([-4.6, undefined, -4.4, 1.2, -4.5, -4.55])).toBe(-4.5);
+    expect(viewHeightKm([undefined, NaN])).toBe(0);
   });
 });
 
