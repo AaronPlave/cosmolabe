@@ -46,6 +46,11 @@ export interface IssJointAngles {
   arrays?: Partial<Record<ArrayJoint, number>>;
 }
 
+/** Does `angles` set every truss and every array joint to a finite angle? Only such a set is a whole observed pose. */
+export function isCompleteJointSet(angles: IssJointAngles): boolean {
+  return TRUSS_JOINTS.every((j) => Number.isFinite(angles.truss?.[j])) && ARRAY_JOINTS.every((j) => Number.isFinite(angles.arrays?.[j]));
+}
+
 /** Wrap to (-PI, PI]. SARJ and BGA are continuous joints; the wrap is not a limit. */
 export function wrapAngle(rad: number): number {
   const twoPi = 2 * Math.PI;
@@ -82,7 +87,11 @@ const POLE_OUTER = Math.sin((8 * Math.PI) / 180);
  * It cannot be made continuous everywhere: a function that follows the
  * azimuth around the axis (as required away from it) and is steady on the axis
  * must change pose along some line; that line is where the Sun is on the
- * model's -Y side and within 8 degrees of the axis.
+ * model's -Y side and within 8 degrees of the axis. An ISS in its normal
+ * attitude cannot put the Sun there: the Sun is at the beta angle (at most
+ * about 75 degrees) from the orbit plane, so it stays at least 15 degrees from
+ * the X axis (the orbit normal) and the truss turns smoothly through every
+ * orbit (tested over all beta angles and phases).
  *
  * The same pair of angles is used for every wing: all share one axis
  * direction in this model. Returns `undefined` for a zero or non-finite Sun

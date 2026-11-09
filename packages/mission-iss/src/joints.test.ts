@@ -113,6 +113,24 @@ describe('Sun near the model X axis (truss singularity)', () => {
   });
 });
 
+describe('Sun directions an ISS in its normal attitude can see', () => {
+  it('the truss turns smoothly through every orbit at every beta angle (no snap, arrays exact)', () => {
+    // Local frame: +Z forward, +Y zenith, +X port (the orbit normal is -X). The Sun is at beta from the orbit plane, so its
+    // angle from the model X axis is at least 90 - 75 = 15 degrees: well outside the 8 degree fade where the cut lives.
+    for (let betaDeg = -75; betaDeg <= 75; betaDeg += 5) {
+      const beta = (betaDeg * Math.PI) / 180;
+      let prev: number | undefined;
+      for (let phase = 0; phase <= 2 * Math.PI; phase += 0.002) {
+        const sun: Vec3 = [-Math.sin(beta), Math.cos(beta) * Math.cos(phase), Math.cos(beta) * Math.sin(phase)];
+        const a = sunTrackingAngles(sun)!;
+        expect(deg(angleBetween(arrayNormal(a.truss, a.array), sun))).toBeLessThan(1e-4);
+        if (prev !== undefined) expect(Math.abs(wrapAngle(a.truss - prev))).toBeLessThan(0.1);
+        prev = a.truss;
+      }
+    }
+  });
+});
+
 describe('sunTrackingJointAngles', () => {
   it('addresses every truss and array joint with the shared pair', () => {
     const j = sunTrackingJointAngles([0.3, -0.7, 0.2])!;

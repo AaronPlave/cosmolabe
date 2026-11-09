@@ -42,8 +42,12 @@ The approximation is a pure function of the current Sun direction in model axes:
 so seeks and reverse playback give identical poses. It is labelled **"Approximate Sun tracking (not recorded ISS array positions)"**.
 
 **Authority and fallback.** Observed joint angles (a `JointSource` a host registers) are used only while the source says
-`live` for the simulation time. In every other case (no source, `stale`, `disconnected`, `unverified`, or a simulation time
-away from the sample, `not-current`) the pose is the approximation, and the readout adds the telemetry status. The plugin
+`live` for the simulation time **and** supply a complete set (both trusses and all eight wings, finite). A partial set is never
+applied or labelled observed, since the other joints would sit at an old pose under an "Observed" label (`incomplete`). In every
+other case (no source, `stale`, `disconnected`, `unverified`, `incomplete`, or a simulation time away from the sample,
+`not-current`) the pose is the approximation, and the readout adds the telemetry status. With no Sun in the scene (or none apart
+from the station) there is nothing to aim at: the joints stay at their authored pose and the readout says so (`no-sun`); no
+direction is invented from the scene origin. The plugin
 never freezes an old pose, never restores a static pose in place of the approximation, and moves only joint nodes
 (never the station's body attitude).
 
@@ -52,7 +56,9 @@ the truss axis the truss angle is undefined, and the unguarded formula swings it
 `sunTrackingAngles` holds the truss at 0 within 1 degree of the axis and fades to the exact value by 8 degrees; arrays take
 the best angle for the held truss, so pointing error is at most 8 degrees and only inside that cone. A function that follows the
 azimuth away from the axis and is steady on it cannot be continuous everywhere; its single cut is where the Sun is on the model's
--Y (nadir, cupola) side within 8 degrees of the axis, i.e. in eclipse. Tests pin continuity everywhere else.
+-Y (nadir, cupola) side within 8 degrees of the axis, i.e. in eclipse. An ISS in its normal attitude cannot put the Sun there (beta
+at most about 75 degrees keeps it 15+ degrees from the axis), and a test sweeps every beta angle and orbit phase for a smooth truss.
+Tests pin continuity everywhere else.
 
 The plugin drives the joints whether or not the model is currently visible (it costs ten quaternion writes per frame), so the
 readout and the pose agree.

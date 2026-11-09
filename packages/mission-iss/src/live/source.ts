@@ -18,7 +18,7 @@ import {
   HostDataAdapter, TLETrajectory, etFromDate,
   type AttitudeConvention, type MissionStateSink, type MissionStateSource, type PositionConvention,
 } from '@cosmolabe/core';
-import type { IssJointAngles } from '../joints.js';
+import { isCompleteJointSet, type IssJointAngles } from '../joints.js';
 import type { JointSource, JointSourceStatus } from '../plugin.js';
 import { CoherentAssembler, type AssemblerOptions, type ItemUpdate, type RejectReason } from './assembler.js';
 import { telemetryToInertialToBody, type Quat, type TelemetryAttitudeConvention } from './frames.js';
@@ -191,6 +191,7 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
     if (connection === 'disconnected') return { state: 'unavailable', reason: 'Feed disconnected' };
     if (connection !== 'connected') return { state: 'unavailable', reason: 'Connecting to the feed' };
     if (!latestJoints) return { state: 'unavailable', reason: 'No coherent joint sample yet' };
+    if (!isCompleteJointSet(latestJoints.angles)) return { state: 'unavailable', reason: 'Joint sample covers only some joints; not applied' };
     const age = t - latestJoints.ms;
     return age > staleAfterMs ? { state: 'stale', sourceAgeMs: age } : { state: 'live', sourceAgeMs: age };
   }
@@ -308,6 +309,7 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
     if (connection !== 'connected') return 'unavailable';
     if (!latestJoints) return 'unavailable';
     if (now() - latestJoints.ms > staleAfterMs) return 'stale';
+    if (!isCompleteJointSet(latestJoints.angles)) return 'incomplete';
     // The simulation clock must be at the sample: no live angle on any other epoch.
     if (Math.abs(et - etFromDate(new Date(latestJoints.ms))) > jointValidForS) return 'not-current';
     return 'live';

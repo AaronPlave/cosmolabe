@@ -24,18 +24,18 @@
 import * as THREE from 'three';
 import type { Body } from '@cosmolabe/core';
 import type { InfoSectionResult, PluginUISlots, RendererContext, RendererPlugin } from '@cosmolabe/three';
-import { sunTrackingJointAngles, type IssJointAngles } from './joints.js';
+import { isCompleteJointSet, sunTrackingJointAngles, type IssJointAngles } from './joints.js';
 import { IssRig } from './rig.js';
 
 /** Why a joint source has no angles to apply at an epoch. */
-export type JointSourceStatus = 'live' | 'stale' | 'disconnected' | 'unavailable' | 'unverified' | 'not-current';
+export type JointSourceStatus = 'live' | 'stale' | 'disconnected' | 'unavailable' | 'unverified' | 'not-current' | 'incomplete';
 
 /** A host-supplied source of observed joint angles for one body. */
 export interface JointSource {
   readonly authority: 'observed';
   /** One-line provenance for the readout, e.g. "NASA ISS Live telemetry". */
   readonly label: string;
-  /** Angles valid at `et`, or `undefined` when there is no valid observation. */
+  /** A complete set (every truss and array joint) valid at `et`, or `undefined`; a partial set is never applied. */
   anglesAt(et: number): IssJointAngles | undefined;
   /** Why `anglesAt(et)` is or is not usable, for the readout. */
   status(et: number): JointSourceStatus;
@@ -47,7 +47,9 @@ export type ArticulationMode =
   /** Driven by registered, valid observed angles. */
   | 'observed'
   /** The model lacks the expected nodes; the model draws as authored. */
-  | 'disabled';
+  | 'disabled'
+  /** No Sun in the scene to aim at: the joints stay at their authored pose. */
+  | 'no-sun';
 
 export interface ArticulationStatus {
   readonly bodyName: string;
@@ -81,7 +83,6 @@ export function usesIssModel(body: Body): boolean {
 }
 
 const scratchSun = new THREE.Vector3();
-const scratchBody = new THREE.Vector3();
 const scratchLocal = new THREE.Vector3();
 
 export class IssArticulationPlugin implements RendererPlugin {
@@ -122,6 +123,8 @@ export class IssArticulationPlugin implements RendererPlugin {
                 ...(s.telemetry ? [{ label: 'Live telemetry', value: s.telemetry }] : []),
                 { label: 'Model', value: 'NASA ISS 3D model' },
               ] };
+            case 'no-sun':
+              return { rows: [{ label: 'Joint state', value: 'Authored pose (no Sun in this scene to track)' }, ...(s.telemetry ? [{ label: 'Live telemetry', value: s.telemetry }] : [])] };
             default:
               return { rows: [{ label: 'Joint state', value: 'Not articulated' }, ...(s.diagnostic ? [{ label: 'Reason', value: s.diagnostic }] : [])] };
           }
@@ -177,24 +180,28 @@ export class IssArticulationPlugin implements RendererPlugin {
     const source = this.sources.get(name);
     if (source) {
       const angles = source.anglesAt(et);
-      if (angles) {
+      // Observed means one whole pose: a partial set would leave the other joints at an old pose under an "Observed" label.
+      if (angles && !isCompleteJointSet(angles)) {
+        binding.telemetry = 'incomplete';
+      } else if (angles) {
         rig.apply(angles);
         binding.mode = 'observed';
         binding.telemetry = undefined;
         return;
+      } else {
+        binding.telemetry = source.status(et);
       }
-      binding.telemetry = source.status(et);
     } else {
       binding.telemetry = undefined;
     }
+    // No Sun body (or none apart from the station): there is nothing to aim at, so show the authored pose rather
+    // than angles aimed at an invented origin.
     const sun = ctx.getBodyMesh('Sun');
-    scratchSun.copy(sun ? sun.position : scratchLocal.set(0, 0, 0));
-    scratchBody.copy(bodyPos);
-    const toSun = scratchSun.sub(scratchBody);
-    if (toSun.lengthSq() === 0) return;
-    const local = rig.directionToModel(toSun.normalize(), scratchLocal);
-    const angles = sunTrackingJointAngles([local.x, local.y, local.z]);
-    if (angles) rig.apply(angles);
-    binding.mode = 'approximate-sun-tracking';
+    const toSun = sun ? scratchSun.copy(sun.position).sub(bodyPos) : undefined;
+    const angles = toSun && toSun.lengthSq() > 0 && Number.isFinite(toSun.lengthSq())
+      ? sunTrackingJointAngles(((l) => [l.x, l.y, l.z] as const)(rig.directionToModel(toSun.normalize(), scratchLocal)))
+      : undefined;
+    if (angles) rig.apply(angles); else rig.restore();
+    binding.mode = angles ? 'approximate-sun-tracking' : 'no-sun';
   }
 }

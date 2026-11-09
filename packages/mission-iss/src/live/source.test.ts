@@ -8,9 +8,12 @@ import { L1, L2 } from './__fixtures__/tle.js';
 
 const TLE = parseTle(`${L1}\n${L2}`, { source: 'test', sourceUrl: 'https://example.test', retrievedAtMs: 0 });
 const ITEMS = ['A', 'B', 'C', 'D'] as const;
+const JOINT_KEYS = ['truss:S4', 'truss:P4', ...['P4_01', 'P4_02', 'P6_01', 'P6_02', 'S4_01', 'S4_02', 'S6_01', 'S6_02'].map((a) => `array:${a}`)];
+const jointItem = (key: string) => `J_${key.split(':')[1]}`;
+const ALL_J = JOINT_KEYS.map(jointItem);
 const CONFIG: LiveIssConfig = {
   attitude: { items: ITEMS, order: 'scalar-first', convention: { reference: 'LVLH', direction: 'reference-to-body' }, verification: 'unverified' },
-  joints: { items: { 'truss:S4': 'J_S4', 'truss:P4': 'J_P4', 'array:S4_01': 'J_B1' }, unit: 'deg', offsetsRad: { 'truss:S4': 0.1 } },
+  joints: { items: Object.fromEntries(JOINT_KEYS.map((k) => [k, jointItem(k)])), unit: 'deg', offsetsRad: { 'truss:S4': 0.1 } },
 };
 
 function setup(config: LiveIssConfig = CONFIG, withOrbit = true) {
@@ -192,7 +195,7 @@ describe('live ISS feed through MissionState', () => {
 });
 
 describe('live joint source', () => {
-  const sendJoints = (transport: ReplayTransport, srcMs: number, deg = { J_S4: 10, J_P4: 20, J_B1: 30 }) =>
+  const sendJoints = (transport: ReplayTransport, srcMs: number, deg: Record<string, number> = { ...Object.fromEntries(ALL_J.map((i) => [i, 0])), J_S4: 10, J_P4: 20, J_S4_01: 30 }) =>
     Object.entries(deg).forEach(([item, value]) => transport.item({ item, value, sourceTimeMs: srcMs }));
 
   it('converts units, applies the configured offset, and drives only near the sample epoch', () => {
@@ -228,8 +231,18 @@ describe('live joint source', () => {
     transport.connection('connected');
     transport.item({ item: 'J_S4', value: 10, sourceTimeMs: clock.ms - 9000 });
     transport.item({ item: 'J_P4', value: 20, sourceTimeMs: clock.ms - 1000 });
-    transport.item({ item: 'J_B1', value: 30, sourceTimeMs: clock.ms - 1000 });
+    transport.item({ item: 'J_S4_01', value: 30, sourceTimeMs: clock.ms - 1000 });
     expect(feed.jointSource.anglesAt(et(clock.ms - 1000))).toBeUndefined();
+  });
+
+  it('a feed configured for only some joints reports incomplete and applies none of them', () => {
+    const partial: LiveIssConfig = { ...CONFIG, joints: { ...CONFIG.joints!, items: { 'truss:S4': 'J_S4', 'array:S4_01': 'J_S4_01' } } };
+    const { clock, transport, feed, et } = setup(partial);
+    transport.connection('connected');
+    sendJoints(transport, clock.ms - 1000, { J_S4: 10, J_S4_01: 30 });
+    expect(feed.jointSource.status(et(clock.ms - 1000))).toBe('incomplete');
+    expect(feed.jointSource.anglesAt(et(clock.ms - 1000))).toBeUndefined();
+    expect(feed.status().joints).toMatchObject({ state: 'unavailable', reason: expect.stringContaining('only some joints') });
   });
 
   it('without configured channels the joints are unavailable, with that stated', () => {
@@ -249,7 +262,7 @@ describe('unverified mappings are not applied by default', () => {
     manager.addSource(feed.source);
     transport.connection('connected');
     ITEMS.forEach((item, i) => transport.item({ item, value: [1, 0, 0, 0][i], sourceTimeMs: clock.ms - 500 }));
-    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    ALL_J.forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
     return { clock, feed, manager };
   };
   const et = (ms: number) => etFromDate(new Date(ms));
@@ -278,7 +291,7 @@ describe('unverified mappings are not applied by default', () => {
     new MissionStateManager({ now: () => clock.ms }).addSource(feed.source);
     transport.connection('connected');
     ITEMS.forEach((item, i) => transport.item({ item, value: [1, 0, 0, 0][i], sourceTimeMs: clock.ms - 500 }));
-    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    ALL_J.forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
     expect(feed.status().state).toBe('live');
     expect(feed.jointSource.status(etFromDate(new Date(clock.ms - 500)))).toBe('live');
   });
@@ -288,7 +301,7 @@ describe('joint status through disconnect', () => {
   it('reports unavailable/disconnected, never live, after the feed drops', () => {
     const { clock, transport, feed, et } = setup();
     transport.connection('connected');
-    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    ALL_J.forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
     const e = et(clock.ms - 500);
     expect(feed.status().joints.state).toBe('live');
     transport.connection('disconnected');

@@ -119,6 +119,25 @@ describe('IssArticulationPlugin', () => {
     expect(plugin.status('ISS')).toBeUndefined();
   });
 
+  it('without a Sun in the scene it does not invent a direction: authored pose, labelled', () => {
+    const model = buildIssModel();
+    const authored = buildIssModel().getObjectByName('23_S4_Truss')!.quaternion.clone();
+    const { ctx, meshes } = makeScene({ ISS: model }, new THREE.Vector3(0, 1000, 0));
+    const plugin = new IssArticulationPlugin();
+    plugin.onSceneSetup(ctx);
+    plugin.onBeforeRender(0, ctx);
+    expect(model.getObjectByName('23_S4_Truss')!.quaternion.angleTo(authored)).toBeGreaterThan(1e-3);
+    meshes.delete('Sun');
+    plugin.onBeforeRender(1, ctx);
+    expect(plugin.status('ISS')?.mode).toBe('no-sun');
+    expect(model.getObjectByName('23_S4_Truss')!.quaternion.angleTo(authored)).toBeLessThan(1e-12);
+    expect(JSON.stringify(plugin.ui.infoSections![0].render({ name: 'ISS' } as never, 0, ctx))).toContain('no Sun');
+    // A Sun at the station's own position gives no direction either.
+    meshes.set('Sun', { position: new THREE.Vector3(0, 0, 0), modelContainer: null, isModelVisible: false });
+    plugin.onBeforeRender(2, ctx);
+    expect(plugin.status('ISS')?.mode).toBe('no-sun');
+  });
+
   it('dispose restores the authored pose and forgets everything', () => {
     const model = buildIssModel();
     const authored = buildIssModel().getObjectByName('20_P4_Truss')!.quaternion.clone();
@@ -193,6 +212,25 @@ describe('IssArticulationPlugin', () => {
         plugin.onBeforeRender(et, ctx);
         expect(plugin.status('ISS')?.mode).toBe(mode);
       }
+    });
+
+    it('a partial joint set is never labelled observed: no mixed pose, the rest is approximate Sun tracking', () => {
+      const model = buildIssModel();
+      const { ctx } = makeScene({ ISS: model });
+      const plugin = new IssArticulationPlugin();
+      plugin.onSceneSetup(ctx);
+      plugin.onBeforeRender(0, ctx); // approximate pose first, so a leftover would show
+      const partial = { truss: { S4: 0.8 }, arrays: { S4_01: -0.3 } };
+      plugin.setJointSource('ISS', { authority: 'observed', label: 'test feed', anglesAt: () => partial, status: () => 'live' });
+      plugin.onBeforeRender(1, ctx);
+      model.updateMatrixWorld(true);
+      expect(plugin.status('ISS')).toMatchObject({ mode: 'approximate-sun-tracking', telemetry: 'incomplete' });
+      expect(wingNormalWorld(model).angleTo(new THREE.Vector3(1, 0, 0))).toBeLessThan(1e-9);
+      expect(JSON.stringify(plugin.ui.infoSections![0].render({ name: 'ISS' } as never, 0, ctx))).not.toContain('"Observed"');
+      // Non-finite angles are not a complete set either.
+      plugin.setJointSource('ISS', { authority: 'observed', label: 'test feed', anglesAt: () => ({ ...angles, arrays: { ...angles.arrays, S6_02: NaN } }), status: () => 'live' });
+      plugin.onBeforeRender(2, ctx);
+      expect(plugin.status('ISS')?.mode).toBe('approximate-sun-tracking');
     });
 
     it('is bound to the named body only: another ISS-modelled body keeps the approximation', () => {
