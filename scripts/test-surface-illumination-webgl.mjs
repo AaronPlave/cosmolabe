@@ -124,7 +124,7 @@ try {
       m.onBeforeCompile = shader => {
         declareSurfaceAsIs(shader);
         shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
-          `#include <map_fragment>\nsurfaceAsIs = mix(surfaceAsIs, 1.0, step(0.5, vMapUv.x) * ${rightAlpha.toFixed(2)});`);
+          `#include <map_fragment>\n{ float a = step(0.5, vMapUv.x) * ${rightAlpha.toFixed(2)}; surfaceAsIsLayer(diffuseColor.rgb, diffuseColor.rgb * a, 1.0, a); }`);
         injectAsIsDisplayIntoShader(shader, createSurfaceAsIsUniforms('flood'));
       };
       m.customProgramCacheKey = () => '_illum_half_' + rightAlpha;
@@ -186,6 +186,80 @@ try {
       return { left: mean(10, 22), right: mean(42, 54) };
     };
     out.overlayPlugin = { baked: readOverlay(overlayMaterial(1, 1)), relit: readOverlay(overlayMaterial(0, 1)), half: readOverlay(overlayMaterial(1, 0.5)) };
+    // 6c. Partial-opacity compositing against a quantitative reference (the library's real overlay compositor,
+    // the real hooks). Blending the layers' own renderings is the truth: each layer is rendered ALONE at full
+    // opacity (a baked one as-is, a relit one Sun-lit), then folded bottom to top with the same alphas as the
+    // stack. The stack rendered in one pass must match; so must 0 %, 50 % and 100 % opacity, different layer
+    // colours and several Sun angles. The earlier formulation (blend the colours, then one baked weight) is
+    // evaluated from the same renders to show it differs.
+    const stackGeometry = new THREE.PlaneGeometry(2, 2);
+    for (let k = 0; k < 4; k++) {
+      const uv = stackGeometry.getAttribute('uv'), a = new Float32Array(uv.count * 3);
+      for (let i = 0; i < uv.count; i++) { a[3 * i] = uv.getX(i); a[3 * i + 1] = uv.getY(i); a[3 * i + 2] = 0.5; }
+      stackGeometry.setAttribute('layer_uv_' + k, new THREE.BufferAttribute(a, 3));
+    }
+    const rgbOf = (px, x0, x1) => { const m = [0, 0, 0]; let n = 0; for (let y = 24; y < 40; y++) for (let x = x0; x < x1; x++) { for (let c = 0; c < 3; c++) m[c] += px[(y * 64 + x) * 4 + c]; n++; } return m.map(v => v / n); };
+    /** base: {color,asIs}; layers: [{color,asIs,alpha}]; one plane, Sun at `elevation` (deg). Returns mean linear RGB. */
+    const renderStack = (base, layers, elevation) => {
+      const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(...base.color), roughness: 1, metalness: 0 });
+      const params = wrapOverlaysMaterial(m, undefined);
+      const wrapped = m.onBeforeCompile;
+      const uniforms = createSurfaceAsIsUniforms('flood'); // flood: gate off, so the compositing alone is measured
+      uniforms.surfaceAsIs.value = base.asIs;
+      m.onBeforeCompile = shader => { wrapped(shader); injectOverlayAsIsIntoShader(shader); injectAsIsDisplayIntoShader(shader, uniforms); };
+      m.defines.LAYER_COUNT = layers.length;
+      m.customProgramCacheKey = () => '_stack_gl_' + layers.length;
+      // Coverage is the texture's alpha channel (as for a real tile with partial coverage), opacity stays 1: the
+      // library scales a layer's colour by its opacity twice (see 'libraryOpacity'), which is its own and applies to
+      // relit-only stacks alike.
+      params.layerMaps.value = layers.map(l => { const t = new THREE.DataTexture(new Uint8Array([...l.color.map(v => Math.round(v * 255)), Math.round(l.alpha * 255)]), 1, 1); t.needsUpdate = true; return t; });
+      params.layerInfo.value = layers.map(l => ({ color: new THREE.Color(1, 1, 1), opacity: l.opacity ?? 1, alphaMask: 0, alphaInvert: 0, asIs: l.asIs }));
+      const scene = new THREE.Scene();
+      const ambient = new THREE.AmbientLight(), sun = new THREE.DirectionalLight();
+      scene.add(ambient, sun, sun.target, new THREE.Mesh(stackGeometry, m));
+      applyLightingMode('natural', ambient, sun);
+      sun.position.set(Math.cos(deg(elevation)), 0, Math.sin(deg(elevation))).multiplyScalar(5);
+      camera.position.set(0, 0, 3); camera.lookAt(0, 0, 0);
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      const px = new Float32Array(64 * 64 * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, 64, 64, px); renderer.setRenderTarget(null);
+      return rgbOf(px, 24, 40);
+    };
+    const mix3 = (a, b, t) => a.map((v, i) => v * (1 - t) + b[i] * t);
+    const baseGrey = [0.55, 0.5, 0.45];
+    const stackSpecs = [
+      { name: 'relit over relit base, baked colour A', base: { color: baseGrey, asIs: 0 }, layers: [{ color: [0.2, 0.6, 0.9], asIs: 1 }] },
+      { name: 'baked over baked base, relit colour B', base: { color: baseGrey, asIs: 1 }, layers: [{ color: [0.9, 0.35, 0.1], asIs: 0 }] },
+      { name: 'three layers: baked / relit / baked', base: { color: baseGrey, asIs: 0 }, layers: [{ color: [0.8, 0.2, 0.2], asIs: 1 }, { color: [0.1, 0.7, 0.3], asIs: 0 }, { color: [0.3, 0.3, 0.95], asIs: 1 }] },
+      { name: 'three layers: relit / baked / relit, baked base', base: { color: baseGrey, asIs: 1 }, layers: [{ color: [0.9, 0.9, 0.2], asIs: 0 }, { color: [0.1, 0.4, 0.8], asIs: 1 }, { color: [0.7, 0.1, 0.6], asIs: 0 }] },
+    ];
+    const alphaSets = [[0, 0, 0], [1, 1, 1], [0.5, 0.5, 0.5], [0.3, 0.6, 0.5], [0.2, 0, 0.8], [1, 0, 1]];
+    out.stacking = { worst: 0, oldWorst: 0, cases: [] };
+    for (const spec of stackSpecs) for (const alphas of alphaSets) for (const elevation of [10, 45, 80]) {
+      const layers = spec.layers.map((l, i) => ({ ...l, alpha: Math.round(alphas[i] * 255) / 255 })); // what an 8-bit alpha holds
+      const stacked = renderStack(spec.base, layers, elevation);
+      // The truth: each layer rendered alone, folded with the stack's alphas.
+      let ref = renderStack(spec.base, [], elevation);
+      layers.forEach(l => { ref = mix3(ref, renderStack(spec.base, [{ ...l, alpha: 1 }], elevation), l.alpha); });
+      // The earlier formulation: blended colour lit as one, then mixed by the blended baked weight.
+      let D = spec.base.color, W = spec.base.asIs;
+      layers.forEach(l => { D = mix3(D, l.color, l.alpha); W = W * (1 - l.alpha) + l.asIs * l.alpha; });
+      const lit = renderStack({ color: D, asIs: 0 }, [], elevation);
+      const old = lit.map((v, i) => v * (1 - W) + D[i] * W);
+      const err = Math.max(...stacked.map((v, i) => Math.abs(v - ref[i])));
+      const oldErr = Math.max(...old.map((v, i) => Math.abs(v - ref[i])));
+      out.stacking.worst = Math.max(out.stacking.worst, err);
+      out.stacking.oldWorst = Math.max(out.stacking.oldWorst, oldErr);
+      out.stacking.cases.push({ stacked, ref, old, spec: spec.name, alphas: alphas.slice(0, layers.length), elevation, err, oldErr });
+    }
+    // Informational: the library's own opacity (not coverage) is applied to a layer's colour twice, whatever the
+    // provenance: a relit-only layer at opacity 0.5 over a relit base is not the 50 % blend of the two renderings.
+    {
+      const lay = { color: [0.2, 0.6, 0.9], asIs: 0 };
+      const half = renderStack({ color: baseGrey, asIs: 0 }, [{ ...lay, alpha: 1, opacity: 0.5 }], 45);
+      const want = mix3(renderStack({ color: baseGrey, asIs: 0 }, [], 45), renderStack({ color: baseGrey, asIs: 0 }, [{ ...lay, alpha: 1 }], 45), 0.5);
+      out.libraryOpacity = { got: half, fiftyPercentBlend: want, maxDiff: Math.max(...half.map((v, i) => Math.abs(v - want[i]))) };
+    }
     // 7. Terminator gate: baked pixels go to the mode's night floor when the Sun is below the body's local horizon.
     const gated = (elevationDeg, mode) => {
       const uniforms = createSurfaceAsIsUniforms(mode);
@@ -258,6 +332,10 @@ try {
   assert.ok(o.baked.left < 0.1 && o.baked.left < o.baked.right * 0.25, `the relit layer beside it stays Sun-lit: ${o.baked.left}`);
   assert.ok(Math.abs(o.relit.left - o.baked.left) < 1e-4 && Math.abs(o.relit.right - o.baked.left) < 1e-4, `an all-relit stack is lit everywhere: ${o.relit.left}, ${o.relit.right}`);
   assert.ok(o.half.right > o.baked.left && o.half.right < o.baked.right, `a half-opaque baked layer is half as-is: ${o.half.right}`);
+  // 5c. Partial opacity matches the blend of the individually rendered layers.
+  const st = result.stacking;
+  assert.ok(st.worst < 2e-3, `stacked compositing matches the blend of individually rendered layers: worst error ${st.worst}`);
+  assert.ok(st.oldWorst > 0.03, `the colour-then-weight formulation would have differed (sanity): ${st.oldWorst}`);
   // 6. Terminator gate: Sun up = as-is; Sun below the local horizon = the mode's floor; flood never gates.
   const t = result.terminator;
   assert.ok(Math.abs(t.dayNatural - 0.5) < 1e-3, `Sun up: baked shown as-is: ${t.dayNatural}`);

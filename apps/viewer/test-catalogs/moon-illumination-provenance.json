@@ -1,0 +1,446 @@
+{
+  "name": "Moon: illumination provenance fixture (#204)",
+  "description": "lro-moon with the WAC+NAC cube layer explicitly declared illumination \"baked\" (opt-in; shipped demos keep undeclared provenance). Baked pixels show as-is with only a terminator gate; compare with lro-moon in the Natural, Shadow and Flood modes and across epochs. Not a source-data recommendation: see docs/surface-illumination.md.",
+  "defaultGeographicNames": [
+    "Moon"
+  ],
+  "defaultTime": "2025-01-15T00:00:00Z",
+  "defaultViewpoint": "Track LRO",
+  "require": [
+    "base/naif.json",
+    "places/moon.json"
+  ],
+  "spiceKernels": [
+    "kernels/lro/lro_frames_2014049_v01.tf.gz",
+    "kernels/lro/moon_080317.tf.gz",
+    "kernels/lro/moon_assoc_me.tf.gz",
+    "kernels/lro/lro_lroc_v20.ti.gz",
+    "kernels/lro/lro_lola_v00.ti.gz",
+    "kernels/lro/lro_dlre_v05.ti.gz",
+    "kernels/lro/lro_lamp_v03.ti.gz",
+    "kernels/lro/lro_crater_v03.ti.gz",
+    "kernels/lro/lro_lend_v00.ti.gz",
+    {
+      "url": "kernels/lro/lro_clkcor_2025351_v00.tsc.gz",
+      "label": "LRO clock",
+      "size": 2200000
+    },
+    {
+      "url": "kernels/lro/lrorg_2024350_2025074_v01.bsp.gz",
+      "label": "LRO trajectory",
+      "size": 7200000
+    },
+    {
+      "url": "kernels/lro/moon_pa_de421_1900_2050.bpc.gz",
+      "label": "Lunar orientation",
+      "size": 1700000
+    }
+  ],
+  "items": [
+    {
+      "name": "Moon Overview",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 10000,
+      "latitude": 30,
+      "longitude": -45
+    },
+    {
+      "name": "Track LRO",
+      "type": "Viewpoint",
+      "center": "LRO",
+      "distance": 500,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "LRO Close-up",
+      "type": "Viewpoint",
+      "center": "LRO",
+      "distance": 100,
+      "latitude": 10,
+      "longitude": 30
+    },
+    {
+      "name": "Lunar North Pole",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 5000,
+      "latitude": 85,
+      "longitude": 0
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Moon"
+      },
+      "rotationModel": {
+        "type": "Spice",
+        "bodyFrame": "MOON_ME_DE421",
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "textures/moon-16k.jpg",
+        "normalMap": "textures/moon-normal-16k.jpg",
+        "displacementMap": "textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "3dtiles",
+          "frame": "MOON_ME_DE421",
+          "url": "data/moon-terrain-cube/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "kind": "height-grid"
+          },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "wac-nac",
+              "name": "Moon · WAC + NAC",
+              "description": "LROC WAC global morphology mosaic (100 m) with the LROC NAC south pole controlled mosaic (1 m) composited over it offline; illumination is baked into both",
+              "attribution": "LROC team / USGS Astrogeology / ASU",
+              "url": "data/moon-imagery-cube-wac-nac/imagery.json",
+              "illumination": "baked"
+            }
+          ],
+          "cubeSphere": {
+            "cpuGrids": "data/moon-terrain-cube/cpu-grids.json",
+            "imagery": {
+              "maxTextureBytes": 536870912
+            }
+          }
+        }
+      },
+      "label": {
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      },
+      "items": [
+        {
+          "name": "LRO",
+          "class": "spacecraft",
+          "naifId": -85,
+          "center": "Moon",
+          "trajectory": {
+            "type": "Spice",
+            "target": "LRO",
+            "center": "MOON"
+          },
+          "rotationModel": {
+            "type": "Nadir",
+            "target": "LRO",
+            "center": "MOON"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.003,
+            "source": "models/LRO.glb",
+            "meshRotation": [
+              0.7071,
+              0,
+              0,
+              0.7071
+            ]
+          },
+          "label": {
+            "color": [
+              0.9,
+              0.9,
+              0.9
+            ]
+          },
+          "trajectoryPlot": {
+            "color": [
+              0.2,
+              0.8,
+              1.0
+            ],
+            "fade": 0.5
+          },
+          "items": [
+            {
+              "name": "LROC NAC Left",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85600,
+                "target": "Moon",
+                "frustumColor": [
+                  0.2,
+                  0.6,
+                  1.0
+                ],
+                "frustumOpacity": 0.4
+              },
+              "label": {
+                "color": [
+                  0.2,
+                  0.6,
+                  1.0
+                ]
+              }
+            },
+            {
+              "name": "LROC WAC",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "shape": "rectangular",
+                "horizontalFov": 60,
+                "verticalFov": 1,
+                "target": "Moon",
+                "frustumColor": [
+                  1.0,
+                  0.8,
+                  0.2
+                ],
+                "frustumOpacity": 0.15
+              },
+              "label": {
+                "color": [
+                  1.0,
+                  0.8,
+                  0.2
+                ]
+              }
+            },
+            {
+              "name": "LOLA",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85511,
+                "target": "Moon",
+                "horizontalFov": 0.4,
+                "frustumColor": [
+                  0.2,
+                  1.0,
+                  0.4
+                ],
+                "frustumOpacity": 0.6
+              },
+              "label": {
+                "color": [
+                  0.2,
+                  1.0,
+                  0.4
+                ]
+              }
+            },
+            {
+              "name": "LAMP",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85300,
+                "target": "Moon",
+                "frustumColor": [
+                  0.6,
+                  0.3,
+                  1.0
+                ],
+                "frustumOpacity": 0.3
+              },
+              "label": {
+                "color": [
+                  0.6,
+                  0.3,
+                  1.0
+                ]
+              }
+            },
+            {
+              "name": "Diviner",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85211,
+                "target": "Moon",
+                "frustumColor": [
+                  1.0,
+                  0.4,
+                  0.2
+                ],
+                "frustumOpacity": 0.3
+              },
+              "label": {
+                "color": [
+                  1.0,
+                  0.4,
+                  0.2
+                ]
+              }
+            },
+            {
+              "name": "LEND",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85410,
+                "target": "Moon",
+                "frustumColor": [
+                  0.4,
+                  0.8,
+                  0.8
+                ],
+                "frustumOpacity": 0.15
+              },
+              "label": {
+                "color": [
+                  0.4,
+                  0.8,
+                  0.8
+                ]
+              }
+            },
+            {
+              "name": "CRaTER",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": {
+                "type": "FixedPoint",
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85110,
+                "target": "Moon",
+                "frustumColor": [
+                  0.8,
+                  0.8,
+                  0.2
+                ],
+                "frustumOpacity": 0.08
+              },
+              "label": {
+                "color": [
+                  0.8,
+                  0.8,
+                  0.2
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

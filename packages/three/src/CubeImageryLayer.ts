@@ -221,9 +221,9 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
           if (!longitude || lonLat.y < b.y || lonLat.y > b.w) alpha = 0.0;
         }
         vec3 color = cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb;
-        diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
         // Each source lights (or not) by its own provenance, weighted by its coverage.
-        surfaceAsIs = mix(surfaceAsIs, cubeLayer${i}_asIs, alpha);
+        surfaceAsIsLayer(diffuseColor.rgb, color * alpha, cubeLayer${i}_asIs, alpha);
+        diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
         cubeImageryTexel.rgb = mix(cubeImageryTexel.rgb, sampleValue.rgb, alpha);
         cubeImageryTexel.a = alpha + cubeImageryTexel.a * (1.0 - alpha);
         if (alpha > 0.0) shownLevel = float(page.y);

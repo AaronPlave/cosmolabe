@@ -136,7 +136,6 @@
             "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
             "resolutionMeters": 325.60563825058347,
             "attribution": "NASA Trek / USGS Viking MDIM 2.1",
-            "illumination": "baked",
             "type": "cube",
             "url": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json"
           },
@@ -146,7 +145,6 @@
             "description": "Murray Lab CTX V01 global mosaic; nominal original 5 m, available service grid 5.0876 m at equator; original response gaps remain transparent",
             "resolutionMeters": 5.087588097665367,
             "attribution": "Caltech Murray Lab / Esri",
-            "illumination": "baked",
             "type": "cube",
             "url": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json"
           },
@@ -162,7 +160,6 @@
               77.7,
               18.72
             ],
-            "illumination": "baked",
             "type": "cube",
             "url": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json"
           },
@@ -178,7 +175,6 @@
               77.58,
               18.67
             ],
-            "illumination": "baked",
             "type": "cube",
             "url": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json"
           }

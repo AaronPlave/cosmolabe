@@ -36,13 +36,13 @@ function litTile(): { scene: THREE.Group; mesh: THREE.Mesh } {
 const customize = (tm: TerrainManager, scene: THREE.Object3D) =>
   (tm as unknown as { customizeTileMaterial(s: THREE.Object3D, t: unknown): void }).customizeTileMaterial(scene, {});
 
-const FRAG = 'void main(){\n#include <opaque_fragment>\n}';
+const FRAG = 'void main(){\nvec3 totalDiffuse = vec3(0.0);\n#include <opaque_fragment>\n}';
 const compile = (mat: THREE.Material) => {
   const shader = { vertexShader: '#include <project_vertex>', fragmentShader: FRAG, uniforms: {} as Record<string, unknown> };
   (mat.onBeforeCompile as unknown as (s: typeof shader, r: unknown) => void)(shader, undefined);
   return shader;
 };
-const mixLine = 'outgoingLight = mix(outgoingLight, diffuseColor.rgb * surfaceBakedGate, surfaceAsIs);';
+const mixLine = 'diffuseColor.rgb * surfaceBakedShare * surfaceBakedGate;';
 
 describe('surface illumination provenance resolution', () => {
   it('defaults to the legacy `unknown` path when a catalog declares nothing', () => {

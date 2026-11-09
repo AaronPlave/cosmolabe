@@ -630,7 +630,6 @@
               "name": "Moon \u00b7 WAC + NAC",
               "description": "LROC WAC global morphology mosaic (100 m) with the LROC NAC south pole controlled mosaic (1 m) composited over it offline; illumination is baked into both",
               "attribution": "LROC team / USGS Astrogeology / ASU",
-              "illumination": "baked",
               "url": "data/moon-imagery-cube-wac-nac/imagery.json"
             }
           ],

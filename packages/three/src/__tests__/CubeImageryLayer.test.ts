@@ -382,7 +382,9 @@ describe('CubeImageryLayer paged imagery', () => {
     const tick=()=>l.update(camera(5000),parent.matrixWorld,.001,null);
     for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
     const shader=compile(mesh.material as THREE.Material);
-    for(const i of [0,1,2])expect(shader.fragmentShader).toContain(`surfaceAsIs = mix(surfaceAsIs, cubeLayer${i}_asIs, alpha);`);
+    for(const i of [0,1,2])expect(shader.fragmentShader).toContain(`surfaceAsIsLayer(diffuseColor.rgb, color * alpha, cubeLayer${i}_asIs, alpha);`);
+    // The layer is recorded against the colour beneath it, before the colour blend overwrites it.
+    expect(shader.fragmentShader.indexOf('surfaceAsIsLayer(diffuseColor.rgb, color * alpha, cubeLayer0_asIs')).toBeLessThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);'));
     // Weights are per source: a relit base, a baked overlay, and an undeclared (legacy relit) source.
     expect([0,1,2].map(i=>(shader.uniforms[`cubeLayer${i}_asIs`] as {value:number}).value)).toEqual([0,1,0]);
     // They follow the source when the stack is reordered, so a weight never lands on the wrong layer.

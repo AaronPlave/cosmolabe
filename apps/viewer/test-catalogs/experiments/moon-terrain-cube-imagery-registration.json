@@ -140,7 +140,6 @@
               "name": "Registration texels",
               "description": "Texel coordinates encoded as colour; linear data, never relit",
               "attribution": "Cosmolabe fixture",
-              "illumination": "baked",
               "url": "../data/moon-imagery-cube-registration/imagery.json"
             }
           ],

@@ -195,6 +195,13 @@
       "description": "Local-only product; build assets before loading."
     },
     {
+      "id": "moon-illumination-provenance",
+      "name": "Moon: illumination provenance fixture (#204)",
+      "catalog": "./moon-illumination-provenance.json",
+      "group": "Surface experiments",
+      "description": "lro-moon with the WAC+NAC cube layer explicitly declared illumination \"baked\" (opt-in; shipped demos keep undeclared provenance, which renders as before). Baked pixels show as-is with only a terminator gate. Compare with lro-moon in Natural, Shadow and Flood and across epochs. Experimental, not listed in the catalog index; see docs/surface-illumination.md."
+    },
+    {
       "id": "experiments/moon-terrain-cube-imagery-adoption",
       "name": "Moon terrain: cube sphere + NAC, adoption check (#149)",
       "catalog": "./experiments/moon-terrain-cube-imagery-adoption.json",

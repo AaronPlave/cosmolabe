@@ -140,7 +140,6 @@
               "name": "Diagnostic grid",
               "description": "Synthetic graticule and bullseye markers; data, not relit",
               "attribution": "Cosmolabe fixture",
-              "illumination": "baked",
               "url": "../data/moon-imagery-cube-grid/imagery.json"
             }
           ],

@@ -42,22 +42,24 @@ describe('imagery illumination provenance (#204)', () => {
   it('injects a per-fragment, uniform-driven as-is display ahead of later injections and fails loudly if the hook moves', () => {
     const uniforms = createSurfaceAsIsUniforms();
     uniforms.surfaceAsIs.value = 1;
-    const shader = { fragmentShader: 'void main() {\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
+    const shader = { fragmentShader: 'void main() {\nvec3 totalDiffuse = vec3(0.0);\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
     injectAsIsDisplayIntoShader(shader, uniforms);
     expect(shader.uniforms.uSurfaceAsIs).toBe(uniforms.surfaceAsIs); // shared by reference: a write needs no recompile
     expect(shader.uniforms.uBakedNightFloor).toBe(uniforms.nightFloor);
     expect(shader.fragmentShader).toContain('uniform float uSurfaceAsIs;');
     expect(shader.fragmentShader).toContain('surfaceAsIs = uSurfaceAsIs;'); // each fragment starts at the uncovered weight
-    expect(shader.fragmentShader).toContain('mix(outgoingLight, diffuseColor.rgb * surfaceBakedGate, surfaceAsIs)');
+    expect(shader.fragmentShader).toContain('diffuseColor.rgb * surfaceBakedShare * surfaceBakedGate');
+    expect(shader.fragmentShader).toContain('totalDiffuse * (1.0 - surfaceBakedShare)'); // relit share lit, baked share as-is
     // A later injection that replaces the same token still lands after ours.
     const later = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight *= eclipse();\n#include <opaque_fragment>');
-    expect(later.indexOf('surfaceAsIs);')).toBeLessThan(later.indexOf('eclipse()'));
+    expect(later.indexOf('surfaceBakedShare * surfaceBakedGate;')).toBeLessThan(later.indexOf('eclipse()'));
     expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'nothing' }, uniforms)).toThrow(/hook changed/);
+    expect(() => injectAsIsDisplayIntoShader({ fragmentShader: 'void main() {\n#include <opaque_fragment>\n}' }, uniforms)).toThrow(/totalDiffuse/);
   });
 
   it('declares the per-fragment weight once, whichever compositor or hook comes first', () => {
     const declared = (src: string) => src.split('float surfaceAsIs;').length - 1;
-    const a = { fragmentShader: 'void main() {\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
+    const a = { fragmentShader: 'void main() {\nvec3 totalDiffuse = vec3(0.0);\n#include <opaque_fragment>\n}', uniforms: {} as Record<string, unknown> };
     declareSurfaceAsIs(a);
     injectAsIsDisplayIntoShader(a, createSurfaceAsIsUniforms());
     declareSurfaceAsIs(a);
@@ -97,9 +99,14 @@ describe('ImageOverlayPlugin overlay compositor hook (#204)', () => {
     injectOverlayAsIsIntoShader(shader);
     expect(shader.fragmentShader).toMatch(/struct LayerInfo\s*\{[^}]*float opacity;\s*float asIs;/);
     const blend = shader.fragmentShader.indexOf('diffuseColor = tint + diffuseColor * ( 1.0 - tint.a );');
-    const weight = shader.fragmentShader.indexOf('surfaceAsIs = mix( surfaceAsIs, layerInfo[ i ].asIs, tint.a );');
+    const weight = shader.fragmentShader.indexOf('surfaceAsIsLayer( diffuseColor.rgb, tint.rgb, layerInfo[ i ].asIs, tint.a );');
+    const premultiplied = shader.fragmentShader.indexOf('tint.rgb *= tint.a;');
     expect(blend).toBeGreaterThan(0);
-    expect(weight).toBeGreaterThan(blend); // after tint.rgb was premultiplied, tint.a is still the alpha
+    // The layer is handed over premultiplied (what the library adds to the colour) and before the colour blend
+    // overwrites diffuseColor, which is the colour beneath it.
+    expect(premultiplied).toBeGreaterThan(0);
+    expect(weight).toBeGreaterThan(premultiplied);
+    expect(weight).toBeLessThan(blend);
     expect(shader.fragmentShader).toContain('float surfaceAsIs;');
     // Idempotent.
     const once = shader.fragmentShader;

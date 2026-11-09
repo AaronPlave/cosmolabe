@@ -174,10 +174,11 @@ describe('TerrainManager imagery layer controls', () => {
   const plugin = (tm: TerrainManager) => (tm.tiles as unknown as { getPluginByName(n: string): Plugin }).getPluginByName('IMAGE_OVERLAY_PLUGIN');
   const dispatch = (tm: TerrainManager, e: Record<string, unknown>) => (tm.tiles as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(e);
 
-  it('rejects legacy cube imagery combined with a geographic stack explicitly', () => {
+  it('rejects a cube product mixed with geographic imagery explicitly', () => {
     expect(() => make({ type: '3dtiles', url: 'https://example.invalid/tileset.json',
-      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json', imagery: { url: 'https://example.invalid/imagery.json' } },
-    })).toThrow('Legacy cube imagery cannot be combined with geographic imagery');
+      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json' },
+      imagery: [{ type: 'cube', url: 'https://example.invalid/imagery.json' }, { url: CTX }],
+    })).toThrow('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
   });
 
   it('only builds overlays for layers that start on', async () => {

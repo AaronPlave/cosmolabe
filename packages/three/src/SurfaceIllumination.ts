@@ -261,20 +261,44 @@ export function createSurfaceAsIsUniforms(mode: LightingMode = 'natural'): Surfa
 /** Half-width of the terminator gate in `sin(elevation)`: the Sun's angular radius. */
 const TERMINATOR_HALF_WIDTH = 0.0047;
 
-const AS_IS_DECLARATION = 'uniform float uSurfaceAsIs;\nfloat surfaceAsIs;\n';
+/**
+ * Per-fragment compositing state. A stack of layers is an alpha "over" chain, so the final colour is the sum of
+ * each layer's weight times its own rendering: a relit layer contributes `albedo × lighting`, a baked layer
+ * `colour × gate`. That is linear in the weights, so the compositor tracks them separately:
+ * `surfaceBakedRgb` = Σ weight·colour over baked sources (and the uncovered base when it is baked),
+ * `surfaceRelitRgb` = the same over relit sources, `surfaceAsIs` = Σ weight over baked sources. Blending
+ * colours first and one baked weight afterwards would light the baked share of a mixed colour.
+ */
+const AS_IS_DECLARATION = `uniform float uSurfaceAsIs;
+float surfaceAsIs;
+vec3 surfaceBakedRgb;
+vec3 surfaceRelitRgb;
+float surfaceLayered;
+// under: the composited colour beneath this layer; premul: the layer's colour times its alpha.
+void surfaceAsIsLayer(vec3 under, vec3 premul, float asIs, float alpha) {
+  if (surfaceLayered < 0.5) {
+    surfaceLayered = 1.0;
+    surfaceBakedRgb = surfaceAsIs * under;
+    surfaceRelitRgb = (1.0 - surfaceAsIs) * under;
+  }
+  surfaceBakedRgb = surfaceBakedRgb * (1.0 - alpha) + asIs * premul;
+  surfaceRelitRgb = surfaceRelitRgb * (1.0 - alpha) + (1.0 - asIs) * premul;
+  surfaceAsIs = mix(surfaceAsIs, asIs, alpha);
+}
+`;
 
 /**
- * Declare the per-fragment `surfaceAsIs` and start it at the uncovered-pixel
- * weight. Idempotent, so any compositor and the display hook may each call it
- * in either order. A compositor then does
- * `surfaceAsIs = mix(surfaceAsIs, layerWeight, alpha)` beside its own
- * `diffuseColor` blend.
+ * Declare the per-fragment compositing state and start `surfaceAsIs` at the
+ * uncovered-pixel weight. Idempotent, so any compositor and the display hook
+ * may each call it in either order. A compositor calls
+ * `surfaceAsIsLayer(diffuseColor.rgb, color * alpha, layerWeight, alpha)` for
+ * each layer, just before its own `diffuseColor` blend.
  */
 export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
   if (shader.fragmentShader.includes('float surfaceAsIs;')) return;
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Baked-imagery display: fragment shader has no main().');
-  shader.fragmentShader = AS_IS_DECLARATION + shader.fragmentShader.replace(main, 'void main() {\n  surfaceAsIs = uSurfaceAsIs;');
+  shader.fragmentShader = AS_IS_DECLARATION + shader.fragmentShader.replace(main, 'void main() {\n  surfaceAsIs = uSurfaceAsIs; surfaceLayered = 0.0; surfaceBakedRgb = vec3(0.0); surfaceRelitRgb = vec3(0.0);');
 }
 
 /**
@@ -305,6 +329,9 @@ export function injectAsIsDisplayIntoShader(
   if (!shader.fragmentShader.includes(hook)) {
     throw new Error('Baked-imagery display: Three.js opaque_fragment shader hook changed.');
   }
+  if (!shader.fragmentShader.includes('vec3 totalDiffuse')) {
+    throw new Error('Baked-imagery display: this material has no totalDiffuse term to separate from the baked share.');
+  }
   if (shader.uniforms) {
     shader.uniforms.uSurfaceAsIs = u.surfaceAsIs;
     shader.uniforms.uSurfaceCenterView = u.centerView;
@@ -321,7 +348,11 @@ if (uBakedNightFloor < 1.0) {
   surfaceBakedGate = mix(uBakedNightFloor, 1.0, smoothstep(-${h}, ${h}, sunUp));
 }
 #endif
-outgoingLight = mix(outgoingLight, diffuseColor.rgb * surfaceBakedGate, surfaceAsIs);
+// What the layers' own renderings blend to: relit share lit by the Sun (diffuse is linear in albedo), the
+// non-albedo terms (specular, emissive) weighted by the relit coverage, baked share shown as-is.
+vec3 surfaceBakedShare = surfaceLayered > 0.5 ? surfaceBakedRgb / max(surfaceBakedRgb + surfaceRelitRgb, vec3(1e-6)) : vec3(surfaceAsIs);
+outgoingLight = totalDiffuse * (1.0 - surfaceBakedShare) + (outgoingLight - totalDiffuse) * (1.0 - surfaceAsIs)
+  + diffuseColor.rgb * surfaceBakedShare * surfaceBakedGate;
 ` + hook,
   );
 }
@@ -330,8 +361,8 @@ outgoingLight = mix(outgoingLight, diffuseColor.rgb * surfaceBakedGate, surfaceA
  * Per-layer hook for `ImageOverlayPlugin`'s geographic overlay compositor
  * (3d-tiles-renderer), whose loop blends each layer into `diffuseColor` with no
  * extension point. Adds an `asIs` member to its `LayerInfo` struct (uploaded
- * from the overlay object's own `asIs` property) and blends it by the layer's
- * alpha beside the colour. A no-op on a shader without that compositor;
+ * from the overlay object's own `asIs` property) and passes it, with the
+ * layer's premultiplied colour, to `surfaceAsIsLayer` before each blend. A no-op on a shader without that compositor;
  * throws when the compositor is present but no longer has the expected shape,
  * so a library upgrade cannot silently double-light baked overlays.
  */
@@ -346,5 +377,5 @@ export function injectOverlayAsIsIntoShader(shader: { fragmentShader: string }):
   }
   declareSurfaceAsIs(shader);
   shader.fragmentShader = shader.fragmentShader.replace(member, '$1\nfloat asIs;')
-    .replace(blend, blend + '\nsurfaceAsIs = mix( surfaceAsIs, layerInfo[ i ].asIs, tint.a );');
+    .replace(blend, 'surfaceAsIsLayer( diffuseColor.rgb, tint.rgb, layerInfo[ i ].asIs, tint.a );\n' + blend);
 }

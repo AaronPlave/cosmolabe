@@ -142,7 +142,6 @@
               "description": "LROC NAC south pole controlled mosaic, 1 m",
               "attribution": "LROC team / USGS Astrogeology / ASU",
               "resolutionMeters": 1,
-              "illumination": "baked",
               "url": "../data/moon-imagery-cube-nac/imagery.json"
             }
           ],

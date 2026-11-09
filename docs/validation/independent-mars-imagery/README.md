@@ -9,11 +9,10 @@ disabling a source aborts its requests and releases its textures. Source bounds
 are clipped per fragment, including antimeridian bounds. Physical terrain,
 CPU grids, picking targets and sampled heights are unchanged.
 
-The existing single `terrain.cubeSphere.imagery.url` remains supported. Combining
-that legacy URL with geographic XYZ/WMTS `Globe.imagery` now throws a clear
-configuration error; use an all-cube stack or remove the legacy cube URL.
-With a sibling cube stack, `terrain.cubeSphere.imagery` supplies shared options
-without needing a URL. Four sources default to six pinned roots per source;
+Cube products are declared only as `type: 'cube'` entries of `terrain.imagery[]`
+(there is no `cubeSphere.imagery.url`). Combining them with geographic XYZ/WMTS
+imagery throws a clear configuration error; use an all-cube stack.
+`terrain.cubeSphere.imagery` supplies shared options (budget, selection) only. Four sources default to six pinned roots per source;
 a single source keeps the previous levels 0–1 fallback. Coarse loads now obey
 the same concurrency and texture reservations as finer imagery. Cube shader
 textures are included in terrain memory diagnostics. The static map remains

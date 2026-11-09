@@ -245,12 +245,13 @@ export interface TerrainConfig {
     /**
      * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
      * draped at its own levels, independently of this product's geometry LOD; see
-     * `CubeImageryLayer`. Legacy single product, or shared budget/selection options
-     * for `Globe.imagery` layers of type `cube`. The geographic overlay plugin
-     * maps through per-vertex longitude/latitude, which cannot
-     * register the tiles meeting at each pole (both are face centres).
+     * `CubeImageryLayer`. Shared budget/selection options for the `type: 'cube'`
+     * layers of `terrain.imagery` (the products themselves are declared there, with
+     * their provenance). The geographic overlay plugin maps through per-vertex
+     * longitude/latitude, which cannot register the tiles meeting at each pole
+     * (both are face centres).
      */
-    imagery?: Omit<CubeImageryConfig, 'url'> & { url?: string };
+    imagery?: Omit<CubeImageryConfig, 'url' | 'layers'>;
     /**
      * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
      * surface triangles first (glTF primitive extras `surfaceTriangles`); false
@@ -921,13 +922,9 @@ export class TerrainManager {
     this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
-    if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
-      throw new Error('Legacy cube imagery cannot be combined with geographic imagery; use an entirely cube imagery stack or remove cubeSphere.imagery.url');
-    }
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
-    if (config.cubeSphere?.imagery?.url || cubeSources) {
-      const cubeConfig = config.cubeSphere?.imagery ?? {};
-      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
+    if (cubeSources) {
+      this.cubeImagery = new CubeImageryLayer({ ...config.cubeSphere!.imagery, url: imageryConfigs[0].url, layers: imageryConfigs }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
         const manifest = this.cube?.source.manifest;
         // The new ellipsoidal imagery cull needs an emitted-mesh rounding
         // bound as well as the explicit radial payload. Unknown means no cull.
