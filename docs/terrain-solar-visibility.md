@@ -90,6 +90,7 @@ horizon map was rendered for vs the current Sun); plus `anchorResets` and `horiz
 **CPU ground truth** (`TerrainSunVisibility.ts`, vitest): the horizon march agrees with an independently derived analytic
 ray for a synthetic ridge from 0.5° to 8° Sun elevation; unknown coverage is never lit or shadowed. Required coverage
 (`occluderRangeKm`): Moon 1° / 10 km relief → 158 km, Mars → 208 km; the default 320 km outer level covers both.
+`sunFractionAt` (vehicles) is checked against a synthetic ridge: shadowed behind it, lit above its shadow and beyond it.
 
 **The real shader against the CPU reference** (`npm run test:terrain-shadow:webgl`, real WebGL, SwiftShader). A synthetic
 2 km-wide, 1.5 km-high ridge with vertical walls in a realistic scene (scale 1e-6, rotated and offset body,
@@ -116,30 +117,51 @@ the source ending before the ridge, the receiver is lit (1.0) and tinted in view
 This catalog drapes no photo imagery, so `on` and `neutral` show computed lighting only. The ephemeris is the catalog's
 Keplerian fallback, so the geometry is consistent but the calendar dates are not real.
 
-| View | Sun at site | off | on | Sun fraction | neutral, no shadows | neutral, shadows | alignment |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Shackleton rim (89.67°S) | 0.74°, az 21.7° | [img](validation/terrain-solar-shadow/shackleton-rim-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-on-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-alignment-gpu.png) |
-| Polar ridge field (88.4°S) | 1.80°, az 4.0° | [img](validation/terrain-solar-shadow/polar-ridge-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-on-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-visibility-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-alignment-gpu.png) |
-| Equatorial crater (9.6°N) | 2.86°, az 90.8° | [img](validation/terrain-solar-shadow/equatorial-crater-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-on-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-visibility-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-alignment-gpu.png) |
+| View | Sun at site | off | on | Sun fraction | neutral, no shadows | neutral, shadows | unknown / too coarse | Source spacing |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Shackleton rim (89.67°S) | 0.74°, az 21.7° | [img](validation/terrain-solar-shadow/shackleton-rim-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-on-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-unknown-gpu.png) | 10–50 m |
+| Polar ridge field (88.4°S) | 1.80°, az 4.0° | [img](validation/terrain-solar-shadow/polar-ridge-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-on-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-visibility-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-unknown-gpu.png) | ≤ 0.2 km |
+| Polar outer ring (85.8°S), from 30 km | 3.01°, az 313° | [img](validation/terrain-solar-shadow/polar-coarse-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-on-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-visibility-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-neutral-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-unknown-gpu.png) | 0.85 km; foreground 1.7 km (left out) |
+| Harkhebi J/H (38°N), from 90 km | 4.14°, az 267° | [img](validation/terrain-solar-shadow/harkhebi-off-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-on-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-visibility-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-neutral-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-unknown-gpu.png) | 6.8 km: left out |
+| Equatorial crater (9.6°N) | 2.86°, az 91° | [img](validation/terrain-solar-shadow/equatorial-crater-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-on-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-visibility-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-unknown-gpu.png) | 6.8 km: left out |
+
+**Coarse terrain (Harkhebi).** The review's low-resolution screenshot showed hard polygonal shadows where the imagery is
+smooth. Each candidate was isolated at that pose: a finer clipmap (0.5 → 0.19 km texels around the focus) changed
+nothing visible, and nor did marching per pixel along shadow edges. The cause is the source: the demo product's heights
+there are 6.8 km apart (global level 3), so the shadows were projections of 6.8 km triangles, while the WAC/normal-map
+shading drawn over them is ~100 m. Such terrain is now left out (step 2) rather than blurred. The 0.85 km polar ring
+(`polar-coarse`) is the coarsest that still casts shadows; its edges show facets of that size from 30 km up.
 
 **Motion stability** (`--sequence`). Each frame is captured at one pose as off (view 6) | Sun fraction | neutral | on, and
-assembled as a 2×2 MP4. Each sequence has a per-frame trace of every level's centre, builds, rebuild reason, texels
-sampled and anchor resets (`sequences` in `captures-gpu.json`).
+assembled as a 2×2 MP4, with a per-frame trace of every level (`captures-gpu-sequences.json`).
 
-- **Camera, time frozen.** The camera pans 20 km, yaws 12° and zooms in, then returns along the same path. That re-centres
-  the 8 km level about 15 times each way.
-- **Time, camera fixed.** The clock advances 2 min per frame for 96 frames.
+- **Camera, time frozen.** The camera pans 20 km, yaws 12° and zooms in, then returns along the same path.
+- **Time, camera fixed.** 2 min per frame. **Fast**: 24 min per frame (1 day/s at 60 fps), each frame settled.
 
-| View | Camera ([mp4](validation/terrain-solar-shadow/shackleton-rim-camera.mp4)): states seen / level builds / first vs last frame | Time ([mp4](validation/terrain-solar-shadow/shackleton-rim-time.mp4)): frame-to-frame change, max / median |
-| --- | --- | --- |
-| Shackleton rim | `ready`, `partial` (12 of 97 frames, tiles streaming) / 30, 4, 2 / **identical** (mean diff 0) | 0.044 / 0.037 = 1.19 |
-| Polar ridge ([camera](validation/terrain-solar-shadow/polar-ridge-camera.mp4), [time](validation/terrain-solar-shadow/polar-ridge-time.mp4)) | `ready`, `partial` (11 of 97) / 33, 4, 2 / **identical** | 0.150 / 0.137 = 1.09 |
-| Equatorial crater ([camera](validation/terrain-solar-shadow/equatorial-crater-camera.mp4), [time](validation/terrain-solar-shadow/equatorial-crater-time.mp4)) | `ready` only / 33, 6, 3 / **identical** | 0.906 / 0.640 = 1.42 |
+| View | Camera: first vs last frame (mean diff / pixels > 8 of 255) | Time: change max / median | Fast: max / median |
+| --- | --- | --- | --- |
+| Shackleton rim ([camera](validation/terrain-solar-shadow/shackleton-rim-camera.mp4), [time](validation/terrain-solar-shadow/shackleton-rim-time.mp4), [fast](validation/terrain-solar-shadow/shackleton-rim-fast.mp4)) | 0.17 / 0.25 % | 1.18 | 1.62 |
+| Polar ridge ([camera](validation/terrain-solar-shadow/polar-ridge-camera.mp4), [time](validation/terrain-solar-shadow/polar-ridge-time.mp4), [fast](validation/terrain-solar-shadow/polar-ridge-fast.mp4)) | 0.07 / 0.07 % | 1.15 | 1.88 |
+| Polar outer ring ([camera](validation/terrain-solar-shadow/polar-coarse-camera.mp4), [time](validation/terrain-solar-shadow/polar-coarse-time.mp4), [fast](validation/terrain-solar-shadow/polar-coarse-fast.mp4)) | **identical** | 1.27 | 1.24 |
 
-The state never went to `building` and no anchor reset happened during any sequence. A pixel-identical round trip
-means the shadows depend only on the terrain, Sun and pose: not on the path, the clipmap's centre or how often it
-re-centred. A max/median near 1 means the edges advance evenly with time, with no frame jumping. In `partial` frames,
-fine terrain the viewer has not streamed yet is shadowed from the coarser level, and sharpens a few frames later.
+States seen: `ready` and `partial` only; no anchor reset. The round trips are no longer all pixel-identical: where a
+level re-centred during the pan and its hysteresis left it at a different centre on return, the band in which it blends
+into the next level sits elsewhere, and the two levels' answers differ slightly there (distant terrain near the horizon
+only). A max/median near 1 means the edges advance evenly with time.
+
+**Real playback** (`--playback`, `--playback-video`). The clock runs at 1 day/s for 290 frames with the camera held in
+the body frame; each frame records every level's `horizonSunLagDeg`. Then seeks of ±1 h to 5 days. Real-time screen
+recordings, Sun fraction | on: [Shackleton](validation/terrain-solar-shadow/shackleton-rim-playback.mp4), [polar ridge](validation/terrain-solar-shadow/polar-ridge-playback.mp4),
+[polar outer ring](validation/terrain-solar-shadow/polar-coarse-playback.mp4), [Harkhebi](validation/terrain-solar-shadow/harkhebi-playback.mp4) (no terrain shadows: too coarse).
+
+| View | Frame p50 / p95, off → on | Max horizon lag behind the Sun | After seeks |
+| --- | --- | --- | --- |
+| Shackleton rim | 2.8 / 3.5 → 8.1 / 25.8 ms (a noisy run; 1.2 / 1.8 → 6.1 / 12 ms in a quiet one) | 0.27° | 0 |
+| Polar ridge | 1.1 / 2.2 → 4.8 / 11 ms | 0.20° | 0 |
+| Polar outer ring | 1.5 / 2.1 → 4.9 / 8.4 ms | 0.36° | 0 |
+
+Before the scheduling fix the coarser levels could stay on an old Sun indefinitely; re-rendering every level every
+frame instead cost 13–15 ms p50 / 32–34 ms p95 at the pole.
 
 ### The shipped WAC+NAC scene and baked illumination
 
@@ -168,39 +190,43 @@ A relightable albedo product for the pole is the data needed for a trustworthy c
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
 position. 679 samples, Sun −0.8° to 1.4°, up to 0.31 km above ground, lit and shadowed both landed and flying: max
 difference 0.05 (one penumbra sample), all others 0. Before this change a hopper in a terrain shadow was fully sunlit.
-
-**Evidence still to refresh** for this revision (four levels, coarse-terrain rule): the stills, sequences and cost
-table below are from the previous revision.
+Polaris-D on 2028-12-15, landed in shadow then flying into sunlight, shadows off / on:
+[landed off](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-landed-off.png),
+[landed on](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-landed-on.png),
+[flying off](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-flying-off.png),
+[flying on](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-flying-on.png); Polaris-C likewise; all samples
+in `vehicles/vehicles.json`.
 
 ## Cost
 
-Mean frame time on the hardware GPU (Apple M4 Max, Metal, vsync and frame limit off), the same three views and epochs.
-Off → on is steady state. "Sun moving" re-renders a horizon map every frame (`on-rehorizon`), which is the cost during
-time warp. At 1× it re-renders about once every 2 minutes on the Moon.
+Mean frame time on the hardware GPU (Apple M4 Max, Metal, vsync and frame limit off), same poses and epochs. Off → on is
+steady state. "Horizon pass" re-renders two levels every frame (`on-rehorizon`, the per-frame budget), which is the cost
+while the Sun moves fast; at 1× it re-renders about once every 2 minutes on the Moon.
 
-| View | 1280×720 off → on | Sun moving | 3840×2160 off → on | Sun moving | First version, 720p / 4K |
-| --- | --- | --- | --- | --- | --- |
-| Shackleton rim | 1.3 → 1.3 ms | 3.2 ms | 2.2 → 3.1 ms | 6.0 ms | 4.3 / 35.7 ms |
-| Polar ridge | 1.2 → 1.3 ms | 3.5 ms | 1.5 → 2.1 ms | 5.0 ms | 3.4 / 31.2 ms |
-| Equatorial crater | 1.2 → 1.3 ms | 2.7 ms | 1.5 → 1.5 ms | 4.7 ms | 1.5 / 12.8 ms |
+| View | 1280×720 off → on | Horizon pass | 3840×2160 off → on | Horizon pass |
+| --- | --- | --- | --- | --- |
+| Shackleton rim | 1.8 → 1.6 ms | 7.3 ms | 2.4 → 3.2 ms | 8.2 ms |
+| Polar ridge | 1.3 → 1.3 ms | 5.7 ms | 1.4 → 1.6 ms | 6.9 ms |
+| Polar outer ring | 1.2 → 1.3 ms | 4.9 ms | 1.9 → 2.2 ms | 5.4 ms |
 
-- **Steady state** costs 0–0.9 ms even at 4K: the per-pixel part is a level lookup and one filtered fetch.
-- **Horizon pass**: one level, 256² texels, about 1–2 ms on this GPU, at most two levels in a frame, and only when the
-  data or the Sun changed. It does not grow with screen resolution. The presets change only this pass. `medium` and
-  `low` take one-texel steps instead of 0.75, and `low` stops after 360 steps, which still reaches the outer level.
-- **CPU fill**: a re-centre samples about 16k texels (the new strip), and an initial level 64k at 44–143 ms, spread over
+- **Steady state** costs 0–0.8 ms even at 4K: the per-pixel part is a level lookup and one filtered fetch.
+- **Horizon pass**: one level, 256² texels, about 1–3 ms on this GPU, at most two levels per frame (all after a seek),
+  only when the data or the Sun changed. It does not grow with screen resolution. `medium` and `low` take one-texel
+  steps instead of 0.75; `low` stops after 420 steps, which still reaches the outer level.
+- **Vehicles**: one CPU march per vehicle per frame (a few hundred bilinear taps).
+- **CPU fill**: a re-centre samples the newly exposed strip; an initial level 64k texels at 20–110 ms, spread over
   frames at `budgetMs` (3 ms).
-- **Memory**: three RG32F height levels (1.5 MB) and three RGBA16F horizon maps (1.5 MB). No draw calls are added.
+- **Memory**: four RG32F height levels (2 MB) and four RGBA16F horizon maps (2 MB). No draw calls are added.
 
-There is no phone or integrated-GPU measurement. The fragment cost is now near zero, so the open question there is the
-horizon pass: 1–2 ms per level on an M4 Max, likely 5–20× more on a phone. `low` and smaller levels (`size: 128`) are
-the levers. The default stays off until that is measured.
+There is no phone or integrated-GPU measurement. The open question there is the horizon pass, likely 5–20× slower than on
+an M4 Max; `low`, smaller levels (`size: 128`) and the per-frame budget are the levers. The default stays off until that
+is measured.
 
 ## Limits
 
 - **Visual only.** No PSR certification, illumination duration or power products.
 - **Resolution.** A receiver's shadow is interpolated between texel centres of its level: 62 m within 8 km of the focus,
-  0.5 km to 64 km, 2.5 km beyond. Occluders are seen at their level's resolution, so a ridge narrower than a texel there
+  0.19 km to 24 km, 0.62 km to 80 km, 2.5 km beyond. Occluders are seen at their level's resolution, so a ridge narrower than a texel there
   is under-represented. The 62 m inner level resolves what LOLA 118 m (10 m polar) can show.
 - **Range.** Terrain beyond the outer level (default 320 km) is unknown. The default covers a 1° Sun and 10 km relief.
 - **Streaming.** Until fine source tiles arrive, the coarser level answers, and the shadow sharpens when they do. Terrain
@@ -220,12 +246,14 @@ the levers. The default stays off until that is measured.
 | Issue requirement | Where |
 | --- | --- |
 | Synthetic ridge with known occlusion; sweeps move the edge predictably | CPU test + WebGL parity, 2 azimuths × 5 elevations, 3 presets, 2 filter paths |
-| Shackleton-like rim/floor, equatorial Moon, representative Mars | Real Moon captures; Mars synthetic only (no Mars terrain product locally) |
+| Shackleton-like rim/floor, equatorial Moon, representative Mars | Real Moon captures (equatorial terrain in the demo product is too coarse and is left out, labelled); Mars synthetic only (no Mars terrain product locally) |
+| Vehicles shadowed by terrain, landed and flying | `sunFractionAt`; MoonFall hop check against the CPU reference |
+| Tracks the Sun under fast playback and seeks | Fair horizon scheduling; measured lag ≤ 0.36° at 1 day/s, 0 after seeks |
 | Offscreen / adjacent-tile occluders within a documented radius | `occluderRangeKm`; outer level 320 km |
 | No toggling across LOD; no acne/peter-panning; stable under motion | One source level per clipmap level; receiver on the same surface; round-trip-identical camera sequences; even time sequences |
 | Neutral-albedo isolation and honest treatment of baked imagery | Debug views 4/5; WAC+NAC section |
 | No regression: spacecraft shadows, eclipses, imagery overlays | Opt-in; direct term only; existing suites pass |
-| Desktop cost | Hardware-GPU table at 720p and 4K, steady and Sun-moving |
+| Desktop cost | Hardware-GPU table at 720p and 4K, steady, horizon pass and 1 day/s playback |
 
 ## Next
 

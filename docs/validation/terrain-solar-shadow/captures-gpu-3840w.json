@@ -1,6 +1,6 @@
 {
   "generator": "scripts/capture-terrain-solar-shadow.mjs",
-  "created": "2026-11-09T20:56:09.882Z",
+  "created": "2026-11-09T22:56:23.670Z",
   "catalog": "test-catalogs/experiments/moon-terrain-cube-solar-shadow",
   "viewport": {
     "width": 3840,
@@ -32,10 +32,10 @@
         "azimuthDeg": 21.666524216784865,
         "cosIncidence": 0.012900921676234248
       },
-      "frameMeanMs": 2.2,
-      "frameP50Ms": 2.1,
-      "frameP95Ms": 3.4,
-      "frameMaxMs": 4.8,
+      "frameMeanMs": 2.36,
+      "frameP50Ms": 2.3,
+      "frameP95Ms": 3.1,
+      "frameMaxMs": 4.9,
       "shadow": {
         "state": "off",
         "levels": [
@@ -50,22 +50,42 @@
             "lastReason": "recenter",
             "lastSampledTexels": 65536,
             "unknownFraction": 0,
-            "builds": 15,
-            "lastBuildMs": 47.99999988079071
+            "coarseFraction": 0,
+            "builds": 12,
+            "lastBuildMs": 59.40000009536743,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              7,
+              6.9375,
               -19.5
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 8704,
+            "lastSampledTexels": 19008,
             "unknownFraction": 0,
-            "builds": 4,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0,
+            "builds": 5,
+            "lastBuildMs": 22.99999976158142,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 44659,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 75.60000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -76,14 +96,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 51466,
+            "lastSampledTexels": 51336,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 82.19999992847443
+            "lastBuildMs": 76.90000021457672,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 194,
+        "horizonRenders": 214,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -91,9 +113,9 @@
         "active": 273,
         "visible": 254,
         "drawn": 123,
-        "loaded": 920,
-        "inCache": 920,
-        "cpu": 470
+        "loaded": 921,
+        "inCache": 921,
+        "cpu": 530
       },
       "pose": {
         "eye": [
@@ -108,7 +130,7 @@
         ],
         "fov": 60
       },
-      "settleMs": 5618
+      "settleMs": 6119
     },
     {
       "view": "shackleton-rim",
@@ -120,10 +142,10 @@
         "azimuthDeg": 21.666524216784865,
         "cosIncidence": 0.012900921676234248
       },
-      "frameMeanMs": 3.11,
+      "frameMeanMs": 3.24,
       "frameP50Ms": 2.7,
-      "frameP95Ms": 5.7,
-      "frameMaxMs": 6.8,
+      "frameP95Ms": 7.2,
+      "frameMaxMs": 9.1,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -138,22 +160,42 @@
             "lastReason": "recenter",
             "lastSampledTexels": 65536,
             "unknownFraction": 0,
-            "builds": 15,
-            "lastBuildMs": 47.99999988079071
+            "coarseFraction": 0,
+            "builds": 12,
+            "lastBuildMs": 59.40000009536743,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              7,
+              6.9375,
               -19.5
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 8704,
+            "lastSampledTexels": 19008,
             "unknownFraction": 0,
-            "builds": 4,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0,
+            "builds": 5,
+            "lastBuildMs": 22.99999976158142,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 44659,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 75.60000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -164,14 +206,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 51466,
+            "lastSampledTexels": 51336,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 82.19999992847443
+            "lastBuildMs": 76.90000021457672,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 197,
+        "horizonRenders": 218,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -179,9 +223,9 @@
         "active": 273,
         "visible": 254,
         "drawn": 123,
-        "loaded": 920,
-        "inCache": 920,
-        "cpu": 470
+        "loaded": 921,
+        "inCache": 921,
+        "cpu": 530
       },
       "pose": {
         "eye": [
@@ -196,7 +240,7 @@
         ],
         "fov": 60
       },
-      "settleMs": 5618
+      "settleMs": 6119
     },
     {
       "view": "shackleton-rim",
@@ -208,10 +252,10 @@
         "azimuthDeg": 21.666524216784865,
         "cosIncidence": 0.012900921676234248
       },
-      "frameMeanMs": 5.98,
-      "frameP50Ms": 5.7,
-      "frameP95Ms": 11.9,
-      "frameMaxMs": 14.3,
+      "frameMeanMs": 8.23,
+      "frameP50Ms": 8.3,
+      "frameP95Ms": 16.7,
+      "frameMaxMs": 26.9,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -226,22 +270,42 @@
             "lastReason": "recenter",
             "lastSampledTexels": 65536,
             "unknownFraction": 0,
-            "builds": 15,
-            "lastBuildMs": 47.99999988079071
+            "coarseFraction": 0,
+            "builds": 12,
+            "lastBuildMs": 59.40000009536743,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              7,
+              6.9375,
               -19.5
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 8704,
+            "lastSampledTexels": 19008,
             "unknownFraction": 0,
-            "builds": 4,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0,
+            "builds": 5,
+            "lastBuildMs": 22.99999976158142,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 44659,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 75.60000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -252,14 +316,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 51466,
+            "lastSampledTexels": 51336,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 82.19999992847443
+            "lastBuildMs": 76.90000021457672,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 360,
+        "horizonRenders": 542,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -267,9 +333,9 @@
         "active": 273,
         "visible": 254,
         "drawn": 123,
-        "loaded": 920,
-        "inCache": 920,
-        "cpu": 470
+        "loaded": 921,
+        "inCache": 921,
+        "cpu": 530
       },
       "pose": {
         "eye": [
@@ -284,7 +350,7 @@
         ],
         "fov": 60
       },
-      "settleMs": 5618
+      "settleMs": 6119
     },
     {
       "view": "shackleton-rim",
@@ -300,10 +366,10 @@
         "azimuthDeg": 4.016691866363033,
         "cosIncidence": 0.03147461172702275
       },
-      "frameMeanMs": 1.47,
+      "frameMeanMs": 1.37,
       "frameP50Ms": 1.3,
-      "frameP95Ms": 2.6,
-      "frameMaxMs": 3,
+      "frameP95Ms": 2.4,
+      "frameMaxMs": 2.8,
       "shadow": {
         "state": "off",
         "levels": [
@@ -316,24 +382,44 @@
               29.1875
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 45552,
+            "lastSampledTexels": 36336,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 56.399999499320984
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 61.800000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              20.5,
-              26.5
+              20.625,
+              26.8125
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 11476,
+            "lastSampledTexels": 20374,
             "unknownFraction": 0,
-            "builds": 5,
-            "lastBuildMs": 13.799999952316284
+            "coarseFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 33.90000009536743,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              20.625,
+              26.875
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 10056,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 21.00000011920929,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -344,14 +430,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 58890,
+            "lastSampledTexels": 52258,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 93.69999980926514
+            "lastBuildMs": 79.20000004768372,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 203,
+        "horizonRenders": 220,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -361,7 +449,7 @@
         "drawn": 43,
         "loaded": 855,
         "inCache": 855,
-        "cpu": 485
+        "cpu": 514
       },
       "pose": {
         "eye": [
@@ -376,7 +464,7 @@
         ],
         "fov": 55
       },
-      "settleMs": 5580
+      "settleMs": 6088
     },
     {
       "view": "polar-ridge",
@@ -388,10 +476,10 @@
         "azimuthDeg": 4.016691866363033,
         "cosIncidence": 0.03147461172702275
       },
-      "frameMeanMs": 2.07,
-      "frameP50Ms": 2,
-      "frameP95Ms": 3.7,
-      "frameMaxMs": 5.6,
+      "frameMeanMs": 1.65,
+      "frameP50Ms": 1.4,
+      "frameP95Ms": 2.8,
+      "frameMaxMs": 3.8,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -404,24 +492,44 @@
               29.1875
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 45552,
+            "lastSampledTexels": 36336,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 56.399999499320984
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 61.800000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              20.5,
-              26.5
+              20.625,
+              26.8125
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 11476,
+            "lastSampledTexels": 20374,
             "unknownFraction": 0,
-            "builds": 5,
-            "lastBuildMs": 13.799999952316284
+            "coarseFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 33.90000009536743,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              20.625,
+              26.875
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 10056,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 21.00000011920929,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -432,14 +540,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 58890,
+            "lastSampledTexels": 52258,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 93.69999980926514
+            "lastBuildMs": 79.20000004768372,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 206,
+        "horizonRenders": 224,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -449,7 +559,7 @@
         "drawn": 43,
         "loaded": 855,
         "inCache": 855,
-        "cpu": 485
+        "cpu": 514
       },
       "pose": {
         "eye": [
@@ -464,7 +574,7 @@
         ],
         "fov": 55
       },
-      "settleMs": 5580
+      "settleMs": 6088
     },
     {
       "view": "polar-ridge",
@@ -476,10 +586,10 @@
         "azimuthDeg": 4.016691866363033,
         "cosIncidence": 0.03147461172702275
       },
-      "frameMeanMs": 4.99,
-      "frameP50Ms": 4.8,
-      "frameP95Ms": 9.6,
-      "frameMaxMs": 14.4,
+      "frameMeanMs": 6.88,
+      "frameP50Ms": 7,
+      "frameP95Ms": 14.7,
+      "frameMaxMs": 22.9,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -492,24 +602,44 @@
               29.1875
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 45552,
+            "lastSampledTexels": 36336,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 56.399999499320984
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 61.800000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              20.5,
-              26.5
+              20.625,
+              26.8125
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 11476,
+            "lastSampledTexels": 20374,
             "unknownFraction": 0,
-            "builds": 5,
-            "lastBuildMs": 13.799999952316284
+            "coarseFraction": 0,
+            "builds": 4,
+            "lastBuildMs": 33.90000009536743,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              20.625,
+              26.875
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 10056,
+            "unknownFraction": 0,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 21.00000011920929,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
@@ -520,14 +650,16 @@
               0
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 58890,
+            "lastSampledTexels": 52258,
             "unknownFraction": 0,
+            "coarseFraction": 0.62530517578125,
             "builds": 2,
-            "lastBuildMs": 93.69999980926514
+            "lastBuildMs": 79.20000004768372,
+            "horizonSunLagDeg": 0
           }
         ],
         "anchorResets": 1,
-        "horizonRenders": 369,
+        "horizonRenders": 548,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
@@ -537,7 +669,7 @@
         "drawn": 43,
         "loaded": 855,
         "inCache": 855,
-        "cpu": 485
+        "cpu": 514
       },
       "pose": {
         "eye": [
@@ -552,26 +684,26 @@
         ],
         "fov": 55
       },
-      "settleMs": 5580
+      "settleMs": 6088
     },
     {
       "view": "polar-ridge",
       "errors": []
     },
     {
-      "view": "equatorial-crater",
+      "view": "polar-coarse",
       "mode": "off",
-      "file": "equatorial-crater-off-gpu-3840w.png",
-      "epochEt": 914655909.184,
+      "file": "polar-coarse-off-gpu-3840w.png",
+      "epochEt": 915181509.184,
       "sun": {
-        "elevationDeg": 2.864776323920278,
-        "azimuthDeg": 90.77632443787707,
-        "cosIncidence": 0.04997894873222607
+        "elevationDeg": 3.0086683011212307,
+        "azimuthDeg": 313.0786316926991,
+        "cosIncidence": 0.052487038700305605
       },
-      "frameMeanMs": 1.54,
-      "frameP50Ms": 1.5,
-      "frameP95Ms": 1.9,
-      "frameMaxMs": 2.2,
+      "frameMeanMs": 1.92,
+      "frameP50Ms": 1.9,
+      "frameP95Ms": 2.3,
+      "frameMaxMs": 2.6,
       "shadow": {
         "state": "off",
         "levels": [
@@ -580,86 +712,108 @@
             "texelKm": 0.0625,
             "valid": true,
             "offsetKm": [
-              -247.8125,
-              3.0625
+              82,
+              85.5625
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 13056,
+            "lastSampledTexels": 3808,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 27.99999988079071
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 9.300000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              -248,
-              3
+              81.9375,
+              85.5
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 65536,
+            "lastSampledTexels": 29641,
             "unknownFraction": 0,
+            "coarseFraction": 0,
             "builds": 4,
-            "lastBuildMs": 143.09999978542328
+            "lastBuildMs": 69.299999833107,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              81.875,
+              85.625
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 20512,
+            "unknownFraction": 0,
+            "coarseFraction": 0.1439666748046875,
+            "builds": 3,
+            "lastBuildMs": 32.10000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
             "texelKm": 2.5,
             "valid": true,
             "offsetKm": [
-              -247.5,
-              2.5
+              82.5,
+              85
             ],
-            "lastReason": "new-data",
-            "lastSampledTexels": 4189,
+            "lastReason": "recenter",
+            "lastSampledTexels": 50496,
             "unknownFraction": 0,
-            "builds": 3,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0.62530517578125,
+            "builds": 2,
+            "lastBuildMs": 71.39999985694885,
+            "horizonSunLagDeg": 0
           }
         ],
-        "anchorResets": 2,
-        "horizonRenders": 196,
+        "anchorResets": 1,
+        "horizonRenders": 223,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
       "tiles": {
-        "active": 231,
-        "visible": 231,
-        "drawn": 8,
-        "loaded": 1027,
-        "inCache": 1027,
-        "cpu": 460
+        "active": 360,
+        "visible": 360,
+        "drawn": 22,
+        "loaded": 1142,
+        "inCache": 1142,
+        "cpu": 509
       },
       "pose": {
         "eye": [
-          1653.6883174498291,
-          -605.1639873707746,
-          275.75579254017197
+          102.118251021486,
+          107.65674940708442,
+          -1761.1600288206105
         ],
         "target": [
-          1606.0660263560783,
-          -587.1010845074107,
-          289.84063820489325
+          97.41848887443243,
+          81.7438180843842,
+          -1731.7368582525492
         ],
         "fov": 55
       },
-      "settleMs": 6601
+      "settleMs": 6615
     },
     {
-      "view": "equatorial-crater",
+      "view": "polar-coarse",
       "mode": "on",
-      "file": "equatorial-crater-on-gpu-3840w.png",
-      "epochEt": 914655909.184,
+      "file": "polar-coarse-on-gpu-3840w.png",
+      "epochEt": 915181509.184,
       "sun": {
-        "elevationDeg": 2.864776323920278,
-        "azimuthDeg": 90.77632443787707,
-        "cosIncidence": 0.04997894873222607
+        "elevationDeg": 3.0086683011212307,
+        "azimuthDeg": 313.0786316926991,
+        "cosIncidence": 0.052487038700305605
       },
-      "frameMeanMs": 1.52,
-      "frameP50Ms": 1.5,
-      "frameP95Ms": 2,
-      "frameMaxMs": 3.5,
+      "frameMeanMs": 2.16,
+      "frameP50Ms": 2.1,
+      "frameP95Ms": 2.5,
+      "frameMaxMs": 3.2,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -668,86 +822,108 @@
             "texelKm": 0.0625,
             "valid": true,
             "offsetKm": [
-              -247.8125,
-              3.0625
+              82,
+              85.5625
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 13056,
+            "lastSampledTexels": 3808,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 27.99999988079071
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 9.300000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              -248,
-              3
+              81.9375,
+              85.5
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 65536,
+            "lastSampledTexels": 29641,
             "unknownFraction": 0,
+            "coarseFraction": 0,
             "builds": 4,
-            "lastBuildMs": 143.09999978542328
+            "lastBuildMs": 69.299999833107,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              81.875,
+              85.625
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 20512,
+            "unknownFraction": 0,
+            "coarseFraction": 0.1439666748046875,
+            "builds": 3,
+            "lastBuildMs": 32.10000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
             "texelKm": 2.5,
             "valid": true,
             "offsetKm": [
-              -247.5,
-              2.5
+              82.5,
+              85
             ],
-            "lastReason": "new-data",
-            "lastSampledTexels": 4189,
+            "lastReason": "recenter",
+            "lastSampledTexels": 50496,
             "unknownFraction": 0,
-            "builds": 3,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0.62530517578125,
+            "builds": 2,
+            "lastBuildMs": 71.39999985694885,
+            "horizonSunLagDeg": 0
           }
         ],
-        "anchorResets": 2,
-        "horizonRenders": 199,
+        "anchorResets": 1,
+        "horizonRenders": 227,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
       "tiles": {
-        "active": 231,
-        "visible": 231,
-        "drawn": 8,
-        "loaded": 1027,
-        "inCache": 1027,
-        "cpu": 460
+        "active": 360,
+        "visible": 360,
+        "drawn": 22,
+        "loaded": 1142,
+        "inCache": 1142,
+        "cpu": 509
       },
       "pose": {
         "eye": [
-          1653.6883174498291,
-          -605.1639873707746,
-          275.75579254017197
+          102.118251021486,
+          107.65674940708442,
+          -1761.1600288206105
         ],
         "target": [
-          1606.0660263560783,
-          -587.1010845074107,
-          289.84063820489325
+          97.41848887443243,
+          81.7438180843842,
+          -1731.7368582525492
         ],
         "fov": 55
       },
-      "settleMs": 6601
+      "settleMs": 6615
     },
     {
-      "view": "equatorial-crater",
+      "view": "polar-coarse",
       "mode": "on-rehorizon",
-      "file": "equatorial-crater-on-rehorizon-gpu-3840w.png",
-      "epochEt": 914655909.184,
+      "file": "polar-coarse-on-rehorizon-gpu-3840w.png",
+      "epochEt": 915181509.184,
       "sun": {
-        "elevationDeg": 2.864776323920278,
-        "azimuthDeg": 90.77632443787707,
-        "cosIncidence": 0.04997894873222607
+        "elevationDeg": 3.0086683011212307,
+        "azimuthDeg": 313.0786316926991,
+        "cosIncidence": 0.052487038700305605
       },
-      "frameMeanMs": 4.69,
-      "frameP50Ms": 4.5,
-      "frameP95Ms": 9.7,
-      "frameMaxMs": 13.6,
+      "frameMeanMs": 5.37,
+      "frameP50Ms": 4.9,
+      "frameP95Ms": 12.8,
+      "frameMaxMs": 36.2,
       "shadow": {
         "state": "ready",
         "levels": [
@@ -756,74 +932,96 @@
             "texelKm": 0.0625,
             "valid": true,
             "offsetKm": [
-              -247.8125,
-              3.0625
+              82,
+              85.5625
             ],
             "lastReason": "new-data",
-            "lastSampledTexels": 13056,
+            "lastSampledTexels": 3808,
             "unknownFraction": 0,
-            "builds": 16,
-            "lastBuildMs": 27.99999988079071
+            "coarseFraction": 0,
+            "builds": 13,
+            "lastBuildMs": 9.300000071525574,
+            "horizonSunLagDeg": 0
           },
           {
-            "halfKm": 64,
-            "texelKm": 0.5,
+            "halfKm": 24,
+            "texelKm": 0.1875,
             "valid": true,
             "offsetKm": [
-              -248,
-              3
+              81.9375,
+              85.5
             ],
             "lastReason": "recenter",
-            "lastSampledTexels": 65536,
+            "lastSampledTexels": 29641,
             "unknownFraction": 0,
+            "coarseFraction": 0,
             "builds": 4,
-            "lastBuildMs": 143.09999978542328
+            "lastBuildMs": 69.299999833107,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              81.875,
+              85.625
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 20512,
+            "unknownFraction": 0,
+            "coarseFraction": 0.1439666748046875,
+            "builds": 3,
+            "lastBuildMs": 32.10000002384186,
+            "horizonSunLagDeg": 0
           },
           {
             "halfKm": 320,
             "texelKm": 2.5,
             "valid": true,
             "offsetKm": [
-              -247.5,
-              2.5
+              82.5,
+              85
             ],
-            "lastReason": "new-data",
-            "lastSampledTexels": 4189,
+            "lastReason": "recenter",
+            "lastSampledTexels": 50496,
             "unknownFraction": 0,
-            "builds": 3,
-            "lastBuildMs": 9.699999928474426
+            "coarseFraction": 0.62530517578125,
+            "builds": 2,
+            "lastBuildMs": 71.39999985694885,
+            "horizonSunLagDeg": 0
           }
         ],
-        "anchorResets": 2,
-        "horizonRenders": 362,
+        "anchorResets": 1,
+        "horizonRenders": 551,
         "rangeKm": 320,
         "unknownDrawnLit": true
       },
       "tiles": {
-        "active": 231,
-        "visible": 231,
-        "drawn": 8,
-        "loaded": 1027,
-        "inCache": 1027,
-        "cpu": 460
+        "active": 360,
+        "visible": 360,
+        "drawn": 22,
+        "loaded": 1142,
+        "inCache": 1142,
+        "cpu": 509
       },
       "pose": {
         "eye": [
-          1653.6883174498291,
-          -605.1639873707746,
-          275.75579254017197
+          102.118251021486,
+          107.65674940708442,
+          -1761.1600288206105
         ],
         "target": [
-          1606.0660263560783,
-          -587.1010845074107,
-          289.84063820489325
+          97.41848887443243,
+          81.7438180843842,
+          -1731.7368582525492
         ],
         "fov": 55
       },
-      "settleMs": 6601
+      "settleMs": 6615
     },
     {
-      "view": "equatorial-crater",
+      "view": "polar-coarse",
       "errors": []
     }
   ]
