@@ -372,6 +372,21 @@ one program for relit, baked, flood, mixed and overlay tiles). SwiftShader is no
 GPU or mobile measurement: no desktop GPU or mobile hardware was available, so
 those remain unmeasured.
 
+### Regression against `main`
+
+The acceptance criterion for #372 is no unintended change to existing demos. Same
+cameras, epochs and layers on `main` and this branch, real viewer, hosted data,
+every frame fully streamed, catalogs as shipped on each side (no provenance
+overrides): LRO/Shackleton (two epochs), equator, MoonFall (two ranges), Jezero
+(Ingenuity and imagery catalogs), Gale, the globe-to-streamed ranges at Sun 60° and
+8° (12 000 km preloading globe, 6 000, 2 500, 700 km). **Fourteen of seventeen views are pixel-identical** (0 differing pixels), including every
+Moon frame once a place label that faded in on the first capture of one view is
+recaptured. The three Jezero frames differ in at most 0.006 % of pixels (scattered
+edge pixels, max channel difference 104, 5 and 4). Details:
+[`regression-vs-main.json`](validation/surface-illumination/regression-vs-main.json).
+Known and unchanged: the three.js `uploadTexture` `reading 'width'` console error
+while the geographic overlay stack streams.
+
 ### Recommendation (deferred; not applied to any shipped demo)
 
 #372 changes no existing demo's appearance: provenance is opt-in, and the

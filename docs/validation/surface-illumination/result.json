@@ -92,8 +92,8 @@
     "total": 1
   },
   "timing": {
-    "plainMs": 1.0600000000034924,
-    "hookMs": 1.1850000000034924,
+    "plainMs": 0.8974999999976717,
+    "hookMs": 1.004999999993015,
     "note": "software WebGL; no GPU/mobile claim"
   },
   "perPixel": {
@@ -103,7 +103,7 @@
     },
     "half": {
       "left": 0.057663872838020325,
-      "right": 0.27883195877075195
+      "right": 0.27883192896842957
     }
   },
   "overlayPlugin": {
@@ -117,7 +117,7 @@
     },
     "half": {
       "left": 0.057882159948349,
-      "right": 0.210191547870636
+      "right": 0.1544312834739685
     }
   },
   "terminator": {
@@ -126,5 +126,24 @@
     "nightShadow": 0.1666666716337204,
     "nightFlood": 0.5,
     "grazing": 0.4551511046011001
+  },
+  "stacking": {
+    "worstErrorLinearRgb": 1.1563301083317157e-07,
+    "earlierFormulationWorstError": 0.11377822965018863,
+    "cases": 72,
+    "note": "each layer rendered alone then folded with the stack alphas = reference; real ImageOverlayPlugin compositor and hooks"
+  },
+  "libraryOpacity": {
+    "got": [
+      0.15189222991466522,
+      0.185712069272995,
+      0.20847965776920319
+    ],
+    "fiftyPercentBlend": [
+      0.17443878576159477,
+      0.25335170328617096,
+      0.31016018986701965
+    ],
+    "maxDiff": 0.10168053209781647
   }
 }
