@@ -16,7 +16,7 @@ describe('replayed synthetic session', () => {
     const base = TLE.epochMs + 3_600_000;
     const clock = { ms: base };
     const transport = new ReplayTransport();
-    const feed = createLiveIssFeed({ config: CONFIG, transport, now: () => clock.ms, staleAfterMs: 10_000 });
+    const feed = createLiveIssFeed({ config: CONFIG, transport, now: () => clock.ms, staleAfterMs: 10_000, acceptUnverified: true });
     feed.setOrbit(TLE);
     const manager = new MissionStateManager({ now: () => clock.ms });
     manager.addSource(feed.source);
@@ -50,7 +50,7 @@ describe('replayed synthetic session', () => {
       const base = TLE.epochMs + 3_600_000;
       const clock = { ms: base };
       const transport = new ReplayTransport();
-      const feed = createLiveIssFeed({ config: CONFIG, transport, now: () => clock.ms });
+      const feed = createLiveIssFeed({ config: CONFIG, transport, now: () => clock.ms, acceptUnverified: true });
       feed.setOrbit(TLE);
       new MissionStateManager({ now: () => clock.ms }).addSource(feed.source);
       for (const e of syntheticSession(base).events) { clock.ms = e.at; if (e.kind === 'connection') transport.connection(e.state); else transport.item(e.update); }

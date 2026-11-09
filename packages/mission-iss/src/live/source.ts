@@ -19,7 +19,7 @@ import {
   type AttitudeConvention, type MissionStateSink, type MissionStateSource, type PositionConvention,
 } from '@cosmolabe/core';
 import type { IssJointAngles } from '../joints.js';
-import type { JointSource } from '../plugin.js';
+import type { JointSource, JointSourceStatus } from '../plugin.js';
 import { CoherentAssembler, type AssemblerOptions, type ItemUpdate, type RejectReason } from './assembler.js';
 import { telemetryToInertialToBody, type Quat, type TelemetryAttitudeConvention } from './frames.js';
 import { DEFAULT_ORBIT_MAX_AGE_MS, orbitValidity, type OrbitValidity, type SourcedTle } from './orbit.js';
@@ -36,6 +36,12 @@ export interface JointChannels {
   offsetsRad?: Readonly<Record<string, number>>;
   /** Components of one joint sample may differ by this much. Default 2000 ms. */
   toleranceMs?: number;
+  /**
+   * Whether the item mapping, signs, zero offsets and wing assignment were
+   * independently confirmed. Joint angles are applied to the model only when
+   * `'verified'` (or the feed is created with `acceptUnverified`).
+   */
+  verification?: 'unverified' | 'verified';
 }
 
 export interface LiveIssConfig {
@@ -59,6 +65,12 @@ export interface LiveIssOptions {
   transport: LiveTransport;
   /** Local clock, ms. */
   now?: () => number;
+  /**
+   * Experiment opt-in. Unverified attitude and joint mappings are NOT applied
+   * (nothing is published to MissionState, no joint reaches the rig) unless
+   * this is set, so unverified telemetry is never shown as physical orientation.
+   */
+  acceptUnverified?: boolean;
   /** A connected feed with no new sample for this long is `stale`. Default 10 000 ms. */
   staleAfterMs?: number;
   /** TLE validity either side of its epoch. Default 3 days. */
@@ -115,6 +127,9 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
   const jointValidForS = options.jointValidForS ?? 10;
   const inertialFrame = config.attitude.inertialFrame ?? 'J2000';
   const lvlh = config.attitude.convention.reference === 'LVLH';
+  const acceptUnverified = options.acceptUnverified === true;
+  const attitudeGated = config.attitude.verification !== 'verified' && !acceptUnverified;
+  const jointsGated = config.joints?.verification !== 'verified' && !acceptUnverified;
 
   const position: PositionConvention = {
     timeScale: 'UTC', frame: 'TEME', center: 'Earth', positionUnits: 'km', velocityUnits: 'km/s', maxSampleSpacing: spacingS,
@@ -161,6 +176,7 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
     };
     const result = (state: LiveIssState, reason?: string): LiveIssStatus => ({ state, reason, ...base });
     if (!sink) return result('unavailable', 'not started');
+    if (attitudeGated) return result('unavailable', 'Attitude mapping is unverified and not applied');
     if (connection === 'disconnected') return result('disconnected', 'Feed disconnected');
     if (connection !== 'connected') return result('unavailable', 'Connecting to the feed');
     if (orbit.state !== 'current') return result('unavailable', orbit.state === 'missing' ? 'No current orbit element set' : 'Orbit element set is outside its validity window');
@@ -171,12 +187,16 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
 
   function jointStatus(t: number): LiveIssStatus['joints'] {
     if (!config.joints || !jointAssembler) return { state: 'unavailable', reason: 'Solar-array channels are not configured' };
+    if (jointsGated) return { state: 'unavailable', reason: 'Joint mapping is unverified and not applied' };
+    if (connection === 'disconnected') return { state: 'unavailable', reason: 'Feed disconnected' };
+    if (connection !== 'connected') return { state: 'unavailable', reason: 'Connecting to the feed' };
     if (!latestJoints) return { state: 'unavailable', reason: 'No coherent joint sample yet' };
     const age = t - latestJoints.ms;
     return age > staleAfterMs ? { state: 'stale', sourceAgeMs: age } : { state: 'live', sourceAgeMs: age };
   }
 
   function handleAttitude(sourceMs: number, values: Readonly<Record<string, number>>): void {
+    if (attitudeGated) return;
     const v = config.attitude.items.map((item) => values[item]);
     const telemetry: Quat = config.attitude.order === 'scalar-first' ? [v[0], v[1], v[2], v[3]] : [v[3], v[0], v[1], v[2]];
     const validity = orbitValidity(tle, sourceMs, maxOrbitAgeMs);
@@ -213,7 +233,7 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
           { t: iso(sourceMs), quaternion: q },
         ],
       }, {
-        id: 'iss-live-attitude', kind: 'attitude', source: 'NASA ISS Live telemetry (observed)', version: `frame ${config.attitude.convention.reference} ${config.attitude.verification}`,
+        id: 'iss-live-attitude', kind: 'attitude', source: `NASA ISS Live telemetry (observed${config.attitude.verification === 'verified' ? '' : '; mapping UNVERIFIED'})`, version: `frame ${config.attitude.convention.reference} ${config.attitude.verification}`,
         classification: 'reconstructed',
       }));
     } catch (error) {
@@ -281,18 +301,23 @@ export function createLiveIssFeed(options: LiveIssOptions): LiveIssFeed {
     },
   };
 
+  const jointStatusAt = (et: number): JointSourceStatus => {
+    if (!config.joints || !jointAssembler) return 'unavailable';
+    if (jointsGated) return 'unverified';
+    if (connection === 'disconnected') return 'disconnected';
+    if (connection !== 'connected') return 'unavailable';
+    if (!latestJoints) return 'unavailable';
+    if (now() - latestJoints.ms > staleAfterMs) return 'stale';
+    // The simulation clock must be at the sample: no live angle on any other epoch.
+    if (Math.abs(et - etFromDate(new Date(latestJoints.ms))) > jointValidForS) return 'not-current';
+    return 'live';
+  };
+
   const jointSource: JointSource = {
     authority: 'observed',
     label: 'NASA ISS Live telemetry',
-    anglesAt(et) {
-      if (!latestJoints) return undefined;
-      const t = now();
-      if (t - latestJoints.ms > staleAfterMs) return undefined;
-      // The simulation clock must be at the sample: no live angle on any other epoch.
-      if (Math.abs(et - etFromDate(new Date(latestJoints.ms))) > jointValidForS) return undefined;
-      if (connection !== 'connected') return undefined;
-      return latestJoints.angles;
-    },
+    status: jointStatusAt,
+    anglesAt: (et) => (jointStatusAt(et) === 'live' ? latestJoints!.angles : undefined),
   };
 
   return {

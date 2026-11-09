@@ -55,6 +55,10 @@ export function wrapAngle(rad: number): number {
   return a;
 }
 
+/** Half-angles (as sines) of the polar region around the model X axis where the truss is held, not tracked. */
+const POLE_INNER = Math.sin((1 * Math.PI) / 180);
+const POLE_OUTER = Math.sin((8 * Math.PI) / 180);
+
 /**
  * Truss and array angles that point the arrays at a Sun direction.
  *
@@ -66,15 +70,32 @@ export function wrapAngle(rad: number): number {
  * (-sin, cos), so `array = -atan2(x, y')` finishes the alignment: the array
  * normal ends up on the Sun line.
  *
+ * **Near the X axis the truss angle is undefined**: with the Sun within a
+ * few degrees of +/-X, a tiny change of direction would swing `atan2(z, y)`
+ * by up to 180 degrees (the truss snapping while the arrays barely move). So
+ * the truss angle is faded to 0 as the Sun approaches the axis (`r` below is
+ * the sine of its angle from X): exact beyond 8 degrees, held at 0 within
+ * 1 degree, smoothstep between. Inside the fade the arrays still take the best
+ * angle for the held truss, so the pointing error is bounded by the Sun's
+ * angle from the axis (at most 8 degrees) and vanishes outside it. This is a
+ * pure function of the Sun direction, so there is no history or smoothing.
+ * It cannot be made continuous everywhere: a function that follows the
+ * azimuth around the axis (as required away from it) and is steady on the axis
+ * must change pose along some line; that line is where the Sun is on the
+ * model's -Y side and within 8 degrees of the axis.
+ *
  * The same pair of angles is used for every wing: all share one axis
  * direction in this model. Returns `undefined` for a zero or non-finite Sun
  * vector so a caller can report it rather than move joints to arbitrary
  * angles.
  */
 export function sunTrackingAngles(sunLocal: Vec3): { truss: number; array: number } | undefined {
-  const [x, y, z] = sunLocal;
-  if (![x, y, z].every(Number.isFinite) || Math.hypot(x, y, z) === 0) return undefined;
-  const truss = Math.atan2(z, y);
+  const norm = Math.hypot(...sunLocal);
+  if (![...sunLocal].every(Number.isFinite) || norm === 0) return undefined;
+  const x = sunLocal[0] / norm, y = sunLocal[1] / norm, z = sunLocal[2] / norm;
+  const r = Math.hypot(y, z);
+  const u = Math.min(1, Math.max(0, (r - POLE_INNER) / (POLE_OUTER - POLE_INNER)));
+  const truss = u * u * (3 - 2 * u) * Math.atan2(z, y);
   const inPlane = y * Math.cos(truss) + z * Math.sin(truss);
   const array = -Math.atan2(x, inPlane);
   return { truss: wrapAngle(truss), array: wrapAngle(array) };

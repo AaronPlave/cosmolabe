@@ -16,7 +16,7 @@ const CONFIG: LiveIssConfig = {
 function setup(config: LiveIssConfig = CONFIG, withOrbit = true) {
   const clock = { ms: TLE.epochMs + 2 * 3_600_000 };
   const transport = new ReplayTransport();
-  const feed = createLiveIssFeed({ config, transport, now: () => clock.ms, staleAfterMs: 10_000 });
+  const feed = createLiveIssFeed({ config, transport, now: () => clock.ms, staleAfterMs: 10_000, acceptUnverified: true });
   if (withOrbit) feed.setOrbit(TLE);
   const manager = new MissionStateManager({ now: () => clock.ms });
   manager.addSource(feed.source);
@@ -236,5 +236,63 @@ describe('live joint source', () => {
     const { feed } = setup({ attitude: CONFIG.attitude });
     expect(feed.status().joints).toEqual({ state: 'unavailable', reason: 'Solar-array channels are not configured' });
     expect(feed.jointSource.anglesAt(0)).toBeUndefined();
+  });
+});
+
+describe('unverified mappings are not applied by default', () => {
+  const build = (accept: boolean) => {
+    const clock = { ms: TLE.epochMs + 3_600_000 };
+    const transport = new ReplayTransport();
+    const feed = createLiveIssFeed({ config: CONFIG, transport, now: () => clock.ms, acceptUnverified: accept });
+    feed.setOrbit(TLE);
+    const manager = new MissionStateManager({ now: () => clock.ms });
+    manager.addSource(feed.source);
+    transport.connection('connected');
+    ITEMS.forEach((item, i) => transport.item({ item, value: [1, 0, 0, 0][i], sourceTimeMs: clock.ms - 500 }));
+    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    return { clock, feed, manager };
+  };
+  const et = (ms: number) => etFromDate(new Date(ms));
+
+  it('publishes nothing to MissionState and gives the rig no angles, saying why', () => {
+    const { clock, feed, manager } = build(false);
+    expect(manager.availability('ISS-LIVE', 'attitude', et(clock.ms - 500)).available).toBe(false);
+    expect(feed.status()).toMatchObject({ state: 'unavailable', reason: expect.stringContaining('unverified'), joints: { state: 'unavailable', reason: expect.stringContaining('unverified') } });
+    expect(feed.jointSource.anglesAt(et(clock.ms - 500))).toBeUndefined();
+    expect(feed.jointSource.status(et(clock.ms - 500))).toBe('unverified');
+  });
+
+  it('the explicit experiment opt-in applies them and labels the provenance unverified', () => {
+    const { clock, feed, manager } = build(true);
+    const a = manager.availability('ISS-LIVE', 'attitude', et(clock.ms - 500));
+    expect(a.available).toBe(true);
+    expect(a.provenance?.source).toContain('UNVERIFIED');
+    expect(feed.jointSource.anglesAt(et(clock.ms - 500))).toBeDefined();
+  });
+
+  it('verified configurations apply without the opt-in', () => {
+    const clock = { ms: TLE.epochMs + 3_600_000 };
+    const transport = new ReplayTransport();
+    const feed = createLiveIssFeed({ config: { ...CONFIG, attitude: { ...CONFIG.attitude, verification: 'verified' }, joints: { ...CONFIG.joints!, verification: 'verified' } }, transport, now: () => clock.ms });
+    feed.setOrbit(TLE);
+    new MissionStateManager({ now: () => clock.ms }).addSource(feed.source);
+    transport.connection('connected');
+    ITEMS.forEach((item, i) => transport.item({ item, value: [1, 0, 0, 0][i], sourceTimeMs: clock.ms - 500 }));
+    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    expect(feed.status().state).toBe('live');
+    expect(feed.jointSource.status(etFromDate(new Date(clock.ms - 500)))).toBe('live');
+  });
+});
+
+describe('joint status through disconnect', () => {
+  it('reports unavailable/disconnected, never live, after the feed drops', () => {
+    const { clock, transport, feed, et } = setup();
+    transport.connection('connected');
+    ['J_S4', 'J_P4', 'J_B1'].forEach((item) => transport.item({ item, value: 10, sourceTimeMs: clock.ms - 500 }));
+    const e = et(clock.ms - 500);
+    expect(feed.status().joints.state).toBe('live');
+    transport.connection('disconnected');
+    expect(feed.status().joints).toMatchObject({ state: 'unavailable' });
+    expect(feed.jointSource.status(e)).toBe('disconnected');
   });
 });

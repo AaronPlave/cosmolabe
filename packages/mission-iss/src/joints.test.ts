@@ -27,8 +27,8 @@ describe('sunTrackingAngles', () => {
     expect(a.array).toBeCloseTo(-Math.PI / 6, 12);
   });
 
-  it('puts the array normal on the Sun for arbitrary directions (forward-composition check)', () => {
-    for (const sun of [[0.3, -0.7, 0.2], [-0.9, 0.1, 0.4], [0.5, 0.5, -0.7], [-0.2, -0.3, -0.9], [1, 0.01, 0.02]] as Vec3[]) {
+  it('puts the array normal on the Sun for arbitrary directions away from the X axis (forward-composition check)', () => {
+    for (const sun of [[0.3, -0.7, 0.2], [-0.9, 0.1, 0.4], [0.5, 0.5, -0.7], [-0.2, -0.3, -0.9], [0.9, 0.3, 0.3]] as Vec3[]) {
       const a = sunTrackingAngles(sun)!;
       const n = arrayNormal(a.truss, a.array);
       const s = norm(sun);
@@ -58,6 +58,57 @@ describe('sunTrackingAngles', () => {
       expect(a.truss).toBeLessThanOrEqual(Math.PI);
       expect(a.array).toBeGreaterThan(-Math.PI - 1e-12);
       expect(a.array).toBeLessThanOrEqual(Math.PI);
+    }
+  });
+});
+
+const angleBetween = (a: Vec3, b: Vec3) => Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b)))));
+const deg = (rad: number) => (rad * 180) / Math.PI;
+
+describe('Sun near the model X axis (truss singularity)', () => {
+  const off = (sepDeg: number, azimuthRad: number, sign = 1): Vec3 => {
+    const s = Math.sin((sepDeg * Math.PI) / 180);
+    return [sign * Math.cos((sepDeg * Math.PI) / 180), s * Math.cos(azimuthRad), s * Math.sin(azimuthRad)];
+  };
+
+  it('holds the truss steady on the axis instead of snapping by ~180 degrees for a tiny change', () => {
+    for (const sign of [1, -1]) {
+      const a = sunTrackingAngles(off(0.05, 0, sign))!, b = sunTrackingAngles(off(0.05, Math.PI * 0.99, sign))!;
+      // Opposite sides of the axis: the unguarded formula puts the truss ~180 degrees apart.
+      expect(Math.abs(a.truss)).toBeLessThan(1e-2);
+      expect(Math.abs(b.truss)).toBeLessThan(1e-2);
+      expect(Math.abs(sunTrackingAngles(off(0, 0, sign))!.truss)).toBe(0);
+    }
+  });
+
+  it('is exact outside 8 degrees and within 8 degrees of the Sun inside it', () => {
+    for (const sep of [0, 0.5, 1, 2, 4, 6, 7.9, 8.1, 20, 60]) {
+      for (let k = 0; k < 12; k++) {
+        const sun = off(sep, (k * Math.PI) / 6 + 0.1);
+        const a = sunTrackingAngles(sun)!;
+        const err = deg(angleBetween(arrayNormal(a.truss, a.array), sun));
+        if (sep >= 8.1) expect(err).toBeLessThan(1e-4); else expect(err).toBeLessThanOrEqual(8 + 1e-9);
+      }
+    }
+  });
+
+  it('stays continuous for the Sun passing the axis at any offset, except across the documented cut on the model -Y side', () => {
+    // -Y is nadir in this model (cupola side): the Sun is there only in eclipse. A function that tracks the azimuth
+    // away from the axis and is steady on it must change pose along one line; this is it.
+    const inCut = (y: number, z: number) => Math.hypot(y, z) < 0.15 && y < 0 && Math.abs(Math.atan2(z, y)) > (170 * Math.PI) / 180;
+    const step = 0.002; // rad of Sun motion per sample
+    for (const closestDeg of [0, 0.3, 1, 2.5, 5, 8, 12]) {
+      const d = Math.tan((closestDeg * Math.PI) / 180);
+      for (const psi of [0, 0.7, Math.PI / 2, 2.1, Math.PI, 4.0, 5.2]) {
+        // A straight run across the tangent plane at +X: along (cos psi, sin psi), offset d to its side.
+        let prev: number | undefined, py = 0, pz = 0;
+        for (let t = -0.4; t <= 0.4; t += step) {
+          const y = t * Math.cos(psi) - d * Math.sin(psi), z = t * Math.sin(psi) + d * Math.cos(psi);
+          const truss = sunTrackingAngles([1, y, z])!.truss;
+          if (prev !== undefined && !inCut(y, z) && !inCut(py, pz)) expect(Math.abs(wrapAngle(truss - prev))).toBeLessThan(0.15);
+          prev = truss; py = y; pz = z;
+        }
+      }
     }
   });
 });

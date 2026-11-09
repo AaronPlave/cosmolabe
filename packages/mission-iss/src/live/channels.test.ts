@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CoherentAssembler } from './assembler.js';
-import { CANDIDATE_JOINT_ITEMS, issLiveTransportConfig, parseIssLiveTimestamp } from './channels.js';
+import { CANDIDATE_JOINT_ITEMS, ISS_ATTITUDE_ITEMS, issLiveConfig, issLiveTransportConfig, parseIssLiveTimestamp } from './channels.js';
 import { ARRAY_JOINTS, TRUSS_JOINTS } from '../joints.js';
 
 describe('ISS Live channel mapping', () => {
@@ -18,10 +18,18 @@ describe('ISS Live channel mapping', () => {
   });
 
   it('asks for the status field and the transport config carries the good class', () => {
-    const c = issLiveTransportConfig(() => Date.UTC(2026, 10, 9));
+    const c = issLiveTransportConfig(issLiveConfig(), () => Date.UTC(2026, 10, 9));
     expect(c.fields).toContain('Status.Class');
     expect(c.goodStatus).toBe('24');
     expect(c.parseSourceTime('24')).toBe(Date.UTC(2026, 0, 1));
+  });
+});
+
+describe('transport subscription', () => {
+  it('subscribes to the attitude items only, or the joint items too when joints are configured', () => {
+    expect(issLiveTransportConfig(issLiveConfig()).items).toEqual([...ISS_ATTITUDE_ITEMS]);
+    const withJoints = issLiveTransportConfig(issLiveConfig({ joints: { items: CANDIDATE_JOINT_ITEMS, unit: 'deg' } })).items;
+    expect(withJoints).toEqual([...ISS_ATTITUDE_ITEMS, ...Object.values(CANDIDATE_JOINT_ITEMS)]);
   });
 });
 

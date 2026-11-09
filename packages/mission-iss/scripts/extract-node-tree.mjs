@@ -4,12 +4,12 @@
  * model into a small JSON fixture (#370), so articulation tests can run
  * without the 44 MB Git LFS asset. Reads only the glTF JSON chunk.
  *
- *   node apps/viewer/src/lib/iss/extract-node-tree.mjs [model.glb] [out.json]
+ *   node packages/mission-iss/scripts/extract-node-tree.mjs [model.glb] [out.json]
  */
 import fs from 'node:fs';
 
 const input = process.argv[2] ?? 'apps/viewer/test-catalogs/models/ISS_stationary.glb';
-const output = process.argv[3] ?? 'apps/viewer/src/lib/iss/__fixtures__/iss-node-tree.json';
+const output = process.argv[3] ?? 'packages/mission-iss/src/__fixtures__/iss-node-tree.json';
 
 const buf = fs.readFileSync(input);
 if (buf.readUInt32LE(0) !== 0x46546c67) throw new Error(`${input} is not a GLB (is it an unfetched Git LFS pointer? run git lfs pull)`);

@@ -53,11 +53,12 @@ export function parseIssLiveTimestamp(raw: string, year: number): number {
   return Number.isFinite(hours) && hours > 0 ? Date.UTC(year - 1, 11, 31) + hours * 3_600_000 : NaN;
 }
 
-export function issLiveTransportConfig(now: () => number = Date.now, items: readonly string[] = [...ISS_ATTITUDE_ITEMS]): LightstreamerConfig {
+/** Transport config subscribing to every item `config` needs: the attitude items and any configured joint items. */
+export function issLiveTransportConfig(config: LiveIssConfig, now: () => number = Date.now): LightstreamerConfig {
   return {
     server: ISS_LIVE_SERVER,
     adapterSet: ISS_LIVE_ADAPTER,
-    items,
+    items: [...config.attitude.items, ...(config.joints ? Object.values(config.joints.items) : [])],
     fields: ISS_LIVE_FIELDS,
     valueField: 'Value',
     timeField: 'TimeStamp',

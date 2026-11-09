@@ -13,7 +13,7 @@ import { IssRig } from './rig.js';
 import { sunTrackingJointAngles } from './joints.js';
 import { buildIssModel } from './__fixtures__/build-model.js';
 
-const GLB = path.resolve(import.meta.dirname, '../../../test-catalogs/models/ISS_stationary.glb');
+const GLB = path.resolve(import.meta.dirname, '../../../apps/viewer/test-catalogs/models/ISS_stationary.glb');
 const present = fs.existsSync(GLB) && fs.statSync(GLB).size > 1_000_000;
 
 function stripImages(glb: Buffer): ArrayBuffer {

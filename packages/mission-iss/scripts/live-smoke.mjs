@@ -6,7 +6,7 @@
  *   - feed ticking  -> status `live`, a sample on MissionState, plausible pose;
  *   - feed frozen   -> NOT `live` (stale/unavailable), no sample on MissionState.
  * Start `npm --prefix apps/viewer run dev` first, then:
- *   node apps/viewer/src/lib/iss/live-smoke.mjs
+ *   node packages/mission-iss/scripts/live-smoke.mjs
  */
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -22,16 +22,16 @@ try {
   await page.addScriptTag({ path: path.resolve('node_modules/lightstreamer-client-web/lightstreamer-core.js') });
   const r = await page.evaluate(async ({ waitS, root }) => {
     const core = await import('/@fs/' + root + '/packages/core/src/index.ts');
-    const live = await import('/src/lib/iss/live/source.ts');
-    const ch = await import('/src/lib/iss/live/channels.ts');
-    const tr = await import('/src/lib/iss/live/transport.ts');
-    const orb = await import('/src/lib/iss/live/orbit.ts');
+    const live = await import('/@fs/' + root + '/packages/mission-iss/src/live/source.ts');
+    const ch = await import('/@fs/' + root + '/packages/mission-iss/src/live/channels.ts');
+    const tr = await import('/@fs/' + root + '/packages/mission-iss/src/live/transport.ts');
+    const orb = await import('/@fs/' + root + '/packages/mission-iss/src/live/orbit.ts');
     const ls = window; // the UMD build below defines LightstreamerClient / Subscription globals
-    const items = [...ch.ISS_ATTITUDE_ITEMS, ...Object.values(ch.CANDIDATE_JOINT_ITEMS)];
-    const joints = { items: ch.CANDIDATE_JOINT_ITEMS, unit: 'deg' };
+    const config = ch.issLiveConfig({ joints: { items: ch.CANDIDATE_JOINT_ITEMS, unit: 'deg' } });
     const feed = live.createLiveIssFeed({
-      config: ch.issLiveConfig({ joints }),
-      transport: tr.lightstreamerTransport(ls, ch.issLiveTransportConfig(Date.now, items)),
+      config,
+      transport: tr.lightstreamerTransport(ls, ch.issLiveTransportConfig(config)),
+      acceptUnverified: true, // experiment: the mappings are unverified, so the gate must be opened to see samples
     });
     feed.setOrbit(await orb.fetchCelestrakIss(fetch.bind(window)));
     const manager = new core.MissionStateManager();

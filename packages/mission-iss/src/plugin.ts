@@ -1,21 +1,25 @@
 /**
- * Trusted built-in renderer plugin that articulates the NASA ISS model (#370).
+ * Renderer plugin that articulates the NASA ISS model (#370).
  *
- * It attaches to whatever catalog body's loaded model carries the ISS truss and
- * array nodes (the rig verifies them; any other model is left alone), and each
- * frame sets joint angles from one of two authorities:
+ * It attaches to a catalog body whose loaded model carries the ISS truss and
+ * array nodes (the rig verifies them; any other model is left alone). Each
+ * frame it sets joint angles from one of two authorities:
  *
- *  - the **approximate** mode: arrays pointed at the Sun from the current
- *    scene geometry. A pure function of the current state, so seeking and
+ *  - **observed**: a `JointSource` a host registered for the body (the
+ *    live-data seam of #371), only while it reports valid, time-appropriate
+ *    angles;
+ *  - **approximate Sun tracking**: arrays aimed at the Sun from the current
+ *    scene geometry, a pure function of the current state, so seeking and
  *    reverse playback land on the same pose and nothing smooths over time.
- *    It is explicitly *not* recorded or commanded ISS joint state.
- *  - an **observed** `JointSource` a host registers for a named body (the
- *    live-data seam of #371). While the source has no valid angles the arrays
- *    return to their authored pose and the readout says so; the approximation
- *    never quietly stands in for missing observations.
+ *    Explicitly *not* recorded or commanded ISS joint state.
  *
- * No catalog code is executed: a catalog only supplies the model it already
- * had. Scene disposal restores every joint it moved.
+ * Whenever observed angles are not available (no source, stale, disconnected,
+ * unverified mapping, or a simulation time away from the sample), the pose is
+ * the approximation, and the readout says why. It never freezes an old pose
+ * and never touches the station's body attitude: only joint nodes move.
+ *
+ * No catalog code is executed. Disposal restores every joint it moved, and is
+ * safe to call twice (renderer and universe both dispose their plugins).
  */
 import * as THREE from 'three';
 import type { Body } from '@cosmolabe/core';
@@ -23,23 +27,25 @@ import type { InfoSectionResult, PluginUISlots, RendererContext, RendererPlugin 
 import { sunTrackingJointAngles, type IssJointAngles } from './joints.js';
 import { IssRig } from './rig.js';
 
-/** A host-supplied source of joint angles for one body. */
+/** Why a joint source has no angles to apply at an epoch. */
+export type JointSourceStatus = 'live' | 'stale' | 'disconnected' | 'unavailable' | 'unverified' | 'not-current';
+
+/** A host-supplied source of observed joint angles for one body. */
 export interface JointSource {
-  /** `observed` for real telemetry; shown in the readout. */
   readonly authority: 'observed';
-  /** One-line provenance for the info section, e.g. "NASA ISS Live (Lightstreamer)". */
+  /** One-line provenance for the readout, e.g. "NASA ISS Live telemetry". */
   readonly label: string;
   /** Angles valid at `et`, or `undefined` when there is no valid observation. */
   anglesAt(et: number): IssJointAngles | undefined;
+  /** Why `anglesAt(et)` is or is not usable, for the readout. */
+  status(et: number): JointSourceStatus;
 }
 
 export type ArticulationMode =
   /** Arrays aimed at the Sun from scene geometry; not recorded ISS state. */
   | 'approximate-sun-tracking'
-  /** Driven by a registered observed source. */
+  /** Driven by registered, valid observed angles. */
   | 'observed'
-  /** An observed source is registered but has no valid angles; arrays at authored pose. */
-  | 'observed-unavailable'
   /** The model lacks the expected nodes; the model draws as authored. */
   | 'disabled';
 
@@ -48,6 +54,8 @@ export interface ArticulationStatus {
   readonly mode: ArticulationMode;
   readonly diagnostic?: string;
   readonly sourceLabel?: string;
+  /** Why observed angles are not in use, when a source is registered and `mode` is approximate. */
+  readonly telemetry?: JointSourceStatus;
 }
 
 interface Binding {
@@ -57,10 +65,20 @@ interface Binding {
   /** Not the ISS model: no status, no readout. */
   silent: boolean;
   mode: ArticulationMode;
+  telemetry?: JointSourceStatus;
 }
 
 /** Statement the readout shows for the approximation. */
 export const APPROXIMATE_LABEL = 'Approximate Sun tracking (not recorded ISS array positions)';
+
+/** Catalog `Mesh` source of the NASA ISS model this plugin knows (inspected node layout). */
+const ISS_MODEL = /(?:^|[\\/])ISS_stationary\.glb$/i;
+
+/** Does this body draw the ISS model? Cheap, data-only; the rig still verifies the nodes. */
+export function usesIssModel(body: Body): boolean {
+  const geometry = body.geometryData as { type?: string; source?: unknown } | undefined;
+  return geometry?.type === 'Mesh' && typeof geometry.source === 'string' && ISS_MODEL.test(geometry.source);
+}
 
 const scratchSun = new THREE.Vector3();
 const scratchBody = new THREE.Vector3();
@@ -83,7 +101,7 @@ export class IssArticulationPlugin implements RendererPlugin {
   status(bodyName: string): ArticulationStatus | undefined {
     const b = this.bindings.get(bodyName);
     if (!b || b.silent) return undefined;
-    return { bodyName, mode: b.mode, diagnostic: b.diagnostic, sourceLabel: this.sources.get(bodyName)?.label };
+    return { bodyName, mode: b.mode, diagnostic: b.diagnostic, sourceLabel: this.sources.get(bodyName)?.label, telemetry: b.telemetry };
   }
 
   readonly ui: PluginUISlots = {
@@ -96,12 +114,14 @@ export class IssArticulationPlugin implements RendererPlugin {
           const s = this.status(body.name);
           if (!s) return null;
           switch (s.mode) {
-            case 'approximate-sun-tracking':
-              return { rows: [{ label: 'Joint state', value: APPROXIMATE_LABEL }, { label: 'Model', value: 'NASA ISS 3D model' }] };
             case 'observed':
               return { rows: [{ label: 'Joint state', value: 'Observed' }, { label: 'Source', value: s.sourceLabel ?? 'host source' }] };
-            case 'observed-unavailable':
-              return { rows: [{ label: 'Joint state', value: 'Unavailable (arrays shown at authored pose)' }, { label: 'Source', value: s.sourceLabel ?? 'host source' }] };
+            case 'approximate-sun-tracking':
+              return { rows: [
+                { label: 'Joint state', value: APPROXIMATE_LABEL },
+                ...(s.telemetry ? [{ label: 'Live telemetry', value: s.telemetry }] : []),
+                { label: 'Model', value: 'NASA ISS 3D model' },
+              ] };
             default:
               return { rows: [{ label: 'Joint state', value: 'Not articulated' }, ...(s.diagnostic ? [{ label: 'Reason', value: s.diagnostic }] : [])] };
           }
@@ -111,9 +131,7 @@ export class IssArticulationPlugin implements RendererPlugin {
   };
 
   onSceneSetup(ctx: RendererContext): void {
-    this.candidates = ctx.universe.getAllBodies()
-      .filter((b) => (b.geometryData as { type?: string } | undefined)?.type === 'Mesh')
-      .map((b) => b.name);
+    this.candidates = ctx.universe.getAllBodies().filter(usesIssModel).map((b) => b.name);
   }
 
   onBeforeRender(et: number, ctx: RendererContext): void {
@@ -130,7 +148,7 @@ export class IssArticulationPlugin implements RendererPlugin {
         binding?.rig?.restore();
         binding = this.bind(name, container);
       }
-      if (!binding.rig || !mesh || !mesh.isModelVisible) continue;
+      if (!binding.rig || !mesh) continue;
       this.drive(name, binding, mesh.position, et, ctx);
     }
   }
@@ -162,11 +180,12 @@ export class IssArticulationPlugin implements RendererPlugin {
       if (angles) {
         rig.apply(angles);
         binding.mode = 'observed';
-      } else {
-        rig.restore();
-        binding.mode = 'observed-unavailable';
+        binding.telemetry = undefined;
+        return;
       }
-      return;
+      binding.telemetry = source.status(et);
+    } else {
+      binding.telemetry = undefined;
     }
     const sun = ctx.getBodyMesh('Sun');
     scratchSun.copy(sun ? sun.position : scratchLocal.set(0, 0, 0));

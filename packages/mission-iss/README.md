@@ -1,12 +1,10 @@
 # ISS articulation and live telemetry (#370, #371)
 
-**Extraction note.** This directory is mission-specific and is meant to move
-out of the core viewer into the ISS mission plugin. Until then it is kept
-self-contained on purpose: it imports only public package APIs
-(`@cosmolabe/core`, `@cosmolabe/three`, `three`), nothing from the viewer's own
-`lib/`, and **no viewer code references it** (no loader, catalog schema or UI
-change). To move it, copy this directory; nothing else needs to change.
-`browser-check.mjs` shows how a host registers it (`renderer.use(plugin)`).
+The ISS mission plugin. It is an ordinary renderer plugin (`RendererPlugin`), installed by the viewer's
+trusted mission-plugin registry (see `docs/mission-plugins.md`), not part of core or generic viewer code.
+For a normal user of the public **Earth from Orbit** (`iss`) catalog it runs offline: the solar arrays face the
+Sun (approximate), the station's body attitude is untouched, and the selected-ISS panel carries a **Solar arrays**
+section with the provenance. Live telemetry is optional, off by default and gated (below).
 
 ## What is here
 
@@ -15,20 +13,22 @@ change). To move it, copy this directory; nothing else needs to change.
 | `joints.ts` | Joint names, model-local axis conventions, the Sun-tracking math (pure) |
 | `rig.ts` | Finds and verifies the real glTF joint nodes; applies/restores angles |
 | `plugin.ts` | Renderer plugin: Sun-tracking approximation, observed-source seam, info readout |
+| `registration.ts` | Trusted registration the host discovers (`appliesTo`: scene draws `ISS_stationary.glb`) |
+| `index.ts` | Public surface for hosts wiring the optional live feed |
 | `live/assembler.ts` | Coherent, timestamped, fresh sample assembly; counts rejections |
 | `live/frames.ts` | LVLH, quaternion composition, the model-to-body axis rotation |
 | `live/orbit.ts` | TLE parsing, validity window, CelesTrak fetch |
 | `live/transport.ts` | Transport seam, replay transport, Lightstreamer adapter (client injected) |
 | `live/channels.ts` | Observed ISS Live item mapping, timestamp parser, ready-made configs |
 | `live/source.ts` | `MissionStateSource` + joint source + status |
-| `__fixtures__/`, `live/__fixtures__/` | Node-tree extract of the real model; TLE; synthetic replay |
-| `browser-check.mjs` | Real-browser check against the `iss` catalog |
-| `live-smoke.mjs` | Optional real-provider smoke (network; not CI) |
-| `extract-node-tree.mjs` | Regenerates the node-tree fixture from the real glb |
+| `src/__fixtures__/`, `src/live/__fixtures__/` | Node-tree extract of the real model; TLE; synthetic replay |
+| `scripts/browser-check.mjs` | Real-browser check of the public `iss` catalog through the ordinary viewer (needs `npm --prefix apps/viewer run dev`) |
+| `scripts/live-smoke.mjs` | Optional real-provider smoke (network; not CI) |
+| `scripts/extract-node-tree.mjs` | Regenerates the node-tree fixture from the real glb |
 
 ## #370: the model, as inspected (`ISS_stationary.glb`, NASA ISS 3D model)
 
-Read from the glb's node tree, not assumed from names (`extract-node-tree.mjs`
+Read from the glb's node tree, not assumed from names (`scripts/extract-node-tree.mjs`
 regenerates the fixture; `real-model.test.ts` runs against the actual file when the LFS asset is present):
 
 - Local axes: +Z forward (Harmony at +Z, Zvezda at -Z), +Y zenith (S0 truss up, Cupola down), +X port.
@@ -40,6 +40,22 @@ The rig re-checks these at attach time (rest rotation axis, pivot/long axis, par
 
 The approximation is a pure function of the current Sun direction in model axes: no smoothing, no history,
 so seeks and reverse playback give identical poses. It is labelled **"Approximate Sun tracking (not recorded ISS array positions)"**.
+
+**Authority and fallback.** Observed joint angles (a `JointSource` a host registers) are used only while the source says
+`live` for the simulation time. In every other case (no source, `stale`, `disconnected`, `unverified`, or a simulation time
+away from the sample, `not-current`) the pose is the approximation, and the readout adds the telemetry status. The plugin
+never freezes an old pose, never restores a static pose in place of the approximation, and moves only joint nodes
+(never the station's body attitude).
+
+**Sun near the model X axis.** Away from the axis the arrays point exactly at the Sun. With the Sun within a few degrees of
+the truss axis the truss angle is undefined, and the unguarded formula swings it by up to 180 degrees for a tiny change.
+`sunTrackingAngles` holds the truss at 0 within 1 degree of the axis and fades to the exact value by 8 degrees; arrays take
+the best angle for the held truss, so pointing error is at most 8 degrees and only inside that cone. A function that follows the
+azimuth away from the axis and is steady on it cannot be continuous everywhere; its single cut is where the Sun is on the model's
+-Y (nadir, cupola) side within 8 degrees of the axis, i.e. in eclipse. Tests pin continuity everywhere else.
+
+The plugin drives the joints whether or not the model is currently visible (it costs ten quaternion writes per frame), so the
+readout and the pose agree.
 
 The truss angle is an absolute rotation about X relative to the unrotated parent; whether the 60 degrees baked into the file corresponds to a particular SARJ telemetry value is **not known** (`offsetsRad` in `JointChannels` is where that goes once confirmed).
 
@@ -76,12 +92,23 @@ or imagery), and only then set `verification: 'verified'`.
 - End to end through `MissionStateManager` with the SGP4 position at the *same* source epoch as the attitude (`source.test.ts`): live, stale, disconnected, unavailable; no value before the feed's own start (a historical clock reads `before-coverage`); removal stops the transport.
 - Joints reach the rig only within seconds of the simulation time and while fresh and connected, otherwise the arrays sit at the authored pose and the readout says unavailable; the approximation never stands in (`plugin.test.ts`, `source.test.ts`).
 
+### Gating
+
+Unverified telemetry is not presented as physical orientation. `createLiveIssFeed` publishes nothing to MissionState and gives
+the rig no joint angles unless the mapping is marked `verification: 'verified'` (attitude, joints) or the feed is created with
+the explicit `acceptUnverified: true` experiment opt-in. The shipped configuration is `unverified`; status says
+"unverified and not applied"; with the opt-in, provenance reads "mapping UNVERIFIED". The live position comes from a separately
+fetched, current TLE (CelesTrak) used only within its validity window at the sample's own epoch, never from a catalog TLE.
+Nothing in the public catalog activates the feed.
+
 ### Wiring (host)
 
 ```ts
+const config = issLiveConfig();
 const feed = createLiveIssFeed({
-  config: issLiveConfig(),                          // add { joints } only after validating CANDIDATE_JOINT_ITEMS
-  transport: lightstreamerTransport(await import('lightstreamer-client-web'), issLiveTransportConfig()),
+  config,                                           // issLiveConfig({ joints }) only after validating CANDIDATE_JOINT_ITEMS
+  transport: lightstreamerTransport(await import('lightstreamer-client-web'), issLiveTransportConfig(config)),
+  // acceptUnverified: true,                        // experiment only; see Gating
 });
 feed.setOrbit(await fetchCelestrakIss(fetch));
 missionState.addSource(feed.source);               // catalog: trajectory/rotationModel { type: 'MissionState', source: 'ISS-LIVE' }
@@ -93,9 +120,9 @@ that does not is unaffected, and removing the source (catalog unload) stops the 
 
 ## Not done / open
 
-- Real-feed validation against a *ticking* feed (above).
-- A **Live ISS on/off** control and compact status in the viewer UI, and a live catalog that binds `ISS-LIVE` (kept out of the core viewer by design; belongs to the plugin).
-- `ISS_MODEL_TO_BODY` (`live/frames.ts`) is the model-to-body rotation implied by the inspected axes
-  (quaternion `[0.5, -0.5, 0.5, -0.5]`). The public `iss` catalog's `meshRotation [0,1,0,0]` is a different, visual-only offset;
-  a live-attitude catalog must use the derived one. Not confirmed against a known real attitude sample.
+- Real-feed validation against a *ticking* feed (above); until then live attitude and joints stay gated.
+- A **Live ISS on/off** control and a live catalog binding `ISS-LIVE` are not shipped: they would activate unverified telemetry. They
+  belong here (plugin `ui` slots) once the mapping is verified; #371 stays open for that.
+- `ISS_MODEL_TO_BODY` (`live/frames.ts`) is the model-to-body rotation implied by the inspected axes (quaternion `[0.5, -0.5, 0.5, -0.5]`),
+  not checked against a known real attitude sample. The public `iss` catalog's `meshRotation [0,1,0,0]` is a different, visual-only offset.
 - Takram's formulas were used as the idea only; the derivation is in `joints.ts`.
