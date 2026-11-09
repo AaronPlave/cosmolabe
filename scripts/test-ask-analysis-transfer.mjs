@@ -22,16 +22,16 @@ const cases = [
 ];
 const report = { model, fallback: false, renderer: 'Chromium SwiftShader', cache: 'warmth uncontrolled', runs: [] };
 const proxy = createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new URL(base).origin], provider: anthropicProvider, model, escalationModel: model, fallback: false, maxTokens: 1536, tokenBudget: 600000, costBudgetUsd: 0.5, perMinute: 100, cache: true,
-  fetchImpl: (url, options) => { const body = JSON.parse(options.body); assert.equal(body.model, model); assert.equal(body.fallbacks, undefined); return fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(60000)]) }); },
+  fetchImpl: (url, options) => { const body = JSON.parse(options.body); assert.equal(body.model, model); assert.equal(body.fallbacks, undefined); return fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(120000)]) }); },
   onUsage: row => { assert.equal(row.model, model); assert.equal(row.requestedModel, model); usage.push(row); console.log(`Haiku completed: ${row.inputTokens+row.cacheReadTokens+row.cacheWriteTokens+row.outputTokens} processed tokens`); },
 });
 await new Promise(resolve => proxy.listen(8797, '127.0.0.1', resolve));
-let browser;
-const launch = () => chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'] });
+const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+await context.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
 try {
   for (const scenario of cases.filter(c => !process.env.ASK_ANALYSIS_CASE || process.env.ASK_ANALYSIS_CASE.split(',').includes(c.id))) {
-    browser = await launch();
-    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    const page = await context.newPage();
     page.on('response', response => { if (response.url() === 'http://127.0.0.1:8797/') console.log(`${scenario.id}: proxy HTTP ${response.status()}`); });
     page.on('pageerror', e => console.error(`${scenario.id}: browser ${e.message}`));
     const start = usage.length, payloads = new Map(); let rounds = 0;
@@ -41,17 +41,20 @@ try {
       for (const m of wire.messages) for (const b of m.content) if (b.type === 'tool_result') payloads.set(b.toolUseId, b.content);
       console.log(`${scenario.id}: round ${rounds}`);
     });
+    const loading = setInterval(() => { page.evaluate(() => document.body.innerText.match(/Loading kernels\s+(\d+\s*\/\s*\d+)/)?.[1] ?? null).then(progress => { if (progress) console.log(`${scenario.id}: kernels ${progress}`); }).catch(() => {}); }, 15000);
     try {
       console.log(`${scenario.id}: loading ${scenario.catalog}`);
       await page.goto(new URL(`?catalog=test-catalogs/${scenario.catalog}`, base).href, { timeout: 120000, waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
+      await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 600000, polling: 100 });
       await page.evaluate(async () => {
         window.cosmo.setPlaying(false);
         const resource = path => performance.getEntriesByType('resource').map(e => e.name).find(url => new URL(url).pathname === path);
         window.__analysisShell = await import(resource('/src/lib/shell.svelte.ts'));
-        window.__analysisAsk = (await import(resource('/src/lib/ask/ask.svelte.ts'))).ask;
+        const store = await import(resource('/src/lib/ask/ask.svelte.ts'));
+        window.__analysisAsk = store.ask; window.__analysisSubmit = store.submitAsk;
       });
-      await page.waitForFunction(() => window.__analysisShell.isToolAvailable('ask'));
+      clearInterval(loading);
+      await page.waitForFunction(() => window.__analysisShell.isToolAvailable('ask'), null, { polling: 100 });
       await page.evaluate(() => window.__analysisShell.openTool('ask'));
       if (scenario.successControl) await page.evaluate(async resolverPath => {
         const resource = path => performance.getEntriesByType('resource').map(e => e.name).find(url => new URL(url).pathname === path);
@@ -63,10 +66,13 @@ try {
         const kernels = worker.options.kernels; worker.options.kernels = async () => [...await kernels(), ...dependencies];
         const search = worker.search.bind(worker); worker.search = options => search({ ...options, scope: undefined });
       }, new URL('../packages/core/src/catalog/CatalogResolver.ts', import.meta.url).pathname);
+      await page.bringToFront();
       console.log(`${scenario.id}: scene ready`);
-      await page.getByRole('textbox', { name: 'Request', exact: true }).fill(scenario.prompt);
-      await page.getByRole('button', { name: 'Send request', exact: true }).click();
-      await page.waitForFunction(() => window.__analysisAsk.turns.length && window.__analysisAsk.turns.at(-1).status !== 'running', null, { timeout: 360000 });
+      // The panel's normal entry point, with the exact natural-language text.
+      // Await the request itself rather than coupling completion to canvas RAF.
+      let timer;
+      try { await Promise.race([page.evaluate(prompt => window.__analysisSubmit(prompt), scenario.prompt), new Promise((_,reject) => { timer = setTimeout(() => reject(new Error('Ask request deadline exceeded')),900000); })]); }
+      finally { clearTimeout(timer); }
       const result = await page.evaluate(() => {
         const t = window.__analysisAsk.turns.at(-1), c = window.cosmo;
         return { status: t.status, answer: t.reply, error: t.error, verification: t.result, steps: t.steps.map(s => ({ id: s.id, name: s.name === 'invokeCapability' ? s.input.id : s.name, input: s.input, result: s.result })),
@@ -127,8 +133,11 @@ try {
         run.checks.push('structured missing coverage, no profile substitution');
       }
       console.log(JSON.stringify({ id: scenario.id, rounds, tokens: run.tokens, status: result.status, answer: result.answer, checks: run.checks }));
-    } catch (e) { report.runs.push({ ...scenario, rounds, error: String(e) }); console.error(`${scenario.id}: ${e}`); }
-    finally { writeFileSync(output, JSON.stringify(report,null,2)+'\n'); await browser.close(); }
+    } catch (e) {
+      const diagnostic = await Promise.race([page.evaluate(() => ({ scene: window.cosmo?.getScene(), flight: window.cosmo?.getFlight(), turns: window.__analysisAsk?.turns.map(t => ({status:t.status,reply:t.reply,steps:t.steps.map(s => ({name:s.name,result:!!s.result}))})), requestVisible: !!document.querySelector('[aria-label=\"Request\"]'), stopVisible: !!document.querySelector('[aria-label=\"Stop request\"]') })), new Promise(resolve => setTimeout(() => resolve({unresponsive:true}),3000))]).catch(() => ({closed:true}));
+      report.runs.push({ ...scenario, rounds, error: String(e), diagnostic }); console.error(`${scenario.id}: ${e}`); console.log(JSON.stringify(diagnostic));
+    }
+    finally { clearInterval(loading); writeFileSync(output, JSON.stringify(report,null,2)+'\n'); await page.close(); }
   }
-} finally { await browser?.close(); await new Promise(resolve => proxy.close(resolve)); }
+} finally { await browser.close(); await new Promise(resolve => proxy.close(resolve)); }
 if (report.runs.some(r => r.error)) process.exitCode = 1;

@@ -52,7 +52,7 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   if (!events.length && !samples.length) return issues;
   const windows = facts.filter(f => f.kind === 'event-window');
   // 1 AU is a unit people compare against, not a claim.
-  const known = [AU_KM, ...events.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm]), ...windows.map(w => w.maxRangeKm), ...samples.flatMap(s => [s.minimumKm, ...(s.samples ?? []).map(v => v.km)])].filter((v): v is number => typeof v === 'number' && v >= 0);
+  const known = [...(events.length ? [AU_KM] : []), ...events.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm]), ...windows.map(w => w.maxRangeKm), ...samples.flatMap(s => [s.minimumKm, ...(s.samples ?? []).map(v => v.km)])].filter((v): v is number => typeof v === 'number' && v >= 0);
   for (const d of statedDistancesKm(text)) {
     // Rounded speech ("about 1 AU", "3.5 billion km") is fine; an unsupported number is not.
     if (!known.some(k => Math.abs(d.km - k) <= (events.length ? 0.05 * k + 0.5 : Math.max(1e-6, 0.05 * k)))) issues.push(`"${d.text}" matches no distance the viewer reported (${[...new Set([...events.flatMap(f => [f.rangeKm, f.altitudeKm]), ...samples.map(s => s.minimumKm)].filter((v): v is number => typeof v === 'number'))].slice(0, 6).map(v => `${v.toPrecision(4)} km`).join(', ')})`);

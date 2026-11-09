@@ -496,6 +496,8 @@ export interface ScriptClosestApproachResult {
   result: ScriptEventResultPage | null;
   presentation: ScriptEventFocusReceipt | null;
   samples: ScriptProfileData | null;
+  /** Actual camera read after optional sampled-epoch framing; never an event reference. */
+  sampledView: ScriptViewComposition | null;
   limitations: readonly string[];
 }
 

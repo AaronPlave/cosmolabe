@@ -96,6 +96,15 @@ describe('bounded closest-approach composition', () => {
     expect(host.getEventVisualization().selected).toEqual(old);
     tools.dispose();
   });
+  it('uses the native framing adapter at the returned sampled epoch without creating an event', async () => {
+    const host = fixture();
+    host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'SPICE(UNKNOWNFRAME)' }, selected: null });
+    host.sampleProfileData = () => samples;
+    const framePair = vi.fn(() => { expect(host.getTime()).toBe(samples.minimum!.et); return true; });
+    expect(await findClosestApproach(host, request, {}, framePair)).toMatchObject({ status: 'sampled', computedEventVerified: false, presentation: null, sampledView: { et: samples.minimum!.et } });
+    expect(framePair).toHaveBeenCalledWith('Titan','Cassini');
+    expect(host.getEventVisualization().selected).toBeNull();
+  });
   it('does not sample after other failures or claim a successful partial presentation', async () => {
     const host = fixture();
     host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'bad query' }, selected: null });
@@ -133,6 +142,7 @@ describe('numeric grounding from sampled facts without computed events', () => {
   it('rejects fabricated distances, dates and precise times and accepts rounded values', () => {
     expect(checkAnswer('32 samples, 0 missing; sampled minimum 2.47 km at 2014-11-12 15:34 UTC.', facts)).toEqual([]);
     expect(checkAnswer('0 missing. Minimum 999 km at 2014-11-12T19:00:00Z.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no epoch/)]);
+    expect(checkAnswer('0 missing. Minimum 1 AU.', facts)).toEqual([expect.stringMatching(/matches no distance/)]);
     expect(checkAnswer('0 missing. Minimum -5 km at ET 9999.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no sampled epoch/)]);
     expect(checkAnswer('0 missing. Minimum 2470 metres at ET 1.', facts)).toEqual([]);
     expect(checkAnswer('0 missing. Minimum 0 km on 2099-01-01.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no date/)]);

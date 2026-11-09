@@ -5,9 +5,9 @@ import { evaluate } from './outcome.js';
 let sequence = 0;
 export const missingFrameDependency = (message: string) => /not a recognized id-code for a reference frame|SPICE\((?:UNKNOWNFRAME|NOFRAME)\)/i.test(message);
 /** One bounded analysis built from the public controls. Each search retains native query/run provenance. */
-export async function findClosestApproach(host: ViewerControl, request: ScriptClosestApproachRequest, opts: ScriptSceneOptions & { signal?: ScriptCancelSignal } = {}): Promise<ScriptClosestApproachResult> {
+export async function findClosestApproach(host: ViewerControl, request: ScriptClosestApproachRequest, opts: ScriptSceneOptions & { signal?: ScriptCancelSignal } = {}, framePair?: (target: string, observer: string) => boolean): Promise<ScriptClosestApproachResult> {
   const id = `approach-${Date.now().toString(36)}-${++sequence}`;
-  const result: ScriptClosestApproachResult = { query: `${id}-0`, status: 'unavailable', reason: null, computedEventVerified: false, windows: [], stepSeconds: null, candidates: 0, result: null, presentation: null, samples: null,
+  const result: ScriptClosestApproachResult = { query: `${id}-0`, status: 'unavailable', reason: null, computedEventVerified: false, windows: [], stepSeconds: null, candidates: 0, result: null, presentation: null, samples: null, sampledView: null,
     limitations: ['Loaded kernels and assessed catalog overlap only. Default Event Finder step limits completeness; this is not an all-time minimum, physical clearance or touchdown.'] };
   const stop = (reason: ScriptClosestApproachResult['reason'], status: ScriptClosestApproachResult['status'] = 'unavailable') => ({ ...result, result: reason && reason !== 'presentation-incomplete' ? null : result.result, status, reason });
   if (!request || !host.listObjects().includes(request.observer) || !host.listObjects().includes(request.target) || request.observer === request.target) return stop('missing-coverage');
@@ -65,6 +65,12 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
             if (request.present !== false) {
               write(() => { host.setPlaying(false); host.setTime({ kind: 'et', et: minimum.et }); });
               if (host.getTime() !== minimum.et || host.isPlaying()) return stop('presentation-incomplete');
+              if (framePair) {
+                const framed = write(() => framePair(request.target, request.observer));
+                if (cancelled()) return stop('cancelled', 'interrupted');
+                result.sampledView = host.getViewComposition?.([request.target, request.observer]) ?? null;
+                if (!framed) result.limitations = [...result.limitations, 'Sampled epoch selected, but pair framing is unavailable.'];
+              }
             }
             return stop('missing-dependency', 'sampled');
           }
