@@ -74,6 +74,13 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   for (const m of text.matchAll(/\bET\s*([+-]?\d+(?:\.\d+)?)/g)) {
     if (ets.length && !ets.some(e => Math.abs(e - Number(m[1])) <= 1)) issues.push(`"${m[0]}" matches no sampled epoch the viewer reported`);
   }
+  // An overall decrease can contain a rebound; a steady/monotonic claim cannot.
+  const history = [...(samples.at(-1)?.samples ?? [])].sort((a,b) => a.et-b.et);
+  for (const sentence of sentences(text)) {
+    const trend = /(?:fell|decreased?|declined?|dropped?)\s+(?:steadily|monotonically)|(?:steadily|monotonically)\s+(?:fell|decreased?|declined?|dropped?)/i.test(sentence) ? -1
+      : /(?:rose|increased?|grew)\s+(?:steadily|monotonically)|(?:steadily|monotonically)\s+(?:rose|increased?|grew)/i.test(sentence) ? 1 : 0;
+    if (trend && !NEGATED.test(sentence) && history.some((v,i) => i > 0 && trend * (v.km-history[i-1].km) < -Math.max(1e-6, history[i-1].km*0.01))) issues.push('The claimed steady/monotonic trend contradicts a reversal in the returned samples. Describe the overall change and rebound instead.');
+  }
   const classified = events.filter(f => f.encounter !== null);
   if (classified.length && classified.every(f => f.encounter === false)) {
     // Names quoted from the catalog ("Mars Flyby (2026-05-15)") are not claims.

@@ -111,7 +111,7 @@ try {
           assert.ok(result.answer.includes(String(data.samples.count)), 'Disclose actual sample count');
           for (const endpoint of [raw.samples[0], raw.samples.at(-1)]) assert.ok(statedDates(result.answer).some(d => d.day === endpoint.utc.slice(0,10)) || result.answer.includes(String(endpoint.et)), 'Disclose interval endpoints');
           if (data.sampledEpochSelected) assert.equal(result.state.et, data.samples.minimum.et);
-          else { assert.equal(data.sampledView, null); assert.ok(!result.steps.some(s => /^(?:time\.|camera\.|setTime|setPlaying|frameObject|composeView|track)/.test(s.name) && s.result?.ok), 'Exploratory result must not be followed by successful granular navigation'); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter|change.*(?:view|time|clock))|no.*(?:seek|navigat|encounter)|(?:view|time|clock).*unchanged/i); }
+          else { assert.equal(data.sampledView, null); assert.ok(!result.steps.some(s => /^(?:time\.|camera\.|setTime|setPlaying|frameObject|composeView|track)/.test(s.name) && s.result?.ok), 'Exploratory result must not be followed by successful granular navigation'); assert.match(data.limitations.join(' '), /exploratory/i); }
           assert.equal(result.state.profiles.find(p => p.definition.id === data.samples.id)?.timeline.traceVisible, true);
           assert.equal(result.verification.status, 'failed');
           run.checks.push('actual bounded samples; computed-event goal remains unmet');

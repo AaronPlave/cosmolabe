@@ -224,6 +224,12 @@ describe('numeric grounding from sampled facts without computed events', () => {
     expect(checkAnswer('0 missing. Minimum 2470 metres at ET 1.', facts)).toEqual([]);
     expect(checkAnswer('0 missing. Minimum 0 km on 2099-01-01.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no date/)]);
   });
+  it('distinguishes overall decreases from claimed steady trends when samples rebound', () => {
+    const history: ResultFact[] = [{ ...facts[0], eventSearchUnavailable: false, samples: [{ km: 9, et: 0, utc: '2014-11-12T00:00:00Z' }, { km: 2.472798, et: 1, utc: '2014-11-12T15:34:03Z' }, { km: 2.6, et: 2, utc: '2014-11-13T00:00:00Z' }] } as ResultFact];
+    expect(checkAnswer('Range fell steadily across the sampled window.', history)).toEqual([expect.stringMatching(/reversal/)]);
+    expect(checkAnswer('Range decreased overall, then rose after the sampled minimum.', history)).toEqual([]);
+    expect(checkAnswer('Range did not fall monotonically.', history)).toEqual([]);
+  });
   it('does not mistake a missing frame disclaimer for disclosure of sampled gaps', () => {
     expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km.', facts)).toEqual([expect.stringMatching(/missing-data limit/)]);
     expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km, no gaps.', facts)).toEqual([]);
