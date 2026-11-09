@@ -286,7 +286,9 @@
       if (!e.repeat) startHeldCameraMove(binding.id);
       return;
     }
-    if (e.repeat) return;
+    // Arrow keys intentionally auto-repeat while held to scrub through time.
+    // Toggle shortcuts should only fire once per physical keypress.
+    if (e.repeat && binding.id !== 'time:step-back' && binding.id !== 'time:step-fwd') return;
     e.preventDefault();
 
     switch (binding.id) {

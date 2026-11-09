@@ -362,6 +362,28 @@ try {
     const r = await inPage((k) => window.host.seen.time.slice(k), n);
     assert(r.length >= 1 && r.every((e) => e.cause === 'viewer'), JSON.stringify(r));
   });
+  await check('held Left/Right auto-repeat advances time in both directions', async () => {
+    await inPage(() => window.host.viewer.control.setPlaying(false));
+    await page.locator('#viewer canvas').click({ position: { x: 300, y: 40 } });
+    const time = () => inPage(() => window.host.viewer.control.getTime());
+    const start = await time();
+    await page.keyboard.down('ArrowRight');
+    const first = await time();
+    await page.keyboard.down('ArrowRight'); // Playwright sends a repeat keydown while still held
+    const second = await time();
+    await page.keyboard.up('ArrowRight');
+    const step = first - start;
+    assert(step > 0 && Math.abs((second - first) - step) < 1e-6,
+      `held Right did not repeat: ${JSON.stringify({ start, first, second })}`);
+
+    await page.keyboard.down('ArrowLeft');
+    const backFirst = await time();
+    await page.keyboard.down('ArrowLeft');
+    const backSecond = await time();
+    await page.keyboard.up('ArrowLeft');
+    assert(Math.abs((second - backFirst) - step) < 1e-6 && Math.abs(backSecond - start) < 1e-6,
+      `held Left did not repeat: ${JSON.stringify({ start, second, backFirst, backSecond })}`);
+  });
   await check('playback notifications are coalesced and end on the clock\'s value', async () => {
     const r = await inPage(async () => {
       const { viewer, seen } = window.host;
