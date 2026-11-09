@@ -18,7 +18,7 @@
   import { geo, geographicLoads, layerVisible } from '../lib/geographic-layers.svelte';
   import { geoStyles } from '../lib/geographic-styles.svelte';
   import { drawnSurface } from '../lib/drawn-surface';
-  import { layoutGeographicLabels, type LabelLayer, type LabelView, type PlacedLabel } from '../lib/geographic-label-layout';
+  import { layoutGeographicLabels, viewHeightKm, type LabelLayer, type LabelView, type PlacedLabel } from '../lib/geographic-label-layout';
 
   const LAYOUT_MS = 200;
   /** Where to look for a large area under the view, as fractions of the canvas, centre first. */
@@ -76,9 +76,15 @@
         // A little past the datum horizon: relief can lift an anchor into view.
         return { direction: [camera.x / d, camera.y / d, camera.z / d], angle: Math.acos(radius / d) + 2 * Math.PI / 180 };
       },
-      // At decoded terrain height where there is one: over a deep floor (Gale, ~4.5 km
-      // below the datum) a low camera sees datum points far above where they are drawn.
-      project: (layer, positions) => r.projectGeographicPositions(layer.body, positions, layer.datum, { sampleTerrain: true }) ?? [],
+      // At the height of the surface the view is over, with no terrain query: over a deep
+      // floor (Gale, ~4.5 km below the datum) a low camera sees datum points far above where
+      // they are drawn. Querying terrain per candidate costs milliseconds per point on cube
+      // grids (a ray march), and fallback samples run to dozens per area, so only `place`,
+      // for the few labels actually laid out, reads the drawn surface.
+      project: (layer, positions) => {
+        const heightKm = viewHeightKm(probeHits(layer.body).map(([xKm, yKm, zKm]) => bodyFixedToGeodetic({ xKm, yKm, zKm }, layer.datum).heightKm));
+        return r.projectGeographicPositions(layer.body, positions.map((p) => ({ ...p, heightKm: p.heightKm ?? heightKm })), layer.datum) ?? [];
+      },
       place: (layer, positions) => drawnSurface.project(r, layer.body, positions, layer.datum, { occlusion: true }) ?? [],
       probes: (layer) => probeHits(layer.body).map(([xKm, yKm, zKm]): BodyFixedPosition => {
         const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, layer.datum);

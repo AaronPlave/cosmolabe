@@ -327,9 +327,9 @@ export function surfacePosition(renderer: UniverseRenderer, layer: GeographicEdi
 
 /**
  * Turn a draw tool on (or off with null). It owns scene clicks while on. With
- * no layer to draw into yet, the body's annotations layer is chosen or made.
+ * no layer to draw into yet (and none given), the body's annotations layer is chosen or made.
  */
-export function setDrawTool(tool: DrawTool | null, body: string | null = null): void {
+export function setDrawTool(tool: DrawTool | null, body: string | null = null, layerId: string | null = null): void {
   const renderer = getRenderer();
   edits.draft = null;
   edits.message = '';
@@ -344,7 +344,7 @@ export function setDrawTool(tool: DrawTool | null, body: string | null = null): 
   }
   if (!renderer) return;
   const where = body ?? (edits.tool ? editLayer(edits.target)?.body ?? null : null) ?? drawBody();
-  const target = where ? ensureAnnotationLayer(where) : null;
+  const target = layerId && sessions.has(layerId) ? layerId : where ? ensureAnnotationLayer(where) : null;
   if (!target) { edits.message ||= 'There is no globe in this scene to draw on.'; return; }
   edits.target = target;
   setProbeActive(false);

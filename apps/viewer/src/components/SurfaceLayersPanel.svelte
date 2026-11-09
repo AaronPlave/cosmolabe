@@ -22,7 +22,7 @@
   import {
     geo, geographicLoads, layerVisible, setLayerVisible, showAllLayers, hoverFeature,
     surfacePanelView, openLayer, openImagery, showLayerList, searchAllFeatures, selectFeature, featureRef,
-    GLOBAL_SEARCH_LIMIT,
+    GLOBAL_SEARCH_LIMIT, isPlannerDisplayLayer,
   } from '../lib/geographic-layers.svelte';
   import { layerSwatch, layerIssue } from '../lib/geographic-layer-labels';
   import { geoStyles, openStyleEditor } from '../lib/geographic-styles.svelte';
@@ -44,7 +44,7 @@
       if (!g) { g = { body, imagery: 0, layers: [] }; byBody.set(body, g); }
       return g;
     };
-    for (const load of geographicLoads()) if (load.status === 'ready' && load.layer) group(load.layer.body).layers.push(load.layer);
+    for (const load of geographicLoads()) if (load.status === 'ready' && load.layer && !isPlannerDisplayLayer(load.id)) group(load.layer.body).layers.push(load.layer);
     for (const { name } of vs.bodies) {
       const n = r?.getBodyMesh(name)?.imageryLayers.length ?? 0;
       if (n > 0) group(name).imagery = n;

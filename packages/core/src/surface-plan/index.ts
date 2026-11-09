@@ -3,3 +3,4 @@ export * from './validation.js';
 export * from './estimate.js';
 export * from './discovery.js';
 export * from './source-metadata.js';
+export * from './authoring.js';

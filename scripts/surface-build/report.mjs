@@ -4,6 +4,8 @@ import { identity } from './plan.mjs';
 export function plannerFeedback(lock, products, audit, resources, sources, terrainValidation) {
   return {
     version: 1, kind: 'surface-planner-feedback', lockIdentity: lock.identity,
+    // The conventions the requested geometries are in, so a planner can tell a reusable product from same-numbered coordinates elsewhere.
+    surface: { body: lock.desired.body, frame: lock.desired.frame, coordinates: lock.desired.coordinates },
     requested: lock.desired.regions.map(region => {
       const layer = lock.desired.layers.find(l => l.id === region.feature.layerId);
       const feature = layer.geojson.features.find(f => `${typeof f.id}:${f.id}` === region.feature.featureId);

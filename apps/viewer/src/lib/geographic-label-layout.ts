@@ -48,12 +48,18 @@ export interface LabelView {
   height: number;
   /** Unit vector from the body's centre toward the camera, in body-fixed axes, and the horizon's angle from it. Null: no culling. */
   horizon: (layer: GeographicLayer) => { direction: readonly [number, number, number]; angle: number } | null;
-  /** Cheap projection (the datum, or sampled terrain height), for choosing candidates. */
+  /** Cheap projection for choosing candidates: no terrain query per position (see `viewHeightKm`). */
   project: (layer: GeographicLayer, positions: BodyFixedPosition[]) => DrawnScreenPosition[];
   /** Projection on the drawn surface, for the labels actually placed (with occlusion by it). */
   place: (layer: GeographicLayer, positions: BodyFixedPosition[]) => DrawnScreenPosition[];
   /** Surface points under a few screen positions, nearest the centre first: where a large area is in view. */
   probes?: (layer: GeographicLayer) => BodyFixedPosition[];
+}
+
+/** The height candidates are projected at: the median of the drawn surface under the view's probes, else the datum. */
+export function viewHeightKm(probeHeightsKm: readonly (number | undefined)[]): number {
+  const h = probeHeightsKm.filter((x): x is number => Number.isFinite(x)).sort((a, b) => a - b);
+  return h.length ? h[Math.floor(h.length / 2)] : 0;
 }
 
 /** Each refinement round places up to this many times the remaining label budget, so declutter has spares. */

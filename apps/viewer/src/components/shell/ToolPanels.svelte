@@ -17,6 +17,7 @@
   import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
   import SurfaceLayersPanel from '../SurfaceLayersPanel.svelte';
+  import SurfacePlannerPanel from '../SurfacePlannerPanel.svelte';
   import NavigatePanel from '../NavigatePanel.svelte';
   import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
   import AskPanel from '../AskPanel.svelte';
@@ -49,6 +50,8 @@
     <BodyDrawer onClose={() => closeTool('catalog')} />
   {:else if tool.id === 'layers'}
     <SurfaceLayersPanel onClose={() => closeTool('layers')} />
+  {:else if tool.id === 'planner'}
+    <SurfacePlannerPanel onClose={() => closeTool('planner')} />
   {:else if tool.id === 'navigate'}
     <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'camera'}
