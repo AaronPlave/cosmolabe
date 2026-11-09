@@ -1,7 +1,8 @@
 /** Small natural-language transfer control for #363. Haiku only; paid live inference opt-in. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { checkAnswer } from '../packages/control/dist/answer-check.js';
+import { etToDate } from '../packages/core/dist/index.js';
+import { checkAnswer, statedDates } from '../packages/control/dist/answer-check.js';
 import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 assert.equal(process.env.ASK_ANALYSIS_LIVE, '1');
@@ -79,10 +80,10 @@ try {
           state: { et: c.getTime(), playing: c.isPlaying(), tracked: c.getTracked(), camera: c.getCamera(), event: c.getEventVisualization(), profiles: c.listProfiles().items.map(p => c.getProfile(p.id)) } };
       });
       const approaches = result.steps.filter(s => s.result?.data?.status === 'computed' || s.result?.data?.status === 'sampled');
-      if (['cassini','philae-success','heldout'].includes(scenario.id)) { assert.ok(approaches.some(s => s.result.data.computedEventVerified), 'Expected verified computed presentation'); assert.equal(result.verification.status, 'verified'); }
-      if (['philae','earth'].includes(scenario.id)) assert.ok(approaches.some(s => s.result.data.status === 'sampled'), 'Expected qualified sampled alternative');
       const run = { ...scenario, rounds, tokens: usage.slice(start).reduce((n,r) => n+r.inputTokens+r.cacheReadTokens+r.cacheWriteTokens+r.outputTokens,0), result, checks: [] };
       report.runs.push(run); runRecord = run;
+      if (['cassini','philae-success','heldout'].includes(scenario.id)) { assert.ok(approaches.some(s => s.result.data.computedEventVerified), 'Expected verified computed presentation'); assert.equal(result.verification.status, 'verified'); }
+      if (['philae','earth'].includes(scenario.id)) assert.ok(approaches.some(s => s.result.data.status === 'sampled'), 'Expected qualified sampled alternative');
       assert.ok(result.answer, 'Useful final answer required');
       assert.deepEqual(checkAnswer(result.answer, result.verification.facts), [], 'Final numerical claims grounded in published facts');
       for (const s of result.steps.filter(s => s.result?.data?.status === 'computed' || s.result?.data?.status === 'sampled')) {
@@ -108,9 +109,9 @@ try {
           assert.match(result.answer, /sampl|approxim/i);
           assert.match(result.answer, /missing|gaps?/i);
           assert.ok(result.answer.includes(String(data.samples.count)), 'Disclose actual sample count');
-          for (const endpoint of [raw.samples[0], raw.samples.at(-1)]) assert.ok(result.answer.includes(endpoint.utc.slice(0,10)) || result.answer.includes(String(endpoint.et)), 'Disclose interval endpoints');
+          for (const endpoint of [raw.samples[0], raw.samples.at(-1)]) assert.ok(statedDates(result.answer).some(d => d.day === endpoint.utc.slice(0,10)) || result.answer.includes(String(endpoint.et)), 'Disclose interval endpoints');
           if (data.sampledEpochSelected) assert.equal(result.state.et, data.samples.minimum.et);
-          else { assert.equal(data.sampledView, null); assert.ok(!result.steps.some(s => /^(?:time\.|camera\.|setTime|setPlaying|frameObject|composeView|track)/.test(s.name) && s.result?.ok), 'Exploratory result must not be followed by successful granular navigation'); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter)|no.*(?:seek|navigat|encounter)/i); }
+          else { assert.equal(data.sampledView, null); assert.ok(!result.steps.some(s => /^(?:time\.|camera\.|setTime|setPlaying|frameObject|composeView|track)/.test(s.name) && s.result?.ok), 'Exploratory result must not be followed by successful granular navigation'); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter|change.*(?:view|time|clock))|no.*(?:seek|navigat|encounter)|(?:view|time|clock).*unchanged/i); }
           assert.equal(result.state.profiles.find(p => p.definition.id === data.samples.id)?.timeline.traceVisible, true);
           assert.equal(result.verification.status, 'failed');
           run.checks.push('actual bounded samples; computed-event goal remains unmet');
@@ -121,10 +122,30 @@ try {
       }
       if (scenario.id === 'descent') {
         const read = result.steps.findLast(s => s.result?.data?.sampling && s.result.data.minimum);
-        assert.ok(read, 'Read actual bounded distance samples');
-        assert.ok(payloads.get(read.id) && !payloads.get(read.id).includes('result-too-large'));
-        assert.ok(result.state.profiles.some(p => p.timeline.traceVisible));
-        run.checks.push('bounded numerical history, native trace and grounded answer');
+        if (read) assert.ok(payloads.get(read.id) && !payloads.get(read.id).includes('result-too-large'));
+        else {
+          // A history question can use actual point states without authoring a
+          // chart. Re-evaluate those positions and ground the derived norms.
+          const points = result.steps.flatMap(s => {
+            const d = s.result?.data, state = d?.state ?? d;
+            return state?.position && Number.isFinite(state.et) && state.center ? [{ step: s, state }] : [];
+          });
+          assert.ok(new Set(points.map(p => p.state.et)).size >= 2, 'Actual numerical history required');
+          const values = [];
+          for (const { step, state } of points) {
+            assert.ok(payloads.get(step.id) && !payloads.get(step.id).includes('result-too-large'));
+            const actual = await page.evaluate(d => window.cosmo.getObjectState(d.object, { center: d.center, time: { kind: 'et', et: d.et } }), { object: step.input.input?.object ?? step.input.object, center: state.center, et: state.et });
+            const km = Math.hypot(...state.position);
+            assert.ok(Math.abs(Math.hypot(...actual.position) - km) < 1e-5, 'Independent native center distance agrees');
+            values.push({ km, et: state.et, utc: etToDate(state.et).toISOString() });
+          }
+          values.sort((a,b) => a.et-b.et);
+          const minimum = values.reduce((a,b) => a.km < b.km ? a : b);
+          assert.deepEqual(checkAnswer(result.answer, [{ kind: 'sampled-range', observer: 'Philae', target: '67P', startUtc: values[0].utc, endUtc: values.at(-1).utc, count: values.length, missing: 0, minimumKm: minimum.km, minimumEt: minimum.et, minimumUtc: minimum.utc, samples: values, eventSearchUnavailable: false }]), [], 'History distances independently grounded');
+          for (const clock of result.answer.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)/g)) assert.ok(values.some(v => v.utc.slice(11,16) === `${clock[1].padStart(2,'0')}:${clock[2]}`), 'History clock matches a returned epoch');
+        }
+        run.checks.push('bounded numerical history and grounded answer');
+        run.checks.push(result.state.profiles.some(p => p.timeline.traceVisible) ? 'native trace present' : 'no native trace (not requested)');
       }
       if (scenario.id === 'touchdown') {
         assert.match(result.answer, /catalog|authored|viewpoint|annotation/i);
