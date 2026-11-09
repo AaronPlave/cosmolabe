@@ -123,29 +123,56 @@ tiles and is not run in CI.
 | `baked` | shading/shadows already in the pixels | shown as-is; **never relit**, so not double-lit |
 | `unknown` (default) | nothing declared | **legacy**: relit as before, *not* asserted physically relightable |
 
-**The decision is per pixel.** Every compositor that blends imagery into
-`diffuseColor` also blends that layer's weight (1 for `baked`, 0 otherwise) into a
-per-fragment `surfaceAsIs` by the *same alpha*:
+**The decision is per pixel, and compositing is per layer.** A stack is an alpha
+"over" chain, so what the viewer should show is the blend of each layer's *own*
+rendering: a relit layer contributes `albedo × lighting`, a baked layer
+`colour × gate`, each weighted by its coverage `w_i` (its alpha times the
+transparency above it). Blending the colours first and then one baked weight
+would light the baked share of a mixed colour, so every compositor instead calls
+one function per layer, just before its own colour blend:
 
 ```glsl
+surfaceAsIsLayer(diffuseColor.rgb, color * alpha, layerAsIs, alpha); // baked Σ w·c, relit Σ w·c, baked Σ w
 diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
-surfaceAsIs      = mix(surfaceAsIs, cubeLayerN_asIs, alpha);
 ```
 
-The tile program then shows `diffuseColor` as-is where `surfaceAsIs` is 1 and
-relights it where it is 0. A reflectance base under a baked overlay is therefore
-relit outside the overlay's footprint and shown as-is inside it, and a half
-opaque overlay is half and half. Nothing is lit twice and nothing is switched off
-for a whole surface. Hidden layers and opacity 0 need no special case (their alpha
-is 0). The compositors are the cube imagery shader (`CubeImageryLayer`) and, for
+and the tile program finishes with
+
+```glsl
+share = bakedRgb / (bakedRgb + relitRgb);            // per channel, from the same weights
+outgoingLight = totalDiffuse * (1 - share)            // relit share, lit (diffuse is linear in albedo)
+              + (outgoingLight - totalDiffuse) * (1 - Σw_baked)   // specular and emissive, relit coverage only
+              + diffuseColor.rgb * share * gate;      // baked share, as-is
+```
+
+That is exactly `Σ w_i · rendering_i`. `scripts/test-surface-illumination-webgl.mjs`
+checks it in real WebGL against the quantitative reference (each layer rendered
+alone at full opacity, then folded bottom to top with the stack's alphas): four
+stacks (relit over relit, baked over baked, and two three-layer mixes with relit
+and baked bases), six opacity sets (0, 50 and 100 % among them) with different
+layer colours, three Sun elevations: worst error **1.2e-7** in linear RGB (float
+precision), against up to **0.114** for the earlier colour-then-weight form on the
+same renders. A relit base under a baked overlay is therefore relit outside the
+overlay's footprint and shown as-is inside it; a half-opaque overlay is the
+half-and-half of the two renderings. Hidden layers and opacity 0 need no special
+case. The compositors are the cube imagery shader (`CubeImageryLayer`) and, for
 geographic overlays, `ImageOverlayPlugin`'s loop, patched in
 `injectOverlayAsIsIntoShader` (it adds an `asIs` member to the plugin's
-`LayerInfo`; a test runs the hook against the installed library's real shader and
-fails loudly if the library changes shape). Pixels that no layer draws take
-`uSurfaceAsIs`: the tileset's own texture (`terrain.illumination`, neutral albedo
-for untextured quantized mesh) or, for an imagery-only body, its base map. A
-declaration describes imagery pixels only, so untextured geometry under a baked
-source is never turned into a flat as-is surface.
+`LayerInfo` and hands each layer, premultiplied exactly as the library blends it,
+to `surfaceAsIsLayer`; a test runs the hook against the installed library's real
+shader and fails loudly if the library changes shape). The display hook needs a
+physical material's `totalDiffuse` and throws without it. Pixels that no layer
+draws take `uSurfaceAsIs`: the tileset's own texture (`terrain.illumination`,
+neutral albedo for untextured quantized mesh) or, for an imagery-only body, its
+base map. A declaration describes imagery pixels only, so untextured geometry
+under a baked source is never turned into a flat as-is surface.
+
+*Pre-existing library behaviour, not changed here:* `ImageOverlayPlugin` applies a
+layer's `opacity` to its colour twice (`tint.rgba *= opacity`, then
+`tint.rgb *= tint.a`), so a geographic overlay at opacity 0.5 contributes a quarter
+of its colour, not half, whatever its provenance (a relit-only stack at 0.5 differs
+from the 50 % blend of its renderings by 0.10 in linear RGB). Coverage carried in a
+texture's alpha channel is exact, and the cube compositor applies opacity once.
 
 `surfaceIllumination` (diagnostics, the viewer's layer panel) summarizes a
 stack as the shared value or `mixed`; it no longer chooses a path. Only
@@ -176,12 +203,17 @@ never a ridge's shadow: a crater floor facing the Sun is still treated as lit
 
 ### Source provenance
 
-What the real products are, with the evidence, and what the catalogs declare.
-"Baked" means shading is in the pixels as released; it is a statement about the
-products, not a preference about how Natural should look. Confidence is stated
-where the primary source is thin.
+What the real products are, with the evidence. "Baked" means shading is in the
+pixels as released; it is a statement about the products, not a preference about
+how Natural should look, and the last column is the classification the evidence
+supports, **not** what the shipped catalogs declare: existing demo catalogs leave
+`illumination` undeclared (`unknown`), which renders exactly as on `main`, until a
+default-appearance change is made intentionally with real-data comparisons. The
+opt-in fixture `moon-illumination-provenance` declares the WAC+NAC composite
+`baked` for anyone who wants to see it. Confidence is stated where the primary
+source is thin.
 
-| Product (used by) | Evidence | Declared |
+| Product (used by) | Evidence | Supported classification |
 | --- | --- | --- |
 | LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product (`WAC_EMP_643NM`, 304 px/deg = 99.75 m/px) exists; it is **not** what the composite uses. | `baked` |
 | LROC NAC south pole **controlled average** mosaic, 1 m (Nov 2025; NAC half of the composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
@@ -231,9 +263,10 @@ Question: what should Natural show for real mission scenes, given that the
 highest-resolution imagery (NAC, CTX, HiRISE) carries the Sun it was acquired
 under? Same hosted terrain, camera, display settings and fixed epochs; real viewer
 on software WebGL; every frame fully streamed (displayed imagery level equal to
-the wanted level, no fallback blocks). **A** is the pre-#372 behaviour (baked
-imagery relit; pixel-identical to a build of the base commit on the same catalog:
-mean difference 0.00, 0 % of pixels differ), **B** is #372 (baked as-is), **C** is a
+the wanted level, no fallback blocks). **A** is the behaviour of undeclared provenance, which is what
+the shipped demos still render (baked imagery relit; pixel-identical to a build of
+the base commit on the same catalog: mean difference 0.00, 0 % of pixels differ),
+**B** is the same layer declared `baked` (as-is, opt-in), **C** is a
 physically relit normalized reflectance layer. Scripts, numbers and Sun geometry:
 [`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
 
@@ -339,7 +372,12 @@ one program for relit, baked, flood, mixed and overlay tiles). SwiftShader is no
 GPU or mobile measurement: no desktop GPU or mobile hardware was available, so
 those remain unmeasured.
 
-### Recommendation
+### Recommendation (deferred; not applied to any shipped demo)
+
+#372 changes no existing demo's appearance: provenance is opt-in, and the
+catalogs keep the rendering they had on `main`. The rest of this section records
+what the comparison supports for a later, intentional default change, which also
+depends on source-data work (#147).
 
 Keep the per-layer, per-pixel provenance contract and the night gate: they are
 needed under any choice, they make mixed stacks correct, and they keep baked
@@ -372,8 +410,9 @@ the polar illumination-study scene shows the DEM's shading over a near-uniform
 albedo, with the baked NAC one toggle away. Equatorial 100 m tiles (eight
 `WAC_EMP_643NM_E300…` tiles, about 500 MB each, plus the north polar tile) exist on
 the same host and were located but not built or compared. The LRO/MoonFall catalogs
-still declare the WAC+NAC composite `baked` and show it by default; switching that
-default is the owner's decision. NAC (1 m) has no normalized counterpart: at the
+leave the WAC+NAC composite undeclared (relit as on `main`); switching that default
+is the owner's decision, and the polar nodata floors and residual slope shading say
+the 100 m product is not ready to be the production default. NAC (1 m) has no normalized counterpart: at the
 south pole its footprint covers the whole scene, so a baked NAC layer there is the
 scene.
 
