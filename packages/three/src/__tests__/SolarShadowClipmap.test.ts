@@ -76,6 +76,24 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(c.heightAt(1, 1)!.heightKm).toBeNull();
   });
 
+  it('leaves terrain whose source is too coarse out of the shadow: final, not waiting for data', () => {
+    const coarseEast = { ...source(), cellKm: (_lat: number, lon: number) => (lon > 0 ? 6.8 : 0.01) };
+    const c = new SolarShadowClipmap(coarseEast, { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
+    settle(c, frameAt(-89.5, 0, 2));
+    const l = c.status.levels[0];
+    expect(l.coarseFraction).toBeGreaterThan(0.3);
+    expect(l.coarseFraction).toBeLessThan(0.7);
+    expect(l.unknownFraction).toBe(0);
+    expect(c.status.state).toBe('ready');
+    // Coarse terrain is no height (not shadowing), and a new data revision does not rebuild for it.
+    const builds = l.builds;
+    coarseEast.revision++;
+    settle(c, frameAt(-89.5, 0, 2), 10_000);
+    expect(c.status.levels[0].builds).toBe(builds);
+    const g = [0, 1, 2, 3, 4, 5, 6, 7].map(k => c.heightAt(-7 + 2 * k, 0)?.heightKm ?? null);
+    expect(g.some(h => h === null) && g.some(h => h !== null)).toBe(true);
+  });
+
   it('re-centres only after the focus leaves the hysteresis box, and resets past the anchor limit', () => {
     const c = new SolarShadowClipmap(source(), { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
     settle(c, frameAt(-89.5, 0, 2));
@@ -181,5 +199,31 @@ describe('injectSolarShadowIntoShader (#205)', () => {
   it('fails loudly if the Three.js hooks change', () => {
     const c = new SolarShadowClipmap(source());
     expect(() => injectSolarShadowIntoShader({ fragmentShader: 'void main() {}' }, c.uniforms)).toThrow(/hook changed/);
+  });
+});
+
+describe('SolarShadowClipmap.sunFractionAt (#205)', () => {
+  // A north-south ridge 1 km high and 2 km wide, 6 km east of (0, 0); the Sun 2° above the eastern horizon there.
+  const ridge: ClipmapSource = { datum, revision: 0, elevationKm: (_lat, lon) => (Math.abs(lon - 0.2) * DEG * R < 1 ? 1 : 0) };
+  const el = 2 * DEG, sun = new THREE.Vector3(Math.sin(el), Math.cos(el), 0).multiplyScalar(1.5e8);
+  const make = () => {
+    const c = new SolarShadowClipmap(ridge, { budgetMs: 1e6 });
+    settle(c, frameAt(0, 0, 2, sun));
+    return c;
+  };
+
+  it('shadows a vehicle behind the ridge, lights one flying above its shadow, and one past the ridge', () => {
+    const c = make();
+    expect(c.sunFractionAt(at(0, 0, 0.002))).toBe(0);
+    expect(c.sunFractionAt(at(0, 0, 2))).toBe(1);
+    expect(c.sunFractionAt(at(0, 0.3, 0.002))).toBe(1);
+    // A point below the clipmap surface marches from the surface, not from inside the ground.
+    expect(c.sunFractionAt(at(0, 0.3, -0.05))).toBe(1);
+  });
+
+  it('is 1 (no dimming) when the shadows are off', () => {
+    const c = make();
+    c.setActive(false);
+    expect(c.sunFractionAt(at(0, 0, 0.002))).toBe(1);
   });
 });

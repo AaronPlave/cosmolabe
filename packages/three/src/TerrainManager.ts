@@ -774,22 +774,28 @@ export class TerrainManager {
   private createSolarShadow(config: SolarShadowConfig): void {
     const datum = this.sampler.datum;
     const revision = () => this.cpuRevision;
+    // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of resident
+    // LODs would put steps (walls, to a low Sun) at its tile seams.
+    const levelFor = (texelKm: number) => Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / ((this.cube!.source!.manifest.grid.width - 1) * texelKm))));
     const source: ClipmapSource = {
       datum,
       elevationKm: (latDeg, lonDeg, texelKm) => {
         const cube = this.cube?.source;
         if (!this.cubeConfigured) return this.sampleResident(latDeg, lonDeg)?.elevationKm ?? null;
         if (!cube) return null;
-        // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of
-        // resident LODs would put steps (walls, to a low Sun) at its tile seams.
-        const cell = (cube.manifest.grid.width - 1) * texelKm;
-        const level = Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / cell)));
-        const radius = cube.radiusAtLevel(latDeg, lonDeg, level);
+        const radius = cube.radiusAtLevel(latDeg, lonDeg, levelFor(texelKm));
         if (radius === null) return null;
         const shape = datum.referenceShape;
         const zero = shape.kind === 'sphere' ? shape.radiusKm
           : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg, heightKm: 0 }, datum)));
         return radius - zero;
+      },
+      // The product's finest tile spacing there (at a face centre).
+      cellKm: (latDeg, lonDeg) => {
+        const cube = this.cube?.source;
+        if (!cube) return 0;
+        const level = cube.availableAt(cube.sampler.faceCoordinate(latDeg, lonDeg)).level;
+        return 2 * this.bodyRadiusKm / (2 ** level * (cube.manifest.grid.width - 1));
       },
       get revision() { return revision(); },
     };
@@ -840,6 +846,8 @@ export class TerrainManager {
     if (this.glRenderer) this.solarShadow.renderHorizons(this.glRenderer);
   }
   get hasSolarShadow(): boolean { return this.solarShadow !== null; }
+  /** See `SolarShadowClipmap.sunFractionAt`. */
+  solarSunFractionAt(scenePos: THREE.Vector3): number { return this.solarShadow?.sunFractionAt(scenePos) ?? 1; }
   /** The effective mode, for the viewer's control. */
   get solarShadowMode(): 'off' | SolarShadowQuality {
     return this.solarShadow && this.solarShadowsOn ? this.solarShadow.quality : 'off';

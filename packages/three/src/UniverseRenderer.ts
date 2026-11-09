@@ -1262,6 +1262,12 @@ export class UniverseRenderer {
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
     }
+    // #205: a vehicle near terrain with solar shadows gets only the Sun that terrain leaves it, landed or flying.
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.hasModel) continue;
+      const parent = bm.body.parentName ? this.bodyMeshes.get(bm.body.parentName) : undefined;
+      bm.setTerrainSunVisibility(parent?.hasSolarShadow ? parent.solarSunFractionAt(bm.position) : 1);
+    }
     if (this.clampCameraAboveSurfaces({ cubeOnly: true, resetCorrection: false })) {
       const distance = this.camera.position.distanceTo(this.cameraController.controls.target);
       this.camera.near = Math.max(1e-12, distance * 1e-8);
@@ -3594,10 +3600,10 @@ export class UniverseRenderer {
    * largest unknown fraction across the bodies that have one, and whether all of them are drawn from baked imagery
    * (which carries its own lighting, so shadows cannot show on it).
    */
-  terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; bakedOnly: boolean } | null {
+  terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; coarseFraction: number; bakedOnly: boolean } | null {
     const rank: Record<SolarShadowStatus['state'], number> = { off: 0, 'out-of-range': 1, building: 2, partial: 3, ready: 4 };
     const order = ['off', 'low', 'medium', 'high'] as const;
-    let supported = false, bakedOnly = true, mode: 'off' | SolarShadowQuality = 'off', worst: SolarShadowStatus['state'] | null = null, unknown = 0;
+    let supported = false, bakedOnly = true, mode: 'off' | SolarShadowQuality = 'off', worst: SolarShadowStatus['state'] | null = null, unknown = 0, coarse = 0;
     for (const bm of this.bodyMeshes.values()) {
       const support = bm.solarShadowSupport;
       if (!support?.supported) continue;
@@ -3608,8 +3614,9 @@ export class UniverseRenderer {
       if (!s || support.mode === 'off') continue;
       if (worst === null || rank[s.state] < rank[worst]) worst = s.state;
       unknown = Math.max(unknown, ...s.levels.map(l => l.unknownFraction));
+      coarse = Math.max(coarse, s.levels[0]?.coarseFraction ?? 0);
     }
-    return supported ? { mode, state: worst, unknownFraction: unknown, bakedOnly } : null;
+    return supported ? { mode, state: worst, unknownFraction: unknown, coarseFraction: coarse, bakedOnly } : null;
   }
 
   /** Residency and quality of a body's terrain-shadow clipmap, or null when it has none. */
@@ -3617,7 +3624,7 @@ export class UniverseRenderer {
     return this.bodyMeshes.get(bodyName)?.solarShadowStatus ?? null;
   }
 
-  /** Debug view of the terrain shadow: 0 off, 1 visibility, 2 unknown cells tinted, 3 frame/data alignment. */
+  /** Debug view of the terrain shadow: see `SolarShadowDebugMode`. */
   setTerrainShadowDebug(mode: SolarShadowDebugMode): void {
     for (const bm of this.bodyMeshes.values()) bm.setSolarShadowDebug(mode);
   }

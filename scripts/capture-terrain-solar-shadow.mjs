@@ -69,6 +69,12 @@ const VIEWS = {
   'shackleton-rim': { site: [-89.67, 129.78], wantElevationDeg: 1.0, eye: at(-89.07, 129.78, 6.0), target: at(-89.67, 129.78, -2.5), fov: 60 },
   'polar-ridge': { site: [-88.4, 20], wantElevationDeg: 2.5, eye: at(-88.25, 20, 9), target: at(-88.55, 20, 0), fov: 55 },
   'equatorial-crater': { site: [9.62, -20.08], wantElevationDeg: 3.0, eye: at(8.9, -20.1, 45), target: at(9.62, -20.08, -3), fov: 55 },
+  // Low-resolution terrain (LOLA 118 m only, no polar DEM) seen from 90 km: most of the frame is in the 0.5 km and
+  // 2.5 km clipmap levels. Harkhebi J (43 km) and H (29 km).
+  harkhebi: { site: [38.4, 101.5], wantElevationDeg: 4.0, eye: at(36.2, 101.5, 90), target: at(38.4, 101.5, -2), fov: 55 },
+  // The coarsest terrain that casts shadows: the polar product's 0.85 km ring, 130 km from Shackleton, lit from the side,
+  // from 30 km up; part of the foreground (1.7 km) is too coarse to.
+  'polar-coarse': movedPose({ site: [-85.8, 40], wantElevationDeg: 3.0, eye: at(-85.0, 40, 30), target: at(-85.8, 40, -1), fov: 55 }, 0, -43, 1),
 };
 const viewNames = String(args.views ?? Object.keys(VIEWS).join(',')).split(',');
 const MODES = String(args.modes ?? 'off,on,flood,visibility,unknown,alignment').split(',');
@@ -204,12 +210,135 @@ try {
         + `unknown ${shadow?.levels.map(l => (l.unknownFraction * 100).toFixed(0) + '%').join('/')}, build ${shadow?.levels.map(l => l.lastBuildMs.toFixed(0) + ' ms').join('/')}`);
     }
     if (args.sequence) results.push({ view: viewName, sequences: await sequences(page, viewName, view, epoch, pose, applyMode) });
+    if (args.playback) results.push({ view: viewName, playback: await playback(page, view, epoch, pose, applyMode) });
     results.push({ view: viewName, errors });
     await page.close();
   }
 } finally {
   await browser.close();
 }
+/**
+ * Real playback at `--playback <rate>` (default 86400: one day per second): every animation frame, each level's
+ * horizon-map Sun lag (the angle between the Sun its map was rendered for and the drawn Sun) and the frame interval;
+ * then seeks of ±1 h to ±5 days, each followed by the lag in the first drawn frame.
+ */
+async function playback(page, view, epoch, pose, applyMode) {
+  const out = {};
+  for (const mode of ['off', 'on']) out[mode] = await playbackRun(page, view, epoch, pose, applyMode, mode);
+  if (args['playback-video']) out.video = await playbackVideo(page, view, epoch, pose, applyMode);
+  return out;
+}
+/**
+ * A real-time screen recording (CDP screencast) of `--playback-video <seconds>` of playback, from the same epoch, as the
+ * Sun fraction (debug view 1) and shadows on, side by side.
+ */
+async function playbackVideo(page, view, epoch, pose, applyMode) {
+  const { execFileSync } = await import('node:child_process');
+  const seconds = args['playback-video'] === true ? 8 : Number(args['playback-video']);
+  const rate = args.playback === true ? 86400 : Number(args.playback);
+  const name = `${Object.keys(VIEWS).find(k => VIEWS[k] === view)}-playback`;
+  const parts = [];
+  for (const mode of ['visibility', 'on']) {
+    await applyMode(mode); await pose(view, epoch.et); await page.waitForTimeout(1000);
+    const dir = join(OUT, `${name}-frames`, mode);
+    mkdirSync(dir, { recursive: true });
+    const cdp = await page.context().newCDPSession(page);
+    const frames = [];
+    cdp.on('Page.screencastFrame', ({ data, sessionId, metadata }) => {
+      frames.push({ data, t: metadata.timestamp });
+      cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+    });
+    await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 85, everyNthFrame: 1 });
+    await page.evaluate(({ rate, ms, view }) => new Promise(done => {
+      const r = window.cap.getRenderer(), bm = r.getBodyMesh('Moon'), THREE = r.camera.position.constructor;
+      const place = () => {
+        const centre = new THREE(); bm.getWorldPosition(centre);
+        const toWorld = ([x, y, z]) => new THREE(x, z, -y).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+        const eye = toWorld(view.eye), target = toWorld(view.target);
+        r.camera.position.copy(eye); r.camera.up.copy(eye.clone().sub(centre).normalize());
+        r.cameraController.controls.target.copy(target); r.camera.lookAt(target); r.camera.updateMatrixWorld(true);
+      };
+      r.timeController.setRate(rate); window.cap.setPlaying(true);
+      const end = performance.now() + ms;
+      const tick = (now) => { place(); if (now < end) requestAnimationFrame(tick); else { window.cap.setPlaying(false); done(); } };
+      requestAnimationFrame(tick);
+    }), { rate, ms: seconds * 1000, view });
+    await cdp.send('Page.stopScreencast');
+    await cdp.detach();
+    // Frames at their capture times: a concat list with each frame's duration.
+    let list = '';
+    frames.forEach((f, i) => {
+      const file = join(dir, `${String(i).padStart(4, '0')}.jpg`);
+      writeFileSync(file, Buffer.from(f.data, 'base64'));
+      list += `file '${file}'\nduration ${((frames[i + 1]?.t ?? f.t + 1 / 30) - f.t).toFixed(4)}\n`;
+    });
+    writeFileSync(join(dir, 'list.txt'), list);
+    parts.push({ list: join(dir, 'list.txt'), frames: frames.length });
+  }
+  const mp4 = join(OUT, `${name}.mp4`);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...parts.flatMap(p => ['-f', 'concat', '-safe', '0', '-i', p.list]),
+    '-filter_complex', '[0]fps=30,scale=640:-2[a];[1]fps=30,scale=640:-2[b];[a][b]hstack=shortest=1',
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '26', mp4]);
+  console.log(`playback video: ${parts.map(p => p.frames).join(' / ')} frames in ${seconds} s -> ${mp4}`);
+  return { file: mp4, seconds, rate, frames: parts.map(p => p.frames) };
+}
+
+async function playbackRun(page, view, epoch, pose, applyMode, mode) {
+  await applyMode(mode); await pose(view, epoch.et); await page.waitForTimeout(1000);
+  const rate = args.playback === true ? 86400 : Number(args.playback);
+  const res = await page.evaluate(({ rate, frames, view }) => new Promise(done => {
+    const r = window.cap.getRenderer(), bm = r.getBodyMesh('Moon');
+    const lag = () => bm.solarShadowStatus.levels.map(l => l.horizonSunLagDeg);
+    // Keep the camera at its body-fixed pose as the Moon turns (as a surface view tracking the Moon does).
+    const THREE = r.camera.position.constructor;
+    const place = () => {
+      const centre = new THREE(); bm.getWorldPosition(centre);
+      const toWorld = ([x, y, z]) => new THREE(x, z, -y).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+      const eye = toWorld(view.eye), target = toWorld(view.target);
+      r.camera.position.copy(eye); r.camera.up.copy(eye.clone().sub(centre).normalize());
+      r.cameraController.controls.target.copy(target); r.camera.lookAt(target); r.camera.updateMatrixWorld(true);
+    };
+    const renders0 = bm.solarShadowStatus.horizonRenders;
+    r.timeController.setRate(rate); window.cap.setPlaying(true);
+    const rows = [];
+    let prev = performance.now(), et0 = r.timeController.et;
+    const tick = (now) => {
+      rows.push({ dtMs: +(now - prev).toFixed(2), state: bm.solarShadowStatus.state, lagDeg: lag() }); prev = now;
+      place();
+      if (rows.length < frames) { requestAnimationFrame(tick); return; }
+      window.cap.setPlaying(false);
+      const simS = r.timeController.et - et0, renders = bm.solarShadowStatus.horizonRenders - renders0;
+      const seeks = [];
+      const deltas = [3600, -3600, 6 * 3600, 86400, -86400, 5 * 86400];
+      const seek = (k) => {
+        if (k >= deltas.length) { done({ rows: rows.slice(10), simS, renders, seeks }); return; }
+        r.timeController.setTime(r.timeController.et + deltas[k]);
+        // The first frame after a seek draws the camera where the Moon was (a harness artefact: a tracking camera
+        // turns with it), so wait for the clipmap to be drawn again and report the lag in that first drawn frame.
+        let n = 0;
+        const wait = () => {
+          place();
+          const st = bm.solarShadowStatus.state;
+          if (n++ > 0 && (st === 'ready' || st === 'partial') || n > 600) { seeks.push({ deltaS: deltas[k], framesUntilDrawn: n, state: st, lagDeg: lag() }); seek(k + 1); return; }
+          requestAnimationFrame(wait);
+        };
+        requestAnimationFrame(wait);
+      };
+      seek(0);
+    };
+    requestAnimationFrame(tick);
+  }), { rate, frames: Number(args['playback-frames'] ?? 300), view });
+  const drawn = res.rows.filter(r => r.state === 'ready' || r.state === 'partial');
+  const maxLag = Math.max(...drawn.flatMap(r => r.lagDeg.filter(v => v !== null)));
+  const dts = res.rows.map(r => r.dtMs).sort((a, b) => a - b);
+  const out = { rate, frames: res.rows.length, framesDrawn: drawn.length, states: [...new Set(res.rows.map(r => r.state))], simSeconds: +res.simS.toFixed(0), horizonRenders: res.renders,
+    maxHorizonSunLagDeg: +maxLag.toFixed(4), frameP50Ms: dts[dts.length >> 1], frameP95Ms: dts[Math.floor(dts.length * 0.95)],
+    seeks: res.seeks };
+  console.log(`playback ${mode} ${rate}x: ${out.frames} frames, ${out.simSeconds} s simulated, ${out.horizonRenders} level renders, max lag ${out.maxHorizonSunLagDeg} deg, `
+    + `frame p50/p95 ${out.frameP50Ms}/${out.frameP95Ms} ms, seeks ${JSON.stringify(res.seeks.map(s => Math.max(...s.lagDeg)))}`);
+  return out;
+}
+
 /** Body-fixed pose moved from `view`: target panned `panKm` east, eye yawed `yawDeg` about the target's up, distance × `zoom`. */
 function movedPose(view, panKm, yawDeg, zoom) {
   const n = v => { const l = Math.hypot(...v); return v.map(x => x / l); };
@@ -249,7 +378,8 @@ async function sequences(page, viewName, view, epoch, pose, applyMode) {
   const trace = () => page.evaluate(() => {
     const s = window.cap.getRenderer().getBodyMesh('Moon').solarShadowStatus;
     return s && { state: s.state, anchorResets: s.anchorResets, levels: s.levels.map(l => ({ offsetKm: l.offsetKm?.map(v => +v.toFixed(2)),
-      builds: l.builds, lastReason: l.lastReason, lastSampledTexels: l.lastSampledTexels, unknown: +l.unknownFraction.toFixed(4) })) };
+      builds: l.builds, lastReason: l.lastReason, lastSampledTexels: l.lastSampledTexels, unknown: +l.unknownFraction.toFixed(4),
+      horizonSunLagDeg: l.horizonSunLagDeg })) };
   });
   const frames = () => page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
   const out = {};
@@ -257,8 +387,11 @@ async function sequences(page, viewName, view, epoch, pose, applyMode) {
   const plans = {
     camera: Array.from({ length: 2 * N + 1 }, (_, i) => { const s = i <= N ? i / N : (2 * N - i) / N; return { p: movedPose(view, 20 * s, 12 * s, 1 - 0.2 * s), et: epoch.et }; }),
     time: Array.from({ length: 2 * N }, (_, i) => ({ p: view, et: epoch.et + 120 * i })),
+    // One day of simulation per second at 60 frames per second.
+    fast: Array.from({ length: 2 * N }, (_, i) => ({ p: view, et: epoch.et + 1440 * i })),
   };
-  for (const [name, plan] of Object.entries(plans)) {
+  const wanted = String(args.sequence === true ? 'camera,time' : args.sequence).split(',');
+  for (const [name, plan] of Object.entries(plans).filter(([n]) => wanted.includes(n))) {
     const dir = join(OUT, `${viewName}-${name}-frames`);
     mkdirSync(dir, { recursive: true });
     const rows = [], shots = { on: [], visibility: [] };

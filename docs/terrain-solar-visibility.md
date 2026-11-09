@@ -14,27 +14,28 @@ numeric site→target geometry.
 with heights a shadow can be built from (cube-sphere grids, quantized mesh), and works on any such terrain with no
 catalog change. It follows the catalog until you choose (Off, unless the catalog sets `solarShadows`), then remembers
 your choice. A line under it says what is happening: building (only until every level has data), some terrain not
-loaded, on, or "Off in Flood lighting" (`flood` has no Sun).
+loaded, terrain here too coarse to cast shadows, on, or "Off in Flood lighting" (`flood` has no Sun).
 
 Catalog: `"terrain": { …, "solarShadows": true }` ([catalog-format.md](catalog-format.md#solarshadows)), default `high`.
 Fixture: `apps/viewer/test-catalogs/experiments/moon-terrain-cube-solar-shadow.json`.
 
 Renderer (`UniverseRenderer`): `setTerrainShadowMode('off' | 'low' | 'medium' | 'high' | null)`, `terrainShadowSummary()`,
 `terrainShadowStatus(body)`, `setTerrainShadowDebug(mode)`. Debug views: `1` Sun fraction (white lit, black shadowed);
-`2` the same with terrain no level holds tinted magenta; `3` frame/data alignment (green: drawn surface within 10 m of the
+`2` the same with terrain no level holds, or too coarse to cast shadows, tinted magenta; `3` frame/data alignment (green: drawn surface within 10 m of the
 clipmap); `4` **neutral grey albedo** lit by the Sun with terrain shadows (no imagery, no baked light); `5` the same
 without terrain shadows; `6` the normal image with shadows bypassed while the clipmap keeps updating (A/B "off").
 
-What it touches: only the **direct** diffuse/specular term of relit surfaces (`reflectance` and `unknown` imagery).
-Ambient and eclipse terms are untouched. Spacecraft/lander shadows keep their own shadow map.
+What it touches: the **direct** diffuse/specular term of relit surfaces (`reflectance` and `unknown` imagery), and the
+light on **vehicles** (any body with a model whose parent has terrain shadows: landed or flying, see step 6). Ambient
+and eclipse terms on terrain are untouched. A vehicle's own shadow on the ground keeps its shadow map.
 
 ## How it works
 
 **A height clipmap filled from source terrain, a horizon map per clipmap texel computed on the GPU, and one filtered
 fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
 
-1. **Clipmap** (`SolarShadowClipmap.ts`). Up to three nested squares (default 8 / 64 / 320 km half-width at 256²: 62 m /
-   0.5 km / 2.5 km texels), each holding the terrain's radius minus the anchor radius in a **gnomonic** projection about
+1. **Clipmap** (`SolarShadowClipmap.ts`). Up to four nested squares (default 8 / 24 / 80 / 320 km half-width at 256²:
+   62 m / 0.19 km / 0.62 km / 2.5 km texels), each holding the terrain's radius minus the anchor radius in a **gnomonic** projection about
    one anchor frame, so the sphere is exact at any range. Levels re-centre on the orbit target (or camera) in whole
    texels after the focus moves 25 % of their half-width. A re-centre **keeps every known texel it shares with the
    current square** (the same anchor grid, so the same samples) and samples only the newly exposed strip (~24 % of the
@@ -44,6 +45,9 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
 2. **One consistent source level per clipmap level.** Texels come from the cube-sphere CPU grids at one product level (the
    coarsest whose cell is no wider than the texel), never a mix of resident LODs, whose seams would be walls at a low Sun.
    Other sources go through `ClipmapSource` (`clipmapSourceFromSurface` adapts any `PhysicalSurface`, incl. meshes).
+   **Terrain whose source is coarser than 1 km** (`MAX_SOURCE_CELL_KM`; the product's finest spacing there) is left out:
+   it neither casts nor receives terrain shadows and is drawn lit, shaded by slope, and flagged like unknown terrain.
+   Its shadows would be projections of its triangles (see "Coarse terrain" below).
 3. **Horizon pass** (`renderHorizons`, `ssMarch`). For each texel centre, on the GPU: march toward the Sun and keep the
    largest angle by which terrain stands above the Sun ray. Each tap reads the finest level holding terrain there,
    **bilinearly at that level's own resolution**, and the next step is 0.75 of that level's texel (`high`): the march
@@ -54,9 +58,15 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
    finest level holding it (cross-faded the same way), converted to the visible fraction of the Sun's disk (linear across
    its diameter, so edges move continuously with time). That is one filtered fetch per fragment.
 5. **When it re-renders.** A level whose own data or placement changed re-renders that frame (its map must match its
-   texels). Otherwise, at most one stale level per frame (finest first) re-renders when any level's data or the quality
-   changed or the Sun moved by more than 1/16 of its radius, which moves an edge 30 km from its ridge by 9 m. With a
-   paused or 1× clock and a still camera, nothing re-renders.
+   texels). Others are stale when the Sun has moved more than 1/16 of its radius since their map (an edge 30 km from its
+   ridge moves 9 m) or another level's data changed. Up to two stale levels re-render per frame, the Sun-stalest first,
+   so under fast playback each level re-renders every other frame and none starves (the earlier "first stale level"
+   rule let the finest level starve the coarser ones). After a seek (Sun > 1° from a map) every level re-renders at
+   once. With a paused or 1× clock and a still camera, nothing re-renders.
+6. **Vehicles** (`sunFractionAt`). Each frame, for every body with a model whose parent has terrain shadows, the CPU runs
+   the same march from the vehicle's own position (any altitude; from the clipmap surface if the point is below it)
+   through the same clipmap data, and scales the vehicle's light by the visible fraction of the Sun's disk, through the
+   eclipse term models already have. One point per vehicle: a vehicle is lit or shadowed as a whole.
 
 **Why this shape, after review.** The first version marched per fragment with max-reduced mips and per-pixel jitter. That
 had three problems. It was **stippled**, because the jitter keyed to `gl_FragCoord` made it shimmer in screen space. It
@@ -72,7 +82,8 @@ to shadowed. Terrain that **no** level holds is drawn lit (the #204 term) and fl
 clear until it rises above `unknownReliefKm` (default 10 km).
 
 **Diagnostics** (`terrainShadowStatus(body)`): per level `offsetKm`, `builds`, `lastReason` (`initial` / `recenter` /
-`new-data`), `lastSampledTexels`, `unknownFraction`, `lastBuildMs`; plus `anchorResets` and `horizonRenders`.
+`new-data`), `lastSampledTexels`, `unknownFraction`, `coarseFraction`, `lastBuildMs`, `horizonSunLagDeg` (the Sun its
+horizon map was rendered for vs the current Sun); plus `anchorResets` and `horizonRenders`.
 
 ## Evidence
 
@@ -88,11 +99,11 @@ horizon.
 | | Moon | Mars |
 | --- | --- | --- |
 | Frame/data alignment (view 3 green) | 791 / 800 px | 791 / 800 px |
-| Mean \|GPU − reference\| (Sun fraction), `high` | 0.008 | 0.008 |
-| `medium` / `low` | 0.009 / 0.009 | 0.008 / 0.008 |
-| Hand-filtered path (no float-linear) | 0.008 | 0.008 |
+| Mean \|GPU − reference\| (Sun fraction), `high` | 0.005 | 0.005 |
+| `medium` / `low` | 0.006 / 0.006 | 0.006 / 0.006 |
+| Hand-filtered path (no float-linear) | 0.005 | 0.005 |
 | Light leaks / false shadow beyond the edge tolerance (every preset) | 0 / 0 | 0 / 0 |
-| Largest shadow-edge shift (0.4 km measurement grain) | 0.8 km | 0.8 km |
+| Largest shadow-edge shift (0.4 km measurement grain), `high` | 0.4 km | 0.4 km |
 
 The first version scored 0.019 / 0.024, with 2 km edge shifts and 6–13 km edge shifts for `medium`/`low`. Edge
 tolerance is `max(1 km, 12 % of the distance)` plus one texel of the level whose horizon map holds the receiver. The
@@ -153,6 +164,14 @@ What that scene can honestly support:
 We did not declare the layer `baked` (that hides the effect), and we did not swap in the nodata-filled WAC_EMP mosaic.
 A relightable albedo product for the pole is the data needed for a trustworthy changing-illumination picture.
 
+**Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
+10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
+position. 679 samples, Sun −0.8° to 1.4°, up to 0.31 km above ground, lit and shadowed both landed and flying: max
+difference 0.05 (one penumbra sample), all others 0. Before this change a hopper in a terrain shadow was fully sunlit.
+
+**Evidence still to refresh** for this revision (four levels, coarse-terrain rule): the stills, sequences and cost
+table below are from the previous revision.
+
 ## Cost
 
 Mean frame time on the hardware GPU (Apple M4 Max, Metal, vsync and frame limit off), the same three views and epochs.
@@ -186,8 +205,12 @@ the levers. The default stays off until that is measured.
 - **Range.** Terrain beyond the outer level (default 320 km) is unknown. The default covers a 1° Sun and 10 km relief.
 - **Streaming.** Until fine source tiles arrive, the coarser level answers, and the shadow sharpens when they do. Terrain
   no level holds is drawn lit.
-- **Time warp.** When the Sun moves more than 1/16 of its radius per frame, the coarser levels' maps can lag the finest
-  by up to two frames.
+- **Time warp.** At 1 day/s each level's map lags the Sun by at most two frames (measured max 0.16–0.35° on the M4 Max;
+  about 0.4° at 60 fps), costing 4.8–6.1 ms p50 / 8.5–12 ms p95 per frame against 1.1–1.4 ms off. After a seek, 0.
+- **Coarse source terrain.** Terrain whose finest source spacing is over 1 km casts and receives no terrain shadows (the
+  demo Moon product outside its polar and regional detail is 6.8 km apart; its shadows were projections of those
+  triangles). Within the limit, shadows show facets up to the source spacing.
+- **Vehicles** are lit or shadowed as a whole from one point, and the factor dims their ambient light too (as eclipses do).
 - **Baked imagery** (see above). Imagery declared `baked` shows no terrain shadows, and the viewer says so.
 - **Quantized-mesh terrain** mixes LODs in its CPU samples. Cube-sphere terrain is the supported low-Sun path.
 - **Overhangs.** A radial height field cannot represent overhangs. `clipmapSourceFromSurface` keeps the highest surface.

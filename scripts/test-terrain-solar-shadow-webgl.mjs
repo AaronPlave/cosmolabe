@@ -156,10 +156,13 @@ try {
     const heightAbs = (e) => crest(e / R / DEG); // ridge by arc distance east
     // A shadow edge may sit up to max(1 km, 12 % of the distance to the ridge) from the reference's (the clipmap holds
     // the ridge's vertical walls as bilinear slopes a texel wide), plus one texel of the level whose horizon map holds
-    // the receiver (horizons are computed at texel centres and interpolated): 62 m inside the 8 km level, 0.5 km from
-    // its cross-fade band out.
+    // the receiver (horizons are computed at texel centres and interpolated): 62 m inside the 8 km level, then the next
+    // level's texel from each cross-fade band out (0.19, 0.62, 2.5 km).
     const centreE = (E0 + E1) / 2;
-    const tolerance = (e) => Math.max(1.0, 0.12 * Math.abs(ridge.d0 - e)) + (Math.abs(e - centreE) < 0.8 * 8 - 0.1 ? 0.0625 : Math.abs(e - centreE) < 0.8 * 64 ? 0.5 : 2.5);
+    const tolerance = (e) => {
+      const d = Math.abs(e - centreE);
+      return Math.max(1.0, 0.12 * Math.abs(ridge.d0 - e)) + (d < 0.8 * 8 - 0.1 ? 0.0625 : d < 0.8 * 24 ? 0.1875 : d < 0.8 * 80 ? 0.625 : 2.5);
+    };
     const sweep = (quality, hardwareLinear = floatLinear) => {
     const sweeps = [];
     let worstMean = 0, worstMax = 0, leaks = 0, falseShadow = 0, compared = 0;
@@ -182,10 +185,10 @@ try {
         if (Math.abs(e - ridge.d0) < ridge.width / 2 + 0.4) continue;
         const loc = localSun(s, e);
         if (loc.el < 0.5) continue;
-        const ref = solarVisibility((de, dn) => heightAbs(e + de), loc.az, loc.el, 0, R, 330, 0.05);
+        const ref = solarVisibility((de) => heightAbs(e + de), loc.az, loc.el, 0, R, 330, 0.05);
         // Receivers within `tolerance` of a reference edge are judged against the reference on either side of it.
         const tol = tolerance(e);
-        const around = [-tol, 0, tol].map(k => solarVisibility((de, dn) => heightAbs(e + k + de), loc.az, loc.el, 0, R, 330, 0.05).fraction);
+        const around = [-tol, 0, tol].map(k => solarVisibility((de) => heightAbs(e + k + de), loc.az, loc.el, 0, R, 330, 0.05).fraction);
         const lo = Math.min(...around), hi = Math.max(...around);
         const gpuVis = r.row[x][0];
         const err = Math.abs(gpuVis - ref.fraction);

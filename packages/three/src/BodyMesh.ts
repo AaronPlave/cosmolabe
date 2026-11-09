@@ -1182,6 +1182,10 @@ export class BodyMesh extends THREE.Object3D {
   get hasTerrain(): boolean { return this.terrainManager !== null; }
   /** Terrain-cast solar shadows (#205): per-frame update, status, toggle and debug view. Inert unless `terrain.solarShadows` is set. */
   updateSolarShadow(frame: SolarShadowFrame): void { this.terrainManager?.updateSolarShadow(frame); }
+  /** Sun fraction this body's terrain leaves a scene point (a vehicle), this frame; 1 without terrain shadows. */
+  solarSunFractionAt(scenePos: THREE.Vector3): number { return this.terrainManager?.solarSunFractionAt(scenePos) ?? 1; }
+  /** Dim this body's (model's) sunlight by the fraction of the Sun terrain leaves it (#205). */
+  setTerrainSunVisibility(fraction: number): void { this.shadowUniforms.uTerrainSunVisibility.value = fraction; }
   get hasSolarShadow(): boolean { return this.terrainManager?.hasSolarShadow ?? false; }
   get solarShadowStatus(): SolarShadowStatus | null { return this.terrainManager?.solarShadowStatus ?? null; }
   // Kept here as well, so a choice made before the terrain exists (it is created lazily) applies when it does.

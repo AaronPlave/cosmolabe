@@ -41,14 +41,18 @@
   const shadowSummary = $derived.by(() => {
     void vs.frameTick;
     const s = getRenderer()?.terrainShadowSummary() ?? null;
-    return s && JSON.stringify({ mode: s.mode, state: s.state, unknown: Math.round(s.unknownFraction * 100), baked: s.bakedOnly });
+    return s && JSON.stringify({ mode: s.mode, state: s.state, unknown: Math.round(s.unknownFraction * 100), coarse: Math.round(s.coarseFraction * 100), baked: s.bakedOnly });
   });
-  const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; baked: boolean } : null);
+  const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; coarse: number; baked: boolean } : null);
   const shadowStatusText = $derived.by(() => {
     if (!shadow) return '';
     if (shadow.mode === 'off') return vs.lightingMode === 'flood' ? 'Off in Flood lighting: it has no Sun.' : '';
     if (vs.lightingMode === 'flood') return 'Off in Flood lighting: it has no Sun.';
     if (shadow.baked) return 'This surface\'s imagery has its lighting baked in, so shadows will not show on it.';
+    // The finest clipmap level, around the view's centre.
+    if (shadow.coarse > 0 && (shadow.state === 'ready' || shadow.state === 'partial')) {
+      return `Terrain heights here are over 1 km apart${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: too coarse to cast shadows, so drawn without them.`;
+    }
     switch (shadow.state) {
       case 'building': return 'Building terrain data…';
       case 'partial': return `Some terrain not loaded (${shadow.unknown} %): drawn lit, not shadowed.`;
