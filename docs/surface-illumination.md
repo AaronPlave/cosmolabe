@@ -183,7 +183,7 @@ where the primary source is thin.
 
 | Product (used by) | Evidence | Declared |
 | --- | --- | --- |
-| LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product exists; it is **not** what the composite uses. | `baked` |
+| LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product (`WAC_EMP_643NM`, 304 px/deg = 99.75 m/px) exists; it is **not** what the composite uses. | `baked` |
 | LROC NAC south pole **controlled average** mosaic, 1 m (Nov 2025; NAC half of the composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
 | WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (`terrain.imagery[]`, id `wac-nac`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` |
 | Viking MDIM 2.1 (Mars base, `viking`) | USGS Astropedia: the B/W mosaic "is processed to emphasize local topographic features"; the colour product is blended over it. | `baked` |
@@ -193,7 +193,8 @@ where the primary source is thin.
 No photometrically normalized product is in a production catalog yet, so no
 real scene exercises "reflectance base, baked overlay" except by forcing a
 declaration. The comparison below tests that option on the Moon with the
-Hapke-normalized LROC WAC albedo already in the repo as the globe texture.
+real 100 m `WAC_EMP_643NM` product (south polar tile) and, for contrast, the
+660 m Moon Kit albedo that derives from the same normalization.
 
 ### Relation to `temporal.illumination` (#214)
 
@@ -236,24 +237,38 @@ mean difference 0.00, 0 % of pixels differ), **B** is #372 (baked as-is), **C** 
 physically relit normalized reflectance layer. Scripts, numbers and Sun geometry:
 [`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
 
-**C on the Moon** is the NASA SVS CGI Moon Kit colour map (the repo's globe
-texture, `textures/moon-16k.jpg`): derived from the Hapke-normalized LROC WAC
-mosaic, with LOLA albedo filling the poles. Drawn here as luminance, scaled to the
-LROC global mean reflectance 0.115, as a cube layer declared `reflectance`. It is a
-stand-in: **660 m/px, blurry polar filler**, not the 100 m `WAC_EMP_643NM`
-normalized mosaic, whose host (`pds.lroc.im-ldi.com`) was not reachable from the
-build environment. It tests the principle, not the final resolution.
+**C on the Moon** is a cube layer declared `reflectance`, in two versions:
+
+- **C 100 m: the real product.** LROC WAC empirically photometrically normalized
+  643 nm reflectance, `WAC_EMP_643NM_P900S0000_304P` (PDS `LRO-L-LROC-5-RDR-V1.0`,
+  `DATA/MDR/WAC_EMP`): float32 reflectance normalized to i=30°, e=0°, g=30°,
+  polar stereographic, 99.75 m/px, lat -90..-60. Built as a level-7 cube pyramid
+  (83 m/px at the pole) with the product's own values, no recalibration.
+  Equatorward of -60° (outside the product tile) it blends to the Moon Kit layer
+  below, gain-matched in the -62..-70° ring; that region is not in the Shackleton
+  frames. **The product has no data on permanently shadowed floors** (WAC never saw
+  them lit): about 2 % of the area inside -60° is nodata, 30 % within 3° of the pole, and
+  Shackleton's floor is nodata out to about 9 km radius. That nodata is filled
+  with a smooth regional mean: a filler, not data.
+- **C 660 m: the stand-in** used earlier, the NASA SVS CGI Moon Kit colour map
+  (`textures/moon-16k.jpg`, derived from the same normalized WAC mosaic, LOLA
+  albedo at the poles), as luminance scaled to the LROC global mean reflectance 0.115.
+
+Both are physically relit. The 100 m product's reflectance (0.006-0.66, mean
+0.136) is used as the albedo directly; a Lambertian albedo equivalent to a
+reflectance normalized at i=30° would be 1/cos 30° = 1.155 times larger. That is a
+uniform exposure factor, not a shape change, and it is not applied.
 
 ![Shackleton at four epochs: A relit, B baked, C normalized and relit](validation/surface-illumination/real-scenes/moon-shackleton-abc-time.jpg)
 
 **What changes as the Sun moves** (mean luma of the frame, four epochs, Sun
 elevation 1.1-1.4°, azimuth 222°, 137°, 52°, 327°):
 
-| | A relit | B baked | C normalized, relit |
-| --- | --- | --- | --- |
-| Shackleton, 4 epochs | 15.6-23.7 | **71.9-72.2** | 22.6-27.5 |
-| Equator, Sun 20° E / 86° / 20° W | 28 / 51 / 31 | **49.1 / 49.1 / 49.1** | 35 / 63 / 39 |
-| Jezero, Sun 50° / 80° / 21° | 70 / 79 / 43 | **98.9 / 98.9 / 98.9** | no product |
+| | A relit | B baked | C relit (660 m) | C relit (100 m) |
+| --- | --- | --- | --- | --- |
+| Shackleton, 4 epochs | 15.8-23.1 | **72.0-72.3** | 22.1-27.4 | 21.6-26.7 |
+| Equator, Sun 20° E / 86° / 20° W | 28 / 51 / 31 | **49.1 / 49.1 / 49.1** | 35 / 63 / 39 | not built |
+| Jezero, Sun 50° / 80° / 21° | 70 / 79 / 43 | **98.9 / 98.9 / 98.9** | no product | no product |
 
 - **B does not change with the Sun at all.** Rim lighting, crater-wall
   shading and the dark floor are the acquisition Sun's (WAC at 55-75° incidence,
@@ -266,8 +281,17 @@ elevation 1.1-1.4°, azimuth 222°, 137°, 52°, 327°):
   wall lights and the shaded side flips with the azimuth, from the 5-10 m polar
   DEM; at a near-overhead equatorial Sun it is correctly flat (no relief signal at
   noon). It loses the imagery detail: terrain detail is the DEM's (5-10 m polar,
-  118 m elsewhere) and imagery detail is the texture's, and C has only 660 m of
-  the latter. Visible crater interiors are still sunlit when their normals face the
+  118 m elsewhere) and imagery detail is the texture's.
+- **The real 100 m product barely changes C at Shackleton.** Mean luma differs from the
+  660 m stand-in by about 1 of 255 per frame (0.9-1.0 across the four epochs) and the
+  lit-slope pattern is the same: at 1-1.4° Sun elevation the picture is the
+  DEM's shading times an almost uniform albedo. What 100 m adds is real albedo
+  structure on the rim and flanks, and **its defects**: a thin dark ring on the
+  flank (reflectance about 0.12 against 0.18 either side) and a dip at the edge of
+  the nodata floor, both visible in the 100 m column. They are residual slope
+  shading in the product (the empirical normalization cannot undo steep, nearly
+  unlit slopes), so the "normalized" polar tile is not shading-free at crater
+  walls. The 1 m NAC detail in A and B has no counterpart in C. Visible crater interiors are still sunlit when their normals face the
   Sun regardless of rim occlusion: that is #205, not faked here.
 - **Frozen in the sources:** the black Shackleton floor and rim shading in B
   (NAC black in permanently shadowed floors; WAC high-incidence shading).
@@ -340,12 +364,18 @@ that is a catalog decision, not a mode:
    quantities from photographic brightness; nothing here darkens or brightens a
    final image to imitate either.
 
-**Open and unverified.** Item 2 for the Moon rests on a 660 m stand-in. Before
-changing the LRO/MoonFall default, build the `WAC_EMP_643NM` 100 m normalized mosaic
-as a cube layer and repeat the Shackleton comparison; the LRO/MoonFall catalogs
-therefore still declare the WAC+NAC composite `baked` and show it by default. NAC
-(1 m) has no normalized counterpart: at the south pole its footprint covers the whole
-scene, so a baked NAC layer there is the scene.
+**Verified with the real 100 m product, at the south pole only.** The Moon
+default (item 2) works with `WAC_EMP_643NM`: it follows the simulated Sun, and the
+result is within 1 luma of the 660 m stand-in. It does not supply Shackleton's
+interior (nodata, filled) and carries residual slope shading at crater walls, so
+the polar illumination-study scene shows the DEM's shading over a near-uniform
+albedo, with the baked NAC one toggle away. Equatorial 100 m tiles (eight
+`WAC_EMP_643NM_E300…` tiles, about 500 MB each, plus the north polar tile) exist on
+the same host and were located but not built or compared. The LRO/MoonFall catalogs
+still declare the WAC+NAC composite `baked` and show it by default; switching that
+default is the owner's decision. NAC (1 m) has no normalized counterpart: at the
+south pole its footprint covers the whole scene, so a baked NAC layer there is the
+scene.
 
 ## Normals
 
