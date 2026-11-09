@@ -3571,16 +3571,38 @@ export class UniverseRenderer {
   private updateTerrainSolarShadow(bm: BodyMesh): void {
     const sun = this.bodyMeshes.get('Sun');
     if (!sun || sun === bm) return;
-    // Centre on the orbit target when it is a surface point, else under the camera.
-    const target = this.cameraController.controls.target;
-    const sceneRadius = bm.displayRadius * this.scaleFactor;
-    const targetR = target.distanceTo(bm.position);
     this.camera.updateMatrixWorld();
     bm.updateSolarShadow({
       camera: this.camera, bodyPosition: bm.position, bodyToScene: bm.bodyToWorldQuaternion(this._shadowQuat),
-      sunPosition: sun.position, scaleFactor: this.scaleFactor,
-      focus: targetR > 0.8 * sceneRadius && targetR < 1.2 * sceneRadius ? target : undefined,
+      sunPosition: sun.position, scaleFactor: this.scaleFactor, focus: this.terrainShadowFocus(bm),
     });
+  }
+
+  /**
+   * Clipmap centre: the ground under the camera, moved toward what the camera looks at (the orbit target when it is a
+   * surface point, else where the view ray meets the body) by at most four camera altitudes: an orbit view tilted up to
+   * ~75° keeps its target at the centre, and a grazing view or a far target cannot pull the fine levels away from the
+   * terrain in front of the camera (a ground point's level texel stays within ~5/128 of its distance from the camera).
+   */
+  private terrainShadowFocus(bm: BodyMesh): THREE.Vector3 {
+    const centre = bm.position, cam = this.camera.position, R = bm.displayRadius * this.scaleFactor;
+    const up = cam.clone().sub(centre);
+    const altitude = up.length() - R;
+    up.normalize();
+    const nadir = centre.clone().addScaledVector(up, R);
+    if (!(altitude > 0)) return nadir;
+    const target = this.cameraController.controls.target;
+    const targetR = target.distanceTo(centre);
+    let look: THREE.Vector3 | null = targetR > 0.8 * R && targetR < 1.2 * R ? target.clone() : null;
+    if (!look) {
+      const ray = new THREE.Ray(cam.clone(), this.camera.getWorldDirection(new THREE.Vector3()));
+      look = ray.intersectSphere(new THREE.Sphere(centre, R), new THREE.Vector3());
+    }
+    if (!look) return nadir;
+    const shift = look.sub(nadir);
+    shift.addScaledVector(up, -shift.dot(up));
+    if (shift.length() > 4 * altitude) shift.setLength(4 * altitude);
+    return nadir.add(shift);
   }
 
   /**

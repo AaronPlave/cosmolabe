@@ -21,7 +21,9 @@ Fixture: `apps/viewer/test-catalogs/experiments/moon-terrain-cube-solar-shadow.j
 
 Renderer (`UniverseRenderer`): `setTerrainShadowMode('off' | 'low' | 'medium' | 'high' | null)`, `terrainShadowSummary()`,
 `terrainShadowStatus(body)`, `setTerrainShadowDebug(mode)`. Debug views: `1` Sun fraction (white lit, black shadowed);
-`2` the same with terrain no level holds, or too coarse to cast shadows, tinted magenta; `3` frame/data alignment (green: drawn surface within 10 m of the
+`2` the same with terrain no level holds, or too coarse to cast shadows, tinted magenta (a fragment is tinted only where such terrain
+could change its answer: one already fully shadowed by known terrain is not). Views 1 and 2 show the fraction on every
+fragment, including slopes facing away from the Sun, which the lit image leaves dark whatever the fraction; `3` frame/data alignment (green: drawn surface within 10 m of the
 clipmap); `4` **neutral grey albedo** lit by the Sun with terrain shadows (no imagery, no baked light); `5` the same
 without terrain shadows; `6` the normal image with shadows bypassed while the clipmap keeps updating (A/B "off").
 
@@ -36,7 +38,10 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
 
 1. **Clipmap** (`SolarShadowClipmap.ts`). Up to four nested squares (default 8 / 24 / 80 / 320 km half-width at 256²:
    62 m / 0.19 km / 0.62 km / 2.5 km texels), each holding the terrain's radius minus the anchor radius in a **gnomonic** projection about
-   one anchor frame, so the sphere is exact at any range. Levels re-centre on the orbit target (or camera) in whole
+   one anchor frame, so the sphere is exact at any range. The **focus** is the ground under the camera, moved toward what
+   it looks at (the orbit target when that is a surface point, else where the view ray meets the body) by at most four
+   camera altitudes: an orbit view keeps its target at the centre, and an orbit target left on the far horizon (or
+   inside the body) cannot pull the fine levels off the terrain in front of the camera. Levels re-centre on it in whole
    texels after the focus moves 25 % of their half-width. A re-centre **keeps every known texel it shares with the
    current square** (the same anchor grid, so the same samples) and samples only the newly exposed strip (~24 % of the
    level), a few ms per frame; the current data keep drawing meanwhile, and the swap changes nothing in the overlap.
@@ -148,6 +153,30 @@ States seen: `ready` and `partial` only; no anchor reset. The round trips are no
 level re-centred during the pan and its hysteresis left it at a different centre on return, the band in which it blends
 into the next level sits elsewhere, and the two levels' answers differ slightly there (distant terrain near the horizon
 only). A max/median near 1 means the edges advance evenly with time.
+
+**Camera navigation at a fixed epoch** (`scripts/check-terrain-shadow-camera.mjs`; [camera/](validation/terrain-solar-shadow/camera/)).
+MoonFall Shackleton (WAC+NAC), clock frozen at 2029-02-05 16:08:55 UTC (Sun −1.2° at Shackleton's centre), shadows
+High. One path driven frame by frame with no settling (397 frames): zoom from 20 km to 500 km range (past the 320 km
+cut-off) and back, a full orbit, a 120 km pan toward Malapert and back, grazing views from 15 km, and the same grazing
+views with the orbit target left 300 km away on coarse terrain. Recorded four times (off | on / Sun fraction | unknown:
+[camera.mp4](validation/terrain-solar-shadow/camera/camera.mp4)). 44 ground points pinned 3–220 km from Shackleton; at
+each frame, the level holding each point, the CPU march from it through that frame's clipmap, and the pixels.
+
+- **The shadow at a fixed point does not change.** No point's CPU Sun fraction changed over the path (all 44 points,
+  levels 0–3, every re-centre). Of 47 frame-to-frame jumps in the Sun-fraction pixel, 46 sit within 5 px of a shadow
+  edge in both frames (the probe's pixel lands either side of an edge that stays put as the drawn mesh LOD changes); the
+  other is a label crossing the point, the same in Off.
+- **Same pose, same image.** Zoom out to 500 km and back: 0.00 % of pixels differ in Off, On and Sun fraction. Full
+  orbit: 0.00 %. 120 km pan and back: Off 0.09 %, On 0.15 %, Sun fraction 0.30 % (the cross-fade band; see above).
+- **The 320 km altitude cut-off** turns terrain shadows off for 5 frames; at that height On and Off differ on 0.7 % of
+  pixels (the WAC+NAC already holds the large shadows).
+- **Two fixes came from this.** (1) An orbit target on the far horizon used to centre the clipmap there: in the user's
+  view across Shackleton, every level-0 texel was then 6.8 km terrain, the Display panel said "too coarse", and Shackleton
+  had no terrain shadows. The focus now stays within four camera altitudes of the ground under the camera (step 1):
+  [before / after](validation/terrain-solar-shadow/camera/far-orbit-target-before-after.png), level-0 too-coarse 100 % → 0 %.
+  (2) Debug views 1–2 left slopes facing away from the Sun white (lit) and flagged texels whose march left the clipmap
+  after the Sun was already hidden; both changed with the camera (mesh LOD normals, clipmap extent) though the lit image
+  did not. They now show the fraction everywhere and flag only answers unknown terrain could change.
 
 **Real playback** (`--playback`, `--playback-video`). The clock runs at 1 day/s for 290 frames with the camera held in
 the body frame; each frame records every level's `horizonSunLagDeg`. Then seeks of ±1 h to 5 days. Real-time screen

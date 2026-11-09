@@ -841,7 +841,8 @@ float solarShadowDelta(vec3 viewPos) {
   return hRendered - ssHeight(g0, l0);
 }
 
-// Horizon pass: (largest terrain angle above the Sun ray, radians, clamped to ±1; 1 if the march met unknown terrain)
+// Horizon pass: (largest terrain angle above the Sun ray, radians, clamped to ±1; 1 if the march met unknown terrain
+// before the known terrain hid the whole Sun)
 // for the receiver on the clipmap surface at gnomonic point g0, height h0.
 vec2 ssMarch(vec2 g0, float h0) {
   float rc = uSsRc;
@@ -864,7 +865,8 @@ vec2 ssMarch(vec2 g0, float h0) {
     // than the Sun's radius still hides part of the disk.
     if (t > uSsMaxRange || hRay > uSsHMax + tan(uSsSunRad) * t) break;
     vec2 f = ssFind(ee * rc / (rc + w));
-    if (f.y < 0.0) { unknown = 1.0; break; }
+    // Unknown matters only while the Sun is not yet fully hidden: more terrain can only hide more of it.
+    if (f.y < 0.0) { unknown = worst < tan(uSsSunRad) ? 1.0 : 0.0; break; }
     worst = max(worst, (f.x - hRay - uSsBias) / t);
     t += uSsStepTexels * ssTexel(int(f.y));
   }
@@ -934,7 +936,8 @@ export function injectSolarShadowIntoShader(
   shader.fragmentShader = (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0;')
     .replace(end, `${end}
 #if NUM_DIR_LIGHTS > 0
-if (uSsEnabled > 0.5 && uSsDebug < 5.5 && dot(normal, directionalLights[0].direction) > 0.0) {
+// Debug views show the Sun fraction on every fragment: the rendered normal (which varies with mesh LOD) only gates the cost.
+if (uSsEnabled > 0.5 && uSsDebug < 5.5 && (uSsDebug > 0.5 || dot(normal, directionalLights[0].direction) > 0.0)) {
   solarVis = solarShadowVisibility(-vViewPosition, solarUnknown);
   reflectedLight.directDiffuse *= solarVis;
   reflectedLight.directSpecular *= solarVis;
