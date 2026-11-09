@@ -6,6 +6,7 @@ export type {
   ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptSurfacePolicy,
   ScriptEventReference, ScriptEventProvenance, ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization, ScriptEventFocusReceipt,
   ScriptSceneOptions, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSurfaceAppearance, ScriptReadiness, ScriptReadinessRequest,
+  ScriptViewpointInfo, ScriptObjectContext,
   ScriptActivity,
   ScriptActivityFilter,
   ScriptAvailability,

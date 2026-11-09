@@ -1998,3 +1998,9 @@ describe('shared continuous timeline profiles (#359)', () => {
     tools.dispose();
   });
 });
+
+it('rounds displayed UTC seconds instead of truncating submillisecond SPICE offsets', () => {
+  // SPICE TDB differs slightly from core's TT-like calendar conversion.
+  expect(viewerState.etToUtcString(469078427.1826898)).toBe('2014-11-12 15:32:40 UTC');
+  expect(viewerState.etToUtcString(469053407.18268466)).toBe('2014-11-12 08:35:40 UTC');
+});

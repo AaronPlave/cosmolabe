@@ -868,6 +868,11 @@ export class UniverseRenderer {
   }
 
   /** Render a single frame at current time */
+  private bodyPoseEpoch: number | null = null;
+  private bodyPoseOrigin: string | null = null;
+  /** Epoch/origin of the rendered body placements, separate from the live clock. */
+  getBodyPoseContext() { return { et: this.bodyPoseEpoch, origin: this.bodyPoseOrigin }; }
+
   renderFrame(): void {
     this._syncBackingStore();
     const et = this.timeController.et;
@@ -975,6 +980,8 @@ export class UniverseRenderer {
     // and terrain LOD mismatches can make it float or clip. This adjusts the radial
     // distance to match the rendered terrain.
     this.clampSurfaceLockedBodies();
+    this.bodyPoseEpoch = et;
+    this.bodyPoseOrigin = originBodyName ?? null;
 
     // Now that body positions are fresh under the new origin, re-derive any
     // stateful camera mode (Surface Explorer) from the current camera position.

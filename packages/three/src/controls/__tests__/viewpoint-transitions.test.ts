@@ -266,3 +266,22 @@ describe('refusing a viewpoint whose bodies are not in the scene', () => {
     });
   }
 });
+
+it('a cut to a new tracked origin does not capture the old mesh position as an orbit offset', () => {
+  const { cc, camera, moon, host, frames } = setup();
+  // Moon is still in the previous origin's coordinates when establishView
+  // runs; the renderer places it at zero on the next frame.
+  expect(moon.position.length()).toBeGreaterThan(1e6);
+  const pose = { name: 'Moon arrival', epoch: 123.456789, trackBody: 'Moon', originBody: 'Moon',
+    position: vec(0, 2000, 5000), target: vec(0, 0, 0), up: vec(0, 1, 0) };
+  cc.addViewpoint(pose);
+  expect(applyNamedViewpoint(host, pose.name)).toBe(true);
+  frames();
+  close(cc.controls.target, vec(0, 0, 0));
+  close(camera.position, pose.position);
+  // Deliberately off-centre tracked views retain their authored offset too.
+  cc.establishView({ ...pose, target: vec(1, 2, 3) }, { origin: moon, track: moon });
+  frames();
+  close(cc.controls.target, vec(1, 2, 3));
+  cc.dispose();
+});

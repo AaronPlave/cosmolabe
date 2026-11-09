@@ -36,6 +36,7 @@ function cameraVector(o: ScriptComposedObject) {
 
 function placed(o: ScriptComposedObject | undefined, anchor: ScriptComposedObject): boolean {
   if (!o?.inView || !o.ndc || Math.abs(o.ndc[0]) > MARGIN || Math.abs(o.ndc[1]) > MARGIN) return false;
+  if (o.occlusion?.basis === 'model-bounds') return true; // Bounds cannot establish a blocked line of sight.
   if (o.occlusion?.kind === 'full') return false;
   // A target whose centre is behind the anchor's disc is not "beside" it.
   return !(o.occlusion?.by === anchor.object);

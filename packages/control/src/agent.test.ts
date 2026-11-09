@@ -866,3 +866,27 @@ describe('agent tools: mis-encoded model input', () => {
     expect(fail(await tools.call('select', JSON.parse('{"object":"Titan","__proto__":{}}'))).code).toBe('invalid-input');
   });
 });
+
+describe('scene evidence and numerical-navigation readback', () => {
+  it('rejects unresolved aliases without declaring the scene body absent', async () => {
+    const host = new FakeViewer(); host.objects = ['67P/Churyumov-Gerasimenko', 'Probe'];
+    const tools = createAgentTools(host);
+    expect(await tools.call('getViewComposition', { objects: ['67P'] })).toMatchObject({ ok: false, code: 'refused',
+      data: { unknown: ['67P'], candidates: [{ name: '67P', matches: ['67P/Churyumov-Gerasimenko'] }] } });
+    expect(await tools.call('getViewComposition', { objects: ['67P/Churyumov-Gerasimenko'] })).toMatchObject({ ok: true });
+    tools.dispose();
+  });
+  it('publishes requested and observed ET plus measured-body context without extra seek gates', async () => {
+    const host = Object.assign(new FakeViewer(), { getObjectState: () => ({ et: 123.456789, frame: 'ECLIPJ2000', center: 'Carrier', position: [0.003, 0.004, 0], positionAvailability: { status: 'available' } }) as never });
+    host.objects = ['Probe', 'Carrier']; host.playing = false;
+    const tools = createAgentTools(host);
+    await tools.call('getObjectState', { object: 'Probe', center: 'Carrier', et: 123.456789 });
+    expect(await tools.call('setTime', { when: 123.456789 })).toMatchObject({ ok: true,
+      data: { requestedTime: 123.456789, observedEt: 123.456789, playing: false, numericalSubjects: ['Probe','Carrier'], composition: { objects: [{ object: 'Probe' }, { object: 'Carrier' }] } } });
+    host.emit('load', { objects: [] });
+    const result = await tools.call('setTime', { when: 200 });
+    expect(result).toMatchObject({ ok: true, data: { observedEt: 200 } });
+    expect(result.ok && (result.data as Record<string, unknown>).numericalSubjects).toBeUndefined();
+    tools.dispose();
+  });
+});

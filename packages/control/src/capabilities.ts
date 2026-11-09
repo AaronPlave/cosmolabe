@@ -137,6 +137,7 @@ const PROFILE_DATA_OUTPUT = objectSchema({ scene: { type: ['number', 'null'] }, 
   missing: NUMBER, gaps: RECORDS, minimum: NULLABLE_RECORD, maximum: NULLABLE_RECORD, sampling: { type: 'object' }, limitations: STRINGS });
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  getViewpointInfo: NULLABLE_RECORD, getObjectContext: NULLABLE_RECORD,
   getProfileValue: PROFILE_DATA_OUTPUT,
   sampleProfileData: PROFILE_DATA_OUTPUT,
   getProfileOptions: objectSchema({ quantities: RECORDS, window: { type: 'object' }, limitations: STRINGS }),
@@ -144,7 +145,7 @@ const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   getProfile: objectSchema({ scene: { type: ['number','null'] }, status: TEXT, definition: NULLABLE_RECORD, resolved: NULLABLE_RECORD, timeline: { type: 'object' }, limitations: STRINGS }),
   findClosestApproach: objectSchema({ query: TEXT, status: { type: 'string', enum: ['computed','sampled','unavailable','no-results','interrupted'] }, reason: { type: ['string','null'] }, computedEventVerified: { type: 'boolean' }, searchStarted: { type: 'boolean' }, sampledEpochSelected: { type: 'boolean' }, windows: RECORDS, stepSeconds: { type: ['number','null'] }, candidates: NUMBER, result: NULLABLE_RECORD, presentation: NULLABLE_RECORD, samples: NULLABLE_RECORD, sampledView: NULLABLE_RECORD, limitations: STRINGS }, ['query','status','reason','computedEventVerified','windows','samples']),
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
-  getViewComposition: objectSchema({ et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
+  getViewComposition: objectSchema({ fresh: { type: 'boolean' }, observedEt: { type: ['number','null'] }, et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
   checkGoal: objectSchema({ kind: TEXT, status: { type: 'string', enum: ['met', 'partial', 'unmet', 'inconclusive'] }, checks: RECORDS }, ['kind', 'status', 'checks']),
   getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },

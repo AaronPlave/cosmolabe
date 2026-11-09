@@ -781,6 +781,9 @@ export interface ViewerControl {
   listObjects(): readonly string[];
   /** Every named viewpoint the catalog defines. */
   listViewpoints(): readonly string[];
+  /** Authored scene annotations and current navigation are separate evidence. */
+  getViewpointInfo?(name: string): ScriptViewpointInfo | undefined;
+  getObjectContext?(name: string): ScriptObjectContext | undefined;
   /**
    * The script that reproduces the current view.
    *
@@ -896,9 +899,12 @@ export interface ScriptComposedObject {
   /** Centre is in front of the camera and inside the viewport. */
   readonly inView: boolean;
   /** Nearest measured sphere covering the centre's line of sight: full = disc entirely behind it. */
-  readonly occlusion: { readonly by: string; readonly kind: 'partial' | 'full' } | null;
+  readonly occlusion: { readonly by: string; readonly kind: 'partial' | 'full'; readonly basis?: 'reference-sphere' | 'model-bounds' } | null;
 }
 export interface ScriptViewComposition {
+  /** False after a seek/origin change until native body placement catches up. */
+  readonly fresh?: boolean;
+  readonly observedEt?: number | null;
   readonly scene: number | null;
   readonly et: number;
   readonly playing: boolean;
@@ -993,6 +999,24 @@ export interface ScriptInstrument {
   /** Exact clock freshness is separate from physical pointing of the last frame. */
   fresh?: boolean;
   renderError?: string | null;
+}
+export interface ScriptViewpointInfo {
+  name: string;
+  source: 'catalog-viewpoint' | 'session-viewpoint';
+  epoch: number | null;
+  authoredTime: string | number | null;
+  origin: string | null; tracked: string | null; lookAt: string | null;
+  camera: ScriptCamera | null;
+  navigation: { poseMatches: boolean; epochMatches: boolean | null; observedEt: number; playing: boolean;
+    positionErrorKm: number | null; targetErrorKm: number | null };
+  limitations: string[];
+}
+export interface ScriptObjectContext {
+  object: string; source: 'scene-configuration';
+  existence: { start: number | null; end: number | null };
+  trajectoryArcs: { start: number | null; end: number | null; center: string | null }[];
+  geometryWindows: { start: number | null; end: number | null }[];
+  truncated: boolean; limitations: string[];
 }
 export interface ScriptBookmark {
   name: string; camera: ScriptCamera; origin: string | null; tracked: string | null;

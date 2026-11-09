@@ -30,6 +30,7 @@ import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImage
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { getViewpointInfo, getObjectContext } from './viewpoint-control';
 import { surfaceData } from './surface-data';
 import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
@@ -565,6 +566,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     setImageryVisible, setImageryOpacity, moveImageryLayer,
 
     listObjects: () => bodyNames(),
+    getViewpointInfo: name => getViewpointInfo(name, camera()),
+    getObjectContext,
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
     getViewerState: () => {

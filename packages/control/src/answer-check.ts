@@ -50,6 +50,10 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   const sampled = samples.filter(f => f.eventSearchUnavailable).at(-1);
   const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(text);
   if (sampled && !disclosedMissing) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
+  if (samples.length && !events.length) {
+    const unsupported = sentences(text).find(s => /\b(?:true|exact|verified|confirmed|actual)\s+(?:physical\s+)?(?:separation|release|detachment|contact|touchdown)\b/i.test(s) && !NEGATED.test(s) && !/\b(?:not|cannot|can't|doesn't|does not|unresolved|unknown|uncertain|unconfirmed)\b/i.test(s));
+    if (unsupported) issues.push('Sampled center distances cannot establish a true/exact/verified physical transition. Describe sampled relative motion and its cadence as evidence consistent with a transition, not a certified release or contact time.');
+  }
   if (!events.length && !samples.length) return issues;
   const windows = facts.filter(f => f.kind === 'event-window');
   // 1 AU is a unit people compare against, not a claim.

@@ -259,3 +259,37 @@ describe('fixed Ask vocabulary parity', () => {
     expect(index).toContain('camera.composeView*(');
   });
 });
+
+describe('bounded numerical references across follow-ups', () => {
+  it('retains full sampled ET and provenance without replaying receipt pages', () => {
+    const et = 469053357.50658065;
+    const messages: AgentMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'measure the distance history' }] },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'sample', name: 'sampleProfileData', input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'sample', isError: false, content: JSON.stringify({ data: {
+        id: 'range', quantity: 'range', unit: 'km', bodies: { observer: 'Carrier', target: 'Probe' }, window: { start: et, end: et + 10 },
+        sampling: { method: 'uniform', requestedCount: 2 }, missing: 0,
+        samples: [{ et, value: 0.0028 }, { et: et + 10, value: 0.01 }], minimum: { et, value: 0.0028 }, maximum: { et: et + 10, value: 0.01 },
+      }, receipt: { large: 'x'.repeat(20000) } }) }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'A sampled range, not the release.' }] },
+    ];
+    const compact = compactHistory(messages);
+    const text = JSON.stringify(compact);
+    expect(text).toContain(String(et));
+    expect(text).toContain('sampled-numerical-profile');
+    expect(text).not.toContain('large');
+    expect(text.length).toBeLessThan(2500);
+    expect(compactHistory(compact)).toEqual(compact);
+  });
+  it('keeps finite point-state range references with exact epochs and known km units', () => {
+    const messages: AgentMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'try distance' }] },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'state', name: 'invokeCapability', input: { id: 'spatial.getObjectState', input: { object: 'Probe' } } }] },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'state', isError: false, content: JSON.stringify({ data: { center: 'Carrier', position: [0.003, 0.004, 0], et: 123.456789 } }) }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Distance increased.' }] },
+    ];
+    expect(JSON.stringify(compactHistory(messages))).toContain('0.005');
+    expect(JSON.stringify(compactHistory(messages))).toContain('123.456789');
+    expect(JSON.stringify(compactHistory(messages))).toContain('Probe');
+  });
+});

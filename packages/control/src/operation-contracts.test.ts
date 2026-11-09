@@ -92,7 +92,7 @@ describe('operation contracts', () => {
   it('the inventory states its evidence; the writes with none are a known, reviewed set', () => {
     const blind = capabilityCoverage().filter(r => r.status === 'registered' && 'evidence' in r && String(r.evidence).startsWith('unobservable')).map(r => r.operation);
     expect(blind.sort()).toEqual(['activities.navigateActivity', 'bookmarks.restoreViewState', 'camera.circleCenterDown', 'camera.circleCenterLeft', 'camera.circleCenterRight', 'camera.circleCenterUp',
-      'camera.crane', 'camera.dolly', 'camera.setCamera', 'camera.viewpoint', 'capture.record', 'capture.screenshot', 'events.cancelEventQuery', 'events.openEventQuery',
+      'camera.crane', 'camera.dolly', 'camera.setCamera', 'capture.record', 'capture.screenshot', 'events.cancelEventQuery', 'events.openEventQuery',
       'geographic.gotoGeographicFeature', 'places.gotoCoordinates', 'time.runTo']);
   });
 

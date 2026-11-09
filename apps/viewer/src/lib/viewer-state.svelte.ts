@@ -259,7 +259,10 @@ export function etToUtcString(etValue: number): string {
     const years = etValue / 31556952;
     return `J2000 ${years >= 0 ? '+' : ''}${years.toFixed(1)} yr`;
   }
-  return etToDate(etValue).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  // Round the displayed second: truncating a SPICE TDB/TT millisecond offset
+  // can label an exact authored whole-second UTC epoch as the preceding second.
+  const utc = etToDate(etValue);
+  return new Date(Math.round(utc.getTime() / 1000) * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 }
 
 export function etToShortDate(etValue: number): string {

@@ -230,6 +230,12 @@ describe('numeric grounding from sampled facts without computed events', () => {
     expect(checkAnswer('Range decreased overall, then rose after the sampled minimum.', history)).toEqual([]);
     expect(checkAnswer('Range did not fall monotonically.', history)).toEqual([]);
   });
+  it('does not certify physical transition timing from center-range samples', () => {
+    const history: ResultFact[] = [{ ...facts[0], eventSearchUnavailable: false } as ResultFact];
+    expect(checkAnswer('The true separation lies between these samples.', history)).toEqual([expect.stringMatching(/physical transition/)]);
+    expect(checkAnswer('The sampled increase is consistent with separation; the exact release is unresolved.', history)).toEqual([]);
+    expect(checkAnswer('These samples cannot confirm the true separation time.', history)).toEqual([]);
+  });
   it('does not mistake a missing frame disclaimer for disclosure of sampled gaps', () => {
     expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km.', facts)).toEqual([expect.stringMatching(/missing-data limit/)]);
     expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km, no gaps.', facts)).toEqual([]);

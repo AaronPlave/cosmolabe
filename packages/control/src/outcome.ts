@@ -30,7 +30,7 @@ export const STATE_DOMAINS = ['camera', 'time', 'selection', 'events', 'surface'
   'instruments', 'display', 'places', 'grid', 'capture', 'activities', 'analysis', 'scene'] as const;
 export type StateDomain = typeof STATE_DOMAINS[number];
 
-export const PREDICATE_KINDS = ['selected', 'tracked', 'inView', 'legible', 'range', 'epoch', 'paused', 'rate', 'activity', 'place',
+export const PREDICATE_KINDS = ['viewpoint', 'selected', 'tracked', 'inView', 'legible', 'range', 'epoch', 'paused', 'rate', 'activity', 'place',
   'eventQuery', 'eventRun', 'eventSelected', 'eventEpoch', 'eventFramed', 'eventDrawn', 'probeUnder', 'probeDrawn', 'featureSelected', 'featureUnder',
   'state', 'ready'] as const;
 export type PredicateKind = typeof PREDICATE_KINDS[number];
@@ -95,7 +95,7 @@ export interface GoalReport {
 }
 
 /** Camera predicates: there is one camera, so they share an anchor. */
-const VIEW = new Set<PredicateKind>(['tracked', 'inView', 'legible', 'range', 'eventFramed']);
+const VIEW = new Set<PredicateKind>(['viewpoint', 'tracked', 'inView', 'legible', 'range', 'eventFramed']);
 const SOFT = new Set<PredicateKind>(['legible', 'eventDrawn', 'probeDrawn', 'ready']);
 export const isViewPredicate = (p: Predicate) => VIEW.has(p.p);
 
@@ -146,6 +146,7 @@ export function parsePredicate(input: unknown): Predicate {
     case 'epoch': need((typeof g.et === 'number' && Number.isFinite(g.et)) || text('utc'), 'epoch needs et (ET seconds) or utc (calendar text)'); break;
     case 'paused': need(typeof g.value === 'boolean', 'paused needs value true|false'); break;
     case 'rate': need(typeof g.value === 'number' && Number.isFinite(g.value), 'rate needs value'); break;
+    case 'viewpoint': need(text('id'), 'viewpoint needs id (the exact name)'); break;
     case 'activity': case 'place': need(g.id === null || text('id'), `${p} needs id`); break;
     case 'eventQuery': case 'eventRun': case 'eventEpoch': case 'eventFramed': case 'eventDrawn':
       // eventRun may leave the search unnamed: it binds to the search this request runs.
@@ -178,6 +179,8 @@ export function parsePredicate(input: unknown): Predicate {
 
 /** The camera's subject in a set of predicates: what it tracks, or the event it presents. */
 function anchorOf(preds: readonly Predicate[]): string | null {
+  const viewpoint = preds.find(p => p.p === 'viewpoint');
+  if (viewpoint) return `viewpoint:${viewpoint.id}`;
   const tracked = preds.find(p => p.p === 'tracked' && typeof p.object === 'string');
   if (tracked) return tracked.object as string;
   const framed = preds.find(p => p.p === 'eventFramed');
@@ -295,7 +298,7 @@ export function encounterOf(host: ViewerControl, query: string, id: string) {
 }
 
 /** Kinds whose end state an action's own expectation settles before it runs; the rest (composition, ranges, times) are judged after. */
-const DECIDED_BEFORE = new Set<PredicateKind>(['selected', 'tracked', 'paused', 'rate', 'activity', 'place', 'probeUnder', 'featureSelected', 'state']);
+const DECIDED_BEFORE = new Set<PredicateKind>(['viewpoint', 'selected', 'tracked', 'paused', 'rate', 'activity', 'place', 'probeUnder', 'featureSelected', 'state']);
 const DEFINING = ['object', 'value', 'id', 'policy', 'equals', 'layer', 'feature'] as const;
 
 /**
@@ -347,12 +350,18 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
 
   const checks = predicates.map((p): GoalCheck => {
     switch (p.p) {
+      case 'viewpoint': {
+        const v = try_(() => host.getViewpointInfo?.(p.id!));
+        return check(p, v ? v.navigation.poseMatches : null, v ? `authored view ${p.id}: pose ${v.navigation.poseMatches ? 'matches' : 'differs'}; epoch requested ${v.epoch ?? 'unspecified'}, observed ET ${v.navigation.observedEt}` : `authored view ${p.id} unavailable`);
+      }
       case 'selected': { const now = try_(() => host.getSelected()); return check(p, now === undefined ? null : now === p.object, `selected ${now ?? 'nothing'}`); }
       case 'tracked': { const now = try_(() => host.getTracked()); return check(p, now === undefined ? null : now === p.object, `tracking ${now ?? 'nothing'}`); }
       case 'inView': case 'legible': case 'range': {
         if (!host.getViewComposition) return check(p, null, 'this viewer cannot observe composition');
+        if (view?.fresh === false) return check(p, null, `body placements are still at ET ${view.observedEt ?? 'unknown'}; current clock ET ${view.et}. Composition after the seek/origin change is not yet observed.`);
         const o = composed(p.object as string);
         if (!o || !o.available) return check(p, o ? false : null, `${p.object} not in scene`);
+        if (p.p !== 'range' && o.inView && o.drawEnabled && o.occlusion?.basis === 'model-bounds') return check(p, null, `${p.object} in frame; bounding volume overlaps ${o.occlusion.by}, but actual mesh occlusion is unassessed`);
         if (p.p === 'inView') {
           const shown = o.inView && o.drawEnabled && o.occlusion?.kind !== 'full';
           return check(p, shown, !o.drawEnabled ? `${p.object} is hidden` : !o.inView ? `${p.object} out of frame`

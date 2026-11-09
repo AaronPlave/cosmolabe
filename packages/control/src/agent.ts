@@ -56,15 +56,19 @@ type FlightEnd = ScriptEventMap['flightEnd'];
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 /** The model-facing composition: rounded, no fields it cannot use. */
 export function compositionData(v: ScriptViewComposition) {
-  return { et: v.et, playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
+  if (v.fresh === false) return { et: v.et, fresh: false, observedEt: v.observedEt,
+    objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
+    limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
+  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
-      bearingDeg: o.bearingDeg?.map(r3) ?? null, hiddenBy: o.occlusion ? `${o.occlusion.by} (${o.occlusion.kind})` : null }) };
+      object: o.object, inView: o.inView, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */
 export function compositionSentence(v: ScriptViewComposition): string {
+  if (v.fresh === false) return `Native body placements are still at ET ${v.observedEt ?? 'unknown'}; current clock ET ${v.et}. Object visibility at the requested time is unassessed.`;
   return v.objects.map(o => !o.available ? `${o.object} is not in this scene`
-    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
+    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
 }
 
 /** The JSON Schema subset the tools are described in. */
@@ -306,14 +310,16 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 export type AgentDefinition = AgentToolDef & { readonly method?: keyof ViewerControl; readonly contract: OperationContract };
 
 const READ_TOOLS: readonly AgentDefinition[] = [
+  { name: 'getViewpointInfo', effect: 'read', method: 'getViewpointInfo', contract: { namespace: 'camera', writes: [] }, description: 'Read an authored catalog or session viewpoint: exact ET, authored time, camera pose and current pose/epoch agreement. Authored annotation is distinct from computed events/contact. Read-only; use viewpoint to show it.', inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'], additionalProperties: false } },
+  { name: 'getObjectContext', effect: 'read', method: 'getObjectContext', contract: { namespace: 'scene', writes: [] }, description: 'Bounded configured existence window, trajectory arcs and time-switched geometry boundaries for one scene object, in ET with UTC. These are scene facts, not measured mission events. No resource paths/identities.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'getProfileOptions', effect: 'read', method: 'getProfileOptions', contract: { namespace: 'profiles', writes: [] }, description: 'Supported continuous timeline profile quantities: distance/range (center-to-center), relative speed, range rate and phase angle. Parameter meanings, units, window and sampling limits. No SPICE GF search; not physical surface clearance.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listProfiles', effect: 'read', method: 'listProfiles', contract: { namespace: 'profiles', writes: [] }, description: 'List existing continuous timeline profile IDs/configurations and enabled/visible flags in this scene. Native UI, scripts, embedding and Ask share these profiles.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getProfile', effect: 'read', method: 'getProfile', contract: { namespace: 'profiles', writes: [] }, description: 'Read an existing continuous timeline profile: quantity, body pair, time window, enabled/visible, native timeline presence, sampled trace visibility and gaps. Partial/unavailable never proves success. Does not seek or move the scene.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
   { name: 'getProfileValue', effect: 'read', method: 'getProfileValue', contract: { namespace: 'profiles', writes: [], guide: 'Evaluate the existing profile at the exact ET; null is missing position data or outside its configured window, never zero. No interpolation. For a sampled minimum/maximum use sampleProfileData, then navigate with existing setTime at the returned ET only when asked. Center minimum is not clearance/contact/first touchdown.' }, description: 'Numerical value of an existing timeline profile at one ET, with quantity/unit, exact epoch/UTC, missing positions and sampling limits. Read only; independent of visibility. Not surface clearance.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, et: { type: 'number' } }, required: ['id', 'et'], additionalProperties: false } },
-  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. In the final answer give both effective interval endpoints as UTC dates or ET numbers, the actual sample count or spacing, and explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
+  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. For a transition investigation, first read relevant getObjectContext timing boundaries and inspect how the quantity changes across a localized interval. A brief event needs seconds/minutes cadence, not mission-wide samples; after a coarse first pass, at most one tighter bounded read of the change bracket can improve the estimate. A minimum does not identify onset/release/contact. In the final answer give both effective interval endpoints as UTC dates or ET numbers, the actual sample count or spacing, and explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
   { name: 'getTimelineWindow', effect: 'read', method: 'getTimelineWindow', contract: { namespace: 'time', writes: [] }, description: 'The timeline\'s visible window, ET and UTC. Moves nothing.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getViewComposition', contract: { namespace: 'camera', writes: [] }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
-  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. Before creating a search, use eventSelected/eventRun without query; eventFramed/eventEpoch/eventDrawn require an already-saved exact query ID. Presenting a result checks epoch/framing/drawing automatically. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
+  { name: 'getViewComposition', contract: { namespace: 'camera', writes: [], guide: 'Read all referenced objects using exact resolved names. In-frame, draw-enabled and analytical sphere occlusion are separate; sphere bounds are not resolved mesh silhouettes or proof of invisible pixels. Unlisted or unresolved names do not establish absence. Fresh false means native body placements have not caught up after a seek/origin change; read again once before claiming a view. If an object is hidden, getObjectContext distinguishes configured existence limits from camera geometry.' }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
+  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: viewpoint {id:exactName}; selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. Before creating a search, use eventSelected/eventRun without query; eventFramed/eventEpoch/eventDrawn require an already-saved exact query ID. Presenting a result checks epoch/framing/drawing automatically. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
     require: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, required: ['p'], properties: {
       p: { type: 'string', enum: [...PREDICATE_KINDS] }, object: { type: ['string', 'null'] }, maxKm: { type: 'number' }, minKm: { type: 'number' }, et: { type: 'number' }, utc: { type: 'string' },
       value: { type: ['boolean', 'number'] }, query: { type: 'string' }, id: { type: ['string', 'null'] }, pick: { type: 'string', enum: ['closest'] }, encounter: { type: 'boolean' },
@@ -323,7 +329,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
     release: { type: 'array', maxItems: 12, items: { type: 'string' }, description: 'Held predicates the person explicitly gave up, by slot (e.g. "range:Psyche", "view:Mars", "clock").' },
   } }, contract: { namespace: 'scene', writes: [] } },
   { name: 'getSpatialContext', contract: { namespace: 'spatial', writes: [], guide: 'For "top of a body", the north pole and the top of the visible disc differ: ask when ambiguous. Take reference shape and body-fixed frame from this read, never from memory. It is body-scoped: check a saved feature on its layer\'s body (Mars), not on the vehicle above it (Ingenuity).' }, effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
-  { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
+  { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. Position units are km. For a transition investigation, read getObjectContext for relevant scene boundaries and inspect a bounded numerical history; isolated point ranges/minima do not prove release/contact. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['rendered','reference','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', contract: { namespace: 'spatial', writes: [], guide: 'The pin is transient display, not a saved point. When the person asks for a point after a pin ("place a point", "save it"), they mean a saved annotation at the pin: make it with geographic.editAnnotation (describe it for its notes); never report the pin itself as that point.' }, effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'Registry kinds, defaults and coverage for custom Event Finder work. For routine find/show closest-approach requests prefer findClosestApproach, which composes these controls and reports structured results. Catalog dates alone do not prove coverage. Custom searches require exact scene participant names, numeric ET bounds and the kind default step; do not change body IDs or frames to evade failures.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
@@ -642,6 +648,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   const placeSummary = metadata.place;
   let taskSeq = 0;
   let current: TaskImpl | null = null;
+  let numericalSubjects: string[] = [];
   const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null }>();
 
   const available = () => (opts.vocabulary === 'catalog' ? agentDefinitions() : fixedAgentDefinitions()).filter(t => !t.method || has(host, t.method));
@@ -657,7 +664,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   // A clock change while this task is not itself writing is someone else's: the person's scrubbing or play button.
   const offTime = host.on('time', e => { if (current && !current.writing && e.cause !== 'playback') current.clockTaken = true; });
   const offPlayback = host.on('playback', () => { if (current && !current.writing) current.clockTaken = true; });
-  const offLoad = host.on('load', () => { measuredResults.clear(); current?.end('stale'); });
+  const offLoad = host.on('load', () => { numericalSubjects = []; measuredResults.clear(); current?.end('stale'); });
 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
@@ -706,6 +713,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     };
   }
 
+  function viewpointSummary(name: string) {
+    const v = attempt(() => host.getViewpointInfo?.(name));
+    return v ? { name: v.name, source: v.source, epoch: v.epoch, authoredTime: v.authoredTime,
+      ...(v.epoch !== null && opts.formatTime ? { utc: opts.formatTime(v.epoch) } : {}),
+      center: v.origin } : { name };
+  }
+
   function describeScene(): AgentToolResult {
     const scene = attempt(() => host.getScene?.()) ?? null;
     const et = host.getTime();
@@ -730,7 +744,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       selectedActivity: activity ? activitySummary(activity) : null,
       selectedPlace: place ? placeSummary(place) : null,
       objects: { names: objects.items, total: objects.total },
-      viewpoints: { names: viewpoints.items, total: viewpoints.total },
+      viewpoints: { names: viewpoints.items, total: viewpoints.total, evidence: 'Authored scene annotations, not computed physical events. Exact ET available; getViewpointInfo reads pose/time agreement.', items: viewpoints.items.map(viewpointSummary) },
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
       focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); return data ? metadata.surface(data) : null; }) ?? null : null,
       focusImagery: imagery ? metadata.imagery(imagery) : null,
@@ -747,7 +761,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const kinds = new Set((input.kinds as string[] | undefined) ?? ['object', 'viewpoint', 'place', 'activity']);
     const q = query.toLowerCase();
     const matches = (name: string) => name.toLowerCase().includes(q);
-    const candidates: { kind: string; id: string; label: string; detail?: string }[] = [];
+    const words = q.match(/[a-z0-9]+/g) ?? [];
+    const nameMatches = (name: string) => matches(name) || words.filter(w => name.toLowerCase().includes(w)).length >= Math.min(2, words.length || 1);
+    const candidates: { kind: string; id: string; label: string; detail?: string; viewpoint?: ReturnType<typeof viewpointSummary> }[] = [];
     if (kinds.has('object')) {
       const objects = attempt(() => host.listObjects()) ?? [];
       const exact = objects.filter((n) => n.toLowerCase() === q);
@@ -756,7 +772,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       for (const n of near.slice(0, 8)) candidates.push({ kind: 'object', id: n, label: n });
     }
     if (kinds.has('viewpoint')) {
-      for (const n of (attempt(() => host.listViewpoints()) ?? []).filter(matches).slice(0, 5)) candidates.push({ kind: 'viewpoint', id: n, label: n });
+      for (const n of (attempt(() => host.listViewpoints()) ?? []).filter(nameMatches).slice(0, 5)) candidates.push({ kind: 'viewpoint', id: n, label: n, viewpoint: viewpointSummary(n) });
     }
     if (kinds.has('place') && has(host, 'searchPlaces')) {
       for (const p of attempt(() => host.searchPlaces!(query, { limit: 5 })) ?? []) {
@@ -839,7 +855,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
    * effect is the contract's predicates' job (`outcomeOf`), not this note's.
    */
   function note(name: string, args: Input): { note: string; data?: unknown } | null {
-    if (name === 'selectGeographicFeature' && host.getSelectedGeographicFeature && host.listGeographicLayers) {
+    if (name === 'viewpoint' && host.getViewpointInfo) {
+      const view = host.getViewpointInfo(String(args.name));
+      return { note: 'Authored view applied; pose/time agreement is separate from physical event evidence. Visibility has not been assessed by this action. Read getViewComposition for ALL objects the person requested before answering; an unlisted object is not evidence of absence or invisibility.',
+        data: { viewpoint: view } };
+    }
+    if (name === 'selectGeographicFeature'  && host.getSelectedGeographicFeature && host.listGeographicLayers) {
       const selected = host.getSelectedGeographicFeature();
       const layer = selected ? host.listGeographicLayers().find(l => l.id === selected.layer) : undefined;
       const context = layer?.body ? host.getSpatialContext?.(layer.body) : null;
@@ -859,7 +880,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     }
     if (name === 'seekActivity' || name === 'setTime' || name === 'setPlaying' || name === 'runTo') {
       const utc = opts.formatTime ? attempt(() => opts.formatTime!(host.getTime())) : null;
-      return { note: `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.` };
+      const clock = `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.`;
+      if (name === 'setTime') {
+        const composition = numericalSubjects.length && host.getViewComposition ? host.getViewComposition(numericalSubjects) : null;
+        return { note: `${clock} Seeking alone neither frames objects nor selects a computed event. For this numerical follow-up, report the requested versus observed epoch and actual view for the referenced bodies. ${composition ? compositionSentence(composition) : 'Object visibility has not been assessed.'} ${composition?.fresh === false || !composition ? 'Read getViewComposition for the referenced bodies once after native placement catches up, before answering. Do not infer visual completion from clock success.' : 'Report in-frame/draw-enabled and analytical occlusion limits separately.'}`,
+          data: { requestedTime: args.when, observedEt: host.getTime(), playing: host.isPlaying(),
+            ...(composition ? { numericalSubjects, composition: compositionData(composition),
+              sceneTiming: numericalSubjects.map(object => ({ object, existence: host.getObjectContext?.(object)?.existence ?? null, source: 'scene-configuration, not measured event timing' })) } : {}) } };
+      }
+      return { note: clock };
     }
     return null;
   }
@@ -880,7 +909,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   function judged(def: AgentDefinition, text: string, args: Input, base: { summary: string; data?: unknown; completion?: { kind: 'flight'; id: number; outcome: 'arrived' } }): AgentToolResult {
     const outcome = outcomeOf(def, args, base.data);
     const failing = outcome.report?.checks.filter(c => c.ok === false && !c.soft) ?? [];
-    if (failing.length) return { ok: false, code: 'failed', error: `${text}: the viewer does not show the expected result: ${failing.map(c => c.detail).join('; ')}`, outcome };
+    if (failing.length) return { ok: false, code: 'failed', error: `${text}: the viewer does not show the expected result: ${failing.map(c => c.detail).join('; ')}`, outcome, data: base.data ?? note(def.name, args)?.data };
     const back = attempt(() => note(def.name, args)) ?? null;
     const status = outcome.report ? outcome.report.status === 'met' ? '' : ` Viewer check ${outcome.report.status}: ${outcome.report.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}.` : ` Not observable: ${outcome.unobservable}.`;
     return { ok: true, summary: `${base.summary}${back ? ` ${back.note}` : ''}${status}`, ...(base.completion ? { completion: base.completion } : {}),
@@ -888,6 +917,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   function profileRead(data: ScriptProfileData): AgentToolResult {
+      if (data.quantity === 'range' && data.minimum?.value != null && data.bodies?.observer && data.bodies.target) numericalSubjects = [data.bodies.observer, data.bodies.target];
       const first = data.samples[0], last = data.samples.at(-1);
       const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
       const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
@@ -898,9 +928,20 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   const reads: Record<string, (input: Input) => AgentToolResult> = {
+    getViewpointInfo: input => ({ ok: true, summary: 'Authored scene view and current navigation, not a computed event.', data: host.getViewpointInfo!(input.name as string) ?? null }),
+    getObjectContext: input => {
+      const context = host.getObjectContext!(input.object as string);
+      const window = (w: { start: number | null; end: number | null }) => ({ ...w,
+        ...(opts.formatTime ? { startUtc: w.start === null ? null : opts.formatTime(w.start), endUtc: w.end === null ? null : opts.formatTime(w.end) } : {}) });
+      return { ok: true, summary: 'Configured scene timing, not measured event timing.', data: context ? { ...context, existence: window(context.existence), trajectoryArcs: context.trajectoryArcs.map(window), geometryWindows: context.geometryWindows.map(window) } : null };
+    },
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
     getSpatialContext: input => ({ ok: true, summary: 'Targeted body/state/Draw conventions; missing layers can be created after approval.', data: metadata.spatialContext(host.getSpatialContext!(input.object as string)) }),
-    getObjectState: input => ({ ok: true, summary: 'Targeted state and availability; unapproved provenance stays local.', data: metadata.objectState(host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined })) }),
+    getObjectState: input => {
+      const state = host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined });
+      if (state?.position && state.center) numericalSubjects = [input.object as string, state.center];
+      return { ok: true, summary: 'Actual entity state and source availability; position units are km.', data: metadata.objectState(state) };
+    },
     projectGroundPoint: input => ({ ok: true, summary: 'Shared radial ground projection; inspect status/source before placing a marker.', data: metadata.groundProjection(host.projectGroundPoint!(input.object as string, input.policy as import('./contracts.js').ScriptSurfacePolicy | undefined)) }),
     getProbePoint: () => ({ ok: true, summary: 'Actual native/UI Point Probe state; draw-enabled does not promise unoccluded pixels.', data: metadata.probePoint(host.getProbePoint!()) }),
     getProfileOptions: () => ({ ok: true, summary: 'Continuous timeline profile quantities and limits.', data: host.getProfileOptions!() }),
@@ -911,7 +952,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       return profileRead(host.sampleProfileData!(input.id as string, { start: input.start as number, end: input.end as number, ...(input.count === undefined ? {} : { count: input.count as number }) }));
     },
     getTimelineWindow: () => { const w = host.getTimelineWindow!(); return { ok: true, summary: 'Timeline window.', data: { ...w, ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(w.start)), endUtc: attempt(() => opts.formatTime!(w.end)) } : {}) } }; },
-    getViewComposition: input => ({ ok: true, summary: 'Current view composition.', data: compositionData(host.getViewComposition!(input.objects as string[])) }),
+    getViewComposition: input => {
+      const names = input.objects as string[], known = host.listObjects();
+      const unknown = names.filter(n => !known.includes(n));
+      if (unknown.length) return { ok: false, code: 'refused', error: 'Unresolved object names do not establish missing scene objects. Resolve exact names before assessing composition.',
+        data: { unknown, candidates: unknown.map(name => ({ name, matches: known.filter(n => n.toLowerCase().includes(name.toLowerCase())).slice(0, 5), suggestion: suggest(name, known) ?? null })) } };
+      return { ok: true, summary: 'Composition for the requested objects only. Unlisted objects have not been assessed; do not infer absence or visibility. In-frame, draw-enabled and occlusion are separate.', data: compositionData(host.getViewComposition!(names)) };
+    },
     checkGoal: input => {
       const predicates = ((input.require as unknown[] | undefined) ?? []).map(parsePredicate);
       if (!predicates.length) throw new Error('require lists at least one predicate');

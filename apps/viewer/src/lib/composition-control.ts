@@ -18,6 +18,8 @@ export function getViewComposition(names: readonly string[]): ScriptViewComposit
   const r = getRenderer();
   const missing = (object: string): ScriptComposedObject => ({ object, available: false, drawEnabled: false, rangeKm: null, radiusKm: null, angularRadiusDeg: null, bearingDeg: null, ndc: null, inView: false, occlusion: null });
   if (!r?.camera) return { scene: null, et: vs.et, playing: vs.playing, tracked: null, orbitDistanceKm: 0, fovDeg: 0, aspect: 1, objects: names.map(missing) };
+  const placement = r.getBodyPoseContext?.();
+  const freshness = placement ? { observedEt: placement.et, fresh: placement.et === r.timeController.et && placement.origin === (r.cameraController.originBody?.body.name ?? null) } : {};
   const cam = r.camera, s = r.scaleFactor;
   cam.updateMatrixWorld();
   const eye = cam.getWorldPosition(new THREE.Vector3());
@@ -28,7 +30,7 @@ export function getViewComposition(names: readonly string[]): ScriptViewComposit
     if (!bm?.visible || !bm.hasMeasuredRadius) return [];
     const rel = bm.getWorldPosition(new THREE.Vector3()).sub(eye);
     const range = rel.length() / s;
-    return [{ name, dir: rel.normalize(), range, ang: Math.asin(Math.min(1, bm.displayRadius / range)) }];
+    return [{ name, basis: ['Mesh', 'TimeSwitched', 'Dsk'].includes(bm.body?.geometryType ?? '') ? 'model-bounds' as const : 'reference-sphere' as const, dir: rel.normalize(), range, ang: Math.asin(Math.min(1, bm.displayRadius / range)) }];
   });
   const objects = names.map((object): ScriptComposedObject => {
     const bm = r.getBodyMesh(object);
@@ -48,12 +50,12 @@ export function getViewComposition(names: readonly string[]): ScriptViewComposit
     for (const o of occluders) {
       if (o.name === object || o.range >= rangeKm || o.range >= nearest) continue;
       const sep = o.dir.angleTo(dir);
-      if (sep < o.ang) { nearest = o.range; occlusion = { by: o.name, kind: sep + ang <= o.ang ? 'full' : 'partial' }; }
+      if (sep < o.ang) { nearest = o.range; occlusion = { by: o.name, basis: o.basis, kind: sep + ang <= o.ang ? 'full' : 'partial' }; }
     }
     return { object, available: true, drawEnabled: bm.visible, rangeKm, radiusKm, angularRadiusDeg: radiusKm ? deg(ang) : null,
       bearingDeg: [deg(Math.atan2(c.x, -c.z)), deg(Math.atan2(c.y, Math.hypot(c.x, c.z)))], ndc,
       inView: !!ndc && Math.abs(ndc[0]) <= 1 && Math.abs(ndc[1]) <= 1, occlusion };
   });
-  return { scene: sceneId(), et: r.timeController.et, playing: r.timeController.playing, tracked: r.cameraController.trackedBody?.body.name ?? null,
+  return { ...freshness, scene: sceneId(), et: r.timeController.et, playing: r.timeController.playing, tracked: r.cameraController.trackedBody?.body.name ?? null,
     orbitDistanceKm: eye.distanceTo(r.cameraController.controls.target) / s, fovDeg: cam.fov, aspect: cam.aspect, objects };
 }
