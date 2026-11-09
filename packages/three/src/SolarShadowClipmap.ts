@@ -16,10 +16,11 @@ import { sunDirectionAt } from './SurfaceIllumination.js';
  * flat-ground approximation and no curvature term to get wrong.
  *
  * Levels. Nested squares, each re-centred independently in whole texels with
- * hysteresis, each carrying a **max-reduced** mip chain, so a march step is
- * conservative (can over-shadow a ridge narrower than the step, never leak light).
- * Texel validity is a second channel (min-reduced): missing source terrain is
+ * hysteresis. Texel validity is a second channel: missing source terrain is
  * `unknown`, never lit or shadowed.
+ *
+ * Horizons. A GPU pass marches from every texel centre toward the Sun through each level at its own resolution and
+ * stores the result (a *horizon map*); terrain fragments read it filtered. See `solarShadowGlsl`.
  */
 
 /** Terrain heights the clipmap is filled from. */
@@ -64,21 +65,23 @@ export interface SolarShadowConfig {
 export const DEFAULT_CLIPMAP_LEVELS: readonly ClipmapLevelConfig[] = [
   { halfKm: 8, size: 256 }, { halfKm: 64, size: 256 }, { halfKm: 320, size: 256 },
 ];
-/** Shader loop bound (the `high` preset's step count); see `solarShadowGlsl`. */
-export const SOLAR_SHADOW_MAX_STEPS = 160;
+/** Horizon-pass loop bound (the `high` preset's step count); see `solarShadowGlsl`. */
+export const SOLAR_SHADOW_MAX_STEPS = 720;
 /**
- * March quality: each step is at least `stepGrowth` of the distance travelled (reach grows geometrically, and a
- * ridge may be dilated by about one step), and a ray stops after `maxSteps`. Fewer, longer steps cost less per
- * fragment and move shadow edges further toward the occluder; they never let light through a ridge.
+ * Horizon-pass quality: a step is `stepTexels` texels of the level it is in (never more than one, so the march reads
+ * every texel of the data it crosses), and a ray stops after `maxSteps` (with one-texel steps, 360 still reach the
+ * outer level's edge). The pass runs per clipmap texel when the data or the Sun moved, not per pixel, so this sets that
+ * background pass's GPU time, not the frame's.
  */
 export const SOLAR_SHADOW_QUALITY = {
-  high: { stepGrowth: 0.04, maxSteps: 160 },
-  medium: { stepGrowth: 0.055, maxSteps: 128 },
-  low: { stepGrowth: 0.08, maxSteps: 96 },
+  high: { stepTexels: 0.75, maxSteps: 720 },
+  medium: { stepTexels: 1, maxSteps: 540 },
+  low: { stepTexels: 1, maxSteps: 360 },
 } as const;
 export type SolarShadowQuality = keyof typeof SOLAR_SHADOW_QUALITY;
 const REBUILD_FRACTION = 0.25;
-const ANCHOR_RESET_DEG = 2;
+/** Gnomonic texels stretch by 1/cos² away from the anchor: 3 % at 10°. A reset discards every level, so it must be rare. */
+const ANCHOR_RESET_DEG = 10;
 const REVISION_REBUILD_MS = 2000;
 const SUN_RADIUS_KM = 695_700;
 const DEG = Math.PI / 180;
@@ -110,40 +113,12 @@ export function gnomonicCoordinates(f: TangentFrame, dir: V3, rcKm: number): [nu
   return u > 1e-6 ? [dot(dir, f.east) * rcKm / u, dot(dir, f.north) * rcKm / u] : null;
 }
 
-/** Max-reduce height (R) and min-reduce validity (G) down to 1×1. `base` is size×size RG. */
-export function buildMaxMips(base: Float32Array, size: number): { data: Float32Array; width: number; height: number }[] {
-  const out = [{ data: base, width: size, height: size }];
-  let cur = out[0];
-  while (cur.width > 1) {
-    const w = cur.width >> 1;
-    const next = new Float32Array(w * w * 2);
-    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) {
-      let h = -Infinity, k = 1;
-      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
-        const i = ((2 * y + dy) * cur.width + 2 * x + dx) * 2;
-        // An invalid texel's height is a fill value; it must not lift the max of valid neighbours.
-        if (cur.data[i + 1] > 0.5) h = Math.max(h, cur.data[i]);
-        k = Math.min(k, cur.data[i + 1]);
-      }
-      if (h === -Infinity) { // all four invalid: keep a finite fill
-        h = cur.data[((2 * y) * cur.width + 2 * x) * 2];
-      }
-      next[(y * w + x) * 2] = h;
-      next[(y * w + x) * 2 + 1] = k;
-    }
-    cur = { data: next, width: w, height: w };
-    out.push(cur);
-  }
-  return out;
-}
-
 export interface SolarShadowUniforms {
   /** Not a uniform: the shader variant. True when float textures filter in hardware (one fetch instead of four). */
   hardwareLinear: boolean;
   enabled: { value: number };
   debug: { value: number };
-  jitter: { value: number };
-  stepGrowth: { value: number };
+  stepTexels: { value: number };
   maxSteps: { value: number };
   viewToTan: { value: THREE.Matrix3 };
   originView: { value: THREE.Vector3 };
@@ -155,15 +130,22 @@ export interface SolarShadowUniforms {
   bias: { value: number };
   half: { value: THREE.Vector3 };
   texel: { value: THREE.Vector3 };
-  maxLod: { value: THREE.Vector3 };
   valid: { value: THREE.Vector3 };
   off0: { value: THREE.Vector2 }; off1: { value: THREE.Vector2 }; off2: { value: THREE.Vector2 };
   tex0: { value: THREE.Texture }; tex1: { value: THREE.Texture }; tex2: { value: THREE.Texture };
+  /** Horizon maps (R: terrain angle above the Sun ray, G: unknown), one per level, written by `renderHorizons`. */
+  hz0: { value: THREE.Texture }; hz1: { value: THREE.Texture }; hz2: { value: THREE.Texture };
 }
 
 export type SolarShadowState = 'off' | 'out-of-range' | 'building' | 'ready' | 'partial';
+export type SolarShadowBuildReason = 'initial' | 'recenter' | 'new-data';
 export interface SolarShadowLevelStatus {
   halfKm: number; texelKm: number; valid: boolean;
+  /** Level centre in anchor tangent coordinates, km. */
+  offsetKm: [number, number] | null;
+  /** Why the level was last (re)built, and how many texels that build had to sample (the rest were kept). */
+  lastReason: SolarShadowBuildReason | null;
+  lastSampledTexels: number;
   /** Fraction of texels with no source terrain. */
   unknownFraction: number;
   builds: number;
@@ -173,6 +155,10 @@ export interface SolarShadowLevelStatus {
 export interface SolarShadowStatus {
   state: SolarShadowState;
   levels: SolarShadowLevelStatus[];
+  /** Times the anchor frame was replaced (every level then starts over). */
+  anchorResets: number;
+  /** Level horizon maps re-rendered so far (data, placement, quality or Sun changed). */
+  horizonRenders: number;
   /** Farthest terrain the shadow can see, km: the outer level's half-width. */
   rangeKm: number;
   /** Fragments the shader cannot answer (outside every level, unknown texels) are drawn lit and labelled by debug mode 2. */
@@ -186,7 +172,14 @@ interface Level {
   /** Centre in anchor tangent coordinates (km) of the data in `texture`, or null when none. */
   offset: [number, number] | null;
   back: Float32Array;
-  building: { offset: [number, number]; row: number; unknown: number; known: number; sum: number; ms: number } | null;
+  /** Base level of the texture's data (RG), or null before the first build. */
+  data: Float32Array | null;
+  building: {
+    offset: [number, number]; row: number; unknown: number; known: number; sum: number; ms: number;
+    reason: SolarShadowBuildReason; kept: Uint8Array; sampled: number;
+  } | null;
+  lastReason: SolarShadowBuildReason | null;
+  lastSampledTexels: number;
   builtRevision: number;
   builtAtMs: number;
   unknownFraction: number;
@@ -219,7 +212,15 @@ export class SolarShadowClipmap {
   private readonly unknownReliefKm: number;
   private anchor: { frame: TangentFrame; rcKm: number } | null = null;
   private state: SolarShadowState = 'off';
-  private dirtyRevision = -1;
+  private anchorResets = 0;
+  /** Bumped whenever what the horizon maps depend on changes, other than the Sun. */
+  private dataVersion = 0;
+  private horizon: {
+    targets: THREE.WebGLRenderTarget[]; scene: THREE.Scene; camera: THREE.Camera; material: THREE.ShaderMaterial;
+    /** Per level, what its map was rendered from: its own data/placement, everything else's, and the Sun. */
+    at: { own: string; version: number; sun: THREE.Vector3 }[];
+    renders: number;
+  } | null = null;
 
   constructor(
     private readonly source: ClipmapSource,
@@ -242,17 +243,17 @@ export class SolarShadowClipmap {
     const U = this.levels;
     this.uniforms = {
       hardwareLinear: this.hardwareLinear,
-      enabled: { value: 0 }, debug: { value: 0 }, jitter: { value: 1 }, ...qualityUniforms(config.quality ?? 'high'),
+      enabled: { value: 0 }, debug: { value: 0 }, ...qualityUniforms(config.quality ?? 'high'),
       viewToTan: { value: new THREE.Matrix3() }, originView: { value: new THREE.Vector3() },
       sun: { value: new THREE.Vector3(0, 0, 1) }, sunRad: { value: 0.00465 }, rc: { value: 1 },
       hMax: { value: 0 }, maxRange: { value: cfgs[cfgs.length - 1].halfKm * 2 },
       bias: { value: config.biasKm ?? 0.002 },
       half: { value: new THREE.Vector3(U[0]?.cfg.halfKm ?? 0, U[1]?.cfg.halfKm ?? 0, U[2]?.cfg.halfKm ?? 0) },
       texel: { value: new THREE.Vector3(U[0]?.texelKm ?? 1, U[1]?.texelKm ?? 1, U[2]?.texelKm ?? 1) },
-      maxLod: { value: new THREE.Vector3(...[0, 1, 2].map(i => U[i] ? Math.log2(U[i].cfg.size) : 0)) },
       valid: { value: new THREE.Vector3() },
       off0: { value: new THREE.Vector2() }, off1: { value: new THREE.Vector2() }, off2: { value: new THREE.Vector2() },
       tex0: { value: U[0]?.texture ?? dummy() }, tex1: { value: U[1]?.texture ?? dummy() }, tex2: { value: U[2]?.texture ?? dummy() },
+      hz0: { value: dummy() }, hz1: { value: dummy() }, hz2: { value: dummy() },
     };
   }
 
@@ -260,7 +261,7 @@ export class SolarShadowClipmap {
     const texture = placeholder();
     return {
       cfg, texelKm: (2 * cfg.halfKm) / cfg.size, texture, offset: null,
-      back: new Float32Array(cfg.size * cfg.size * 2), building: null,
+      back: new Float32Array(cfg.size * cfg.size * 2), data: null, building: null, lastReason: null, lastSampledTexels: 0,
       builtRevision: -1, builtAtMs: -Infinity, unknownFraction: 1, hMax: 0, builds: 0, lastBuildMs: 0,
     };
   }
@@ -271,12 +272,11 @@ export class SolarShadowClipmap {
   setQuality(q: SolarShadowQuality): void {
     this._quality = q;
     const u = qualityUniforms(q);
-    this.uniforms.stepGrowth.value = u.stepGrowth.value; this.uniforms.maxSteps.value = u.maxSteps.value;
+    this.uniforms.stepTexels.value = u.stepTexels.value; this.uniforms.maxSteps.value = u.maxSteps.value;
+    this.dataVersion++;
   }
-  /** Per-pixel jitter of the march's first step (default on): hides banding as grain. */
-  setJitter(on: boolean): void { this.uniforms.jitter.value = on ? 1 : 0; }
-  /** Debug view: 0 off, 1 visibility, 2 visibility with unknown tinted magenta, 3 frame/data alignment (green: rendered surface within 10 m of the clipmap). */
-  setDebug(mode: 0 | 1 | 2 | 3): void { this.uniforms.debug.value = mode; }
+  /** Debug view: see `SolarShadowDebugMode`. */
+  setDebug(mode: SolarShadowDebugMode): void { this.uniforms.debug.value = mode; }
   /** Visual shadows are disabled by a caller (catalog off, `flood` mode). */
   setActive(active: boolean): void { this.active = active; if (!active) this.uniforms.enabled.value = 0; }
   private active = true;
@@ -316,7 +316,9 @@ export class SolarShadowClipmap {
     const lat = bodyFixedToGeodetic({ xKm: dir[0], yKm: dir[1], zKm: dir[2] }, this.source.datum);
     const p = geodeticToBodyFixed({ latDeg: lat.latDeg, lonDeg: lat.lonDeg, heightKm: 0 }, this.source.datum);
     this.anchor = { frame, rcKm: Math.hypot(p.xKm, p.yKm, p.zKm) };
-    for (const l of this.levels) { l.offset = null; l.building = null; l.builtRevision = -1; l.hMax = 0; l.unknownFraction = 1; }
+    this.anchorResets++;
+    this.dataVersion++;
+    for (const l of this.levels) { l.offset = null; l.data = null; l.building = null; l.builtRevision = -1; l.hMax = 0; l.unknownFraction = 1; }
     this.uniforms.valid.value.set(0, 0, 0);
   }
 
@@ -331,12 +333,38 @@ export class SolarShadowClipmap {
       const moved = !off || Math.max(Math.abs(focusG[0] - off[0]), Math.abs(focusG[1] - off[1])) > REBUILD_FRACTION * l.cfg.halfKm;
       const stale = !moved && rev !== l.builtRevision && l.unknownFraction > 0 && nowMs - l.builtAtMs > REVISION_REBUILD_MS;
       if (moved || stale) {
-        l.building = { offset: moved ? want : off!, row: 0, unknown: 0, known: 0, sum: 0, ms: 0 };
+        const offset = moved ? want : off!;
+        l.building = {
+          offset, row: 0, unknown: 0, known: 0, sum: 0, ms: 0, sampled: 0,
+          reason: !off ? 'initial' : moved ? 'recenter' : 'new-data', kept: this.keep(l, offset),
+        };
         l.builtRevision = rev;
         // Stop at the first level started this frame: one build at a time keeps the CPU budget honest.
         break;
       }
     }
+  }
+
+  /**
+   * Copy the known texels the new square shares with the current one into the build buffer. Centres move in whole
+   * texels of one anchor frame, so they are the same terrain samples: a re-centre only samples the newly exposed strip,
+   * and new resident data only the texels that were unknown. Returns the per-texel "kept" mask.
+   */
+  private keep(l: Level, offset: [number, number]): Uint8Array {
+    const n = l.cfg.size, kept = new Uint8Array(n * n);
+    if (!l.data || !l.offset) return kept;
+    const dx = Math.round((offset[0] - l.offset[0]) / l.texelKm), dy = Math.round((offset[1] - l.offset[1]) / l.texelKm);
+    for (let y = 0; y < n; y++) {
+      const sy = y + dy;
+      if (sy < 0 || sy >= n) continue;
+      for (let x = 0; x < n; x++) {
+        const sx = x + dx;
+        if (sx < 0 || sx >= n) continue;
+        const si = (sy * n + sx) * 2, i = (y * n + x) * 2;
+        if (l.data[si + 1] > 0.5) { l.back[i] = l.data[si]; l.back[i + 1] = 1; kept[y * n + x] = 1; }
+      }
+    }
+    return kept;
   }
 
   /** Fill the level being built, row by row, within the frame budget. Swaps it in when complete. */
@@ -353,6 +381,8 @@ export class SolarShadowClipmap {
       const y = b.row++;
       const nn = b.offset[1] + (y + 0.5 - n / 2) * l.texelKm;
       for (let x = 0; x < n; x++) {
+        if (b.kept[y * n + x]) { b.known++; b.sum += l.back[(y * n + x) * 2]; continue; }
+        b.sampled++;
         const e = b.offset[0] + (x + 0.5 - n / 2) * l.texelKm;
         const d = gnomonicDirection(frame, e, nn, rcKm);
         const pos = bodyFixedToGeodetic({ xKm: d[0] * rcKm, yKm: d[1] * rcKm, zKm: d[2] * rcKm }, datum);
@@ -372,12 +402,15 @@ export class SolarShadowClipmap {
     for (let i = 0; i < l.back.length; i += 2) {
       if (l.back[i + 1] === 0) l.back[i] = fillValue; else hMax = Math.max(hMax, l.back[i]);
     }
-    const mips = buildMaxMips(l.back, n);
     // A fresh array each build: the texture keeps the one it was given, and `back` is the next build's scratch.
-    const base = mips[0].data.slice();
-    const tex = makeTexture(base, n, mips.map((m, k) => k === 0 ? { ...m, data: base } : m), this.hardwareLinear);
+    const base = l.back.slice();
+    const tex = makeTexture(base, n, this.hardwareLinear);
     l.texture.dispose();
     l.texture = tex;
+    l.data = base;
+    l.lastReason = b.reason;
+    this.dataVersion++;
+    l.lastSampledTexels = b.sampled;
     l.offset = b.offset;
     l.unknownFraction = b.unknown / (n * n);
     l.hMax = hMax === -Infinity ? 0 : hMax;
@@ -388,11 +421,10 @@ export class SolarShadowClipmap {
     this.finishState();
   }
 
+  /** `building` only until every level has data: a level being re-centred keeps drawing its current data meanwhile. */
   private finishState(): void {
-    const valid = this.levels.filter(l => l.offset !== null);
-    this.state = valid.length === 0 ? 'building'
-      : this.levels.some(l => l.building || !l.offset) ? 'building'
-        : this.levels.some(l => l.unknownFraction > 0) ? 'partial' : 'ready';
+    this.state = this.levels.some(l => !l.offset) ? 'building'
+      : this.levels.some(l => l.unknownFraction > 0) ? 'partial' : 'ready';
   }
 
   private refreshUniforms(frame: SolarShadowFrame, tf: TangentFrame, rcKm: number): void {
@@ -433,12 +465,69 @@ export class SolarShadowClipmap {
     } else u.enabled.value = 0;
   }
 
+  /**
+   * After `update`, each frame: re-render stale horizon maps. A level whose own data or placement changed is re-rendered
+   * this frame (its map must match its texels); otherwise at most one stale level per frame, finest first, is (stale:
+   * any level's data or the quality changed, or the Sun moved by more than 1/16 of its radius, which moves a shadow edge
+   * 30 km from its ridge by 9 m). Cost: one march per texel of the level (256² by default), independent of screen
+   * resolution; nothing while the Sun and the data hold still.
+   */
+  renderHorizons(renderer: THREE.WebGLRenderer): void {
+    if (this.uniforms.enabled.value < 0.5) return;
+    if (!this.horizon) {
+      const targets = this.levels.map(l => {
+        const rt = new THREE.WebGLRenderTarget(l.cfg.size, l.cfg.size, {
+          type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false,
+          minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping,
+        });
+        return rt;
+      });
+      const material = new THREE.ShaderMaterial({
+        uniforms: { ...shaderUniforms(this.uniforms), uSsLevel: { value: 0 } },
+        vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: (this.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + horizonPassFragment,
+        depthTest: false, depthWrite: false,
+      });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.frustumCulled = false;
+      const scene = new THREE.Scene();
+      scene.add(mesh);
+      this.horizon = { targets, scene, camera: new THREE.Camera(), material, renders: 0,
+        at: targets.map(() => ({ own: '', version: -1, sun: new THREE.Vector3() })) };
+      const hz = [this.uniforms.hz0, this.uniforms.hz1, this.uniforms.hz2];
+      targets.forEach((t, i) => { hz[i].value.dispose(); hz[i].value = t.texture; });
+    }
+    const h = this.horizon;
+    const sun = this.uniforms.sun.value, minAngle = this.uniforms.sunRad.value / 16;
+    const own = (i: number) => `${this.anchorResets}:${this.levels[i].builds}`;
+    const due = this.levels.map((l, i) => l.offset !== null && h.at[i].own !== own(i));
+    const stale = this.levels.findIndex((l, i) => l.offset !== null && !due[i]
+      && (h.at[i].version !== this.dataVersion || h.at[i].sun.angleTo(sun) >= minAngle));
+    if (stale >= 0) due[stale] = true;
+    if (!due.some(Boolean)) return;
+    const prev = renderer.getRenderTarget();
+    due.forEach((d, i) => {
+      if (!d) return;
+      h.material.uniforms.uSsLevel.value = i;
+      renderer.setRenderTarget(h.targets[i]);
+      renderer.render(h.scene, h.camera);
+      h.at[i] = { own: own(i), version: this.dataVersion, sun: sun.clone() };
+      h.renders++;
+    });
+    renderer.setRenderTarget(prev);
+  }
+
   /** Terrain heights and residency the shader sees, for diagnostics and tests (anchor-tangent km, relative to the anchor sphere). */
   get status(): SolarShadowStatus {
     return {
       state: this.state,
       levels: this.levels.map(l => ({ halfKm: l.cfg.halfKm, texelKm: l.texelKm, valid: l.offset !== null,
+        offsetKm: l.offset ? [l.offset[0], l.offset[1]] : null, lastReason: l.lastReason, lastSampledTexels: l.lastSampledTexels,
         unknownFraction: l.unknownFraction, builds: l.builds, lastBuildMs: l.lastBuildMs })),
+      anchorResets: this.anchorResets,
+      horizonRenders: this.horizon?.renders ?? 0,
       rangeKm: this.levels[this.levels.length - 1].cfg.halfKm,
       unknownDrawnLit: true,
     };
@@ -452,7 +541,7 @@ export class SolarShadowClipmap {
       const x = (eKm - l.offset[0]) / l.texelKm + l.cfg.size / 2 - 0.5, y = (nKm - l.offset[1]) / l.texelKm + l.cfg.size / 2 - 0.5;
       const xi = Math.round(x), yi = Math.round(y);
       if (xi < 0 || yi < 0 || xi >= l.cfg.size || yi >= l.cfg.size) continue;
-      const base = (l.texture.image as { data?: Float32Array }).data;
+      const base = l.data;
       if (!base) continue;
       const k = (yi * l.cfg.size + xi) * 2;
       return { heightKm: base[k + 1] > 0.5 ? base[k] : null, level: i };
@@ -460,19 +549,22 @@ export class SolarShadowClipmap {
     return null;
   }
 
-  dispose(): void { for (const l of this.levels) l.texture.dispose(); }
+  dispose(): void {
+    for (const l of this.levels) l.texture.dispose();
+    if (this.horizon) {
+      for (const t of this.horizon.targets) t.dispose();
+      this.horizon.material.dispose();
+      (this.horizon.scene.children[0] as THREE.Mesh).geometry.dispose();
+    }
+  }
 }
 
-function makeTexture(
-  base: Float32Array, size: number,
-  mips: { data: Float32Array; width: number; height: number }[], linear: boolean,
-): THREE.DataTexture {
-  const t = new THREE.DataTexture(base, size, size, THREE.RGFormat, THREE.FloatType);
-  t.mipmaps = mips.map(m => ({ data: m.data, width: m.width, height: m.height }));
+function makeTexture(data: Float32Array, size: number, linear: boolean): THREE.DataTexture {
+  const t = new THREE.DataTexture(data, size, size, THREE.RGFormat, THREE.FloatType);
   t.generateMipmaps = false;
-  // Coarse taps read exact texels (texelFetch); full-resolution taps filter in hardware when float textures allow it,
-  // else by hand, so the extension is optional.
-  t.minFilter = linear ? THREE.LinearMipmapNearestFilter : THREE.NearestMipmapNearestFilter;
+  // Taps filter bilinearly in hardware when float textures allow it, else by hand (texelFetch), so the extension is
+  // optional.
+  t.minFilter = linear ? THREE.LinearFilter : THREE.NearestFilter;
   t.magFilter = linear ? THREE.LinearFilter : THREE.NearestFilter;
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   t.needsUpdate = true;
@@ -481,7 +573,7 @@ function makeTexture(
 
 function qualityUniforms(q: SolarShadowQuality) {
   const p = SOLAR_SHADOW_QUALITY[q];
-  return { stepGrowth: { value: p.stepGrowth }, maxSteps: { value: p.maxSteps } };
+  return { stepTexels: { value: p.stepTexels }, maxSteps: { value: p.maxSteps } };
 }
 
 function placeholder(): THREE.DataTexture {
@@ -492,24 +584,38 @@ function placeholder(): THREE.DataTexture {
 }
 
 /**
- * GLSL for the horizon march. Declares uniforms and `float solarShadowVisibility(vec3 viewPos, out float unknown)`.
+ * Debug view: 0 off; 1 Sun visibility; 2 visibility with unknown tinted magenta; 3 frame/data alignment (green:
+ * rendered surface within 10 m of the clipmap); 4 neutral grey albedo lit by the Sun with terrain shadows (no imagery,
+ * no baked lighting); 5 the same without terrain shadows; 6 the normal image with terrain shadows bypassed while the
+ * clipmap keeps updating (an A/B "off" that does not pause the clipmap).
+ */
+export type SolarShadowDebugMode = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/**
+ * GLSL shared by the horizon pass and the terrain shader.
  *
- * - The fragment is placed on the clipmap's own surface (bilinear height at its direction), so receiver and
- *   occluder come from one data set and the draw LOD cannot create self-shadow or leaks.
+ * Horizon pass (`ssMarch`, one fragment per clipmap texel, run only when the data or the Sun moved): from the terrain
+ * point at the texel centre, march toward the Sun and keep the largest angle by which terrain stands above the Sun ray.
  * - Ray points are tracked as (east, north, w) with w above the anchor sphere. Height above the sphere is
  *   `(e²+n²+w²+2·Rc·w)/(|q|+Rc)`, which never subtracts two ~Rc values (float32 would lose metres).
- * - Each tap finds the finest level containing the point and looks up its gnomonic projection. Steps are
- *   `dt = max(0.9 texel, stepGrowth × distance)` (4 % at `high`); a step longer than a texel reads the max-reduced mip whose texel is
- *   at least that long, at both ends of the step, so a ridge narrower than the step cannot be skipped
- *   (it can be dilated by up to one step: the penumbra edge may move toward the ridge by ~stepGrowth–2×stepGrowth of its distance).
- * - Result: the Sun disk's visible fraction, from the largest angle by which terrain stands above the Sun ray
- *   (linear across the disk's diameter, as `sunFraction` in TerrainSunVisibility.ts).
+ * - Each tap reads the finest level holding terrain there, bilinearly, at that level's own resolution, and the next
+ *   step is `stepTexels` (at most 1) of its texel: a ridge is seen as the data has it, with no max-reduction or
+ *   dilation (which
+ *   inflate rough terrain, and inflate it more where the data are finer, so a finer level's box became a plateau
+ *   casting shadows from its edges). The receiver stands on that same surface. Levels cross-fade over the outer 20 % of
+ *   a level, so the surface has no seam.
+ * - Where a level is still waiting for source tiles the next coarser level answers; terrain no level holds is unknown.
+ *
+ * Terrain shader (`solarShadowVisibility`): the fragment's horizon angle is the bilinear horizon map of the finest
+ * level holding it (cross-faded like the data), and its Sun visibility the visible fraction of the Sun's disk (linear
+ * across the diameter, as `sunFraction` in TerrainSunVisibility.ts). One filtered fetch per fragment, no noise: the
+ * cost does not grow with screen resolution, and the shadow is a texture on the terrain, so it cannot shimmer as the
+ * camera moves.
  */
 export const solarShadowGlsl = `
 uniform float uSsEnabled;
 uniform float uSsDebug;
-uniform float uSsJitter;
-uniform float uSsGrowth;
+uniform float uSsStepTexels;
 uniform float uSsMaxSteps;
 uniform mat3 uSsViewToTan;
 uniform vec3 uSsOriginView;
@@ -521,7 +627,6 @@ uniform float uSsMaxRange;
 uniform float uSsBias;
 uniform vec3 uSsHalf;
 uniform vec3 uSsTexel;
-uniform vec3 uSsMaxLod;
 uniform vec3 uSsValid;
 uniform vec2 uSsOff0;
 uniform vec2 uSsOff1;
@@ -529,139 +634,178 @@ uniform vec2 uSsOff2;
 uniform sampler2D uSsTex0;
 uniform sampler2D uSsTex1;
 uniform sampler2D uSsTex2;
-
-// Finest valid level whose box (less one texel) contains the gnomonic point g; -1 when none.
-int ssLevel(vec2 g) {
-  if (uSsValid.x > 0.5 && max(abs(g.x - uSsOff0.x), abs(g.y - uSsOff0.y)) < uSsHalf.x - uSsTexel.x) return 0;
-  if (uSsValid.y > 0.5 && max(abs(g.x - uSsOff1.x), abs(g.y - uSsOff1.y)) < uSsHalf.y - uSsTexel.y) return 1;
-  if (uSsValid.z > 0.5 && max(abs(g.x - uSsOff2.x), abs(g.y - uSsOff2.y)) < uSsHalf.z - uSsTexel.z) return 2;
-  return -1;
-}
+uniform sampler2D uSsHz0;
+uniform sampler2D uSsHz1;
+uniform sampler2D uSsHz2;
 
 float ssHalf(int l) { return l == 0 ? uSsHalf.x : (l == 1 ? uSsHalf.y : uSsHalf.z); }
-float ssMaxLod(int l) { return l == 0 ? uSsMaxLod.x : (l == 1 ? uSsMaxLod.y : uSsMaxLod.z); }
 float ssTexel(int l) { return l == 0 ? uSsTexel.x : (l == 1 ? uSsTexel.y : uSsTexel.z); }
 vec2 ssOff(int l) { return l == 0 ? uSsOff0 : (l == 1 ? uSsOff1 : uSsOff2); }
+bool ssValidL(int l) { return (l == 0 ? uSsValid.x : (l == 1 ? uSsValid.y : uSsValid.z)) > 0.5; }
 int ssSize(int l) { return int(floor(2.0 * ssHalf(l) / ssTexel(l) + 0.5)); }
-vec2 ssTexelAt(int l, ivec2 ij, int lod) {
-  if (l == 0) return texelFetch(uSsTex0, ij, lod).rg;
-  if (l == 1) return texelFetch(uSsTex1, ij, lod).rg;
-  return texelFetch(uSsTex2, ij, lod).rg;
-}
-// Texel coordinates in [0, n) of the point g in level l, before flooring.
-vec2 ssCoord(int l, vec2 g, int n) { return ((g - ssOff(l)) / (2.0 * ssHalf(l)) + 0.5) * float(n); }
+vec2 ssUv(int l, vec2 g) { return (g - ssOff(l)) / (2.0 * ssHalf(l)) + 0.5; }
+// Chebyshev distance of g from level l's centre, km.
+float ssBox(int l, vec2 g) { vec2 d = abs(g - ssOff(l)); return max(d.x, d.y); }
+// Width of the outer band over which level l fades into the next coarser level (0 when there is none).
+float ssBand(int l) { return l < 2 && ssValidL(l + 1) ? 0.2 * ssHalf(l) : 0.0; }
 
-// (height above the anchor sphere, valid) of level l at g, bilinear at full resolution. Heights are read exactly
-// and blended by hand, so no float-linear texture extension is needed. valid is 1 only if all four texels are.
-vec2 ssBilinear(int l, vec2 g) {
+vec2 ssTexelAt(int l, ivec2 ij) {
+  if (l == 0) return texelFetch(uSsTex0, ij, 0).rg;
+  if (l == 1) return texelFetch(uSsTex1, ij, 0).rg;
+  return texelFetch(uSsTex2, ij, 0).rg;
+}
+
+// (height above the anchor sphere, validity) of level l at g, bilinear (by hand when float textures do not filter).
+// Validity is below 1 if any of the four texels is unknown.
+vec2 ssTap(int l, vec2 g) {
 #ifdef SS_HW_LINEAR
-  vec2 uv = (g - ssOff(l)) / (2.0 * ssHalf(l)) + 0.5;
-  if (l == 0) return textureLod(uSsTex0, uv, 0.0).rg;
-  if (l == 1) return textureLod(uSsTex1, uv, 0.0).rg;
-  return textureLod(uSsTex2, uv, 0.0).rg;
+  vec2 uv = ssUv(l, g);
+  if (l == 0) return texture(uSsTex0, uv).rg;
+  if (l == 1) return texture(uSsTex1, uv).rg;
+  return texture(uSsTex2, uv).rg;
 #else
   int n = ssSize(l);
-  vec2 x = ssCoord(l, g, n) - 0.5;
+  vec2 x = ssUv(l, g) * float(n) - 0.5;
   vec2 f = x - floor(x);
   ivec2 i0 = ivec2(floor(x));
   ivec2 hi = ivec2(n - 1);
-  vec2 a = ssTexelAt(l, clamp(i0, ivec2(0), hi), 0);
-  vec2 b = ssTexelAt(l, clamp(i0 + ivec2(1, 0), ivec2(0), hi), 0);
-  vec2 c = ssTexelAt(l, clamp(i0 + ivec2(0, 1), ivec2(0), hi), 0);
-  vec2 d = ssTexelAt(l, clamp(i0 + ivec2(1, 1), ivec2(0), hi), 0);
+  vec2 a = ssTexelAt(l, clamp(i0, ivec2(0), hi));
+  vec2 b = ssTexelAt(l, clamp(i0 + ivec2(1, 0), ivec2(0), hi));
+  vec2 c = ssTexelAt(l, clamp(i0 + ivec2(0, 1), ivec2(0), hi));
+  vec2 d = ssTexelAt(l, clamp(i0 + ivec2(1, 1), ivec2(0), hi));
   return vec2(mix(mix(a.x, b.x, f.x), mix(c.x, d.x, f.x), f.y), min(min(a.y, b.y), min(c.y, d.y)));
 #endif
 }
 
-// Conservative footprint of the step from g to g2: the max-reduced mip texels containing both ends. A step is at most
-// one mip texel long, so the two cover everything the ray passes over (bilinear filtering of a max pyramid would not).
-vec2 ssFootprint(int l, vec2 g, vec2 g2, int lod) {
-  int n = max(ssSize(l) >> lod, 1);
-  ivec2 hi = ivec2(n - 1);
-  vec2 a = ssTexelAt(l, clamp(ivec2(floor(ssCoord(l, g, n * (1 << lod)) / float(1 << lod))), ivec2(0), hi), lod);
-  vec2 b = ssTexelAt(l, clamp(ivec2(floor(ssCoord(l, g2, n * (1 << lod)) / float(1 << lod))), ivec2(0), hi), lod);
-  return vec2(max(a.x, b.x), min(a.y, b.y));
+// Level l holds terrain at g: inside its box (less one texel) with all four bilinear texels known.
+bool ssHas(int l, vec2 g) { return ssValidL(l) && ssBox(l, g) < ssHalf(l) - ssTexel(l) && ssTap(l, g).y > 0.999; }
+
+// Finest level holding terrain at the gnomonic point g; -1 when none. Where a finer level is still waiting for source
+// tiles (a strip just exposed by a re-centre) the coarser one answers, so the shadow there sharpens when the data
+// arrive instead of popping from lit to shadowed.
+int ssLevel(vec2 g) {
+  for (int l = 0; l < 3; l++) if (ssHas(l, g)) return l;
+  return -1;
+}
+
+// Weight of level l (vs l + 1) at g: 1 inside, falling to 0 across the band (1 where l + 1 holds nothing there).
+float ssWeight(int l, vec2 g) {
+  float band = ssBand(l);
+  return band > 0.0 && ssHas(l + 1, g) ? clamp((ssHalf(l) - ssTexel(l) - ssBox(l, g)) / band, 0.0, 1.0) : 1.0;
+}
+
+// Height above the anchor sphere at g (level l = ssLevel(g)), cross-faded into the next coarser level.
+float ssHeight(vec2 g, int l) {
+  float h = ssTap(l, g).x;
+  float w = ssWeight(l, g);
+  return w < 1.0 ? mix(ssTap(l + 1, g).x, h, w) : h;
+}
+
+// ssLevel and ssHeight in one pass (one fetch inside a level, two in its band): (height, level), level -1 if none.
+vec2 ssFind(vec2 g) {
+  for (int l = 0; l < 3; l++) {
+    if (!ssValidL(l) || ssBox(l, g) >= ssHalf(l) - ssTexel(l)) continue;
+    vec2 s = ssTap(l, g);
+    if (s.y < 0.999) continue;
+    float band = ssBand(l);
+    float w = band > 0.0 ? clamp((ssHalf(l) - ssTexel(l) - ssBox(l, g)) / band, 0.0, 1.0) : 1.0;
+    if (w < 1.0 && ssBox(l + 1, g) < ssHalf(l + 1) - ssTexel(l + 1)) {
+      vec2 s2 = ssTap(l + 1, g);
+      if (s2.y > 0.999) s.x = mix(s2.x, s.x, w);
+    }
+    return vec2(s.x, float(l));
+  }
+  return vec2(0.0, -1.0);
 }
 
 // Debug: rendered surface height minus the clipmap's at this fragment, km (0 when frames and data agree);
 // NaN where the clipmap holds nothing. A frame or scale mistake shows here as a large constant offset.
 float solarShadowDelta(vec3 viewPos) {
   vec3 p = uSsViewToTan * (viewPos - uSsOriginView);
-  float rf = uSsRc + p.z;
-  vec2 g0 = p.xy * uSsRc / rf;
+  vec2 g0 = p.xy * uSsRc / (uSsRc + p.z);
   int l0 = ssLevel(g0);
   if (l0 < 0) return 0.0 / 0.0;
-  vec2 s0 = ssBilinear(l0, g0);
   float r2m = dot(p.xy, p.xy) + p.z * p.z + 2.0 * uSsRc * p.z;
   float hRendered = r2m / (sqrt(uSsRc * uSsRc + r2m) + uSsRc);
-  return s0.y < 0.999 ? 0.0 / 0.0 : hRendered - s0.x;
+  return hRendered - ssHeight(g0, l0);
 }
 
-// Fraction of the Sun disk visible from the fragment at view-space position viewPos; unknown = 1 when
-// the march met terrain the clipmap does not hold (the answer then uses only the known terrain).
-float solarShadowVisibility(vec3 viewPos, out float unknown) {
-  unknown = 0.0;
-  vec3 p = uSsViewToTan * (viewPos - uSsOriginView);
+// Horizon pass: (largest terrain angle above the Sun ray, radians, clamped to ±1; 1 if the march met unknown terrain)
+// for the receiver on the clipmap surface at gnomonic point g0, height h0.
+vec2 ssMarch(vec2 g0, float h0) {
   float rc = uSsRc;
-  float rf = rc + p.z;
-  vec2 g0 = p.xy * rc / rf;
-  int l0 = ssLevel(g0);
-  if (l0 < 0) { unknown = 1.0; return 1.0; }
-  vec2 s0 = ssBilinear(l0, g0);
-  if (s0.y < 0.999) { unknown = 1.0; return 1.0; }
-  float h0 = s0.x;
-  // Receiver on the clipmap's own surface: radius rc+h0 along the fragment's radial direction.
+  float unknown = 0.0;
   float sg = sqrt(rc * rc + dot(g0, g0));
   vec2 e0 = g0 * ((rc + h0) / sg);
   float w0 = rc * (h0 - dot(g0, g0) / (sg + rc)) / sg;
   float sinEl = dot(uSsSun, normalize(vec3(e0, rc + w0)));
-  if (sinEl < -0.2) return 0.0;
+  if (sinEl < -0.2) return vec2(1.0, 0.0);
   vec3 sun = uSsSun;
-  float t = max(0.5 * ssTexel(l0), 0.005);
-  // Every fragment would otherwise sample the same distances along its ray, and a far shadow edge then bands in
-  // lock-step with those rings. A per-pixel shift of the first step (interleaved gradient noise) turns bands into grain.
-  float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-  t += uSsJitter * jit * max(ssTexel(l0) * 0.9, t * uSsGrowth);
-  // The same for the cross-ray position of coarse (max-mip) taps: a ray running along a texel row would otherwise read
-  // one row for its whole length, and neighbouring rows differ, so a far edge bands row by row.
-  float jit2 = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.00583715, 0.06711056)))) - 0.5;
-  vec2 across = length(sun.xy) > 1.0e-4 ? normalize(vec2(-sun.y, sun.x)) : vec2(0.0);
-  float worst = -1.0e9; // largest (terrain - ray) / distance, radians (small angle)
+  float t = 0.5 * uSsStepTexels * ssTexel(max(ssLevel(g0), 0));
+  float worst = -1.0;
   for (int i = 0; i < ${SOLAR_SHADOW_MAX_STEPS}; i++) {
     if (float(i) >= uSsMaxSteps) break;
     vec2 ee = e0 + sun.xy * t;
     float w = w0 + sun.z * t;
     float r2m = dot(ee, ee) + w * w + 2.0 * rc * w;
-    float qlen = sqrt(rc * rc + r2m);
-    float hRay = r2m / (qlen + rc);
-    if (t > uSsMaxRange || hRay > uSsHMax) break;
-    vec2 g = ee * rc / (rc + w);
-    int l = ssLevel(g);
-    if (l < 0) { unknown = 1.0; break; }
-    float texel = ssTexel(l);
-    float dt = max(texel * 0.9, t * uSsGrowth);
-    int lod = int(clamp(ceil(log2(dt / texel)), 0.0, ssMaxLod(l)));
-    vec2 s;
-    if (lod == 0) s = ssBilinear(l, g);
-    else {
-      vec2 e2 = e0 + sun.xy * (t + dt);
-      float w2 = w0 + sun.z * (t + dt);
-      vec2 shift = across * (jit2 * texel * float(1 << lod) * uSsJitter);
-      s = ssFootprint(l, g + shift, e2 * rc / (rc + w2) + shift, lod);
-    }
-    if (s.y < 0.999) unknown = 1.0;
-    else worst = max(worst, (s.x - hRay - uSsBias) / t);
-    t += dt;
-    // Terrain only ever adds shadow: once it covers the whole Sun disk (angle >= the Sun's radius) nothing can undo it.
-    if (worst >= uSsSunRad) break;
+    float hRay = r2m / (sqrt(rc * rc + r2m) + rc);
+    // Done once the Sun's lower limb, not just its centre, clears the highest terrain: terrain under the ray by less
+    // than the Sun's radius still hides part of the disk.
+    if (t > uSsMaxRange || hRay > uSsHMax + tan(uSsSunRad) * t) break;
+    vec2 f = ssFind(ee * rc / (rc + w));
+    if (f.y < 0.0) { unknown = 1.0; break; }
+    worst = max(worst, (f.x - hRay - uSsBias) / t);
+    t += uSsStepTexels * ssTexel(int(f.y));
   }
-  float ang = atan(worst);
-  // Sun-ray elevation is not part of ang: both the Sun centre and the terrain are measured from the same ray.
-  return clamp(0.5 - ang / (2.0 * uSsSunRad), 0.0, 1.0);
+  return vec2(clamp(worst, -1.0, 1.0), unknown);
+}
+
+// (horizon angle, unknown) at g from level l's horizon map.
+vec2 ssHorizonAt(int l, vec2 g) {
+  if (l == 0) return texture(uSsHz0, ssUv(0, g)).xy;
+  if (l == 1) return texture(uSsHz1, ssUv(1, g)).xy;
+  return texture(uSsHz2, ssUv(2, g)).xy;
+}
+
+// Fraction of the Sun disk visible from the fragment at view-space position viewPos; unknown = 1 when the march met
+// terrain the clipmap does not hold (the answer then uses only the known terrain).
+float solarShadowVisibility(vec3 viewPos, out float unknown) {
+  unknown = 0.0;
+  vec3 p = uSsViewToTan * (viewPos - uSsOriginView);
+  vec2 g0 = p.xy * uSsRc / (uSsRc + p.z);
+  int l0 = ssLevel(g0);
+  if (l0 < 0) { unknown = 1.0; return 1.0; }
+  vec2 hz = ssHorizonAt(l0, g0);
+  float w = ssWeight(l0, g0);
+  if (w < 1.0) hz = mix(ssHorizonAt(l0 + 1, g0), hz, w);
+  if (hz.y > 0.01) unknown = 1.0;
+  // Sun-ray elevation is not part of the angle: the Sun centre and the terrain are measured from the same ray.
+  return clamp(0.5 - atan(hz.x) / (2.0 * uSsSunRad), 0.0, 1.0);
 }
 `;
 
-/** Wire the horizon march into a MeshStandard/Physical fragment shader: only the direct terms are attenuated. */
+/** The horizon pass: one fragment per texel of level `uSsLevel`, writing `ssMarch` for its centre. */
+const horizonPassFragment = `
+uniform float uSsLevel;
+void main() {
+  int l = int(uSsLevel + 0.5);
+  vec2 g = ssOff(l) + ((floor(gl_FragCoord.xy) + 0.5) / float(ssSize(l)) - 0.5) * 2.0 * ssHalf(l);
+  // The receiver stands on the same (cross-faded, finest available) surface the march reads: its own level's texel
+  // alone would sit above or below the terrain right beside it wherever levels differ, and shadow itself.
+  int lr = ssLevel(g);
+  gl_FragColor = lr < 0 ? vec4(-1.0, 1.0, 0.0, 1.0) : vec4(ssMarch(g, ssHeight(g, lr)), 0.0, 1.0);
+}`;
+
+function shaderUniforms(u: SolarShadowUniforms): Record<string, { value: unknown }> {
+  return {
+    uSsEnabled: u.enabled, uSsDebug: u.debug, uSsStepTexels: u.stepTexels, uSsMaxSteps: u.maxSteps, uSsViewToTan: u.viewToTan, uSsOriginView: u.originView, uSsSun: u.sun,
+    uSsSunRad: u.sunRad, uSsRc: u.rc, uSsHMax: u.hMax, uSsMaxRange: u.maxRange, uSsBias: u.bias, uSsHalf: u.half,
+    uSsTexel: u.texel, uSsValid: u.valid, uSsOff0: u.off0, uSsOff1: u.off1, uSsOff2: u.off2,
+    uSsTex0: u.tex0, uSsTex1: u.tex1, uSsTex2: u.tex2, uSsHz0: u.hz0, uSsHz1: u.hz1, uSsHz2: u.hz2,
+  };
+}
+
+/** Wire the Sun visibility into a MeshStandard/Physical fragment shader: only the direct terms are attenuated. */
 export function injectSolarShadowIntoShader(
   shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
   u: SolarShadowUniforms,
@@ -672,32 +816,31 @@ export function injectSolarShadowIntoShader(
     throw new Error('Solar shadow: Three.js lights_fragment_end/opaque_fragment hook changed.');
   }
   if (shader.fragmentShader.includes('solarShadowVisibility')) return;
-  if (shader.uniforms) {
-    Object.assign(shader.uniforms, {
-      uSsEnabled: u.enabled, uSsDebug: u.debug, uSsJitter: u.jitter, uSsGrowth: u.stepGrowth, uSsMaxSteps: u.maxSteps, uSsViewToTan: u.viewToTan, uSsOriginView: u.originView, uSsSun: u.sun,
-      uSsSunRad: u.sunRad, uSsRc: u.rc, uSsHMax: u.hMax, uSsMaxRange: u.maxRange, uSsBias: u.bias, uSsHalf: u.half,
-      uSsTexel: u.texel, uSsMaxLod: u.maxLod, uSsValid: u.valid, uSsOff0: u.off0, uSsOff1: u.off1, uSsOff2: u.off2,
-      uSsTex0: u.tex0, uSsTex1: u.tex1, uSsTex2: u.tex2,
-    });
-  }
+  if (shader.uniforms) Object.assign(shader.uniforms, shaderUniforms(u));
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Solar shadow: fragment shader has no main().');
   shader.fragmentShader = (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0;')
     .replace(end, `${end}
 #if NUM_DIR_LIGHTS > 0
-if (uSsEnabled > 0.5 && dot(normal, directionalLights[0].direction) > 0.0) {
+if (uSsEnabled > 0.5 && uSsDebug < 5.5 && dot(normal, directionalLights[0].direction) > 0.0) {
   solarVis = solarShadowVisibility(-vViewPosition, solarUnknown);
   reflectedLight.directDiffuse *= solarVis;
   reflectedLight.directSpecular *= solarVis;
 }
 #endif`)
-    .replace(opaque, `if (uSsDebug > 0.5 && uSsEnabled > 0.5) {
+    .replace(opaque, `if (uSsDebug > 0.5 && uSsDebug < 5.5 && uSsEnabled > 0.5) {
   outgoingLight = vec3(solarVis);
   if (uSsDebug > 1.5 && solarUnknown > 0.5) outgoingLight = mix(outgoingLight, vec3(1.0, 0.0, 1.0), 0.6);
-  if (uSsDebug > 2.5) {
+  if (uSsDebug > 2.5 && uSsDebug < 3.5) {
     float d = solarShadowDelta(-vViewPosition);
     outgoingLight = d != d ? vec3(1.0, 0.0, 1.0) : (abs(d) < 0.01 ? vec3(0.0, 1.0, 0.0) : (d > 0.0 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
   }
+#if NUM_DIR_LIGHTS > 0
+  if (uSsDebug > 3.5) {
+    float nl = max(dot(normal, directionalLights[0].direction), 0.0);
+    outgoingLight = vec3(0.03 + 0.85 * nl * (uSsDebug > 4.5 ? 1.0 : solarVis));
+  }
+#endif
 }
 ${opaque}`);
 }

@@ -1,7 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
-import type { SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
+import type { SolarShadowDebugMode, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
@@ -3618,7 +3618,7 @@ export class UniverseRenderer {
   }
 
   /** Debug view of the terrain shadow: 0 off, 1 visibility, 2 unknown cells tinted, 3 frame/data alignment. */
-  setTerrainShadowDebug(mode: 0 | 1 | 2 | 3): void {
+  setTerrainShadowDebug(mode: SolarShadowDebugMode): void {
     for (const bm of this.bodyMeshes.values()) bm.setSolarShadowDebug(mode);
   }
 

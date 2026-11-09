@@ -11,7 +11,7 @@ import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
-import type { SolarShadowFrame, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
+import type { SolarShadowDebugMode, SolarShadowFrame, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
@@ -1194,7 +1194,7 @@ export class BodyMesh extends THREE.Object3D {
     // Baked imagery carries its own lighting, so terrain shadows cannot show on it (#204): worth telling the user.
     return t ? { supported: t.supportsSolarShadow, mode: t.solarShadowMode, bakedOnly: t.surfaceIllumination === 'baked' } : null;
   }
-  setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.terrainManager?.setSolarShadowDebug(mode); }
+  setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.terrainManager?.setSolarShadowDebug(mode); }
   setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }

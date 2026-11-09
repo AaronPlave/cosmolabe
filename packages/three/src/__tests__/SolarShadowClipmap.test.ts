@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  SolarShadowClipmap, buildMaxMips, gnomonicCoordinates, gnomonicDirection, injectSolarShadowIntoShader, tangentFrame,
+  SolarShadowClipmap, gnomonicCoordinates, gnomonicDirection, injectSolarShadowIntoShader, tangentFrame,
   type ClipmapSource, type SolarShadowFrame,
 } from '../SolarShadowClipmap.js';
 
@@ -51,14 +51,6 @@ describe('gnomonic clipmap frame (#205)', () => {
     }
     expect(gnomonicCoordinates(tangentFrame([0, 0, 1]), [0, 0, -1], R)).toBeNull();
   });
-
-  it('max-reduces heights and min-reduces validity; invalid texels never lift the max', () => {
-    // 2×2: heights 1, 5, 3, 9; the 9 is invalid.
-    const mips = buildMaxMips(new Float32Array([1, 1, 5, 1, 3, 1, 9, 0]), 2);
-    expect(mips).toHaveLength(2);
-    expect(mips[1].data[0]).toBe(5);
-    expect(mips[1].data[1]).toBe(0);
-  });
 });
 
 describe('SolarShadowClipmap (#205)', () => {
@@ -93,9 +85,29 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(builds()).toBe(1);
     settle(c, frameAt(-89.5 + 3 / R / DEG, 0, 2)); // 3 km = 0.375 half-width: re-centre in the same frame
     expect(builds()).toBe(2);
-    // 3° away resets the anchor, so the level is rebuilt in a new frame.
-    settle(c, frameAt(-86.5, 0, 2));
+    // A re-centre samples only the newly exposed strip (3 km = 12 texels of 64) and keeps drawing the old data meanwhile.
+    expect(c.status.levels[0].lastReason).toBe('recenter');
+    expect(c.status.levels[0].lastSampledTexels).toBe(12 * 64);
+    expect(c.status.anchorResets).toBe(1);
+    // 12° away resets the anchor, so the level is rebuilt in a new frame.
+    settle(c, frameAt(-77.5, 0, 2));
     expect(builds()).toBe(3);
+    expect(c.status.anchorResets).toBe(2);
+    expect(c.status.levels[0].lastReason).toBe('initial');
+  });
+
+  it('stays ready, drawing the current data, while a level re-centres over several frames', () => {
+    const c = new SolarShadowClipmap(source(), { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
+    settle(c, frameAt(-89.5, 0, 2));
+    const slow = new SolarShadowClipmap(source(), { budgetMs: 0, levels: [{ halfKm: 8, size: 64 }] });
+    for (let i = 0; i < 80; i++) slow.update(frameAt(-89.5, 0, 2));
+    expect(slow.status.state).toBe('ready');
+    const before = slow.uniforms.tex0.value;
+    slow.update(frameAt(-89.5 + 3 / R / DEG, 0, 2)); // starts a re-centre, one row per frame
+    expect(slow.status.state).toBe('ready');
+    expect(slow.uniforms.tex0.value).toBe(before);
+    expect(slow.uniforms.enabled.value).toBe(1);
+    expect(c.status.state).toBe('ready');
   });
 
   it('is off above the maximum altitude and when deactivated', () => {
@@ -121,6 +133,7 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(c.status.levels[0].builds).toBe(1);
     src.holes = false; src.revision++; settle(c, f, 3000); // data arrived: rebuild
     expect(c.status.levels[0].builds).toBe(2);
+    expect(c.status.levels[0].lastReason).toBe('new-data');
     expect(c.status.levels[0].unknownFraction).toBe(0);
     src.revision++; settle(c, f, 20000); // complete: more data cannot improve it
     expect(c.status.levels[0].builds).toBe(2);

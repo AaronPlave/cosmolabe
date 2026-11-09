@@ -111,7 +111,7 @@ export { clipmapSourceFromSurface } from './SolarShadowSurfaceSource.js';
 export type { ClipmapSource } from './SolarShadowClipmap.js';
 export { horizonAlong, solarVisibility, sunFraction, occluderRangeKm } from './TerrainSunVisibility.js';
 export type { HeightKm, HorizonResult, SolarVisibility } from './TerrainSunVisibility.js';
-export type { SolarShadowConfig, SolarShadowQuality, SolarShadowStatus, SolarShadowLevelStatus, ClipmapLevelConfig } from './SolarShadowClipmap.js';
+export type { SolarShadowConfig, SolarShadowQuality, SolarShadowStatus, SolarShadowLevelStatus, SolarShadowDebugMode, SolarShadowBuildReason, ClipmapLevelConfig } from './SolarShadowClipmap.js';
 export type { ImageryIllumination as ImageryRelightProvenance, SurfaceIlluminationSummary, LightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
 export { resolveImageryTime, parseTimeExtent, ImageryTimeFollower, DEFAULT_IMAGERY_THROTTLE, dayNumber, utcDay } from './ImageryTime.js';

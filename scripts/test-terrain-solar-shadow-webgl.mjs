@@ -126,6 +126,7 @@ try {
       const buildMs = performance.now() - t0;
       clip.setDebug(mode);
       clip.setQuality(quality);
+      clip.renderHorizons(renderer);
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       const px = new Float32Array(W * H * 4);
@@ -153,6 +154,12 @@ try {
     // 2. Sun fraction per receiver against the CPU reference, over solar elevation and azimuth.
     const crest = ridgeAt(ridge);
     const heightAbs = (e) => crest(e / R / DEG); // ridge by arc distance east
+    // A shadow edge may sit up to max(1 km, 12 % of the distance to the ridge) from the reference's (the clipmap holds
+    // the ridge's vertical walls as bilinear slopes a texel wide), plus one texel of the level whose horizon map holds
+    // the receiver (horizons are computed at texel centres and interpolated): 62 m inside the 8 km level, 0.5 km from
+    // its cross-fade band out.
+    const centreE = (E0 + E1) / 2;
+    const tolerance = (e) => Math.max(1.0, 0.12 * Math.abs(ridge.d0 - e)) + (Math.abs(e - centreE) < 0.8 * 8 - 0.1 ? 0.0625 : Math.abs(e - centreE) < 0.8 * 64 ? 0.5 : 2.5);
     const sweep = (quality, hardwareLinear = floatLinear) => {
     const sweeps = [];
     let worstMean = 0, worstMax = 0, leaks = 0, falseShadow = 0, compared = 0;
@@ -176,10 +183,8 @@ try {
         const loc = localSun(s, e);
         if (loc.el < 0.5) continue;
         const ref = solarVisibility((de, dn) => heightAbs(e + de), loc.az, loc.el, 0, R, 330, 0.05);
-        // The march is conservative by up to a step (4 % of the distance, at least a texel of the level in use), so a shadow
-        // edge may sit up to max(1 km, 12 % of the distance to the ridge) from the reference's. Receivers within that tolerance of a reference edge are judged
-        // against the reference on either side of it.
-        const tol = Math.max(1.0, 0.12 * Math.abs(ridge.d0 - e));
+        // Receivers within `tolerance` of a reference edge are judged against the reference on either side of it.
+        const tol = tolerance(e);
         const around = [-tol, 0, tol].map(k => solarVisibility((de, dn) => heightAbs(e + k + de), loc.az, loc.el, 0, R, 330, 0.05).fraction);
         const lo = Math.min(...around), hi = Math.max(...around);
         const gpuVis = r.row[x][0];
@@ -198,7 +203,7 @@ try {
       const first = (k) => (sw.profile.find(q => q[0] < ridge.d0 - 1.5 && q[k] < 0.5) ?? [null])[0];
       const ref = first(1), g = first(2);
       return { azDeg: sw.azDeg, elDeg: sw.elDeg, refEdgeKm: ref, gpuEdgeKm: g, shiftKm: ref === null || g === null ? null : g - ref,
-        toleranceKm: ref === null ? null : Math.max(1.0, 0.12 * (ridge.d0 - ref)) };
+        toleranceKm: ref === null ? null : tolerance(ref) };
     });
     return { sweeps, edges, compared, worstMean, worstMax, leaks, falseShadow };
     };
@@ -229,16 +234,16 @@ try {
     // Alignment: every covered pixel agrees with the clipmap to 10 m.
     assert.ok(r.alignment.green / r.alignment.total > 0.98, `${r.body}: frame/data alignment ${JSON.stringify(r.alignment)}`);
     // Reference parity.
-    assert.ok(r.worstMean < 0.03, `${r.body}: mean |GPU - reference| ${r.worstMean}`);
+    assert.ok(r.worstMean < 0.015, `${r.body}: mean |GPU - reference| ${r.worstMean}`);
     assert.equal(r.leaks, 0, `${r.body}: light leaks: lit where the reference is shadowed, beyond the edge tolerance`);
     assert.equal(r.falseShadow, 0, `${r.body}: false shadow: dark where the reference is lit, beyond the edge tolerance`);
     for (const e of r.edges) if (e.shiftKm !== null) assert.ok(Math.abs(e.shiftKm) <= e.toleranceKm, `${r.body}: shadow edge moved ${e.shiftKm} km (tolerance ${e.toleranceKm}) at az ${e.azDeg} el ${e.elDeg}`);
-    // Cheaper presets move shadow edges further toward the occluder, but never let light through.
-    for (const [q, tolerance] of [['medium', 0.06], ['low', 0.15]]) {
+    // Cheaper presets take longer steps through the data; on this ridge (many texels wide) they stay within the same bounds.
+    for (const [q, tolerance] of [['medium', 0.015], ['low', 0.015]]) {
       assert.equal(r.quality[q].leaks, 0, `${r.body} ${q}: light leaks`);
       assert.ok(r.quality[q].worstMean < tolerance, `${r.body} ${q}: mean |GPU - reference| ${r.quality[q].worstMean}`);
     }
-    assert.ok(r.otherFilterPath.worstMean < 0.03 && r.otherFilterPath.leaks === 0, `${r.body}: the other filtering path (hardwareLinear ${r.otherFilterPath.hardwareLinear}): ${JSON.stringify(r.otherFilterPath)}`);
+    assert.ok(r.otherFilterPath.worstMean < 0.015 && r.otherFilterPath.leaks === 0, `${r.body}: the other filtering path (hardwareLinear ${r.otherFilterPath.hardwareLinear}): ${JSON.stringify(r.otherFilterPath)}`);
     assert.ok(r.unknown.vis > 0.95, `${r.body}: unknown coverage drawn dark: ${r.unknown.vis}`);
     assert.ok(r.unknown.tintedMagenta, `${r.body}: unknown coverage not tinted in debug view 2`);
     summary[r.body] = { floatLinear: r.floatLinear, otherFilterPath: r.otherFilterPath, alignment: r.alignment, worstMean: r.worstMean, worstMax: r.worstMax, compared: r.compared, leaks: r.leaks,

@@ -21,7 +21,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
-import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus } from './SolarShadowClipmap.js';
+import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus, type SolarShadowDebugMode } from './SolarShadowClipmap.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
@@ -762,6 +762,7 @@ export class TerrainManager {
   private solarShadow: SolarShadowClipmap | null = null;
   private solarQuality: SolarShadowQuality = 'high';
   private floatLinear = false;
+  private glRenderer: THREE.WebGLRenderer | null = null;
   private lightingModeAllowsShadow = true;
   private solarShadowsOn = true;
 
@@ -832,15 +833,19 @@ export class TerrainManager {
     }));
   }
 
-  /** Every frame, after the camera is final: refresh the clipmap and its uniforms. */
-  updateSolarShadow(frame: SolarShadowFrame): void { this.solarShadow?.update(frame); }
+  /** Every frame, after the camera is final: refresh the clipmap, its uniforms and (when stale) its horizon maps. */
+  updateSolarShadow(frame: SolarShadowFrame): void {
+    if (!this.solarShadow) return;
+    this.solarShadow.update(frame);
+    if (this.glRenderer) this.solarShadow.renderHorizons(this.glRenderer);
+  }
   get hasSolarShadow(): boolean { return this.solarShadow !== null; }
   /** The effective mode, for the viewer's control. */
   get solarShadowMode(): 'off' | SolarShadowQuality {
     return this.solarShadow && this.solarShadowsOn ? this.solarShadow.quality : 'off';
   }
   get solarShadowStatus(): SolarShadowStatus | null { return this.solarShadow?.status ?? null; }
-  setSolarShadowDebug(mode: 0 | 1 | 2 | 3): void { this.solarShadow?.setDebug(mode); }
+  setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.solarShadow?.setDebug(mode); }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -994,6 +999,7 @@ export class TerrainManager {
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
     this.floatLinear = renderer?.extensions?.has('OES_texture_float_linear') ?? false;
+    this.glRenderer = renderer ?? null;
     if (config.solarShadows) this.createSolarShadow(config.solarShadows === true ? {} : config.solarShadows);
     // Other tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.

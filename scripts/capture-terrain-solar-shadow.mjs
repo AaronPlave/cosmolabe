@@ -17,6 +17,20 @@
  *   visibility debug view 1: the per-fragment Sun fraction (white lit, black shadowed)
  *   unknown    debug view 2: the same, with terrain the clipmap does not hold tinted magenta
  *   alignment  debug view 3: rendered surface vs clipmap height (green: within 10 m; magenta: no data)
+ *   neutral    debug view 4: neutral grey albedo lit by the Sun, with terrain shadows (no imagery, no baked light)
+ *   neutral-off debug view 5: the same without terrain shadows
+ *   on-rehorizon  shadows on with the horizon maps re-rendered every frame: their cost while the Sun moves faster
+ *              than 1/16 of its radius per frame (time warp). Paused or at 1× they re-render about once a minute or less.
+ *
+ * --sequence adds two controlled motion sequences per view, each frame captured as off (debug 6: shadows bypassed,
+ * clipmap still updating) / visibility / neutral / on at one pose, with a per-frame trace of every clipmap level
+ * (centre, builds, last rebuild reason and texels sampled, anchor resets):
+ *
+ *   camera   time frozen; the camera pans 20 km (re-centring the 8 km and 64 km levels), yaws 12 deg and zooms in,
+ *            then returns along the same path; the first and last frames (same pose) are compared pixel by pixel.
+ *   time     camera fixed; the clock advances 2 min per frame; consecutive frames are compared (a pop is a spike).
+ *
+ * Frames are assembled into a 2×2 MP4 per sequence (off | visibility / neutral | on) with ffmpeg.
  *
  * and the clipmap's residency/quality status, the Sun geometry, the CPU time of each clipmap build, and a frame time
  * with shadows on and off. Software WebGL (no GPU in the capture host) and an optional CPU throttle (--throttle 4)
@@ -39,7 +53,7 @@ const OUT = resolve(args.out ?? join(ROOT, 'work/terrain-solar-shadow'));
 const VIEWPORT = { width: Number(args.width ?? 1280), height: Number(args.height ?? 720) };
 const THROTTLE = Number(args.throttle ?? 1);
 const QUALITY = args.quality ?? 'high';
-const RES_TAG = VIEWPORT.width === 1280 ? '' : `-${VIEWPORT.width}w`;
+const RES_TAG = (VIEWPORT.width === 1280 ? '' : `-${VIEWPORT.width}w`) + (args.tag ? `-${args.tag}` : '');
 const SCREENSHOTS = !args['no-screenshots'];
 const FRAMES = Number(args.frames ?? (args.gpu ? 160 : 40));
 const R = 1737.4;
@@ -114,7 +128,7 @@ try {
     }, { site: view.site, want: view.wantElevationDeg });
     console.log(`${viewName}: epoch et=${epoch.et} Sun elevation ${epoch.elevationDeg.toFixed(2)} deg azimuth ${epoch.azimuthDeg.toFixed(1)} at the site`);
 
-    const pose = () => page.evaluate(({ view, et }) => {
+    const pose = (p = view, et = epoch.et) => page.evaluate(({ view, et }) => {
       const r = window.cap.getRenderer(), bm = r.getBodyMesh('Moon');
       window.cap.setPlaying(false); window.cosmo.untrack();
       r.timeController.setTime(et);
@@ -128,13 +142,14 @@ try {
       c.fov = view.fov; c.updateProjectionMatrix();
       c.position.copy(eye); c.up.copy(up); controls.target.copy(target);
       c.lookAt(target); c.updateMatrixWorld(true);
-    }, { view, et: epoch.et });
-    const applyMode = (mode) => page.evaluate(({ mode, quality }) => {
+    }, { view: p, et });
+    const DEBUG = { visibility: 1, unknown: 2, alignment: 3, neutral: 4, 'neutral-off': 5, bypass: 6 };
+    const applyMode = (mode) => page.evaluate(({ mode, quality, debug }) => {
       const r = window.cap.getRenderer();
       r.setLightingMode(mode === 'flood' ? 'flood' : 'natural');
       r.setTerrainShadowMode(mode === "off" || mode === "flood" ? "off" : quality);
-      r.setTerrainShadowDebug(mode === 'visibility' ? 1 : mode === 'unknown' ? 2 : mode === 'alignment' ? 3 : 0);
-    }, { mode, quality: QUALITY });
+      r.setTerrainShadowDebug(debug);
+    }, { mode, quality: QUALITY, debug: DEBUG[mode] ?? 0 });
     const state = () => page.evaluate(() => {
       const r = window.cap.getRenderer(), bm = r.getBodyMesh('Moon');
       return { metrics: bm.terrainMetrics, cube: bm.terrainCubeStats, shadow: bm.solarShadowStatus };
@@ -165,12 +180,17 @@ try {
       await pose();
       await page.waitForTimeout(500);
       // Frame time over FRAMES frames (the first 10 dropped), then the screenshot and the state it shows.
-      const frameMs = await page.evaluate((frames) => new Promise(resolveFrames => {
+      const frameMs = await page.evaluate(({ frames, moving }) => new Promise(resolveFrames => {
+        const clip = window.cap.getRenderer().getBodyMesh('Moon').terrainManager?.solarShadow;
         const times = [];
         let prev = performance.now(), n = 0;
-        const tick = (now) => { times.push(now - prev); prev = now; if (++n < frames) requestAnimationFrame(tick); else resolveFrames(times.slice(10)); };
+        const tick = (now) => {
+          times.push(now - prev); prev = now;
+          if (moving) clip?.setQuality(clip.quality); // marks the horizon maps stale
+          if (++n < frames) requestAnimationFrame(tick); else resolveFrames(times.slice(10));
+        };
         requestAnimationFrame(tick);
-      }), FRAMES);
+      }), { frames: FRAMES, moving: mode === 'on-rehorizon' });
       const mean = frameMs.reduce((a, b) => a + b, 0) / frameMs.length;
       const sorted = [...frameMs].sort((a, b) => a - b);
       const p50 = sorted[Math.floor(sorted.length * 0.5)], p95 = sorted[Math.floor(sorted.length * 0.95)];
@@ -183,12 +203,100 @@ try {
       console.log(`${file}: frame mean ${mean.toFixed(1)} / p50 ${p50.toFixed(1)} / p95 ${p95.toFixed(1)} ms (${GPU ? 'hardware GPU' : 'software WebGL'}), clipmap ${shadow?.state}, `
         + `unknown ${shadow?.levels.map(l => (l.unknownFraction * 100).toFixed(0) + '%').join('/')}, build ${shadow?.levels.map(l => l.lastBuildMs.toFixed(0) + ' ms').join('/')}`);
     }
+    if (args.sequence) results.push({ view: viewName, sequences: await sequences(page, viewName, view, epoch, pose, applyMode) });
     results.push({ view: viewName, errors });
     await page.close();
   }
 } finally {
   await browser.close();
 }
+/** Body-fixed pose moved from `view`: target panned `panKm` east, eye yawed `yawDeg` about the target's up, distance × `zoom`. */
+function movedPose(view, panKm, yawDeg, zoom) {
+  const n = v => { const l = Math.hypot(...v); return v.map(x => x / l); };
+  const up = n(view.target), east = n([-up[1], up[0], 0]);
+  const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
+  const target = view.target.map((x, i) => x + east[i] * panKm);
+  const rel = view.eye.map((x, i) => x - view.target[i]);
+  const [e, nn, u] = [0, 1, 2].map(k => rel.reduce((a, x, i) => a + x * [east, north, up][k][i], 0));
+  const y = yawDeg * Math.PI / 180, e2 = e * Math.cos(y) - nn * Math.sin(y), n2 = e * Math.sin(y) + nn * Math.cos(y);
+  const eye = target.map((x, i) => x + zoom * (e2 * east[i] + n2 * north[i] + u * up[i]));
+  return { ...view, eye, target };
+}
+
+/** Mean |a-b| (0–255) and fraction of pixels differing by more than 8 levels, over two PNG screenshots. */
+async function diff(page, a, b) {
+  return page.evaluate(async ([a, b]) => {
+    const px = async (b64) => {
+      const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+      const c = new OffscreenCanvas(bm.width, bm.height), g = c.getContext('2d');
+      g.drawImage(bm, 0, 0);
+      return g.getImageData(0, 0, bm.width, bm.height).data;
+    };
+    const [x, y] = await Promise.all([px(a), px(b)]);
+    let sum = 0, big = 0;
+    for (let i = 0; i < x.length; i += 4) {
+      const d = (Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2])) / 3;
+      sum += d; if (d > 8) big++;
+    }
+    return { meanAbs: +(sum / (x.length / 4)).toFixed(3), fractionOver8: +(big / (x.length / 4)).toFixed(5) };
+  }, [a.toString('base64'), b.toString('base64')]);
+}
+
+async function sequences(page, viewName, view, epoch, pose, applyMode) {
+  const { execFileSync } = await import('node:child_process');
+  const modes = ['bypass', 'visibility', 'neutral', 'on'];
+  const clip = { x: 56, y: 0, width: 1216, height: 672 };
+  const trace = () => page.evaluate(() => {
+    const s = window.cap.getRenderer().getBodyMesh('Moon').solarShadowStatus;
+    return s && { state: s.state, anchorResets: s.anchorResets, levels: s.levels.map(l => ({ offsetKm: l.offsetKm?.map(v => +v.toFixed(2)),
+      builds: l.builds, lastReason: l.lastReason, lastSampledTexels: l.lastSampledTexels, unknown: +l.unknownFraction.toFixed(4) })) };
+  });
+  const frames = () => page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
+  const out = {};
+  const N = Number(args['sequence-frames'] ?? 48);
+  const plans = {
+    camera: Array.from({ length: 2 * N + 1 }, (_, i) => { const s = i <= N ? i / N : (2 * N - i) / N; return { p: movedPose(view, 20 * s, 12 * s, 1 - 0.2 * s), et: epoch.et }; }),
+    time: Array.from({ length: 2 * N }, (_, i) => ({ p: view, et: epoch.et + 120 * i })),
+  };
+  for (const [name, plan] of Object.entries(plans)) {
+    const dir = join(OUT, `${viewName}-${name}-frames`);
+    mkdirSync(dir, { recursive: true });
+    const rows = [], shots = { on: [], visibility: [] };
+    for (let i = 0; i < plan.length; i++) {
+      await pose(plan[i].p, plan[i].et);
+      await frames();
+      for (const m of modes) {
+        await applyMode(m); await pose(plan[i].p, plan[i].et); await frames();
+        const png = await page.screenshot({ clip, type: 'png' });
+        writeFileSync(join(dir, `${m}-${String(i).padStart(3, '0')}.png`), png);
+        if (shots[m]) shots[m].push(png);
+      }
+      rows.push({ frame: i, et: plan[i].et, ...await trace() });
+    }
+    const res = { frames: plan.length, trace: rows };
+    if (name === 'camera') {
+      // Same pose at the start and the end: shadows attached to the terrain look identical after the round trip.
+      res.roundTrip = { visibility: await diff(page, shots.visibility[0], shots.visibility.at(-1)), on: await diff(page, shots.on[0], shots.on.at(-1)) };
+    } else {
+      const d = [];
+      for (let i = 1; i < shots.visibility.length; i++) d.push((await diff(page, shots.visibility[i - 1], shots.visibility[i])).meanAbs);
+      const sorted = [...d].sort((a, b) => a - b);
+      res.consecutiveVisibility = { median: sorted[d.length >> 1], max: sorted.at(-1), maxOverMedian: +(sorted.at(-1) / Math.max(sorted[d.length >> 1], 1e-6)).toFixed(2), perFrame: d };
+    }
+    const mp4 = join(OUT, `${viewName}-${name}.mp4`);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '12',
+      ...modes.flatMap(m => ['-i', join(dir, `${m}-%03d.png`)]),
+      '-filter_complex', modes.map((_, k) => `[${k}]scale=608:336[v${k}]`).join(';') + ';[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '26', mp4]);
+    res.video = mp4;
+    out[name] = res;
+    const levelsBuilt = rows.at(-1)?.levels.map(l => l.builds).join('/');
+    console.log(`${viewName} ${name}: ${plan.length} frames, builds ${levelsBuilt}, anchor resets ${rows.at(-1)?.anchorResets}, states ${[...new Set(rows.map(r => r.state))].join(',')}`
+      + (res.roundTrip ? `, round trip ${JSON.stringify(res.roundTrip)}` : '') + (res.consecutiveVisibility ? `, consecutive ${JSON.stringify({ ...res.consecutiveVisibility, perFrame: undefined })}` : ''));
+  }
+  return out;
+}
+
 const record = {
   generator: 'scripts/capture-terrain-solar-shadow.mjs', created: new Date().toISOString(), catalog: CATALOG, viewport: VIEWPORT,
   cpuThrottle: THROTTLE, quality: QUALITY, gpu: GPU,

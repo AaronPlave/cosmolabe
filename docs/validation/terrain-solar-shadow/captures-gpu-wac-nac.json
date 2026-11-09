@@ -1,0 +1,470 @@
+{
+  "generator": "scripts/capture-terrain-solar-shadow.mjs",
+  "created": "2026-11-09T20:58:38.178Z",
+  "catalog": "test-catalogs/moonfall-shackleton",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "cpuThrottle": 1,
+  "quality": "high",
+  "gpu": true,
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "hardwareConcurrency": 16,
+    "launch": "playwright, installed Chrome headless, --use-angle=metal, vsync and frame limit off (hardware GPU)"
+  },
+  "host": {
+    "platform": "darwin 25.6.0",
+    "cpus": 16,
+    "cpuModel": "Apple M4 Max",
+    "memoryGB": 48
+  },
+  "captures": [
+    {
+      "view": "shackleton-rim",
+      "mode": "off",
+      "file": "shackleton-rim-off-gpu-wac-nac.png",
+      "epochEt": 914094309.1834563,
+      "sun": {
+        "elevationDeg": 0.7475338538269393,
+        "azimuthDeg": 16.16214600955948,
+        "cosIncidence": 0.013046556876221476
+      },
+      "frameMeanMs": 8.2,
+      "frameP50Ms": 8.1,
+      "frameP95Ms": 9.7,
+      "frameMaxMs": 10.6,
+      "shadow": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              -2.3125,
+              -22.25
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 42186,
+            "unknownFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 31.100000023841858
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "offsetKm": [
+              -3.5,
+              -22
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 21124,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 27.299999952316284
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              -2.5,
+              -22.5
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 25446,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 43.59999978542328
+          }
+        ],
+        "anchorResets": 1,
+        "horizonRenders": 16,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 206,
+        "inCache": 206,
+        "cpu": 464
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 6761
+    },
+    {
+      "view": "shackleton-rim",
+      "mode": "on",
+      "file": "shackleton-rim-on-gpu-wac-nac.png",
+      "epochEt": 914094309.1834563,
+      "sun": {
+        "elevationDeg": 0.7475338538269393,
+        "azimuthDeg": 16.16214600955948,
+        "cosIncidence": 0.013046556876221476
+      },
+      "frameMeanMs": 8.17,
+      "frameP50Ms": 8,
+      "frameP95Ms": 9.3,
+      "frameMaxMs": 10.5,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              -2.3125,
+              -22.25
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 42186,
+            "unknownFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 31.100000023841858
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "offsetKm": [
+              -3.5,
+              -22
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 21124,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 27.299999952316284
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              -2.5,
+              -22.5
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 25446,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 43.59999978542328
+          }
+        ],
+        "anchorResets": 1,
+        "horizonRenders": 19,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 206,
+        "inCache": 206,
+        "cpu": 464
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 6761
+    },
+    {
+      "view": "shackleton-rim",
+      "mode": "neutral-off",
+      "file": "shackleton-rim-neutral-off-gpu-wac-nac.png",
+      "epochEt": 914094309.1834563,
+      "sun": {
+        "elevationDeg": 0.7475338538269393,
+        "azimuthDeg": 16.16214600955948,
+        "cosIncidence": 0.013046556876221476
+      },
+      "frameMeanMs": 8.3,
+      "frameP50Ms": 8.1,
+      "frameP95Ms": 9.7,
+      "frameMaxMs": 10.5,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              -2.3125,
+              -22.25
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 42186,
+            "unknownFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 31.100000023841858
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "offsetKm": [
+              -3.5,
+              -22
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 21124,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 27.299999952316284
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              -2.5,
+              -22.5
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 25446,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 43.59999978542328
+          }
+        ],
+        "anchorResets": 1,
+        "horizonRenders": 22,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 206,
+        "inCache": 206,
+        "cpu": 464
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 6761
+    },
+    {
+      "view": "shackleton-rim",
+      "mode": "neutral",
+      "file": "shackleton-rim-neutral-gpu-wac-nac.png",
+      "epochEt": 914094309.1834563,
+      "sun": {
+        "elevationDeg": 0.7475338538269393,
+        "azimuthDeg": 16.16214600955948,
+        "cosIncidence": 0.013046556876221476
+      },
+      "frameMeanMs": 8.22,
+      "frameP50Ms": 8.1,
+      "frameP95Ms": 9.6,
+      "frameMaxMs": 14.1,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              -2.3125,
+              -22.25
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 42186,
+            "unknownFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 31.100000023841858
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "offsetKm": [
+              -3.5,
+              -22
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 21124,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 27.299999952316284
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              -2.5,
+              -22.5
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 25446,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 43.59999978542328
+          }
+        ],
+        "anchorResets": 1,
+        "horizonRenders": 25,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 206,
+        "inCache": 206,
+        "cpu": 464
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 6761
+    },
+    {
+      "view": "shackleton-rim",
+      "mode": "visibility",
+      "file": "shackleton-rim-visibility-gpu-wac-nac.png",
+      "epochEt": 914094309.1834563,
+      "sun": {
+        "elevationDeg": 0.7475338538269393,
+        "azimuthDeg": 16.16214600955948,
+        "cosIncidence": 0.013046556876221476
+      },
+      "frameMeanMs": 8.18,
+      "frameP50Ms": 8,
+      "frameP95Ms": 9.9,
+      "frameMaxMs": 10.6,
+      "shadow": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              -2.3125,
+              -22.25
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 42186,
+            "unknownFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 31.100000023841858
+          },
+          {
+            "halfKm": 64,
+            "texelKm": 0.5,
+            "valid": true,
+            "offsetKm": [
+              -3.5,
+              -22
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 21124,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 27.299999952316284
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              -2.5,
+              -22.5
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 25446,
+            "unknownFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 43.59999978542328
+          }
+        ],
+        "anchorResets": 1,
+        "horizonRenders": 28,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "tiles": {
+        "active": 114,
+        "visible": 95,
+        "drawn": 42,
+        "loaded": 206,
+        "inCache": 206,
+        "cpu": 464
+      },
+      "pose": {
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60
+      },
+      "settleMs": 6761
+    },
+    {
+      "view": "shackleton-rim",
+      "errors": []
+    }
+  ]
+}
