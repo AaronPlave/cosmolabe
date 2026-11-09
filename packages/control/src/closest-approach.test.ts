@@ -87,6 +87,21 @@ describe('bounded closest-approach composition', () => {
     expect(response.outcome?.expected.some(p => p.p === 'epoch' || p.p === 'paused')).toBe(false);
     tools.dispose();
   });
+  it('prevents granular camera/time tools from bypassing exploratory presentation, and resets next request', async () => {
+    const host = fixture();
+    host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'SPICE(UNKNOWNFRAME)' }, selected: null });
+    host.sampleProfileData = () => samples;
+    host.setTime({ kind: 'et', et: 17 });
+    const tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    await task.call('findClosestApproach', request);
+    expect(await task.call('setTime', { when: 50 })).toMatchObject({ code: 'refused' });
+    expect(await task.call('frameObject', { object: 'Titan' })).toMatchObject({ code: 'refused' });
+    expect(await task.call('setPlaying', { on: true })).toMatchObject({ code: 'refused' });
+    expect(host.getTime()).toBe(17);
+    task.finish();
+    const next = tools.begin(); expect(await next.call('setTime', { when: 50 })).toMatchObject({ ok: true });
+    next.finish(); tools.dispose();
+  });
   it('reuses unchanged owned queries and profiles, while preserving edited and authored items', async () => {
     const host = fixture(), queries = new Map<string, ScriptEventQuery>();
     const profiles = new Map<string, import('./contracts.js').ScriptProfileDefinition>();

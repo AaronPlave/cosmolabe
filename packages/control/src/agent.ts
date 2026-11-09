@@ -1041,6 +1041,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     goalChecks = 0;
     /** A required worker frame cannot be repaired by changing a query in this task. */
     eventFrameUnavailable = false;
+    private exploratoryApproach = false;
     private readonly closestPairs = new Set<string>();
     private readonly closestPreflights = new Map<string, number>();
 
@@ -1078,6 +1079,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (this.eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery', 'findClosestApproach'].includes(def.name)) {
         return { ok: false, code: 'missing-dependency', error: 'Not run: Event Finder already encountered a non-retryable SPICE frame dependency in this request. Do not create or run another query. Follow the original failure recovery guidance if it matches the requested quantity, or report the event as uncomputed.' };
       }
+      if (this.exploratoryApproach && (def.effect === 'camera' || available().find(d => d.name === def.name)?.contract.writes.includes('time'))) return { ok: false, code: 'refused', error: 'The bounded analysis did not present this sampled result. Do not add encounter navigation or framing with granular controls in this request. Report the trace and its limits; a new user request can choose a localized interval.' };
       if (def.effect !== 'read' && !hasScene()) return { ok: false, code: 'no-scene', error: 'no scene is loaded' };
       if (available().find(d => d.name === def.name)?.contract.writes.includes('time') && this.clockTaken) {
         return { ok: false, code: 'interrupted', error: 'the person moved the clock during this request; leaving the time to them' };
@@ -1128,6 +1130,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           if (late) return late;
           if (response.status === 'interrupted') { this.clockTaken = true; this.cameraTaken = true; return { ok: false, code: 'interrupted', error: 'Analysis interrupted; leaving clock and camera to the person.' }; }
           if (response.reason === 'missing-dependency') this.eventFrameUnavailable = true;
+          if (response.status === 'sampled' && !response.sampledEpochSelected) this.exploratoryApproach = true;
           const facts: ResultFact[] = response.status === 'computed' ? [] : [{ kind: 'event-search-failure', reason: response.reason ?? response.status }];
           if (response.samples) facts.push(...(profileRead(response.samples).facts ?? []));
           if (response.result) facts.push(...(reads.getEventResultPage({ query: response.result.items[0].reference.query, order: 'range-ascending' }).facts ?? []));

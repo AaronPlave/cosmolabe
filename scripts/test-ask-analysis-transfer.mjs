@@ -78,6 +78,9 @@ try {
         return { status: t.status, answer: t.reply, error: t.error, verification: t.result, steps: t.steps.map(s => ({ id: s.id, name: s.name === 'invokeCapability' ? s.input.id : s.name, input: s.input, result: s.result })),
           state: { et: c.getTime(), playing: c.isPlaying(), tracked: c.getTracked(), camera: c.getCamera(), event: c.getEventVisualization(), profiles: c.listProfiles().items.map(p => c.getProfile(p.id)) } };
       });
+      const approaches = result.steps.filter(s => s.result?.data?.status === 'computed' || s.result?.data?.status === 'sampled');
+      if (['cassini','philae-success','heldout'].includes(scenario.id)) { assert.ok(approaches.some(s => s.result.data.computedEventVerified), 'Expected verified computed presentation'); assert.equal(result.verification.status, 'verified'); }
+      if (['philae','earth'].includes(scenario.id)) assert.ok(approaches.some(s => s.result.data.status === 'sampled'), 'Expected qualified sampled alternative');
       const run = { ...scenario, rounds, tokens: usage.slice(start).reduce((n,r) => n+r.inputTokens+r.cacheReadTokens+r.cacheWriteTokens+r.outputTokens,0), result, checks: [] };
       report.runs.push(run); runRecord = run;
       assert.ok(result.answer, 'Useful final answer required');
@@ -107,7 +110,7 @@ try {
           assert.ok(result.answer.includes(String(data.samples.count)), 'Disclose actual sample count');
           for (const endpoint of [raw.samples[0], raw.samples.at(-1)]) assert.ok(result.answer.includes(endpoint.utc.slice(0,10)) || result.answer.includes(String(endpoint.et)), 'Disclose interval endpoints');
           if (data.sampledEpochSelected) assert.equal(result.state.et, data.samples.minimum.et);
-          else { assert.equal(data.sampledView, null); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter)|no.*(?:seek|navigat|encounter)/i); }
+          else { assert.equal(data.sampledView, null); assert.ok(!result.steps.some(s => /^(?:time\.|camera\.|setTime|setPlaying|frameObject|composeView|track)/.test(s.name) && s.result?.ok), 'Exploratory result must not be followed by successful granular navigation'); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter)|no.*(?:seek|navigat|encounter)/i); }
           assert.equal(result.state.profiles.find(p => p.definition.id === data.samples.id)?.timeline.traceVisible, true);
           assert.equal(result.verification.status, 'failed');
           run.checks.push('actual bounded samples; computed-event goal remains unmet');
