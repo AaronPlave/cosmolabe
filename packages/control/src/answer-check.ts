@@ -48,7 +48,8 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   const issues: string[] = [];
   const samples = facts.filter(f => f.kind === 'sampled-range');
   const sampled = samples.filter(f => f.eventSearchUnavailable).at(-1);
-  if (sampled && !/\b(?:gaps?|missing)\b/i.test(text)) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
+  const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(text);
+  if (sampled && !disclosedMissing) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
   if (!events.length && !samples.length) return issues;
   const windows = facts.filter(f => f.kind === 'event-window');
   // 1 AU is a unit people compare against, not a claim.

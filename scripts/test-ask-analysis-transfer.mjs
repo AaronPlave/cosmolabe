@@ -106,7 +106,8 @@ try {
           assert.match(result.answer, /missing|gaps?/i);
           assert.ok(result.answer.includes(String(data.samples.count)), 'Disclose actual sample count');
           for (const endpoint of [raw.samples[0], raw.samples.at(-1)]) assert.ok(result.answer.includes(endpoint.utc.slice(0,10)) || result.answer.includes(String(endpoint.et)), 'Disclose interval endpoints');
-          assert.equal(result.state.et, data.samples.minimum.et);
+          if (data.sampledEpochSelected) assert.equal(result.state.et, data.samples.minimum.et);
+          else { assert.equal(data.sampledView, null); assert.match(data.limitations.join(' '), /exploratory/i); if (/show/i.test(scenario.prompt)) assert.match(result.answer, /exploratory|coarse|low.resolution|not.*(?:seek|navigat|encounter)|no.*(?:seek|navigat|encounter)/i); }
           assert.equal(result.state.profiles.find(p => p.definition.id === data.samples.id)?.timeline.traceVisible, true);
           assert.equal(result.verification.status, 'failed');
           run.checks.push('actual bounded samples; computed-event goal remains unmet');

@@ -73,6 +73,9 @@ export interface Predicate {
   readonly whole?: boolean;
   /** Set by the loop on what the person asked for (checkGoal), as opposed to an action's derived result. Only the person's restatement or release changes it. */
   readonly stated?: boolean;
+  /** Internal: a no-search preflight placeholder may bind to its corrected search.
+   * This never relaxes pick/encounter requirements or a person-named query. */
+  readonly pendingSearch?: boolean;
 }
 
 export interface GoalCheck {
@@ -167,7 +170,7 @@ export function parsePredicate(input: unknown): Predicate {
   if (g.framing !== undefined) need(g.framing === 'pair' || g.framing === 'target', 'framing is pair|target');
   if (g.policy !== undefined) need(['reference', 'rendered', 'terrain'].includes(g.policy as string), 'policy is reference|rendered|terrain');
   // Only the loop marks what the person stated.
-  const { stated: _stated, soft: _soft, ...rest } = g;
+  const { stated: _stated, soft: _soft, pendingSearch: _pendingSearch, ...rest } = g;
   return rest as unknown as Predicate;
 }
 
@@ -204,10 +207,10 @@ export function adopt(held: readonly Predicate[], incoming: readonly Predicate[]
     const unbound = by === 'action' && p.p === 'eventRun' ? next.get('eventRun:') : undefined;
     if (unbound) { next.delete('eventRun:'); next.set(slotOf(p), { ...unbound, query: p.query }); continue; }
     const old = next.get(slotOf(p));
-    const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && (old.query === p.query || (!!old.stated && !old.query));
+    const sameSearch = old?.p === 'eventSelected' && p.p === 'eventSelected' && (old.query === p.query || !!old.pendingSearch || (!!old.stated && !old.query));
     if (old?.stated && by === 'action') {
       // The requirement stays; bind the actual search even if it produced no selectable result.
-      if (sameSearch && p.query !== undefined) next.set(slotOf(p), { ...old, query: p.query, ...(p.id === undefined ? {} : { id: p.id }) });
+      if (sameSearch && p.query !== undefined) next.set(slotOf(p), { ...old, query: p.query, pendingSearch: p.pendingSearch, ...(p.id === undefined ? {} : { id: p.id }) });
       continue;
     }
     // A selected result inherits what was required of it (the closest, a real encounter).

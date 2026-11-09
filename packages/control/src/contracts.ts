@@ -490,6 +490,10 @@ export interface ScriptClosestApproachResult {
   status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
   reason: 'invalid-window' | 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
   computedEventVerified: boolean;
+  /** True once native solver execution has begun; preflight rejections remain correctable. */
+  searchStarted: boolean;
+  /** A localized sample alternative was actually selected; exploratory traces never imply navigation. */
+  sampledEpochSelected: boolean;
   windows: { start: number; end: number }[];
   stepSeconds: number | null;
   candidates: number;

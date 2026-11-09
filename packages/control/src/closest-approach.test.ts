@@ -23,7 +23,8 @@ function fixture(windows = [window]) {
   return host;
 }
 const request = { observer: 'Cassini', target: 'Titan', windowMode: 'coverage' as const };
-const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: { observer: request.observer, target: request.target }, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }], missing: 0, gaps: [], minimum: { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
+const intervalRequest = { ...request, windowMode: 'interval' as const, start: 0, end: 100 };
+const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: { observer: request.observer, target: request.target }, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 8 }], missing: 0, gaps: [], minimum: { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
 
 describe('bounded closest-approach composition', () => {
   it('ranks the complete native set and verifies the actual result presentation', async () => {
@@ -45,6 +46,66 @@ describe('bounded closest-approach composition', () => {
     expect(await task.call('findClosestApproach', { ...request, windowMode: 'interval', start: 20, end: 80 })).toMatchObject({ ok: false, code: 'refused' });
     expect(spy).toHaveBeenCalledOnce();
     task.finish(); tools.dispose();
+  });
+  it('allows one corrected preflight, but never repeats an executed search', async () => {
+    const host = fixture(), run = vi.spyOn(host, 'runEventQuery');
+    const tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    const rejected = await task.call('findClosestApproach', { ...request, windowMode: 'interval' });
+    expect(rejected).toMatchObject({ data: { reason: 'invalid-window', searchStarted: false } });
+    const initial = adopt([{ p: 'eventSelected', pick: 'closest', stated: true }], rejected.outcome!.expected).held;
+    expect(tools.verify!(initial).status).toBe('unmet');
+    const computed = await task.call('findClosestApproach', intervalRequest);
+    expect(computed).toMatchObject({ data: { status: 'computed', searchStarted: true } });
+    const corrected = adopt(initial, computed.outcome!.expected).held;
+    expect(tools.verify!(corrected).status).toBe('met');
+    expect(corrected.find(p => p.p === 'eventSelected')).toMatchObject({ pick: 'closest', stated: true });
+    const named = adopt([{ p: 'eventSelected', query: 'person-named', stated: true }], rejected.outcome!.expected).held;
+    expect(adopt(named, computed.outcome!.expected).held[0].query).toBe('person-named');
+    expect(await task.call('findClosestApproach', request)).toMatchObject({ code: 'refused' });
+    expect(run).toHaveBeenCalledOnce();
+    task.finish(); tools.dispose();
+  });
+  it('bounds repeated rejected preflights without running the solver', async () => {
+    const host = fixture(), run = vi.spyOn(host, 'runEventQuery');
+    const tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    await task.call('findClosestApproach', { ...request, windowMode: 'interval' });
+    await task.call('findClosestApproach', { ...request, windowMode: 'interval', start: 900, end: 1000 });
+    expect(await task.call('findClosestApproach', intervalRequest)).toMatchObject({ code: 'refused' });
+    expect(run).not.toHaveBeenCalled(); task.finish(); tools.dispose();
+  });
+  it.each(['coverage', 'coarse', 'gap', 'boundary'] as const)('keeps %s samples exploratory without seeking or framing', async mode => {
+    const host = fixture();
+    host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'SPICE(UNKNOWNFRAME)' }, selected: null });
+    host.sampleProfileData = () => ({ ...samples, ...(mode === 'gap' ? { missing: 1 } : mode === 'coarse' ? { sampling: { ...samples.sampling, stepSeconds: 100000 } } : mode === 'boundary' ? { minimum: samples.samples[0] as NonNullable<ScriptProfileData['minimum']> } : {}) });
+    host.setTime({ kind: 'et', et: 17 }); host.setPlaying(true);
+    const frame = vi.fn(() => true);
+    const result = await findClosestApproach(host, mode === 'coverage' ? request : intervalRequest, {}, frame);
+    expect(result).toMatchObject({ status: 'sampled', sampledEpochSelected: false, computedEventVerified: false, sampledView: null });
+    expect(host.getTime()).toBe(17); expect(host.isPlaying()).toBe(true); expect(frame).not.toHaveBeenCalled();
+    const tools = createAgentTools(host, { allowAuthoring: true });
+    const response = await tools.call('findClosestApproach', mode === 'coverage' ? request : intervalRequest);
+    expect(response.outcome?.expected.some(p => p.p === 'epoch' || p.p === 'paused')).toBe(false);
+    tools.dispose();
+  });
+  it('reuses unchanged owned queries and profiles, while preserving edited and authored items', async () => {
+    const host = fixture(), queries = new Map<string, ScriptEventQuery>();
+    const profiles = new Map<string, import('./contracts.js').ScriptProfileDefinition>();
+    host.upsertEventQuery = d => { queries.set(d.id, d); return true; };
+    host.getEventQueryInfo = (id: string = '') => ({ status: 'available', definition: queries.get(id ?? '') ?? null, coverage: host.getEventSearchOptions!().coverage, provenance: null, error: null });
+    host.upsertProfile = d => { profiles.set(d.id, d); return true; };
+    host.getProfile = id => ({ scene: 1, status: 'available', definition: profiles.get(id) ?? null, resolved: null, timeline: { present: true, traceVisible: true, samples: 3, missing: 0, window }, limitations: [] });
+    host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'SPICE(UNKNOWNFRAME)' }, selected: null });
+    host.sampleProfileData = () => samples;
+    queries.set('authored', { id: 'authored', label: 'My analysis', enabled: true, visible: true, query: { id: 'authored', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window, step: 10, abcorr: 'NONE', params: {} } });
+    for (let i=0; i<5; i++) await findClosestApproach(host, intervalRequest);
+    expect(queries.size).toBe(2); expect(profiles.size).toBe(1);
+    const query = [...queries.values()].find(q => q.id !== 'authored')!;
+    queries.set(query.id, { ...query, label: 'My edited query' });
+    const profile = [...profiles.values()][0]; profiles.set(profile.id, { ...profile, visible: false });
+    await findClosestApproach(host, intervalRequest);
+    expect(queries.size).toBe(3); expect(profiles.size).toBe(2);
+    expect(queries.get(query.id)?.label).toBe('My edited query'); expect(profiles.get(profile.id)?.visible).toBe(false);
+    expect(queries.get('authored')?.label).toBe('My analysis');
   });
   it('resolves UTC endpoints using the shared calendar parser and rejects omitted phase bounds', async () => {
     const host = fixture();
@@ -74,10 +135,10 @@ describe('bounded closest-approach composition', () => {
     const host = fixture();
     host.runEventQuery = vi.fn(async (query: string): Promise<ScriptEventSearch> => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: '-226000 is not a recognized id-code for a reference frame /private/secret' }, selected: null }));
     host.sampleProfileData = vi.fn(() => samples);
-    const result = await findClosestApproach(host, request);
-    expect(result).toMatchObject({ status: 'sampled', reason: 'missing-dependency', computedEventVerified: false, presentation: null, samples });
+    const result = await findClosestApproach(host, intervalRequest);
+    expect(result).toMatchObject({ status: 'sampled', sampledEpochSelected: true, reason: 'missing-dependency', computedEventVerified: false, presentation: null, samples });
     expect(JSON.stringify(result)).not.toContain('/private/secret');
-    expect(host.getTime()).toBe(100);
+    expect(host.getTime()).toBe(50);
     expect(host.presentEventResult).not.toHaveBeenCalled();
   });
   it('keeps a prior selected event from satisfying a newly failed computed-event goal', async () => {
@@ -101,7 +162,7 @@ describe('bounded closest-approach composition', () => {
     host.runEventQuery = async query => ({ scene: 1, query, status: 'failed', progress: null, error: { code: 'search-failed', message: 'SPICE(UNKNOWNFRAME)' }, selected: null });
     host.sampleProfileData = () => samples;
     const framePair = vi.fn(() => { expect(host.getTime()).toBe(samples.minimum!.et); return true; });
-    expect(await findClosestApproach(host, request, {}, framePair)).toMatchObject({ status: 'sampled', computedEventVerified: false, presentation: null, sampledView: { et: samples.minimum!.et } });
+    expect(await findClosestApproach(host, intervalRequest, {}, framePair)).toMatchObject({ status: 'sampled', computedEventVerified: false, presentation: null, sampledView: { et: samples.minimum!.et } });
     expect(framePair).toHaveBeenCalledWith('Titan','Cassini');
     expect(host.getEventVisualization().selected).toBeNull();
   });
@@ -146,6 +207,10 @@ describe('numeric grounding from sampled facts without computed events', () => {
     expect(checkAnswer('0 missing. Minimum -5 km at ET 9999.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no sampled epoch/)]);
     expect(checkAnswer('0 missing. Minimum 2470 metres at ET 1.', facts)).toEqual([]);
     expect(checkAnswer('0 missing. Minimum 0 km on 2099-01-01.', facts)).toEqual([expect.stringMatching(/matches no distance/), expect.stringMatching(/matches no date/)]);
+  });
+  it('does not mistake a missing frame disclaimer for disclosure of sampled gaps', () => {
+    expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km.', facts)).toEqual([expect.stringMatching(/missing-data limit/)]);
+    expect(checkAnswer('Missing SPICE frame. Sampled minimum 2.47 km, no gaps.', facts)).toEqual([]);
   });
   it('grounds ordinary sampled readbacks too, without requiring a failed event search', () => {
     expect(checkAnswer('999 km', [{ ...facts[0], eventSearchUnavailable: false } as ResultFact])).toEqual([expect.stringMatching(/matches no distance/)]);

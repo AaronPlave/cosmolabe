@@ -1042,6 +1042,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     /** A required worker frame cannot be repaired by changing a query in this task. */
     eventFrameUnavailable = false;
     private readonly closestPairs = new Set<string>();
+    private readonly closestPreflights = new Map<string, number>();
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -1110,13 +1111,19 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (name === 'findClosestApproach') {
         const pair = JSON.stringify([args.observer, args.target].sort());
         if (this.closestPairs.has(pair)) return { ok: false, code: 'refused', error: 'This pair already received its bounded closest-approach analysis in this request. Report its result or structured failure; do not change the window to evade it.' };
+        if ((this.closestPreflights.get(pair) ?? 0) >= 2) return { ok: false, code: 'refused', error: 'Two preflight rejections for this pair; stop and report the unresolved input or coverage requirement.' };
         const blocked = ['upsertEventQuery','runEventQuery', ...(args.present === false ? [] : ['presentEventResult','setTime','setPlaying']), 'upsertProfile','sampleProfileData'].find(operation => opts.omittedTools?.[operation]);
         if (blocked) return { ok: false, code: 'refused', error: `Closest-approach analysis requires ${blocked}: ${opts.omittedTools![blocked]}` };
+        // Reserve during the await; release only a confirmed no-search rejection.
         this.closestPairs.add(pair);
         this.writing = true;
         try {
           const response = await host.findClosestApproach!(args as unknown as ScriptClosestApproachRequest, { signal: this.signal });
           this.writing = false;
+          if (!response.searchStarted && ['invalid-window','missing-coverage','coverage-unassessed','work-budget'].includes(response.reason ?? '')) {
+            this.closestPairs.delete(pair);
+            this.closestPreflights.set(pair, (this.closestPreflights.get(pair) ?? 0) + 1);
+          }
           const late = this.gate(def);
           if (late) return late;
           if (response.status === 'interrupted') { this.clockTaken = true; this.cameraTaken = true; return { ok: false, code: 'interrupted', error: 'Analysis interrupted; leaving clock and camera to the person.' }; }
@@ -1127,7 +1134,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           const data = { ...response, sampledView: response.sampledView ? compositionData(response.sampledView) : null, samples: response.samples ? { ...response.samples, samples: undefined, count: response.samples.samples.length } : null, result: response.result ? eventPageMetadata(response.result, metadata.text) : null,
             presentation: response.presentation ? { status: response.presentation.status, reference: response.presentation.reference, observation: eventVisualizationMetadata(response.presentation.observation) } : null };
           const sampleRead = response.samples ? profileRead(response.samples) : null;
-          const base = { summary: `Closest-approach analysis ${response.status}${response.reason ? ` (${response.reason})` : ''}. Computed-event presentation verified: ${response.computedEventVerified}.${response.reason === 'missing-dependency' ? ' A required SPICE reference-frame dependency is unavailable; this does not establish absent trajectory data. Changing the time window, body IDs or frames will not repair it.' : ''} ${sampleRead?.ok ? sampleRead.summary : 'Report the actual searched windows, candidates and step limits. A structured failure is final; do not retry.'}`, data };
+          const base = { summary: `Closest-approach analysis ${response.status}${response.reason ? ` (${response.reason})` : ''}. Computed-event presentation verified: ${response.computedEventVerified}.${response.reason === 'missing-dependency' ? ' A required SPICE reference-frame dependency is unavailable; this does not establish absent trajectory data. Changing the time window, body IDs or frames will not repair it.' : ''} ${sampleRead?.ok ? sampleRead.summary : 'Report the actual searched windows, candidates and step limits. An executed search is final; at most one correction of a rejected preflight is allowed.'}`, data };
           return response.status === 'computed' ? { ...judged(def, name, args, base), facts } : { ok: true, ...base, outcome: outcomeOf(def, args, data), facts };
         } catch { return { ok: false, code: 'failed', error: 'Closest-approach analysis failed; no verified result.' }; }
         finally { this.writing = false; }
