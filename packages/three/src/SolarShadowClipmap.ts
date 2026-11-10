@@ -15,9 +15,10 @@ import { sunDirectionAt } from './SurfaceIllumination.js';
  * any range: a ray point is looked up by projecting its radial direction, so no
  * flat-ground approximation and no curvature term to get wrong.
  *
- * Levels. Nested squares, each re-centred independently in whole texels with
- * hysteresis. Texel validity is a second channel: missing source terrain is
- * `unknown`, never lit or shadowed.
+ * Levels. Nested squares, all centred (in whole texels) on one terrain point, the *site*. A ground point's level, so
+ * its shadow, depends only on its distance from the site, not on where the camera is: the site moves only when the view
+ * moves more than `SITE_ALTITUDES` camera altitudes away from it. Texel validity is a second channel: missing source
+ * terrain is `unknown`, never lit or shadowed.
  *
  * Horizons. A GPU pass marches from every texel centre toward the Sun through each level at its own resolution and
  * stores the result (a *horizon map*); terrain fragments read it filtered. See `solarShadowGlsl`.
@@ -84,7 +85,12 @@ export const SOLAR_SHADOW_QUALITY = {
   low: { stepTexels: 1, maxSteps: 420 },
 } as const;
 export type SolarShadowQuality = keyof typeof SOLAR_SHADOW_QUALITY;
-const REBUILD_FRACTION = 0.25;
+/**
+ * The site moves when the focus is farther from it than this many camera altitudes (and half the finest level): an
+ * orbit or pan keeps every point's level, so its shadow, and a view moved well away gets fine levels again. Each move
+ * changes the answer of points whose level changes, so it must be rare.
+ */
+const SITE_ALTITUDES = 4;
 /** Gnomonic texels stretch by 1/cos² away from the anchor: 3 % at 10°. A reset discards every level, so it must be rare. */
 const ANCHOR_RESET_DEG = 10;
 const REVISION_REBUILD_MS = 2000;
@@ -183,6 +189,9 @@ export interface SolarShadowStatus {
   levels: SolarShadowLevelStatus[];
   /** Times the anchor frame was replaced (every level then starts over). */
   anchorResets: number;
+  /** Centre of every level, anchor tangent km, and times it moved (each moves points between levels). */
+  siteKm: [number, number] | null;
+  siteMoves: number;
   /** Level horizon maps re-rendered so far (data, placement, quality or Sun changed). */
   horizonRenders: number;
   /** Farthest terrain the shadow can see, km: the outer level's half-width. */
@@ -242,6 +251,8 @@ export class SolarShadowClipmap {
   private anchor: { frame: TangentFrame; rcKm: number } | null = null;
   private state: SolarShadowState = 'off';
   private anchorResets = 0;
+  private site: [number, number] | null = null;
+  private siteMoves = 0;
   /** Bumped whenever what the horizon maps depend on changes, other than the Sun. */
   private dataVersion = 0;
   private horizon: {
@@ -337,7 +348,11 @@ export class SolarShadowClipmap {
     const g = gnomonicCoordinates(tf, focusDir, rcKm);
     if (!g) { this.state = 'out-of-range'; this.uniforms.enabled.value = 0; return; }
 
-    this.schedule(g, nowMs);
+    const s = this.site;
+    if (!s || Math.hypot(g[0] - s[0], g[1] - s[1]) > Math.max(this.levels[0].cfg.halfKm / 2, SITE_ALTITUDES * (camR - surfaceR))) {
+      this.site = g; this.siteMoves++;
+    }
+    this.schedule(this.site!, nowMs);
     this.fill(nowMs);
     this.refreshUniforms(frame, tf, rcKm);
   }
@@ -348,20 +363,21 @@ export class SolarShadowClipmap {
     const p = geodeticToBodyFixed({ latDeg: lat.latDeg, lonDeg: lat.lonDeg, heightKm: 0 }, this.source.datum);
     this.anchor = { frame, rcKm: Math.hypot(p.xKm, p.yKm, p.zKm) };
     this.anchorResets++;
+    this.site = null;
     this.dataVersion++;
     for (const l of this.levels) { l.offset = null; l.data = null; l.building = null; l.builtRevision = -1; l.hMax = 0; l.unknownFraction = 1; }
     this.uniforms.valid.value.set(0, 0, 0, 0);
   }
 
-  /** Mark a level for rebuild when the focus left its hysteresis box or newly resident data may matter. */
-  private schedule(focusG: [number, number], nowMs: number): void {
+  /** Mark a level for rebuild when the site moved or newly resident data may matter. */
+  private schedule(site: [number, number], nowMs: number): void {
     const rev = this.source.revision;
     for (const l of this.levels) {
       if (l.building) continue;
       const snap = (v: number) => Math.round(v / l.texelKm) * l.texelKm;
-      const want: [number, number] = [snap(focusG[0]), snap(focusG[1])];
+      const want: [number, number] = [snap(site[0]), snap(site[1])];
       const off = l.offset;
-      const moved = !off || Math.max(Math.abs(focusG[0] - off[0]), Math.abs(focusG[1] - off[1])) > REBUILD_FRACTION * l.cfg.halfKm;
+      const moved = !off || off[0] !== want[0] || off[1] !== want[1];
       const stale = !moved && rev !== l.builtRevision && l.unknownFraction > 0 && nowMs - l.builtAtMs > REVISION_REBUILD_MS;
       if (moved || stale) {
         const offset = moved ? want : off!;
@@ -589,7 +605,7 @@ export class SolarShadowClipmap {
         offsetKm: l.offset ? [l.offset[0], l.offset[1]] : null, lastReason: l.lastReason, lastSampledTexels: l.lastSampledTexels,
         unknownFraction: l.unknownFraction, coarseFraction: l.coarseFraction, builds: l.builds, lastBuildMs: l.lastBuildMs,
         horizonSunLagDeg: this.horizon && this.horizon.at[i].seq >= 0 ? this.horizon.at[i].sun.angleTo(this.uniforms.sun.value) / DEG : null })),
-      anchorResets: this.anchorResets,
+      anchorResets: this.anchorResets, siteKm: this.site ? [this.site[0], this.site[1]] : null, siteMoves: this.siteMoves,
       horizonRenders: this.horizon?.renders ?? 0,
       rangeKm: this.levels[this.levels.length - 1].cfg.halfKm,
       unknownDrawnLit: true,

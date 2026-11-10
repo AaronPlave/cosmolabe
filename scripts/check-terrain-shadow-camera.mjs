@@ -6,8 +6,10 @@
  *   node scripts/check-terrain-shadow-camera.mjs --viewer http://127.0.0.1:5290/ --out work/terrain-shadow-camera
  *   node scripts/check-terrain-shadow-camera.mjs --path drag --view-url '<shared viewer link>' --epoch 2028-12-27T18:15:07Z
  *
- * `--path drag` restores a shared view and orbits it with real mouse drags (the viewer's own controls); `--path user`
- * orbits low around Shackleton's rim; the default path is described below.
+ * `--path drag` restores a shared view and orbits it with real mouse drags (the viewer's own controls), then, with that
+ * view held, moves only the clipmap focus (10–150 km) and records the points again; `--path user` orbits low around
+ * Shackleton's rim; the default path is described below. Every frame also logs the clipmap site and the hoppers'
+ * terrain Sun visibility.
  *
  * MoonFall Shackleton, time frozen at 2029-02-05 16:08:55 UTC, terrain shadows High. One camera path (zoom out past the
  * 320 km cut-off and back, a full orbit, a 120 km pan and back, low grazing views, the same with the orbit target left
@@ -83,7 +85,16 @@ for (const [dist, n] of USER_PATH || DRAG ? [[3, 8], [6, 12], [9, 12], [12, 12],
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const VIEWPORT = { width: 1280, height: 720 };
 const passes = {};
-let pinned = null, epochInfo = null;
+let pinned = null, epochInfo = null, ab = null;
+// Median gray (0–1) of the 3×3 pixels at a point.
+const pixel = (png, p) => {
+  const g = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = Math.min(png.width - 1, Math.max(0, p.px + dx)), y = Math.min(png.height - 1, Math.max(0, p.py + dy)), o = (y * png.width + x) * 4;
+    g.push((png.data[o] + png.data[o + 1] + png.data[o + 2]) / 3 / 255);
+  }
+  return +g.sort((a, b) => a - b)[4].toFixed(3);
+};
 const errors = [];
 try {
   const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
@@ -172,11 +183,18 @@ try {
           return { px, py, visible, level, tile: moon.sampleTerrain(p.lat, p.lon)?.tileId ?? null,
             cpu: cl ? +cl.sunFractionAt(toWorld(bf(p.lat, p.lon, ground - 5))).toFixed(3) : null };
         });
+        const hoppers = Object.fromEntries(['Polaris-A', 'Polaris-B', 'Polaris-C'].map(n => [n, r.getBodyMesh(n)?.shadowUniforms?.uTerrainSunVisibility?.value ?? null]));
         return { altKm: +(Math.hypot(...camBf) - R).toFixed(2), state: st?.state ?? null, anchorResets: st?.anchorResets ?? null,
+          siteKm: st?.siteKm?.map(v => +v.toFixed(2)) ?? null, siteMoves: st?.siteMoves ?? null, hoppers,
           sourceRevision: cl?.source?.revision ?? null, horizonRenders: st?.horizonRenders ?? null, offsetsKm: st?.levels.map(l => l.offsetKm),
           builds: st?.levels.map(l => l.builds), reasons: st?.levels.map(l => l.lastReason), lagDeg: st?.levels.map(l => l.horizonSunLagDeg && +l.horizonSunLagDeg.toFixed(3)), points };
       },
       cellKm: () => pts.map(p => clip()?.source?.cellKm?.(p.lat, p.lon) ?? null),
+      /** Same camera, clipmap focus moved `dist` km from Shackleton along `az` (null: the viewer's own focus). */
+      setFocus(dist, az) {
+        window.probe.ownFocus ??= r.terrainShadowFocus.bind(r);
+        r.terrainShadowFocus = dist === null ? window.probe.ownFocus : () => toWorld(bf(...offset(SHACK[0], SHACK[1], dist, az), 0));
+      },
     };
     await frames(2);
     return r.solarGeometryAt('Moon', SHACK[0], SHACK[1]);
@@ -218,20 +236,37 @@ try {
       writeFileSync(join(dir, `${String(i).padStart(4, '0')}.png`), buf);
       if (mode !== 'unknown') {
         const png = PNG.sync.read(buf);
-        for (const p of s.points) {
-          if (!p.visible) { p.gray = null; continue; }
-          const g = [];
-          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-            const x = Math.min(png.width - 1, Math.max(0, p.px + dx)), y = Math.min(png.height - 1, Math.max(0, p.py + dy)), o = (y * png.width + x) * 4;
-            g.push((png.data[o] + png.data[o + 1] + png.data[o + 2]) / 3 / 255);
-          }
-          p.gray = +g.sort((a, b) => a - b)[4].toFixed(3);
-        }
+        for (const p of s.points) p.gray = p.visible ? pixel(png, p) : null;
       }
       rows.push({ frame: i, key: FRAMES[i].key, rangeKm: FRAMES[i].range === undefined ? null : +FRAMES[i].range.toFixed(1), ...s });
     }
     passes[mode] = rows;
     console.log(`${mode}: ${rows.length} frames`);
+  }
+  // Same camera (the drag's start), only the clipmap focus moved: 10–50 km stay within 4 camera altitudes of the site
+  // (no level moves), 150 km does not (the site and every level move there).
+  if (DRAG) {
+    const shot = async (name) => { const buf = await page.screenshot({ type: 'png' }); writeFileSync(join(OUT, `ab-${name}.png`), buf); return PNG.sync.read(buf); };
+    const diff = (A, B) => { let n = 0, big = 0; for (let k = 0; k < A.data.length; k += 4) { const d = Math.max(...[0, 1, 2].map(c => Math.abs(A.data[k + c] - B.data[k + c]))); if (d > 8) n++; if (d > 64) big++; } const N = A.data.length / 4; return { gt8: +(100 * n / N).toFixed(2), gt64: +(100 * big / N).toFixed(2) }; };
+    const base = {};
+    ab = [];
+    for (const [dist, az, name] of [[null, 0, 'default'], [10, 0, 'n10'], [25, 90, 'e25'], [50, 180, 's50'], [150, 180, 's150'], [null, 0, 'default-again']]) {
+      await page.evaluate(({ dist, az }) => window.probe.setFocus(dist, az), { dist, az });
+      const row = { name, focusKm: dist, focusAzDeg: az };
+      for (const mode of ['fraction', 'on']) {
+        await applyMode(mode); await settle();
+        const s = await page.evaluate(() => window.probe.state());
+        const img = await shot(`${name}-${mode}`);
+        base[mode] ??= img;
+        row[mode] = diff(base[mode], img);
+        if (mode === 'fraction') {
+          Object.assign(row, { siteKm: s.siteKm, siteMoves: s.siteMoves, state: s.state, offsetsKm: s.offsetsKm, hoppers: s.hoppers,
+            points: s.points.map(p => [p.level, p.cpu, p.visible ? pixel(img, p) : null, p.tile]) });
+        }
+      }
+      ab.push(row);
+      console.log(`A/B ${name.padEnd(14)} site ${JSON.stringify(row.siteKm)} moves ${row.siteMoves}  fraction vs default ${JSON.stringify(row.fraction)}  on ${JSON.stringify(row.on)}`);
+    }
   }
   pinned = await page.evaluate(() => window.probe.pts);
   const cells = await page.evaluate(() => window.probe.cellKm());
@@ -252,7 +287,7 @@ const report = pinned.map((p, j) => {
     const a = seen[k - 1], b = seen[k];
     if (Math.abs(b.pt.gray - a.pt.gray) < JUMP) continue;
     jumps.push({ from: a.i, to: b.i, gray: [a.pt.gray, b.pt.gray], cpu: [a.pt.cpu, b.pt.cpu], level: [a.pt.level, b.pt.level], state: [a.row.state, b.row.state],
-      altKm: [a.row.altKm, b.row.altKm], anchorReset: a.row.anchorResets !== b.row.anchorResets,
+      altKm: [a.row.altKm, b.row.altKm], anchorReset: a.row.anchorResets !== b.row.anchorResets, siteMoved: a.row.siteMoves !== b.row.siteMoves,
       offGray: [a.off?.gray ?? null, b.off?.gray ?? null], onGray: [a.on?.gray ?? null, b.on?.gray ?? null] });
   }
   const g = seen.map(x => x.pt.gray), c = seen.map(x => x.pt.cpu).filter(v => v !== null);
@@ -260,7 +295,7 @@ const report = pinned.map((p, j) => {
     levels: [...new Set(seen.map(x => x.pt.level))], framesOutOfRange: all.length - seen.length, jumps };
 });
 writeFileSync(join(OUT, 'camera.json'), JSON.stringify({ generator: 'scripts/check-terrain-shadow-camera.mjs', created: new Date().toISOString(), epoch: EPOCH,
-  sunAtShackleton: epochInfo, path: PATH, framesPerSegment: STEPS, jumpThreshold: JUMP, points: report, errors, passes }, null, 1) + '\n');
+  sunAtShackleton: epochInfo, path: PATH, framesPerSegment: STEPS, jumpThreshold: JUMP, points: report, ab, errors, passes }, null, 1) + '\n');
 for (const p of report) {
   console.log(`${p.id.padEnd(9)} cell ${p.sourceCellKm?.toFixed(2)} km  shown ${String(p.framesShown).padStart(3)}  fraction px ${p.gray?.join('..') ?? '-'}  cpu ${p.cpu?.join('..') ?? '-'}  levels ${p.levels.join(',')}  jumps ${p.jumps.length}`);
   for (const jmp of p.jumps) console.log(`    ${JSON.stringify(jmp)}`);

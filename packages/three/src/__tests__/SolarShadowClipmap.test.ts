@@ -94,23 +94,30 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(g.some(h => h === null) && g.some(h => h !== null)).toBe(true);
   });
 
-  it('re-centres only after the focus leaves the hysteresis box, and resets past the anchor limit', () => {
-    const c = new SolarShadowClipmap(source(), { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
+  it('keeps every level on one site while the view stays within 4 camera altitudes of it, and resets past the anchor limit', () => {
+    const c = new SolarShadowClipmap(source(), { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }, { halfKm: 24, size: 64 }] });
     settle(c, frameAt(-89.5, 0, 2));
     const builds = () => c.status.levels[0].builds;
     expect(builds()).toBe(1);
-    settle(c, frameAt(-89.5 + 1 / R / DEG, 0, 2)); // 1 km = 0.125 half-width: inside the 25 % box
-    expect(builds()).toBe(1);
-    settle(c, frameAt(-89.5 + 3 / R / DEG, 0, 2)); // 3 km = 0.375 half-width: re-centre in the same frame
-    expect(builds()).toBe(2);
-    // A re-centre samples only the newly exposed strip (3 km = 12 texels of 64) and keeps drawing the old data meanwhile.
+    // 6 km at 2 km up (limit 8 km): no level moves, so a ground point keeps its level and its value.
+    const g: [number, number] = [5, 0], before = c.heightAt(...g);
+    settle(c, frameAt(-89.5 + 6 / R / DEG, 0, 2));
+    expect(c.status.levels.map(l => l.builds)).toEqual([1, 1]);
+    expect(c.heightAt(...g)).toEqual(before);
+    // The same 6 km at 1 km up (limit max(4, 4) km): the site moves there, every level re-centres on it.
+    settle(c, frameAt(-89.5 + 6 / R / DEG, 0, 1));
+    expect(c.status.siteMoves).toBe(2);
+    expect(c.status.levels.map(l => l.builds)).toEqual([2, 2]);
+    expect(c.status.levels[0].offsetKm).toEqual(c.status.levels[1].offsetKm);
+    // A re-centre samples only the newly exposed strip (6 km = 24 texels of 64) and keeps drawing the old data meanwhile.
     expect(c.status.levels[0].lastReason).toBe('recenter');
-    expect(c.status.levels[0].lastSampledTexels).toBe(12 * 64);
+    expect(c.status.levels[0].lastSampledTexels).toBe(24 * 64);
     expect(c.status.anchorResets).toBe(1);
     // 12° away resets the anchor, so the level is rebuilt in a new frame.
     settle(c, frameAt(-77.5, 0, 2));
     expect(builds()).toBe(3);
     expect(c.status.anchorResets).toBe(2);
+    expect(c.status.siteMoves).toBe(3);
     expect(c.status.levels[0].lastReason).toBe('initial');
   });
 
@@ -121,7 +128,7 @@ describe('SolarShadowClipmap (#205)', () => {
     for (let i = 0; i < 80; i++) slow.update(frameAt(-89.5, 0, 2));
     expect(slow.status.state).toBe('ready');
     const before = slow.uniforms.tex0.value;
-    slow.update(frameAt(-89.5 + 3 / R / DEG, 0, 2)); // starts a re-centre, one row per frame
+    slow.update(frameAt(-89.5 + 9 / R / DEG, 0, 2)); // starts a re-centre, one row per frame
     expect(slow.status.state).toBe('ready');
     expect(slow.uniforms.tex0.value).toBe(before);
     expect(slow.uniforms.enabled.value).toBe(1);
@@ -138,7 +145,7 @@ describe('SolarShadowClipmap (#205)', () => {
     settle(c, frameAt(-89.5, 0, 2), 0);
     const offset = c.status.levels[0].offsetKm;
     expect(c.status.levels[0].unknownFraction).toBe(0);
-    const moved = frameAt(-89.5 + 3 / R / DEG, 0, 2);
+    const moved = frameAt(-89.5 + 5 / R / DEG, 0, 0.5);
     settle(c, moved, 500);
     expect(c.status.levels[0].offsetKm).toEqual(offset); // still the complete, old placement
     expect(c.status.state).toBe('ready');
@@ -148,7 +155,7 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(c.status.levels[0].unknownFraction).toBe(0);
     // Tiles that never arrive: swapped in, unknown, after the wait.
     src.loaded = false;
-    const far = frameAt(-89.5 + 6 / R / DEG, 0, 2);
+    const far = frameAt(-89.5 + 10 / R / DEG, 0, 0.5);
     settle(c, far, 1000);
     const waiting = c.status.levels[0].offsetKm;
     settle(c, far, 3500);

@@ -41,8 +41,12 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
    one anchor frame, so the sphere is exact at any range. The **focus** is the ground under the camera, moved toward what
    it looks at (the orbit target when that is a surface point, else where the view ray meets the body) by at most four
    camera altitudes: an orbit view keeps its target at the centre, and an orbit target left on the far horizon (or
-   inside the body) cannot pull the fine levels off the terrain in front of the camera. Levels re-centre on it in whole
-   texels after the focus moves 25 % of their half-width. A re-centre **keeps every known texel it shares with the
+   inside the body) cannot pull the fine levels off the terrain in front of the camera. **Every level is centred on one
+   terrain point, the site**, so a ground point's level (and so its shadow) depends only on its distance from the site,
+   never on where the camera is. The site is the focus when it was set, and moves to the focus only when the focus is
+   more than four camera altitudes (and 4 km) from it: an orbit or pan keeps it, a view moved well away or zoomed low
+   elsewhere gets fine levels again. Each move changes the answer of points whose level changes; it is counted in
+   `siteMoves`. Levels re-centre in whole texels. A re-centre **keeps every known texel it shares with the
    current square** (the same anchor grid, so the same samples) and samples only the newly exposed strip (~24 % of the
    level), a few ms per frame; the current data keep drawing meanwhile, and the swap changes nothing in the overlap.
    Newly resident source tiles refill only the unknown texels. The anchor resets only after the focus moves 10° (the
@@ -150,18 +154,27 @@ revision ([drag.json](validation/terrain-solar-shadow/camera/drag.json)). The Su
 - **Terrain shadows are a small part of what changes.** Per frame, On and Off differ on 0.4–6.5 % of pixels (by more
   than 24 of 255); with shadows Off the image itself changes on 5–18 % of pixels per frame as the view moves. The large
   dark regions that come and go in the recording are mostly the view, the drawn LOD and the WAC+NAC's own shading.
-- **The shadow at a fixed point depends on the level holding it, at this Sun.** At an elevation of one solar radius a
+- **Fixed: the shadow at a fixed point depended on where the camera was.** At an elevation of one solar radius a
   point's visible fraction depends on tens of metres of relief kilometres away, so the data resolution of its level
-  decides it. Each drag moves the clipmap centre (in this mode the controls orbit a pivot deep inside the Moon, so the
-  camera travels), points change level, and their answer changes: one point 12 km from Shackleton reads 0 at level 0
-  (62 m), 0.10 at level 1 (0.19 km), and 1 at level 2 (0.62 km). Isolated: same camera, clipmap centre moved 10–50 km
-  ([image](validation/terrain-solar-shadow/camera/focus-moved-same-camera.png), Sun fraction above, On below): 2–5 % of pixels change by more than a quarter in
-  the Sun-fraction view, but only ~1.4 % change at all in the lit image and none by more than a quarter, because at
-  this Sun the direct light those regions get is small.
+  decides it. The levels used to follow the focus (in this mode the controls orbit a pivot deep inside the Moon, so the
+  focus travelled up to 55 km), points changed level, and their answer changed: one point 12 km from Shackleton read 0
+  at level 0 (62 m), 0.10 at level 1 (0.19 km) and 1 at level 2 (0.62 km), and flipped 0 ↔ 1 ten times in the drag.
+  Now every level is centred on the site (step 1). In the same drag the site never moves: each of the 80 points stays
+  on one level, and its CPU fraction is constant (that point: level 1, 0.10, every frame); no level is rebuilt and no
+  horizon map re-rendered (before: 110 level rebuilds, 404 horizon renders); all 81 frames have every level complete
+  (before: 25). The hoppers' terrain Sun visibility (Polaris-A 0, B 1, C 0) is the same in every frame.
+- **Same camera, only the clipmap focus moved** ([Sun fraction: own focus | 50 km | 150 km](validation/terrain-solar-shadow/camera/focus-moved-same-camera.png)):
+  10, 25 and 50 km leave the site, every pinned point's level and fraction, and the image unchanged (0 pixels);
+  150 km (beyond four altitudes) moves the site, and the image changes as levels change (13 % of Sun-fraction pixels,
+  1.4 % of the lit image); returning restores it exactly. The hoppers do not change.
+- **Remaining pixel changes are not the shadow data.** 28 changes of a pinned point's pixel by more than a quarter
+  remain, at constant level and CPU fraction: 8 change the Off image as much (labels, trails, the drawn LOD), the rest
+  are points at a shadow edge, where the drawn mesh's LOD moves which ground the pixel shows by up to a few hundred
+  metres.
 - **Fixed: re-centres swapped in terrain still loading.** A re-centred level used to swap in at once, with its new
   strip unknown until the source tiles arrived; unknown is drawn lit, so shadows there vanished and came back as the
   camera moved. A re-centred level now keeps its current, complete data until the strip's tiles load (at most 2 s).
-  Frames with every level complete during the drag: 6 → 25 of 81.
+  It still applies when the site moves.
 - **Fixed: a far orbit target pulled the clipmap away** (see step 1): [before / after](validation/terrain-solar-shadow/camera/far-orbit-target-before-after.png),
   level-0 too-coarse 100 % → 0 % in a view across Shackleton.
 - **Fixed: debug views 1–2 changed with the camera** while the lit image did not (back-facing slopes drawn white; marches
@@ -231,7 +244,8 @@ while the Sun moves fast; at 1× it re-renders about once every 2 minutes on the
   steps instead of 0.75; `low` stops after 420 steps, which still reaches the outer level.
 - **Vehicles**: one CPU march per vehicle per frame (a few hundred bilinear taps).
 - **CPU fill**: a re-centre samples the newly exposed strip; an initial level 64k texels at 20–110 ms, spread over
-  frames at `budgetMs` (3 ms).
+  frames at `budgetMs` (3 ms). Orbiting and panning no longer re-centre anything (the review's drag: 0 rebuilds and 0
+  horizon renders, from 110 and 404); only a site move does.
 - **Memory**: four RG32F height levels (2 MB) and four RGBA16F horizon maps (2 MB). No draw calls are added.
 
 There is no phone or integrated-GPU measurement. The open question there is the horizon pass, likely 5–20× slower than on
@@ -241,12 +255,11 @@ is measured.
 ## Limits
 
 - **Visual only.** No PSR certification, illumination duration or power products.
-- **Resolution.** A receiver's shadow is interpolated between texel centres of its level: 62 m within 8 km of the focus,
+- **Resolution.** A receiver's shadow is interpolated between texel centres of its level: 62 m within 8 km of the site,
   0.19 km to 24 km, 0.62 km to 80 km, 2.5 km beyond. Occluders are seen at their level's resolution, so a ridge narrower than a texel there
-  is under-represented. The 62 m inner level resolves what LOLA 118 m (10 m polar) can show. The levels follow the
-  camera, so with the Sun within about a degree of the horizon, where small relief decides the fraction, a region's
-  shadow changes as it moves between levels (see "Camera navigation"). A finer outer clipmap would narrow that, at
-  ~4× the horizon-pass cost for 512² levels.
+  is under-represented. The 62 m inner level resolves what LOLA 118 m (10 m polar) can show. With the Sun within about
+  a degree of the horizon small relief decides the fraction, so a point's answer is that of its level's resolution: the
+  same however the camera moves, but it changes when the site moves (see "Camera navigation").
 - **Range.** Terrain beyond the outer level (default 320 km) is unknown. The default covers a 1° Sun and 10 km relief.
 - **Streaming.** Until fine source tiles arrive, the coarser level answers, and the shadow sharpens when they do. Terrain
   no level holds is drawn lit.
