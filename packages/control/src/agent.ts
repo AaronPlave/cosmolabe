@@ -149,7 +149,7 @@ export interface HeightAnalysisFact {
   readonly requested: number; readonly completed: number; readonly metric: string;
   readonly winner: { value: number; utc: string; object: string; activityId: string | null } | null;
   readonly evaluated?: number; readonly gapIntervals?: number; readonly maximumGapSeconds?: number;
-  readonly budgetExhausted?: boolean; readonly terrainSourceKnown?: boolean;
+  readonly budgetExhausted?: boolean; readonly budgetLimitedIntervals?: number; readonly terrainSourceKnown?: boolean;
   readonly primaryId?: string | null;
   readonly candidate?: { value:number; utc:string; object:string; activityId:string|null } | null;
   readonly shown?: boolean;
@@ -1286,9 +1286,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               'work-budget': 'The requested scope exceeds the bounded numerical work available; no complete collection winner is established.',
             };
             const choices=taskResult.options.bodies.filter(b=>b.body===taskResult.body).flatMap(b=>b.metrics.filter(m=>m.available).map(m=>m.metric==='terrain-clearance'?`physical terrain clearance (AGL) on ${b.body}`:m.metric==='reference-ellipsoid-height'?`height above the ${b.body} reference ellipsoid`:`radial height above the ${b.body} reference sphere`));
+            const budgetLimitedIntervals=response?.faults.filter(f=>f.code==='budget').length??0;
             const message = taskResult.reason==='ambiguous-metric' ? `Which measurement do you mean: ${choices.join(' or ')}? These are compatible scene configurations; full interval coverage is not established, and no analysis or navigation has run.`
-              : taskResult.reason==='data-unavailable' && response?.results.length
-              ? `${response.results.length}/${taskResult.scope.requested} intervals produced sampled candidates; ${taskResult.scope.completed} have no detected gaps. ${taskResult.coverage.incompleteIntervals} have declared trajectory gaps, largest ${taskResult.coverage.maximumGapSeconds} seconds. The candidate compares ALL returned candidates, including partial intervals. No full-scope winner or global error bound is established.`
+              : response?.results.length
+              ? `${response.results.length}/${taskResult.scope.requested} intervals produced sampled candidates; ${taskResult.scope.completed} have no detected gaps. ${taskResult.coverage.incompleteIntervals} have declared trajectory gaps, largest ${taskResult.coverage.maximumGapSeconds} seconds. ${budgetLimitedIntervals} ${budgetLimitedIntervals===1?'interval exhausted its':'intervals exhausted their'} numerical allowance. The candidate compares ALL returned candidates, including partial intervals. No full-scope winner or global error bound is established.`
               : taskResult.reason ? messages[taskResult.reason] : 'Every requested interval compared using sampled and locally refined extrema, with unknown global height error and source accuracy.';
             const winner = response?.results.find(r => r.id === taskResult.winnerId);
             const candidate = response?.results.find(r => r.id === taskResult.candidateId);
@@ -1300,12 +1301,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               // Bounded comparison inventory keeps all interval identities without returning 128 full reports.
               comparedCount: response?.results.length ?? 0,
               compared: response?.results.slice(0,1).map(r => ({ id:r.id, object:r.object, activityId:r.activityId, window:r.window, value:r.value, coverage:r.coverage })) ?? [],
-              budgetExhausted:response?.faults.some(f=>f.code==='budget')??false,
+              budgetLimitedIntervals,budgetExhausted:budgetLimitedIntervals>0,
               faultsTotal: response?.faults.length ?? 0,
               faults: response?.faults.slice(0,3).map(f => ({ code:f.code, object:f.object, activityId:f.activityId, window:f.window })) ?? [],
               parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
             const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
-              budgetExhausted:response?.faults.some(f=>f.code==='budget')??false,terrainSourceKnown:!!((winner??candidate)?.terrain?.id && (winner??candidate)?.terrain?.revision),
+              budgetLimitedIntervals,budgetExhausted:budgetLimitedIntervals>0,terrainSourceKnown:!!((winner??candidate)?.terrain?.id && (winner??candidate)?.terrain?.revision),
               evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
               sourceKind:candidate ? /estimated|reconstruct/i.test(candidate.source.description??'') ? 'estimated-reconstruction' : candidate.source.classification : undefined,
               candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,

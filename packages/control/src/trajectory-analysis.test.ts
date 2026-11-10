@@ -119,6 +119,14 @@ describe('routine extrema task boundary',()=>{
     expect(result).toMatchObject({data:{budgetExhausted:false,winner:{terrain:{identified:true,id:null,revision:null}}},facts:[{terrainSourceKnown:true,budgetExhausted:false}]});
     expect(JSON.stringify(result)).not.toContain('/private');tools.dispose();
   });
+  it('reports all candidates even when a local interval exhausts its numerical allowance',async()=>{
+    const h=taskHost(),r=response();r.status='partial';r.faults=[{code:'budget',message:'local allowance',object:'Titan',activityId:'flight:1'}];
+    r.results=Array.from({length:72},(_,i)=>({...r.results[0],id:i===0?'peak':`p${i}`,activityId:`flight:${i}`,coverage:i<17?'sampled-complete':'partial'}));
+    h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),status:'partial',reason:'work-budget',winnerId:null,response:r,scope:{requested:72,completed:17,activityIds:r.results.map(r=>r.activityId!)},coverage:{assessed:true,incompleteIntervals:55,maximumGapSeconds:.00002}} as never);
+    const tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    expect(result).toMatchObject({data:{message:expect.stringContaining('72/72 intervals produced sampled candidates'),budgetLimitedIntervals:1},facts:[{evaluated:72,completed:17,budgetLimitedIntervals:1}]});
+    expect(result.ok&&result.summary).toContain('1 interval exhausted its numerical allowance');tools.dispose();
+  });
   it('blocks equivalent expert/task retries within one request, retaining the actual reason',async()=>{
     const h=taskHost();h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),status:'unavailable',reason:'data-unavailable',response:null,winnerId:null} as never);
     const tools=createAgentTools(h),task=tools.begin();
@@ -213,4 +221,11 @@ it('rejects the observed coverage/budget/source misstatement and keeps a truthfu
   expect(checkAnswer('All 72 flights were evaluated; 17 have no detected gaps. The estimated reconstruction provides a sampled candidate, not a confirmed maximum. A versioned physical terrain source was used; its accuracy is unknown. The budget was not exhausted.',[fact])).toEqual([]);
   expect(checkAnswer('The analysis fully covered 17 flights without gaps; 72 flights produced candidates from an estimated reconstruction.',[fact])).toEqual([]);
   expect(checkAnswer(factSummary([fact]),[fact])).toEqual([]);
+});
+
+
+it('distinguishes local refinement limits from a collection stopping after the gap-free count',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAbovePhysicalTerrain',winner:null,budgetExhausted:true,budgetLimitedIntervals:1};
+  expect(checkAnswer('The search ran out of budget after 17 of 72 flights, so this is not a confirmed maximum.',[fact])).toContainEqual(expect.stringContaining('Local numerical limits did not stop'));
+  expect(checkAnswer('All 72 flights produced candidates. One interval reached its refinement allowance; 17 intervals have no detected gaps. No full-scope winner is established.',[fact])).toEqual([]);
 });

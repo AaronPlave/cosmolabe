@@ -91,6 +91,9 @@ try {
     else await page.evaluate(()=>window.__terrainAbort.abort());
     await page.waitForFunction(live=>live?!window.__terrainAsk.ask.running:window.__terrainPerf.done,live,{timeout:60000});
     stopMs=Date.now()-start;
+    const callsAtStop=await page.evaluate(()=>window.__terrainPerf.calls);
+    await new Promise(resolve=>setTimeout(resolve,200));
+    assert.equal(await page.evaluate(()=>window.__terrainPerf.calls),callsAtStop,'No terrain evaluations may continue after Stop');
   } else await page.waitForFunction(live=>live?!window.__terrainAsk.ask.running:window.__terrainPerf.done,live,{timeout:900000});
   const report=await page.evaluate(live=>{
     const p=window.__terrainPerf;p.done=true;p.finished??=performance.now();clearInterval(window.__terrainTimer);window.__terrainObserver.disconnect();
