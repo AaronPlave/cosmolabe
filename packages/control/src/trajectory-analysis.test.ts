@@ -4,7 +4,7 @@ import { createCapabilityTools } from './capabilities.js';
 import { FakeViewer } from './__tests__/fake-host.js';
 import type { TrajectoryExtremaQuery,TrajectoryExtremaResponse } from '@cosmolabe/interop';
 import { runAgent, compactHistory } from './agent-loop.js';
-import { checkAnswer } from './answer-check.js';
+import { checkAnswer, factSummary } from './answer-check.js';
 
 const query: TrajectoryExtremaQuery={objects:['Titan'],body:'Saturn',frame:'IAU_SATURN',metric:'radialHeightAboveReferenceSphere',extremum:'maximum',reference:{kind:'sphere',radiusKm:10},scope:{kind:'windows',windows:[{start:0,end:10}]},stepSeconds:1,timeToleranceSeconds:.01};
 const response=(): TrajectoryExtremaResponse=>({status:'complete',faults:[],results:[{
@@ -112,6 +112,13 @@ describe('routine extrema task boundary',()=>{
     expect((result as {data:{compared:unknown[]}}).data.compared.length).toBeLessThanOrEqual(3);
     tools.dispose();
   });
+  it('keeps native terrain identity and budget facts when private source identifiers are withheld',async()=>{
+    const h=taskHost(),r=response();r.results[0].terrain={id:'/private/source.tif',revision:'https://private/revision',sourceUncertaintyKm:null};
+    h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),response:r});
+    const tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    expect(result).toMatchObject({data:{budgetExhausted:false,winner:{terrain:{identified:true,id:null,revision:null}}},facts:[{terrainSourceKnown:true,budgetExhausted:false}]});
+    expect(JSON.stringify(result)).not.toContain('/private');tools.dispose();
+  });
   it('blocks equivalent expert/task retries within one request, retaining the actual reason',async()=>{
     const h=taskHost();h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),status:'unavailable',reason:'data-unavailable',response:null,winnerId:null} as never);
     const tools=createAgentTools(h),task=tools.begin();
@@ -191,4 +198,19 @@ it('does not turn a bounded entity-resolution activity sample into the full coll
   expect(r).toMatchObject({data:{activityMatches:{total:72,returned:8,complete:false}}});
   expect(checkAnswer('I will compare all 8 Titan flights.',r.facts!)).toContainEqual(expect.stringContaining('72 requested intervals'));
   expect(checkAnswer('I will compare all 72 Titan flights.',r.facts!)).toEqual([]);tools.dispose();
+});
+
+
+it('rejects the observed coverage/budget/source misstatement and keeps a truthful fallback',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAbovePhysicalTerrain',winner:null,
+    budgetExhausted:false,terrainSourceKnown:true,gapIntervals:55,maximumGapSeconds:.00002,sourceKind:'estimated-reconstruction' as const,
+    candidate:{value:.024018,utc:'2023-10-05T08:11:34Z',object:'vehicle',activityId:'flight:61'}};
+  const observed='The trajectory is an estimated reconstruction. The terrain source is not identified. The analysis covered only 17 of 72 flights before its work budget ran out, so this is the best completed result and not a confirmed maximum.';
+  const issues=checkAnswer(observed,[fact]);
+  expect(issues).toContainEqual(expect.stringContaining('not how many were analyzed'));
+  expect(issues).toContainEqual(expect.stringContaining('No numerical work-budget exhaustion'));
+  expect(issues).toContainEqual(expect.stringContaining('identified versioned physical terrain source'));
+  expect(checkAnswer('All 72 flights were evaluated; 17 have no detected gaps. The estimated reconstruction provides a sampled candidate, not a confirmed maximum. A versioned physical terrain source was used; its accuracy is unknown. The budget was not exhausted.',[fact])).toEqual([]);
+  expect(checkAnswer('The analysis fully covered 17 flights without gaps; 72 flights produced candidates from an estimated reconstruction.',[fact])).toEqual([]);
+  expect(checkAnswer(factSummary([fact]),[fact])).toEqual([]);
 });

@@ -73,6 +73,19 @@ describe('experimental cube-sphere addressing', () => {
     expect(sampler.sample(0, 0)?.tileId).toBe('px/0/0/0');
   });
 
+  it('retains other finest tiles on removal and refreshes replacements without losing a level', () => {
+    const sampler=new CubeSphereSampler(sphere,{id:'fixture',kind:'height-grid'});
+    const tile=(face:CubeFace,height:number)=>({face,level:3,x:4,y:4,width:2,height:2,elevationsKm:new Float64Array(4).fill(height)});
+    sampler.addTile(tile('px',1));sampler.addTile(tile('nx',2));
+    sampler.addTile(tile('px',3));
+    expect(sampler.sample(0,0)?.elevationKm).toBe(3);
+    sampler.removeTile(tile('px',0));sampler.removeTile(tile('px',0));
+    expect(sampler.sample(0,0)).toBeNull();
+    expect(sampler.sample(0,180)?.elevationKm).toBe(2);
+    sampler.removeTile(tile('nx',0));sampler.addTile(tile('px',4));
+    expect(sampler.sample(0,0)?.elevationKm).toBe(4);
+  });
+
   it('addresses equivalent geographic coordinates identically below the root level', () => {
     const resident = (face: CubeFace, x: number, y: number) => {
       const sampler = new CubeSphereSampler(sphere, { id: 'fixture', kind: 'height-grid' });

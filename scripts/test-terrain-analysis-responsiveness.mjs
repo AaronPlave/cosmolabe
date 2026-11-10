@@ -1,6 +1,7 @@
 /** #363 real 72-flight terrain workload. Native baseline by default; paid UI opt-in. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
+import { checkAnswer } from '../packages/control/dist/answer-check.js';
 import { chromium } from 'playwright';
 const base=process.env.CL_VIEWER_URL??'http://127.0.0.1:5202/';
 const output=process.env.TERRAIN_PERF_REPORT??'/tmp/terrain-analysis-perf.json';
@@ -16,10 +17,12 @@ if(live) {
     onUsage:row=>{assert.equal(row.model,model);assert.equal(row.requestedModel,model);usage.push(row);console.log('Haiku round',usage.length);}});
   await new Promise(resolve=>proxy.listen(8797,'127.0.0.1',resolve));
 }
-const browser=await chromium.launch({headless:true,args:['--use-angle=metal','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
+const gpu=process.env.TERRAIN_PERF_GPU??(process.platform==='darwin'?'metal':'swiftshader');
+const browser=await chromium.launch({headless:true,args:[`--use-angle=${gpu}`,...(gpu==='swiftshader'?['--enable-unsafe-swiftshader']:[]),'--disable-background-timer-throttling','--disable-renderer-backgrounding']});
 try {
   const page=await browser.newPage({viewport:{width:1400,height:900}});
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const errors=[],payloads=new Map();page.on('pageerror',e=>errors.push(e.message));
+  if(live)page.on('request',request=>{if(request.url()==='http://127.0.0.1:8797/' && request.method()==='POST')for(const m of request.postDataJSON().messages)for(const b of m.content)if(b.type==='tool_result')payloads.set(b.toolUseId,b.content);});
   await page.goto(new URL('?catalog=test-catalogs/ingenuity-jezero',base).href);
   await page.waitForFunction(()=>window.cosmo?.getScene()?.ready,null,{timeout:600000});
   await page.evaluate(async()=>{
@@ -58,7 +61,15 @@ try {
       {signal:window.__terrainAbort.signal,onProgress:f=>window.__terrainPerf.progress.push([performance.now(),f])})
       .then(r=>{window.__terrainPerf.result=r;window.__terrainPerf.done=true;window.__terrainPerf.finished=performance.now()});
   });
-  await page.waitForFunction(()=>window.__terrainPerf.calls>100,null,{timeout:180000});
+  try {
+    await page.waitForFunction(live=>window.__terrainPerf.calls>100 || live && window.__terrainAsk.ask.turns.length && !window.__terrainAsk.ask.running,live,{timeout:180000});
+    assert.ok(await page.evaluate(()=>window.__terrainPerf.calls>100),'Ask ended before terrain computation');
+  }
+  catch(error){
+    const failure=await page.evaluate(()=>({perf:window.__terrainPerf,turn:window.__terrainAsk.ask.turns.at(-1)}));
+    writeFileSync(output,JSON.stringify({failure,errors,usage},null,2));
+    console.log(JSON.stringify({calls:failure.perf.calls,turn:failure.turn}));throw error;
+  }
   console.log('terrain computation active');
   let stopMs=null;
   if(!complete){
@@ -94,6 +105,7 @@ try {
   const beats=report.beats.filter(b=>b.time>=report.analysisStart).map(b=>b.ms);
   const frames=report.frames.filter(b=>b.time>=report.analysisStart).map(b=>b.ms);
   report.summary={calls:report.calls,analysisMs:report.finished-report.analysisStart,maxTaskMs:Math.max(0,...report.tasks.filter(t=>t.start>=report.analysisStart).map(t=>t.duration)),maxHeartbeatMs:Math.max(0,...beats),p95FrameMs:frames.sort((a,b)=>a-b)[Math.floor(frames.length*.95)],stopMs,compared:report.results.length};
+  writeFileSync(output,JSON.stringify(report,null,2));
   if(complete){
     assert.equal(report.activities.length,72);assert.equal(report.results.length,72);
     assert.ok(report.activities.every(id=>report.results.some(r=>r.activityId===id)));
@@ -107,12 +119,16 @@ try {
       const {bodyFixedToGeodetic,geodeticToBodyFixed}=await import(resource);
       const g=bodyFixedToGeodetic({xKm:s.position[0],yKm:s.position[1],zKm:s.position[2]},mesh.terrainDatum);
       const above=geodeticToBodyFixed({...g,heightKm:g.heightKm+1},mesh.terrainDatum);
-      const zero=geodeticToBodyFixed({...g,heightKm:0},mesh.terrainDatum);
-      const hit=mesh.intersectTerrainRay({origin:above,direction:[zero.xKm-above.xKm,zero.yKm-above.yKm,zero.zKm-above.zKm],nearKm:0,farKm:10},{maxMeshErrorKm:0});
+      const below=geodeticToBodyFixed({...g,heightKm:g.heightKm-10},mesh.terrainDatum);
+      const hit=mesh.intersectTerrainRay({origin:above,direction:[below.xKm-above.xKm,below.yKm-above.yKm,below.zKm-above.zKm],nearKm:0,farKm:10},{maxMeshErrorKm:0});
       return {hit,value:hit?.kind==='hit'?hit.distanceKm-1:null};
     },best);
     assert.ok(Math.abs(report.control.value-best.value)<1e-7);
-    if(live){assert.equal(report.turn.status,'done');assert.equal(report.state.et,best.et);assert.equal(report.state.tracked,'Ingenuity');assert.equal(report.state.playing,false);}
+    if(live){
+      assert.deepEqual(checkAnswer(report.turn.reply,report.turn.result.facts),[]);
+      assert.match(report.turn.reply,/72/);assert.match(report.turn.reply,/17/);assert.match(report.turn.reply,/gap|partial|incomplet/i);
+      for(const step of report.turn.steps.filter(s=>s.result?.data)){assert.ok(payloads.has(step.id));assert.ok(!payloads.get(step.id).includes('result-too-large'));}
+      assert.equal(report.turn.status,'done');assert.equal(report.state.et,best.et);assert.equal(report.state.tracked,'Ingenuity');assert.equal(report.state.playing,false);}
   }else if(live)assert.equal(report.turn.status,'cancelled');else assert.equal(report.result.status,'cancelled');
   writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report.summary));
   if(process.env.TERRAIN_PERF_ASSERT==='1'){assert.ok(report.summary.maxTaskMs<100);assert.ok(report.summary.maxHeartbeatMs<100);if(stopMs!==null)assert.ok(stopMs<300);}

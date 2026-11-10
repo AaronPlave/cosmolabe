@@ -149,6 +149,7 @@ export interface HeightAnalysisFact {
   readonly requested: number; readonly completed: number; readonly metric: string;
   readonly winner: { value: number; utc: string; object: string; activityId: string | null } | null;
   readonly evaluated?: number; readonly gapIntervals?: number; readonly maximumGapSeconds?: number;
+  readonly budgetExhausted?: boolean; readonly terrainSourceKnown?: boolean;
   readonly primaryId?: string | null;
   readonly candidate?: { value:number; utc:string; object:string; activityId:string|null } | null;
   readonly shown?: boolean;
@@ -1299,10 +1300,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               // Bounded comparison inventory keeps all interval identities without returning 128 full reports.
               comparedCount: response?.results.length ?? 0,
               compared: response?.results.slice(0,1).map(r => ({ id:r.id, object:r.object, activityId:r.activityId, window:r.window, value:r.value, coverage:r.coverage })) ?? [],
+              budgetExhausted:response?.faults.some(f=>f.code==='budget')??false,
               faultsTotal: response?.faults.length ?? 0,
               faults: response?.faults.slice(0,3).map(f => ({ code:f.code, object:f.object, activityId:f.activityId, window:f.window })) ?? [],
               parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
             const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
+              budgetExhausted:response?.faults.some(f=>f.code==='budget')??false,terrainSourceKnown:!!((winner??candidate)?.terrain?.id && (winner??candidate)?.terrain?.revision),
               evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
               sourceKind:candidate ? /estimated|reconstruct/i.test(candidate.source.description??'') ? 'estimated-reconstruction' : candidate.source.classification : undefined,
               candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,
