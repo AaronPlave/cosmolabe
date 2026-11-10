@@ -93,4 +93,13 @@ describe('native routine extrema resolution',()=>{
     expect(r.coverage.maximumGapSeconds).toBeCloseTo(.00002,8);expect(r.candidateId).toBeTruthy();
     expect(r.response?.results).toHaveLength(1);expect(r.response!.results[0].window).toEqual({start:0,end:10});
   });
+  it('probes known covered pieces inside a broad requested window rather than rejecting their unsampled envelope',async()=>{
+    const u=scene(1);
+    u.addBody(new Body({name:'hopper',parentName:'Moon',trajectory:new InterpolatedStatesTrajectory([
+      {et:20,position:[11,0,0],velocity:[0,0,0]},{et:30,position:[12,0,0],velocity:[0,0,0]},
+    ],{frame:'IAU_MOON'})}));
+    const r=await analyzeTrajectoryExtrema({...request,scope:{kind:'windows',windows:[{start:0,end:100}]}});
+    expect(r).toMatchObject({started:true,status:'partial',winnerId:null,scope:{requested:1,completed:0}});
+    expect(r.candidateId).toBeTruthy();expect(r.response?.results[0].et).toBeGreaterThanOrEqual(20);
+  });
 });

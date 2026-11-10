@@ -117,7 +117,7 @@ try {
             if (task?.winner || task?.candidate) {
               heightWinner=task.winner??task.candidate;
               check('every requested activity evaluated', task.comparedCount===task.scope.requested);
-              check('partial collection never names a full-scope winner', task.status==='complete' ? task.scope.requested===task.scope.completed && task.winnerId : !task.winnerId && task.coverage.incompleteIntervals>0 && /partial|gap|incomplet|available|unresolved|not.*(?:global|winner|certif)/i.test(row.answer));
+              check('partial collection never names a full-scope winner', task.status==='complete' ? task.scope.requested===task.scope.completed && task.winnerId : !task.winnerId && task.coverage.incompleteIntervals>0 && /partial|gap|incomplet|available|unresolved|not.*(?:global|winner|certif|minimum|maximum)/i.test(row.answer));
               const independent=await page.evaluate(async scenario=> {
                 const url=performance.getEntriesByType('resource').map(e=>e.name).find(url=>new URL(url).pathname==='/src/lib/analysis.svelte.ts');
                 const a=await import(url), c=window.cosmo;

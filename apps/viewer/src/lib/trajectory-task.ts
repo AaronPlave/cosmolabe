@@ -62,9 +62,13 @@ export function resolveExtremaTask(universe: Universe | null, request: ScriptExt
     result.coverage.maximumGapSeconds=Math.max(result.coverage.maximumGapSeconds,largest);
   }
   // These probes establish that execution is meaningful, not complete coverage.
-  const anyState = windows.some(w => [w.start, (w.start + w.end) / 2, w.end].some(et => {
+  const anyState = windows.some(w => {
+    const coverage=provider.coverage?.(w.object);
+    const pieces=coverage ? coverage.map(p=>({start:Math.max(p.start,w.start),end:Math.min(p.end,w.end)})).filter(p=>p.start<=p.end) : [w];
+    return pieces.some(p=>[p.start, (p.start+p.end)/2, p.end].some(et => {
     try { const p = provider.position(w.object, et, body, bodyOptions.frame); return !!p && p.every(Number.isFinite); } catch { return false; }
-  }));
+    }));
+  });
   if (!anyState) return fail('data-unavailable', 'The analysis is supported, but no relative states can be read in the requested intervals/frame. Do not guess a different frame or datum.');
   result.query = { objects: request.objects, body, frame: bodyOptions.frame, metric: heightMetrics[request.metric], extremum: request.extremum, ...resolved,
     scope: scope.kind === 'activities' ? { ...scope, ids: activities.map(a => a.id) } : scope,
