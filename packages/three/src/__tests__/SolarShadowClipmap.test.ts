@@ -128,6 +128,34 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(c.status.state).toBe('ready');
   });
 
+  it('keeps a re-centred level on its current data until the new strip\'s source tiles load (at most 2 s)', () => {
+    // Tiles beyond the first square's corners (11.9 km from its centre) are "in flight" until `loaded`.
+    const centre = at(-89.5, 0, 0).normalize();
+    const src = { ...source(), loaded: false, elevationKm(lat: number, lon: number) {
+      return !this.loaded && Math.acos(Math.min(1, at(lat, lon, 0).normalize().dot(centre))) * R > 11.9 ? null : 0;
+    } };
+    const c = new SolarShadowClipmap(src, { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
+    settle(c, frameAt(-89.5, 0, 2), 0);
+    const offset = c.status.levels[0].offsetKm;
+    expect(c.status.levels[0].unknownFraction).toBe(0);
+    const moved = frameAt(-89.5 + 3 / R / DEG, 0, 2);
+    settle(c, moved, 500);
+    expect(c.status.levels[0].offsetKm).toEqual(offset); // still the complete, old placement
+    expect(c.status.state).toBe('ready');
+    src.loaded = true;
+    settle(c, moved, 700);
+    expect(c.status.levels[0].offsetKm).not.toEqual(offset);
+    expect(c.status.levels[0].unknownFraction).toBe(0);
+    // Tiles that never arrive: swapped in, unknown, after the wait.
+    src.loaded = false;
+    const far = frameAt(-89.5 + 6 / R / DEG, 0, 2);
+    settle(c, far, 1000);
+    const waiting = c.status.levels[0].offsetKm;
+    settle(c, far, 3500);
+    expect(c.status.levels[0].offsetKm).not.toEqual(waiting);
+    expect(c.status.levels[0].unknownFraction).toBeGreaterThan(0);
+  });
+
   it('is off above the maximum altitude and when deactivated', () => {
     const c = new SolarShadowClipmap(source(), { budgetMs: 1e6 });
     settle(c, frameAt(-89.5, 0, 2000));

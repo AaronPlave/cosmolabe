@@ -117,18 +117,17 @@ clipmap holds the ridge's vertical walls as one-texel slopes, and horizons are i
 the source ending before the ridge, the receiver is lit (1.0) and tinted in view `2`, not black.
 
 **Real terrain**, hardware GPU. The #149 fused LOLA cube-sphere Moon, `scripts/capture-terrain-solar-shadow.mjs --gpu`
-(Apple M4 Max, Metal, vsync off), same pose and epoch per mode. Files are in
-[validation/terrain-solar-shadow/](validation/terrain-solar-shadow/) (`*-gpu.png`, raw JSON in `captures-gpu*.json`).
-This catalog drapes no photo imagery, so `on` and `neutral` show computed lighting only. The ephemeris is the catalog's
-Keplerian fallback, so the geometry is consistent but the calendar dates are not real.
+(Apple M4 Max, Metal, vsync off), same pose and epoch per mode. The script regenerates every view and mode below; the
+PR keeps one still set per behaviour. This catalog drapes no photo imagery, so `on` and `neutral` show computed lighting
+only. The ephemeris is the catalog's Keplerian fallback, so the geometry is consistent but the dates are not real.
 
-| View | Sun at site | off | on | Sun fraction | neutral, no shadows | neutral, shadows | unknown / too coarse | Source spacing |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Shackleton rim (89.67°S) | 0.74°, az 21.7° | [img](validation/terrain-solar-shadow/shackleton-rim-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-on-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu.png) | [img](validation/terrain-solar-shadow/shackleton-rim-unknown-gpu.png) | 10–50 m |
-| Polar ridge field (88.4°S) | 1.80°, az 4.0° | [img](validation/terrain-solar-shadow/polar-ridge-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-on-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-visibility-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-neutral-gpu.png) | [img](validation/terrain-solar-shadow/polar-ridge-unknown-gpu.png) | ≤ 0.2 km |
-| Polar outer ring (85.8°S), from 30 km | 3.01°, az 313° | [img](validation/terrain-solar-shadow/polar-coarse-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-on-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-visibility-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-neutral-gpu.png) | [img](validation/terrain-solar-shadow/polar-coarse-unknown-gpu.png) | 0.85 km; foreground 1.7 km (left out) |
-| Harkhebi J/H (38°N), from 90 km | 4.14°, az 267° | [img](validation/terrain-solar-shadow/harkhebi-off-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-on-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-visibility-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-neutral-gpu.png) | [img](validation/terrain-solar-shadow/harkhebi-unknown-gpu.png) | 6.8 km: left out |
-| Equatorial crater (9.6°N) | 2.86°, az 91° | [img](validation/terrain-solar-shadow/equatorial-crater-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-on-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-visibility-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-off-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-neutral-gpu.png) | [img](validation/terrain-solar-shadow/equatorial-crater-unknown-gpu.png) | 6.8 km: left out |
+| View | Sun at site | Source spacing | Kept |
+| --- | --- | --- | --- |
+| Shackleton rim (89.67°S) | 0.74°, az 21.7° | 10–50 m | [off](validation/terrain-solar-shadow/shackleton-rim-off-gpu.png), [on](validation/terrain-solar-shadow/shackleton-rim-on-gpu.png), [Sun fraction](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu.png), [neutral](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu.png) |
+| Polar ridge field (88.4°S) | 1.80°, az 4.0° | ≤ 0.2 km | (script `--views polar-ridge`) |
+| Polar outer ring (85.8°S), from 30 km | 3.01°, az 313° | 0.85 km; foreground 1.7 km (left out) | (`--views polar-coarse`) |
+| Harkhebi J/H (38°N), from 90 km | 4.14°, az 267° | 6.8 km: left out | [off](validation/terrain-solar-shadow/harkhebi-off-gpu.png), [on](validation/terrain-solar-shadow/harkhebi-on-gpu.png), [unknown / too coarse](validation/terrain-solar-shadow/harkhebi-unknown-gpu.png) |
+| Equatorial crater (9.6°N) | 2.86°, az 91° | 6.8 km: left out | (`--views equatorial-crater`) |
 
 **Coarse terrain (Harkhebi).** The review's low-resolution screenshot showed hard polygonal shadows where the imagery is
 smooth. Each candidate was isolated at that pose: a finer clipmap (0.5 → 0.19 km texels around the focus) changed
@@ -137,51 +136,44 @@ there are 6.8 km apart (global level 3), so the shadows were projections of 6.8 
 shading drawn over them is ~100 m. Such terrain is now left out (step 2) rather than blurred. The 0.85 km polar ring
 (`polar-coarse`) is the coarsest that still casts shadows; its edges show facets of that size from 30 km up.
 
-**Motion stability** (`--sequence`). Each frame is captured at one pose as off (view 6) | Sun fraction | neutral | on, and
-assembled as a 2×2 MP4, with a per-frame trace of every level (`captures-gpu-sequences.json`).
+**Time, camera fixed** (`--sequence time,fast`): 2 min and 24 min (1 day/s at 60 fps) per frame. The frame-to-frame
+change max / median is 1.15–1.27 and 1.24–1.88 over the three polar views: the edges advance evenly, with no pops.
 
-- **Camera, time frozen.** The camera pans 20 km, yaws 12° and zooms in, then returns along the same path.
-- **Time, camera fixed.** 2 min per frame. **Fast**: 24 min per frame (1 day/s at 60 fps), each frame settled.
+**Camera navigation at a fixed epoch** (`scripts/check-terrain-shadow-camera.mjs`; [camera/](validation/terrain-solar-shadow/camera/)). The review's
+screen recording: MoonFall Shackleton (WAC+NAC), 2028-12-27 18:15:07 UTC, Moon tracked, shadows High. `--path drag
+--view-url <the shared link>` restores that view and orbits it with real mouse drags through the viewer's own controls
+(81 frames, 15 px each: right, left past the start, back, up, down), recorded four times: Off | On / Sun fraction |
+unknown ([drag.mp4](validation/terrain-solar-shadow/camera/drag.mp4)). 80 ground points are pinned 3–30 km from Shackleton; each frame logs the level holding
+each point, the CPU march from it, its pixels and resident source tile, the level centres, rebuild reasons and source
+revision ([drag.json](validation/terrain-solar-shadow/camera/drag.json)). The Sun is 0.28° up at Shackleton: about one solar radius.
 
-| View | Camera: first vs last frame (mean diff / pixels > 8 of 255) | Time: change max / median | Fast: max / median |
-| --- | --- | --- | --- |
-| Shackleton rim ([camera](validation/terrain-solar-shadow/shackleton-rim-camera.mp4), [time](validation/terrain-solar-shadow/shackleton-rim-time.mp4), [fast](validation/terrain-solar-shadow/shackleton-rim-fast.mp4)) | 0.17 / 0.25 % | 1.18 | 1.62 |
-| Polar ridge ([camera](validation/terrain-solar-shadow/polar-ridge-camera.mp4), [time](validation/terrain-solar-shadow/polar-ridge-time.mp4), [fast](validation/terrain-solar-shadow/polar-ridge-fast.mp4)) | 0.07 / 0.07 % | 1.15 | 1.88 |
-| Polar outer ring ([camera](validation/terrain-solar-shadow/polar-coarse-camera.mp4), [time](validation/terrain-solar-shadow/polar-coarse-time.mp4), [fast](validation/terrain-solar-shadow/polar-coarse-fast.mp4)) | **identical** | 1.27 | 1.24 |
-
-States seen: `ready` and `partial` only; no anchor reset. The round trips are no longer all pixel-identical: where a
-level re-centred during the pan and its hysteresis left it at a different centre on return, the band in which it blends
-into the next level sits elsewhere, and the two levels' answers differ slightly there (distant terrain near the horizon
-only). A max/median near 1 means the edges advance evenly with time.
-
-**Camera navigation at a fixed epoch** (`scripts/check-terrain-shadow-camera.mjs`; [camera/](validation/terrain-solar-shadow/camera/)).
-MoonFall Shackleton (WAC+NAC), clock frozen at 2029-02-05 16:08:55 UTC (Sun −1.2° at Shackleton's centre), shadows
-High. One path driven frame by frame with no settling (397 frames): zoom from 20 km to 500 km range (past the 320 km
-cut-off) and back, a full orbit, a 120 km pan toward Malapert and back, grazing views from 15 km, and the same grazing
-views with the orbit target left 300 km away on coarse terrain. Recorded four times (off | on / Sun fraction | unknown:
-[camera.mp4](validation/terrain-solar-shadow/camera/camera.mp4)). 44 ground points pinned 3–220 km from Shackleton; at
-each frame, the level holding each point, the CPU march from it through that frame's clipmap, and the pixels.
-
-- **The shadow at a fixed point does not change.** No point's CPU Sun fraction changed over the path (all 44 points,
-  levels 0–3, every re-centre). Of 47 frame-to-frame jumps in the Sun-fraction pixel, 46 sit within 5 px of a shadow
-  edge in both frames (the probe's pixel lands either side of an edge that stays put as the drawn mesh LOD changes); the
-  other is a label crossing the point, the same in Off.
-- **Same pose, same image.** Zoom out to 500 km and back: 0.00 % of pixels differ in Off, On and Sun fraction. Full
-  orbit: 0.00 %. 120 km pan and back: Off 0.09 %, On 0.15 %, Sun fraction 0.30 % (the cross-fade band; see above).
-- **The 320 km altitude cut-off** turns terrain shadows off for 5 frames; at that height On and Off differ on 0.7 % of
-  pixels (the WAC+NAC already holds the large shadows).
-- **Two fixes came from this.** (1) An orbit target on the far horizon used to centre the clipmap there: in the user's
-  view across Shackleton, every level-0 texel was then 6.8 km terrain, the Display panel said "too coarse", and Shackleton
-  had no terrain shadows. The focus now stays within four camera altitudes of the ground under the camera (step 1):
-  [before / after](validation/terrain-solar-shadow/camera/far-orbit-target-before-after.png), level-0 too-coarse 100 % → 0 %.
-  (2) Debug views 1–2 left slopes facing away from the Sun white (lit) and flagged texels whose march left the clipmap
-  after the Sun was already hidden; both changed with the camera (mesh LOD normals, clipmap extent) though the lit image
-  did not. They now show the fraction everywhere and flag only answers unknown terrain could change.
+- **Terrain shadows are a small part of what changes.** Per frame, On and Off differ on 0.4–6.5 % of pixels (by more
+  than 24 of 255); with shadows Off the image itself changes on 5–18 % of pixels per frame as the view moves. The large
+  dark regions that come and go in the recording are mostly the view, the drawn LOD and the WAC+NAC's own shading.
+- **The shadow at a fixed point depends on the level holding it, at this Sun.** At an elevation of one solar radius a
+  point's visible fraction depends on tens of metres of relief kilometres away, so the data resolution of its level
+  decides it. Each drag moves the clipmap centre (in this mode the controls orbit a pivot deep inside the Moon, so the
+  camera travels), points change level, and their answer changes: one point 12 km from Shackleton reads 0 at level 0
+  (62 m), 0.10 at level 1 (0.19 km), and 1 at level 2 (0.62 km). Isolated: same camera, clipmap centre moved 10–50 km
+  ([image](validation/terrain-solar-shadow/camera/focus-moved-same-camera.png), Sun fraction above, On below): 2–5 % of pixels change by more than a quarter in
+  the Sun-fraction view, but only ~1.4 % change at all in the lit image and none by more than a quarter, because at
+  this Sun the direct light those regions get is small.
+- **Fixed: re-centres swapped in terrain still loading.** A re-centred level used to swap in at once, with its new
+  strip unknown until the source tiles arrived; unknown is drawn lit, so shadows there vanished and came back as the
+  camera moved. A re-centred level now keeps its current, complete data until the strip's tiles load (at most 2 s).
+  Frames with every level complete during the drag: 6 → 25 of 81.
+- **Fixed: a far orbit target pulled the clipmap away** (see step 1): [before / after](validation/terrain-solar-shadow/camera/far-orbit-target-before-after.png),
+  level-0 too-coarse 100 % → 0 % in a view across Shackleton.
+- **Fixed: debug views 1–2 changed with the camera** while the lit image did not (back-facing slopes drawn white; marches
+  flagged after known terrain had already hidden the Sun). They now show the fraction everywhere and flag only answers
+  unknown terrain could change.
+- **Scripted paths, earlier epoch** (`--path` default and `user`): zoom past the 320 km cut-off and back, a full orbit
+  and grazing views about a surface target leave the image identical on return (0.00 % of pixels) and every pinned
+  point's fraction unchanged: an orbit about a surface point keeps the clipmap still.
 
 **Real playback** (`--playback`, `--playback-video`). The clock runs at 1 day/s for 290 frames with the camera held in
-the body frame; each frame records every level's `horizonSunLagDeg`. Then seeks of ±1 h to 5 days. Real-time screen
-recordings, Sun fraction | on: [Shackleton](validation/terrain-solar-shadow/shackleton-rim-playback.mp4), [polar ridge](validation/terrain-solar-shadow/polar-ridge-playback.mp4),
-[polar outer ring](validation/terrain-solar-shadow/polar-coarse-playback.mp4), [Harkhebi](validation/terrain-solar-shadow/harkhebi-playback.mp4) (no terrain shadows: too coarse).
+the body frame; each frame records every level's `horizonSunLagDeg`. Then seeks of ±1 h to 5 days. Real-time recording,
+Sun fraction | on: [Shackleton](validation/terrain-solar-shadow/shackleton-rim-playback.mp4).
 
 | View | Frame p50 / p95, off → on | Max horizon lag behind the Sun | After seeks |
 | --- | --- | --- | --- |
@@ -198,11 +190,8 @@ frame instead cost 13–15 ms p50 / 32–34 ms p95 at the pole.
 (the NAC polar mosaics are assembled for uniform lighting, and permanently shadowed floors are black), but the layer
 declares no provenance, so it is relit as `unknown`. Same Shackleton pose, `--catalog test-catalogs/moonfall-shackleton
 --tag wac-nac`:
-[off](validation/terrain-solar-shadow/shackleton-rim-off-gpu-wac-nac.png),
-[on](validation/terrain-solar-shadow/shackleton-rim-on-gpu-wac-nac.png),
-[neutral, no shadows](validation/terrain-solar-shadow/shackleton-rim-neutral-off-gpu-wac-nac.png),
-[neutral, shadows](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu-wac-nac.png),
-[Sun fraction](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu-wac-nac.png).
+[off](validation/terrain-solar-shadow/shackleton-rim-off-gpu-wac-nac.png), [on](validation/terrain-solar-shadow/shackleton-rim-on-gpu-wac-nac.png) (neutral and Sun-fraction
+views: `--modes`).
 
 What that scene can honestly support:
 
@@ -219,12 +208,10 @@ A relightable albedo product for the pole is the data needed for a trustworthy c
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
 position. 679 samples, Sun −0.8° to 1.4°, up to 0.31 km above ground, lit and shadowed both landed and flying: max
 difference 0.05 (one penumbra sample), all others 0. Before this change a hopper in a terrain shadow was fully sunlit.
-Polaris-D on 2028-12-15, landed in shadow then flying into sunlight, shadows off / on:
-[landed off](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-landed-off.png),
-[landed on](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-landed-on.png),
-[flying off](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-flying-off.png),
-[flying on](validation/terrain-solar-shadow/vehicles/Polaris-D-2028-12-15-flying-on.png); Polaris-C likewise; all samples
-in `vehicles/vehicles.json`.
+Polaris-C on 2028-12-15, shadows off / on:
+[landed off](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-landed-off.png), [landed on](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-landed-on.png),
+[flying off](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-flying-off.png), [flying on](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-flying-on.png);
+per-hop results in `vehicles/vehicles.json` (the per-sample series is regenerated by the script).
 
 ## Cost
 
@@ -256,7 +243,10 @@ is measured.
 - **Visual only.** No PSR certification, illumination duration or power products.
 - **Resolution.** A receiver's shadow is interpolated between texel centres of its level: 62 m within 8 km of the focus,
   0.19 km to 24 km, 0.62 km to 80 km, 2.5 km beyond. Occluders are seen at their level's resolution, so a ridge narrower than a texel there
-  is under-represented. The 62 m inner level resolves what LOLA 118 m (10 m polar) can show.
+  is under-represented. The 62 m inner level resolves what LOLA 118 m (10 m polar) can show. The levels follow the
+  camera, so with the Sun within about a degree of the horizon, where small relief decides the fraction, a region's
+  shadow changes as it moves between levels (see "Camera navigation"). A finer outer clipmap would narrow that, at
+  ~4× the horizon-pass cost for 512² levels.
 - **Range.** Terrain beyond the outer level (default 320 km) is unknown. The default covers a 1° Sun and 10 km relief.
 - **Streaming.** Until fine source tiles arrive, the coarser level answers, and the shadow sharpens when they do. Terrain
   no level holds is drawn lit.

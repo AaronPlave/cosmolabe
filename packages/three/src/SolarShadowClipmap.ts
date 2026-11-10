@@ -101,6 +101,9 @@ export const MAX_SOURCE_CELL_KM = 1;
 const SUN_RADIUS_KM = 695_700;
 /** Horizon maps re-rendered per frame while the Sun moves (one level costs about 1–3 ms on an M4 Max). */
 const HORIZON_LEVELS_PER_FRAME = 2;
+/** How long a re-centred level keeps its current data while its new strip's source tiles load, and how often it retries. */
+const RECENTER_WAIT_MS = 2000;
+const RECENTER_RETRY_MS = 100;
 /** A Sun this far from a level's map (a seek, not playback) re-renders every level that frame. */
 const HORIZON_SEEK_RAD = 1 * Math.PI / 180;
 const DEG = Math.PI / 180;
@@ -200,6 +203,8 @@ interface Level {
   building: {
     offset: [number, number]; row: number; unknown: number; coarse: number; known: number; sum: number; ms: number;
     reason: SolarShadowBuildReason; kept: Uint8Array; sampled: number;
+    /** A re-centre waiting for source tiles of its new strip: re-sample its unknown texels from this time. */
+    startedMs: number; retryAtMs: number;
   } | null;
   lastReason: SolarShadowBuildReason | null;
   lastSampledTexels: number;
@@ -361,7 +366,7 @@ export class SolarShadowClipmap {
       if (moved || stale) {
         const offset = moved ? want : off!;
         l.building = {
-          offset, row: 0, unknown: 0, coarse: 0, known: 0, sum: 0, ms: 0, sampled: 0,
+          offset, row: 0, unknown: 0, coarse: 0, known: 0, sum: 0, ms: 0, sampled: 0, startedMs: nowMs, retryAtMs: 0,
           reason: !off ? 'initial' : moved ? 'recenter' : 'new-data', kept: this.keep(l, offset),
         };
         l.builtRevision = rev;
@@ -395,8 +400,9 @@ export class SolarShadowClipmap {
 
   /** Fill the level being built, row by row, within the frame budget. Swaps it in when complete. */
   private fill(nowMs: number): void {
-    const l = this.levels.find(x => x.building);
+    const l = this.levels.find(x => x.building && x.building.retryAtMs <= nowMs);
     if (!l || !l.building || !this.anchor) { this.finishState(); return; }
+    if (l.building.row >= l.cfg.size) this.retryUnknown(l.building, l.back);
     const { frame, rcKm } = this.anchor;
     const b = l.building, n = l.cfg.size, datum = this.source.datum;
     const start = performance.now();
@@ -424,6 +430,14 @@ export class SolarShadowClipmap {
     }
     b.ms += performance.now() - start;
     if (b.row < n) { this.finishState(); return; }
+    // A re-centre whose new strip is still waiting for source tiles keeps drawing its current, complete data (for up to
+    // RECENTER_WAIT_MS): swapping in unknown texels would draw them lit, then shadowed once the tiles arrive, so
+    // shadows would come and go as the camera moves.
+    if (b.unknown > 0 && b.reason === 'recenter' && l.data && nowMs - b.startedMs < RECENTER_WAIT_MS) {
+      b.retryAtMs = nowMs + RECENTER_RETRY_MS;
+      this.finishState();
+      return;
+    }
     // Complete: unknown and too-coarse texels take the mean (a finite fill), then swap in.
     const fillValue = b.known ? b.sum / b.known : 0;
     let hMax = -Infinity;
@@ -448,6 +462,12 @@ export class SolarShadowClipmap {
     l.lastBuildMs = b.ms;
     l.building = null;
     this.finishState();
+  }
+
+  /** Next pass of a waiting build: keep its known texels, sample the rest again (their tiles were requested). */
+  private retryUnknown(b: NonNullable<Level['building']>, back: Float32Array): void {
+    for (let i = 0; i < b.kept.length; i++) b.kept[i] = back[i * 2 + 1] === 1 ? 1 : 0;
+    b.row = 0; b.unknown = 0; b.coarse = 0; b.known = 0; b.sum = 0;
   }
 
   /** `building` only until every level has data: a level being re-centred keeps drawing its current data meanwhile. */
