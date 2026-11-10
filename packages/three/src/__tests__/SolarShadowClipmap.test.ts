@@ -76,24 +76,6 @@ describe('SolarShadowClipmap (#205)', () => {
     expect(c.heightAt(1, 1)!.heightKm).toBeNull();
   });
 
-  it('leaves terrain whose source is too coarse out of the shadow: final, not waiting for data', () => {
-    const coarseEast = { ...source(), cellKm: (_lat: number, lon: number) => (lon > 0 ? 6.8 : 0.01) };
-    const c = new SolarShadowClipmap(coarseEast, { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }] });
-    settle(c, frameAt(-89.5, 0, 2));
-    const l = c.status.levels[0];
-    expect(l.coarseFraction).toBeGreaterThan(0.3);
-    expect(l.coarseFraction).toBeLessThan(0.7);
-    expect(l.unknownFraction).toBe(0);
-    expect(c.status.state).toBe('ready');
-    // Coarse terrain is no height (not shadowing), and a new data revision does not rebuild for it.
-    const builds = l.builds;
-    coarseEast.revision++;
-    settle(c, frameAt(-89.5, 0, 2), 10_000);
-    expect(c.status.levels[0].builds).toBe(builds);
-    const g = [0, 1, 2, 3, 4, 5, 6, 7].map(k => c.heightAt(-7 + 2 * k, 0)?.heightKm ?? null);
-    expect(g.some(h => h === null) && g.some(h => h !== null)).toBe(true);
-  });
-
   it('keeps every level on one site while the view stays within 4 camera altitudes of it, and resets past the anchor limit', () => {
     const c = new SolarShadowClipmap(source(), { budgetMs: 1e6, levels: [{ halfKm: 8, size: 64 }, { halfKm: 24, size: 64 }] });
     settle(c, frameAt(-89.5, 0, 2));
@@ -254,6 +236,22 @@ describe('SolarShadowClipmap.sunFractionAt (#205)', () => {
     expect(c.sunFractionAt(at(0, 0.3, 0.002))).toBe(1);
     // A point below the clipmap surface marches from the surface, not from inside the ground.
     expect(c.sunFractionAt(at(0, 0.3, -0.05))).toBe(1);
+  });
+
+  it('keeps a coarse source\'s large shadow but softens its edge to what the spacing supports', () => {
+    const edge = (cellKm: number) => {
+      const c = new SolarShadowClipmap({ ...ridge, cellKm: () => cellKm }, { budgetMs: 1e6 });
+      settle(c, frameAt(0, 0, 2, sun));
+      // The shadow edge is ~29 km west of the ridge: width of its penumbra along the line west (to 1.2°, before the Sun nears
+      // the flat horizon there), km.
+      const f = Array.from({ length: 121 }, (_, i) => c.sunFractionAt(at(0, -i * 0.01, 0.002)));
+      return { inside: c.sunFractionAt(at(0, 0, 0.002)), penumbraKm: f.filter(v => v > 0.02 && v < 0.98).length * 0.01 * DEG * R };
+    };
+    const fine = edge(0.01), coarse = edge(6.8);
+    expect(fine.inside).toBe(0);
+    expect(coarse.inside).toBe(0);
+    expect(fine.penumbraKm).toBeGreaterThan(0.2);
+    expect(coarse.penumbraKm).toBeGreaterThan(1.5 * fine.penumbraKm);
   });
 
   it('is 1 (no dimming) when the shadows are off', () => {

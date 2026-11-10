@@ -14,15 +14,16 @@ numeric site→target geometry.
 with heights a shadow can be built from (cube-sphere grids, quantized mesh), and works on any such terrain with no
 catalog change. It follows the catalog until you choose (Off, unless the catalog sets `solarShadows`), then remembers
 your choice. A line under it says what is happening: building (only until every level has data), some terrain not
-loaded, terrain here too coarse to cast shadows, on, or "Off in Flood lighting" (`flood` has no Sun).
+loaded, terrain heights here farther apart than the shadow detail (shadows softened), on, or "Off in Flood lighting"
+(`flood` has no Sun).
 
 Catalog: `"terrain": { …, "solarShadows": true }` ([catalog-format.md](catalog-format.md#solarshadows)), default `high`.
 Fixture: `apps/viewer/test-catalogs/experiments/moon-terrain-cube-solar-shadow.json`.
 
 Renderer (`UniverseRenderer`): `setTerrainShadowMode('off' | 'low' | 'medium' | 'high' | null)`, `terrainShadowSummary()`,
 `terrainShadowStatus(body)`, `setTerrainShadowDebug(mode)`. Debug views: `1` Sun fraction (white lit, black shadowed);
-`2` the same with terrain no level holds, or too coarse to cast shadows, tinted magenta (a fragment is tinted only where such terrain
-could change its answer: one already fully shadowed by known terrain is not). Views 1 and 2 show the fraction on every
+`2` the same with terrain no level holds tinted magenta (a fragment is tinted only where such terrain could change its
+answer: one already fully shadowed by known terrain is not), and answers the source spacing cannot decide tinted orange. Views 1 and 2 show the fraction on every
 fragment, including slopes facing away from the Sun, which the lit image leaves dark whatever the fraction; `3` frame/data alignment (green: drawn surface within 10 m of the
 clipmap); `4` **neutral grey albedo** lit by the Sun with terrain shadows (no imagery, no baked light); `5` the same
 without terrain shadows; `6` the normal image with shadows bypassed while the clipmap keeps updating (A/B "off").
@@ -44,9 +45,11 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
    inside the body) cannot pull the fine levels off the terrain in front of the camera. **Every level is centred on one
    terrain point, the site**, so a ground point's level (and so its shadow) depends only on its distance from the site,
    never on where the camera is. The site is the focus when it was set, and moves to the focus only when the focus is
-   more than four camera altitudes (and 4 km) from it: an orbit or pan keeps it, a view moved well away or zoomed low
-   elsewhere gets fine levels again. Each move changes the answer of points whose level changes; it is counted in
-   `siteMoves`. Levels re-centre in whole texels. A re-centre **keeps every known texel it shares with the
+   more than four camera altitudes above the terrain under it (and 4 km) from it: an orbit or pan keeps it, a view moved
+   well away or zoomed low elsewhere gets fine levels again (`siteMoves` counts them). A move changes the answer of
+   points whose level changes, so it is **never swapped in at once**: what was drawn (the horizon maps, copied into one
+   atlas, at their old centres) keeps drawing until every level is rebuilt and re-rendered at the new site, then
+   cross-fades into it over 0.8 s (`SITE_FADE_MS`; vehicles fade the same way). Levels re-centre in whole texels. A re-centre **keeps every known texel it shares with the
    current square** (the same anchor grid, so the same samples) and samples only the newly exposed strip (~24 % of the
    level), a few ms per frame; the current data keep drawing meanwhile, and the swap changes nothing in the overlap.
    Newly resident source tiles refill only the unknown texels. The anchor resets only after the focus moves 10° (the
@@ -54,9 +57,16 @@ fetch per terrain fragment.** Not a shadow map, and no per-pixel ray march.
 2. **One consistent source level per clipmap level.** Texels come from the cube-sphere CPU grids at one product level (the
    coarsest whose cell is no wider than the texel), never a mix of resident LODs, whose seams would be walls at a low Sun.
    Other sources go through `ClipmapSource` (`clipmapSourceFromSurface` adapts any `PhysicalSurface`, incl. meshes).
-   **Terrain whose source is coarser than 1 km** (`MAX_SOURCE_CELL_KM`; the product's finest spacing there) is left out:
-   it neither casts nor receives terrain shadows and is drawn lit, shaded by slope, and flagged like unknown terrain.
-   Its shadows would be projections of its triangles (see "Coarse terrain" below).
+   **Shadows only as sharp as the source spacing supports.** Each texel also stores the product's finest spacing there,
+   `c`. Between samples the relief is interpolated, not known: two points `t` apart may differ by about
+   `SLOPE_UNCERTAINTY · min(t, c)` more than the samples say (0.05, a typical lunar slope at the km scale: the one
+   calibration knob). The march widens the Sun's disk at each step by that angle, `0.05 · min(1, c / t)` (combining the
+   receiver's and the occluder's spacing), so a 6.8 km product casts and receives soft shadows of its large forms, not
+   projections of its triangles; a well-resolved ridge still shades coarse ground beyond it, sharply where it is far;
+   and 10–50 m polar data are unchanged (the widening there is a few metres). Nothing is switched off by spacing, so
+   there is no band where a product level changes, only a change in edge softness. Where that uncertainty could change
+   the answer (it exceeds the Sun's radius at a step that could hide part of the Sun) debug view 2 tints the fragment
+   orange: approximate, not a determined visibility. Unknown (missing) terrain stays magenta and is drawn lit.
 3. **Horizon pass** (`renderHorizons`, `ssMarch`). For each texel centre, on the GPU: march toward the Sun and keep the
    largest angle by which terrain stands above the Sun ray. Each tap reads the finest level holding terrain there,
    **bilinearly at that level's own resolution**, and the next step is 0.75 of that level's texel (`high`): the march
@@ -129,16 +139,18 @@ only. The ephemeris is the catalog's Keplerian fallback, so the geometry is cons
 | --- | --- | --- | --- |
 | Shackleton rim (89.67°S) | 0.74°, az 21.7° | 10–50 m | [off](validation/terrain-solar-shadow/shackleton-rim-off-gpu.png), [on](validation/terrain-solar-shadow/shackleton-rim-on-gpu.png), [Sun fraction](validation/terrain-solar-shadow/shackleton-rim-visibility-gpu.png), [neutral](validation/terrain-solar-shadow/shackleton-rim-neutral-gpu.png) |
 | Polar ridge field (88.4°S) | 1.80°, az 4.0° | ≤ 0.2 km | (script `--views polar-ridge`) |
-| Polar outer ring (85.8°S), from 30 km | 3.01°, az 313° | 0.85 km; foreground 1.7 km (left out) | (`--views polar-coarse`) |
-| Harkhebi J/H (38°N), from 90 km | 4.14°, az 267° | 6.8 km: left out | [off](validation/terrain-solar-shadow/harkhebi-off-gpu.png), [on](validation/terrain-solar-shadow/harkhebi-on-gpu.png), [unknown / too coarse](validation/terrain-solar-shadow/harkhebi-unknown-gpu.png) |
-| Equatorial crater (9.6°N) | 2.86°, az 91° | 6.8 km: left out | (`--views equatorial-crater`) |
+| Polar outer ring (85.8°S), from 30 km | 3.01°, az 313° | 0.85 km; foreground 1.7 km | (`--views polar-coarse`) |
+| Harkhebi J/H (38°N), from 90 km | 4.14°, az 267° | 6.8 km: soft, approximate | [off](validation/terrain-solar-shadow/harkhebi-off-gpu.png), [on](validation/terrain-solar-shadow/harkhebi-on-gpu.png), [unknown / approximate](validation/terrain-solar-shadow/harkhebi-unknown-gpu.png) |
+| Equatorial crater (9.6°N) | 2.86°, az 91° | 6.8 km: soft, approximate | (`--views equatorial-crater`) |
 
 **Coarse terrain (Harkhebi).** The review's low-resolution screenshot showed hard polygonal shadows where the imagery is
 smooth. Each candidate was isolated at that pose: a finer clipmap (0.5 → 0.19 km texels around the focus) changed
 nothing visible, and nor did marching per pixel along shadow edges. The cause is the source: the demo product's heights
 there are 6.8 km apart (global level 3), so the shadows were projections of 6.8 km triangles, while the WAC/normal-map
-shading drawn over them is ~100 m. Such terrain is now left out (step 2) rather than blurred. The 0.85 km polar ring
-(`polar-coarse`) is the coarsest that still casts shadows; its edges show facets of that size from 30 km up.
+shading drawn over them is ~100 m. That terrain was then left out (drawn lit) above a 1 km spacing, which made a
+lighting edge wherever the product changed level. Now (step 2) it casts and receives shadows only as sharp as its
+spacing supports: Harkhebi's craters keep their large shadows with soft edges and no triangles, and debug view 2 marks
+them approximate (orange).
 
 **Time, camera fixed** (`--sequence time,fast`): 2 min and 24 min (1 day/s at 60 fps) per frame. The frame-to-frame
 change max / median is 1.15–1.27 and 1.24–1.88 over the three polar views: the edges advance evenly, with no pops.
@@ -160,17 +172,29 @@ revision ([drag.json](validation/terrain-solar-shadow/camera/drag.json)). The Su
   focus travelled up to 55 km), points changed level, and their answer changed: one point 12 km from Shackleton read 0
   at level 0 (62 m), 0.10 at level 1 (0.19 km) and 1 at level 2 (0.62 km), and flipped 0 ↔ 1 ten times in the drag.
   Now every level is centred on the site (step 1). In the same drag the site never moves: each of the 80 points stays
-  on one level, and its CPU fraction is constant (that point: level 1, 0.10, every frame); no level is rebuilt and no
-  horizon map re-rendered (before: 110 level rebuilds, 404 horizon renders); all 81 frames have every level complete
-  (before: 25). The hoppers' terrain Sun visibility (Polaris-A 0, B 1, C 0) is the same in every frame.
+  on one level, and its CPU fraction is constant (that point: level 1, 0.12, every frame); no level re-centres (one
+  rebuild: the outer level's data finishing loading; before: 110 rebuilds and 404 horizon renders); every frame draws
+  complete levels (before: 25 of 81). The hoppers' terrain Sun visibility (Polaris-A 0, B 1, C 0) is the same in every frame.
 - **Same camera, only the clipmap focus moved** ([Sun fraction: own focus | 50 km | 150 km](validation/terrain-solar-shadow/camera/focus-moved-same-camera.png)):
   10, 25 and 50 km leave the site, every pinned point's level and fraction, and the image unchanged (0 pixels);
-  150 km (beyond four altitudes) moves the site, and the image changes as levels change (13 % of Sun-fraction pixels,
-  1.4 % of the lit image); returning restores it exactly. The hoppers do not change.
-- **Remaining pixel changes are not the shadow data.** 28 changes of a pinned point's pixel by more than a quarter
-  remain, at constant level and CPU fraction: 8 change the Off image as much (labels, trails, the drawn LOD), the rest
+  150 km (beyond four altitudes) moves the site, and once faded in the image differs as levels change (13 % of
+  Sun-fraction pixels, 1.4 % of the lit image); returning restores it exactly. The hoppers do not change.
+- **Remaining pixel changes are not the shadow data.** 31 changes of a pinned point's pixel by more than a quarter
+  remain, at constant level and CPU fraction: 9 change the Off image as much (labels, trails, the drawn LOD), the rest
   are points at a shadow edge, where the drawn mesh's LOD moves which ground the pixel shows by up to a few hundred
   metres.
+- **Site moves fade instead of popping** (`--path site [--no-fade]`; [site-move.mp4](validation/terrain-solar-shadow/camera/site-move.mp4): Sun fraction, without | with
+  the fade; series in [site-boundary.json](validation/terrain-solar-shadow/camera/site-boundary.json)). 2.5 km above Shackleton's sunward rim, the camera jumps 1.5 km at a
+  time toward the Sun and holds still for 15 frames after each jump; it moves the site three times. Any change while
+  the camera holds still is the shadow's own. Without the fade, a move changes up to 2.5 % of the Sun-fraction view's
+  pixels in one frame; with it, no held frame changes more than 0.04 %. At this Sun (0.28°) the lit image changes on
+  no held frame in either case: there is too little direct light for the level change to show.
+- **No lighting edge where the source gets coarser** (`--path boundary`; [boundary.mp4](validation/terrain-solar-shadow/camera/boundary.mp4): lit and Sun fraction,
+  previous | this revision; [still](validation/terrain-solar-shadow/camera/boundary-before-after.png) with debug view 2). 40 km up at 115°E, the view moves 90 km from
+  84.5°S to 80.5°S across the product's 0.85 → 1.7 km change, while the clock runs 5 min per frame (Sun ~2° up).
+  Before, the 1.7 km side had no terrain shadows: a hard edge, with Idel'son crater drawn lit (magenta in view 2).
+  Now its shadows continue, softer, marked approximate (orange). Frame-to-frame change, max / median: Sun fraction 1.19
+  (before 1.49), lit 2.15 (Off 2.20): no frame stands out.
 - **Fixed: re-centres swapped in terrain still loading.** A re-centred level used to swap in at once, with its new
   strip unknown until the source tiles arrived; unknown is drawn lit, so shadows there vanished and came back as the
   camera moved. A re-centred level now keeps its current, complete data until the strip's tiles load (at most 2 s).
@@ -220,7 +244,8 @@ A relightable albedo product for the pole is the data needed for a trustworthy c
 **Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
 position. 679 samples, Sun −0.8° to 1.4°, up to 0.31 km above ground, lit and shadowed both landed and flying: max
-difference 0.05 (one penumbra sample), all others 0. Before this change a hopper in a terrain shadow was fully sunlit.
+difference 0.09 (two penumbra samples, where the source-spacing widening applies), all others 0. Each sample is read
+once any site fade has finished: during one a vehicle blends from the old site's answer as the terrain does. Before this change a hopper in a terrain shadow was fully sunlit.
 Polaris-C on 2028-12-15, shadows off / on:
 [landed off](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-landed-off.png), [landed on](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-landed-on.png),
 [flying off](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-flying-off.png), [flying on](validation/terrain-solar-shadow/vehicles/Polaris-C-2028-12-15-flying-on.png);
@@ -232,21 +257,24 @@ Mean frame time on the hardware GPU (Apple M4 Max, Metal, vsync and frame limit 
 steady state. "Horizon pass" re-renders two levels every frame (`on-rehorizon`, the per-frame budget), which is the cost
 while the Sun moves fast; at 1× it re-renders about once every 2 minutes on the Moon.
 
-| View | 1280×720 off → on | Horizon pass | 3840×2160 off → on | Horizon pass |
+| View | 1280×720 off → on | Horizon pass | 3840×2160 off → on (previous revision) | Horizon pass (previous revision) |
 | --- | --- | --- | --- | --- |
-| Shackleton rim | 1.8 → 1.6 ms | 7.3 ms | 2.4 → 3.2 ms | 8.2 ms |
-| Polar ridge | 1.3 → 1.3 ms | 5.7 ms | 1.4 → 1.6 ms | 6.9 ms |
-| Polar outer ring | 1.2 → 1.3 ms | 4.9 ms | 1.9 → 2.2 ms | 5.4 ms |
+| Shackleton rim | 1.3 → 1.3 ms | 5.3 ms | 2.4 → 3.2 ms | 8.2 ms |
+| Polar ridge | 1.2 → 1.2 ms | 5.1 ms | 1.4 → 1.6 ms | 6.9 ms |
+| Polar outer ring | 1.3 → 1.3 ms | 4.5 ms | 1.9 → 2.2 ms | 5.4 ms |
 
 - **Steady state** costs 0–0.8 ms even at 4K: the per-pixel part is a level lookup and one filtered fetch.
-- **Horizon pass**: one level, 256² texels, about 1–3 ms on this GPU, at most two levels per frame (all after a seek),
+- **Horizon pass**: one level, 256² texels, about 1–3 ms on this GPU (the source-spacing widening adds one square root
+  per step; this revision measures 4.5–5.3 ms mean for two levels per frame at 1280×720, as before), at most two levels per frame (all after a seek),
   only when the data or the Sun changed. It does not grow with screen resolution. `medium` and `low` take one-texel
   steps instead of 0.75; `low` stops after 420 steps, which still reaches the outer level.
 - **Vehicles**: one CPU march per vehicle per frame (a few hundred bilinear taps).
 - **CPU fill**: a re-centre samples the newly exposed strip; an initial level 64k texels at 20–110 ms, spread over
   frames at `budgetMs` (3 ms). Orbiting and panning no longer re-centre anything (the review's drag: 0 rebuilds and 0
   horizon renders, from 110 and 404); only a site move does.
-- **Memory**: four RG32F height levels (2 MB) and four RGBA16F horizon maps (2 MB). No draw calls are added.
+- **Memory**: four RGBA32F height levels (height, validity, source spacing: 4 MB), four RGBA16F horizon maps (2 MB)
+  and, after the first site move, one 512² RGBA16F atlas of the previous maps (2 MB). A site move adds four small copy
+  draws once, and the terrain fragments read the atlas only during its 0.8 s fade. No draw calls are added otherwise.
 
 There is no phone or integrated-GPU measurement. The open question there is the horizon pass, likely 5–20× slower than on
 an M4 Max; `low`, smaller levels (`size: 128`) and the per-frame budget are the levers. The default stays off until that
@@ -265,9 +293,9 @@ is measured.
   no level holds is drawn lit.
 - **Time warp.** At 1 day/s each level's map lags the Sun by at most two frames (measured max 0.16–0.35° on the M4 Max;
   about 0.4° at 60 fps), costing 4.8–6.1 ms p50 / 8.5–12 ms p95 per frame against 1.1–1.4 ms off. After a seek, 0.
-- **Coarse source terrain.** Terrain whose finest source spacing is over 1 km casts and receives no terrain shadows (the
-  demo Moon product outside its polar and regional detail is 6.8 km apart; its shadows were projections of those
-  triangles). Within the limit, shadows show facets up to the source spacing.
+- **Coarse source terrain.** Shadows on and from terrain whose heights are kilometres apart are soft and approximate
+  (debug view 2: orange): they show what the spacing supports, not a determined visibility. The softening uses one
+  typical slope (0.05) for every terrain; rougher terrain would warrant more.
 - **Vehicles** are lit or shadowed as a whole from one point, and the factor dims their ambient light too (as eclipses do).
 - **Baked imagery** (see above). Imagery declared `baked` shows no terrain shadows, and the viewer says so.
 - **Quantized-mesh terrain** mixes LODs in its CPU samples. Cube-sphere terrain is the supported low-Sun path.
@@ -278,7 +306,7 @@ is measured.
 | Issue requirement | Where |
 | --- | --- |
 | Synthetic ridge with known occlusion; sweeps move the edge predictably | CPU test + WebGL parity, 2 azimuths × 5 elevations, 3 presets, 2 filter paths |
-| Shackleton-like rim/floor, equatorial Moon, representative Mars | Real Moon captures (equatorial terrain in the demo product is too coarse and is left out, labelled); Mars synthetic only (no Mars terrain product locally) |
+| Shackleton-like rim/floor, equatorial Moon, representative Mars | Real Moon captures (equatorial terrain in the demo product is 6.8 km apart: soft, approximate shadows, labelled); Mars synthetic only (no Mars terrain product locally) |
 | Vehicles shadowed by terrain, landed and flying | `sunFractionAt`; MoonFall hop check against the CPU reference |
 | Tracks the Sun under fast playback and seeks | Fair horizon scheduling; measured lag ≤ 0.36° at 1 day/s, 0 after seeks |
 | Offscreen / adjacent-tile occluders within a documented radius | `occluderRangeKm`; outer level 320 km |

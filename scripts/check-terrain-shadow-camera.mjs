@@ -9,7 +9,10 @@
  * `--path drag` restores a shared view and orbits it with real mouse drags (the viewer's own controls), then, with that
  * view held, moves only the clipmap focus (10–150 km) and records the points again; `--path user` orbits low around
  * Shackleton's rim; the default path is described below. Every frame also logs the clipmap site and the hoppers'
- * terrain Sun visibility.
+ * terrain Sun visibility. `--path site`: 2.5 km from the ground, the view moves 15 km in steps with holds between
+ * (past the site-move threshold; see PATH). `--path boundary`: 40 km up at lon 115°, the view moves from 0.85 km to 1.7 km source spacing (lat −84.5° to
+ * −80.5°) with the Sun ~1.5° up and the clock running 5 min per frame. Both record frame-to-frame image changes per
+ * pass; `--no-fade` swaps a moved site in at once (the A/B for the site-move cross-fade).
  *
  * MoonFall Shackleton, time frozen at 2029-02-05 16:08:55 UTC, terrain shadows High. One camera path (zoom out past the
  * 320 km cut-off and back, a full orbit, a 120 km pan and back, low grazing views, the same with the orbit target left
@@ -40,16 +43,24 @@ const USER_PATH = args.path === 'user';
 // --path drag --view-url '<viewer link>': start from that shared view and orbit with real mouse drags (the viewer's own
 // orbit controls, whatever their pivot), 15 px per frame: right, back left past the start, right to the start, up, down.
 const DRAG = args.path === 'drag';
+const SITE = args.path === 'site', BOUNDARY = args.path === 'boundary';
 const DRAGS = [...Array(16).fill([15, 0]), ...Array(32).fill([-15, 0]), ...Array(16).fill([15, 0]), ...Array(8).fill([0, -10]), ...Array(8).fill([0, 10])];
 mkdirSync(OUT, { recursive: true });
 
 // Camera keyposes: target (lat, lon), range from it (km), tilt from vertical, heading the camera looks along.
 const SHACK = [-89.67, 129.2];
-const key = (target, range, tilt, heading, far = false) => ({ lat: target[0], lon: target[1], range, tilt, heading, far });
-const RIM = (az) => { const d = 10.5 / 1737.4, la = SHACK[0] * Math.PI / 180, a = az * Math.PI / 180;
+const key = (target, range, tilt, heading, far = false, min = 0) => ({ lat: target[0], lon: target[1], range, tilt, heading, far, min });
+// The point `km` from `from` along azimuth `az` (great circle).
+const along = (from, km, az) => { const d = km / 1737.4, la = from[0] * Math.PI / 180, a = az * Math.PI / 180;
   const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(a));
-  return [la2 * 180 / Math.PI, SHACK[1] + Math.atan2(Math.sin(a) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2)) * 180 / Math.PI]; };
-const PATH = USER_PATH ? [
+  return [la2 * 180 / Math.PI, from[1] + Math.atan2(Math.sin(a) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2)) * 180 / Math.PI]; };
+const RIM = (az) => along(SHACK, 10.5, az);
+// 2.5 km from the ground, from Shackleton's sunward rim 15 km toward the Sun (azimuth 274° at the review's epoch) in ten
+// 1.5 km jumps, each held for 15 frames, looking back across the rim: any change while the camera holds still is the
+// shadow's own (a site move's pop, or its fade).
+const PATH = SITE ? Array.from({ length: 11 }, (_, i) => key(along(RIM(274), 1.5 * i, 274), 2.5, 65, 94))
+  : BOUNDARY ? [key([-84.5, 115], 40, 60, 0), key([-80.5, 115], 40, 60, 0, false, 5 * STEPS)]
+  : USER_PATH ? [
   // Orbit the crater at 30 km, 65° tilt; dip to 12 km and back; walk the target round the rim; back to the start.
   ...[0, 45, 90, 135, 180, 225, 270, 315, 360].map(h => key(SHACK, 30, 65, h)),
   ...[12, 30].map(r => key(SHACK, r, 65, 360)),
@@ -66,19 +77,20 @@ const PATH = USER_PATH ? [
 ];
 // Interpolated per-frame poses (heading unwrapped).
 const FRAMES = DRAG ? [{ key: 0, drag: null }, ...DRAGS.map((d, i) => ({ key: i === 63 || i === 79 ? i + 1 : null, drag: d }))] : [];
-for (let k = 0; !DRAG && k < PATH.length - 1; k++) {
+if (SITE) PATH.forEach((p, k) => { for (let s = 0; s < 16; s++) FRAMES.push({ ...p, key: s === 0 ? k : null }); });
+for (let k = 0; !DRAG && !SITE && k < PATH.length - 1; k++) {
   const a = PATH[k], b = PATH[k + 1];
   for (let s = 0; s < STEPS; s++) {
     const f = s / STEPS, lerp = (x, y) => x + (y - x) * f;
     FRAMES.push({ key: s === 0 ? k : null, far: a.far && b.far, lat: lerp(a.lat, b.lat), lon: lerp(a.lon, b.lon), range: Math.exp(lerp(Math.log(a.range), Math.log(b.range))),
-      tilt: lerp(a.tilt, b.tilt), heading: lerp(a.heading, b.heading) });
+      tilt: lerp(a.tilt, b.tilt), heading: lerp(a.heading, b.heading), min: lerp(a.min, b.min) });
   }
 }
-if (!DRAG) FRAMES.push({ ...PATH[PATH.length - 1], key: PATH.length - 1 });
+if (!DRAG && !SITE) FRAMES.push({ ...PATH[PATH.length - 1], key: PATH.length - 1 });
 
 // Pinned ground points: rings around Shackleton (3–140 km, inside the polar detail) and two at 220 km (too coarse).
 const POINTS = [];
-for (const [dist, n] of USER_PATH || DRAG ? [[3, 8], [6, 12], [9, 12], [12, 12], [16, 12], [22, 12], [30, 12]] : [[3, 4], [10, 6], [25, 8], [50, 8], [90, 8], [140, 8], [220, 2]]) {
+for (const [dist, n] of SITE || BOUNDARY ? [] : USER_PATH || DRAG ? [[3, 8], [6, 12], [9, 12], [12, 12], [16, 12], [22, 12], [30, 12]] : [[3, 4], [10, 6], [25, 8], [50, 8], [90, 8], [140, 8], [220, 2]]) {
   for (let i = 0; i < n; i++) POINTS.push({ id: `${dist}km-${i}`, distKm: dist, azDeg: (360 * i) / n });
 }
 
@@ -86,6 +98,14 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true, args:
 const VIEWPORT = { width: 1280, height: 720 };
 const passes = {};
 let pinned = null, epochInfo = null, ab = null;
+const changed = (A, B) => {
+  let n = 0, N = 0;
+  for (let y = 20; y < A.height - 80; y++) for (let x = 50; x < A.width - 20; x++) {
+    const o = (y * A.width + x) * 4; N++;
+    if (Math.max(Math.abs(A.data[o] - B.data[o]), Math.abs(A.data[o + 1] - B.data[o + 1]), Math.abs(A.data[o + 2] - B.data[o + 2])) > 24) n++;
+  }
+  return +(100 * n / N).toFixed(2);
+};
 // Median gray (0–1) of the 3×3 pixels at a point.
 const pixel = (png, p) => {
   const g = [];
@@ -104,7 +124,7 @@ try {
   await page.goto(start ? new URL(start.search, BASE).href : new URL('?catalog=test-catalogs/moonfall-shackleton&test=1', BASE).href, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
   const et = (Date.parse(EPOCH) - Date.parse('2000-01-01T12:00:00Z')) / 1000 + 69.184;
-  epochInfo = await page.evaluate(async ({ et, SHACK, POINTS }) => {
+  epochInfo = await page.evaluate(async ({ et, SHACK, POINTS, noFade }) => {
     const source = await (await fetch('/src/lib/commands.ts')).text();
     const stateURL = source.match(/from ["']([^"']*viewer-state\.svelte[^"']*)["']/)?.[1];
     window.cap = await import(stateURL ?? '/src/lib/viewer-state.svelte.ts');
@@ -112,6 +132,7 @@ try {
     window.cap.setPlaying(false); if (!new URLSearchParams(location.search).has('view')) window.cosmo.untrack();
     r.setLightingMode('natural'); r.setTerrainShadowMode('high');
     r.timeController.setTime(et);
+    if (noFade) r.getBodyMesh('Moon').terrainManager.solarShadow.siteFadeMs = 0;
     const DEG = Math.PI / 180, R = 1737.4;
     const moon = r.getBodyMesh('Moon'), THREE = r.camera.position.constructor;
     const centre = () => moon.getWorldPosition(new THREE());
@@ -136,7 +157,7 @@ try {
     window.probe = {
       frames, pts,
       pose(f) {
-        r.timeController.setTime(et);
+        r.timeController.setTime(et + (f.min ?? 0) * 60);
         if (f.drag !== undefined) {
           const controls = r.cameraController.controls;
           controls.enableDamping = false;
@@ -185,7 +206,7 @@ try {
         });
         const hoppers = Object.fromEntries(['Polaris-A', 'Polaris-B', 'Polaris-C'].map(n => [n, r.getBodyMesh(n)?.shadowUniforms?.uTerrainSunVisibility?.value ?? null]));
         return { altKm: +(Math.hypot(...camBf) - R).toFixed(2), state: st?.state ?? null, anchorResets: st?.anchorResets ?? null,
-          siteKm: st?.siteKm?.map(v => +v.toFixed(2)) ?? null, siteMoves: st?.siteMoves ?? null, hoppers,
+          siteKm: st?.siteKm?.map(v => +v.toFixed(2)) ?? null, siteMoves: st?.siteMoves ?? null, siteFade: st?.siteFade ?? null, hoppers,
           sourceRevision: cl?.source?.revision ?? null, horizonRenders: st?.horizonRenders ?? null, offsetsKm: st?.levels.map(l => l.offsetKm),
           builds: st?.levels.map(l => l.builds), reasons: st?.levels.map(l => l.lastReason), lagDeg: st?.levels.map(l => l.horizonSunLagDeg && +l.horizonSunLagDeg.toFixed(3)), points };
       },
@@ -198,7 +219,7 @@ try {
     };
     await frames(2);
     return r.solarGeometryAt('Moon', SHACK[0], SHACK[1]);
-  }, { et, SHACK, POINTS });
+  }, { et, SHACK, POINTS, noFade: !!args['no-fade'] });
   console.log(`epoch ${EPOCH}: Sun at Shackleton elevation ${epochInfo.elevationDeg.toFixed(2)} deg, azimuth ${epochInfo.azimuthDeg.toFixed(1)}`);
 
   const DEBUG = { off: 0, on: 0, fraction: 1, unknown: 2 };
@@ -226,6 +247,7 @@ try {
     const dir = join(OUT, `frames-${mode}`);
     rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
     const rows = [];
+    let prevPng = null;
     for (let i = 0; i < FRAMES.length; i++) {
       if (FRAMES[i].drag) {
         const [dx, dy] = FRAMES[i].drag, x = VIEWPORT.width / 2, y = VIEWPORT.height / 2;
@@ -234,11 +256,12 @@ try {
       const s = await page.evaluate(async (f) => { window.probe.pose(f); await window.probe.frames(2); return window.probe.state(); }, FRAMES[i]);
       const buf = await page.screenshot({ type: 'png' });
       writeFileSync(join(dir, `${String(i).padStart(4, '0')}.png`), buf);
-      if (mode !== 'unknown') {
-        const png = PNG.sync.read(buf);
-        for (const p of s.points) p.gray = p.visible ? pixel(png, p) : null;
-      }
-      rows.push({ frame: i, key: FRAMES[i].key, rangeKm: FRAMES[i].range === undefined ? null : +FRAMES[i].range.toFixed(1), ...s });
+      const png = PNG.sync.read(buf);
+      if (mode !== 'unknown') for (const p of s.points) p.gray = p.visible ? pixel(png, p) : null;
+      // Share of pixels that changed by more than 24 / 255 since the previous frame (clear of the viewer's chrome).
+      const changedPct = prevPng ? changed(prevPng, png) : null;
+      prevPng = png;
+      rows.push({ frame: i, key: FRAMES[i].key, rangeKm: FRAMES[i].range === undefined ? null : +FRAMES[i].range.toFixed(1), changedPct, ...s });
     }
     passes[mode] = rows;
     console.log(`${mode}: ${rows.length} frames`);
@@ -304,4 +327,8 @@ for (const p of report) {
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '12',
   ...['off', 'on', 'fraction', 'unknown'].flatMap(m => ['-i', join(OUT, `frames-${m}`, '%04d.png')]),
   '-filter_complex', '[0][1][2][3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0,scale=1920:-2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '26', join(OUT, 'camera.mp4')]);
+for (const [mode, rows] of Object.entries(passes)) {
+  const c = rows.map(r => r.changedPct).filter(v => v !== null), sorted = [...c].sort((x, y) => x - y), max = Math.max(...c);
+  console.log(`${mode.padEnd(8)} changed per frame: median ${sorted[c.length >> 1]} %, max ${max} % (frame ${rows.findIndex(r => r.changedPct === max)}); site moves ${rows[0].siteMoves}..${rows[rows.length - 1].siteMoves}`);
+}
 console.log(`errors: ${errors.length}`);

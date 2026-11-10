@@ -28,7 +28,7 @@
   const SHADOW_DEBUG_VIEWS: { mode: SolarShadowDebugMode; name: string; legend: string }[] = [
     { mode: 0, name: 'none', legend: '' },
     { mode: 1, name: 'sun fraction', legend: 'White: Sun fully visible · black: hidden by terrain' },
-    { mode: 2, name: 'unknown', legend: 'Sun fraction; magenta where height data is missing or too coarse (over 1 km apart) here or on the way to the Sun (drawn lit)' },
+    { mode: 2, name: 'unknown', legend: 'Sun fraction; magenta where height data is missing here or on the way to the Sun (drawn lit); orange where the heights are too far apart to decide it (approximate)' },
     { mode: 3, name: 'alignment', legend: 'Green: drawn terrain within 10 m of the shadow data · red/blue: above/below' },
     { mode: 4, name: 'neutral + shadows', legend: 'Grey albedo lit by the Sun, with terrain shadows (no imagery)' },
     { mode: 5, name: 'neutral, no shadows', legend: 'Grey albedo lit by the Sun, without terrain shadows' },

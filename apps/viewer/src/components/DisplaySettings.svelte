@@ -51,7 +51,7 @@
     if (shadow.baked) return 'This surface\'s imagery has its lighting baked in, so shadows will not show on it.';
     // The finest clipmap level, around the view's centre.
     if (shadow.coarse > 0 && (shadow.state === 'ready' || shadow.state === 'partial')) {
-      return `Terrain heights here are over 1 km apart${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: too coarse to cast shadows, so drawn without them.`;
+      return `Terrain heights here are farther apart than the shadow detail${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: shadows there are only as sharp as the heights support.`;
     }
     switch (shadow.state) {
       case 'building': return 'Building terrain data…';

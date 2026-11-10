@@ -78,6 +78,8 @@ try {
           controls.target.copy(bm.position); c.lookAt(bm.position); c.updateMatrixWorld(true);
           await frames(2);
         }
+        // A camera move that moved the clipmap site fades the old answer out over 0.8 s: compare the settled one.
+        for (let i = 0; i < 240 && (moon.solarShadowStatus?.siteFade ?? 1) < 1; i++) await frames(1);
         const fraction = bm.shadowUniforms.uTerrainSunVisibility.value;
         const g = r.solarGeometryAt('Moon', latDeg, lonDeg);
         const ground = moon.sampleTerrain(latDeg, lonDeg)?.elevationKm ?? null;
