@@ -1,8 +1,45 @@
 # Issue #359 / PR #363 validation
 
-The latest multi-turn controls below ran on **`f8c9a5f8`**. PR #363 remains draft; no merge or readiness transition was performed. Individual controls establish the recorded behavior, not statistical reliability.
+PR #363 remains draft; no merge or readiness transition was performed. The controls below establish the recorded behavior, not statistical reliability.
 
-## Persistent conversation review
+
+## Task-level height execution review
+
+The latest review's exact request, **“show me when ingenuity is at max elevation across all flights”**, now leads to one precise choice between reference-ellipsoid height and physical terrain clearance. The native task never silently substitutes a height datum. After choosing ellipsoid height, the existing numerical service evaluated **all 72 flight intervals**, stored native results, and navigated to its best available sampled candidate. The follow-up “show me” reused that result without another analysis.
+
+`analysis.analyzeTrajectoryExtrema` resolves subjects, full native activity/window scope, declared datum/frame/source compatibility and numerical defaults, then uses the existing solver/results/navigation. `getTrajectoryAnalysisOptions` exposes current scene choices. `resolve` now labels truncated activity candidates; compact scene summaries reach the model instead of exceeding its output budget.
+
+Bounds are **32 subjects, 128 intervals, 200,000 evaluations per interval and 1,000,000 total**. Source-knot-based per-interval allowances prevent early dense flights consuming the collection budget. Known covered pieces are probed before rejecting a broad envelope. No knots or source epochs are silently discarded, snapped or extrapolated, and no new solver/planner was added.
+
+Preflight distinguishes ambiguous measurement/body, invalid scope, unsupported metric and supported analysis with unavailable data. One executed analysis per subject set is allowed per Ask request; at most two rejected scope preflights or malformed numerical inputs are allowed. Equivalent task/expert retries return a terminal outcome and established facts; the loop skips remaining batch work. Ten fixed-mode rounds and one answer correction remain, without a recovery-round counter or new production token quota. Numerical work bounds are not a physical error or wall-clock guarantee.
+
+Navigation retains goal/manual-takeover/scene-reload contracts. Marking its synchronous clock notifications as its own write fixes the reproduced false takeover. Bounded history preserves exact result IDs. Typed answer checks keep activity counts, evaluated-versus-gap-free intervals, source provenance and authored dates distinct from measured events.
+
+### Scientific result and limits
+
+All 72 Ingenuity intervals produced numerical candidates. **17** have sampled-complete coverage; **55** retain declared trajectory endpoint gaps up to **0.0000200272 s**, observed between catalog activity epochs and loaded trajectory bounds. Those epochs were not snapped, clamped or extrapolated. Consequently `winnerId` stays null. The separately qualified best available ellipsoid-height candidate is **Flight 64**, about **−2.04024 km**, at **2023-10-27T20:47:55.095Z** (ET **751711744.2791412**). Negative ellipsoid height is not terrain clearance. Ingenuity's trajectories are estimated reconstructions, not 3D telemetry; source accuracy and a global height error remain unknown.
+
+The held-out minimum request selected **Flight 16**, about **−2.24908 km**, at **2021-11-21T02:04:19.916Z** (ET **690732329.1**), with the same partial-coverage qualification. Neither candidate certifies a global winner, altitude accuracy, contact or physical release. Full-flight physical AGL was not live-accepted here; the live height comparisons used explicitly chosen reference surfaces.
+
+### Final controls
+
+Controls used the normal Ask textarea/Send path, one persistent conversation per case, and fresh browser processes. All inference was **Haiku `claude-haiku-5-5` only**, escalation pinned, fallback disabled, output 1536 tokens. Native interval/result coverage, independently recomputed heights, exact ET, camera, selection/activity, visibility/profiles and delivered payloads were checked. Ingenuity and MoonFall rendered views were inspected. SwiftShader; cache warmth uncontrolled.
+
+| Control | Observed result | Rounds / processed tokens |
+| --- | --- | --- |
+| Exact Ingenuity request → explicit ellipsoid choice → “show me” | One datum question, 72 interval candidates, qualified Flight 64 view; ID reused | 2 / 23,123; 4 / 52,550; 4 / 49,194 |
+| Highest radial sphere height across all Polaris hops → “show me” | All 12 hops sampled-complete; synthetic Polaris-D connector candidate, ~2.049 km; exact native view | 4 / 53,133; 2 / 25,138 |
+| Held-out lowest ellipsoid height across Ingenuity flights | All 72 candidates, qualified Flight 16, native epoch/selection/view | 5 / 71,208 |
+| Philae maximum physical terrain clearance over the specified descent interval | Data unavailable; no fabricated result/navigation or claim that DSK geometry is absent | 4 / 62,747 |
+| Exact four-turn Rosetta conversation from the preceding review | Authored touchdown/separation views; range-history investigation; exact sampled-minimum seek with pre-existence visibility qualification | 5 / 75,550; 6 / 79,842; 6 / 98,487; 3 / 47,447 |
+
+These eleven turns total **45 rounds / 638,419 processed tokens**. The main controls ran on `5903eaf6`; the final covered-piece preflight and semantic assertion were checked by the held-out run on `1607f200`. The latter also has a deterministic wide-window regression. These observed controls are not a statistical equivalence or reliability claim, and history turns can still be expensive (one used 98,487 tokens). The result meanings and coverage limits matter independently of navigation success.
+
+Earlier failures included an insufficient shared numerical budget, false clock takeover, oversized evidence, a question mistaken for a result claim, a truncated inventory mistaken for the collection, and omitted reconstruction provenance; regressions cover them. A development reload and a stalled pre-inference scene load invalidate two attempts, which are excluded. An overly literal uncertainty assertion was corrected and a fresh held-out run passed. Raw reports/screenshots remain outside the repository.
+
+**Local validation:** 541 focused tests in 29 files; control build, test/viewer/Svelte typechecks, changed-source ESLint, 127-operation capability coverage, harness syntax and diff checks pass. The final evidence update changes documentation only; exact-head CI is tracked in the PR description. Worker dependencies remain #361; physical contact remains #360; Rosetta's bus-origin identity is unchanged. The earlier missing-frame classification/receipt fixes and truthful fallback remain, with retry handling at operation boundaries.
+
+## Earlier persistent conversation review (`f8c9a5f8`)
 
 The blocking four-turn report was reproduced through the Ask textarea and Send button in one scene/conversation. Baseline `ba358a9a` applied authored viewpoints but could not verify them, changed the separation investigation into a minimum search, discarded the exact sampled ET, and sought a rounded UTC on the fourth turn. No camera-input events were observed in that reproduction; a false manual takeover was not reproduced.
 
