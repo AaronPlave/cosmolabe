@@ -1521,12 +1521,12 @@ export class TerrainManager {
 
   /** Analytical query of finest available physical CPU geometry, independent of
    * camera LOD/residency. Missing grids never fall back to a reference shape. */
-  async requestAnalysisSample(latDeg: number, lonDeg: number): Promise<TerrainSample | null> {
+  async requestAnalysisSample(latDeg: number, lonDeg: number, signal?: { readonly aborted: boolean }): Promise<TerrainSample | null> {
     const cube = this.cube;
     if (!cube || this.frameAvailability.kind !== 'available') return null;
-    await cube.source.request(latDeg, lonDeg);
-    if (this.cube !== cube || cube.source.coverage(latDeg, lonDeg).state !== 'finest') return null;
-    return cube.source.sampleResident(latDeg, lonDeg);
+    const sample = await cube.source.sampleAnalysis(latDeg, lonDeg, signal);
+    if (signal?.aborted || this.cube !== cube) return null;
+    return sample;
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {

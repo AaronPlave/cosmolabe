@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { findTrajectoryExtrema, trajectoryExtremumEvent, type TrajectoryAnalysisProvider, type TrajectoryExtremaQuery } from '../geometry/trajectory-extrema.js';
 import { WaypointTrajectory } from '../trajectories/WaypointTrajectory.js';
 
@@ -107,6 +107,19 @@ describe('shared trajectory height extrema', () => {
     expect((await findTrajectoryExtrema(query({ objects:[] }),p)).faults[0].code).toBe('invalid-query');
     expect((await findTrajectoryExtrema(query(),p)).status).toBe('unavailable');
     expect((await findTrajectoryExtrema(query({ maxEvaluations:2 }),provider(() => [12,0,0]))).faults[0].code).toBe('budget');
+  });
+  it('yields by elapsed work before 256 evaluations and observes cancellation immediately', async () => {
+    let clock=0, positions=0, yields=0;
+    const now=vi.spyOn(performance,'now').mockImplementation(()=>clock);
+    const signal={aborted:false};
+    const p=provider(()=>{positions++;clock+=5;return [12,0,0];});
+    p.yield=async()=>{if(++yields===2)signal.aborted=true;};
+    try {
+      const result=await findTrajectoryExtrema(query(),p,{signal});
+      expect(result).toMatchObject({status:'cancelled',results:[]});
+      expect(yields).toBe(2);
+      expect(positions).toBe(4);
+    } finally {now.mockRestore();}
   });
   it('discards late results on cancellation or source revision changes', async () => {
     const signal={ aborted:false }, p=provider(() => [12,0,0]);

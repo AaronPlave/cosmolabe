@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CubeGridSurface, CubeSphereGridSource, cubeTileMesh, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
 import { cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
-import { bodyFixedToGeodetic } from '../TerrainSampler.js';
+import { bodyFixedToGeodetic, geodeticToBodyFixed } from '../TerrainSampler.js';
 
 const faces: CubeFace[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
 
@@ -86,6 +86,52 @@ describe('ellipsoidal cube physical surface', () => {
     expect(sample.elevationKm).toBeLessThan(0); // actual chord sag, not an interpolated zero
     expect(sample.uncertaintyKm).toBeUndefined(); // sampled representation error is not a validated bound
     expect(sample.tileId).toBe(hit.tileId);
+  });
+
+  it('matches Cartesian triangle queries across normal-ray cell and face crossings', async () => {
+    const { source, manifest } = fixture(100, 50);
+    await source.ready;
+    // Fully resident independent control: generic ray traversal/intersection,
+    // with no optimized point-query traversal and no interpolated offsets.
+    await Promise.all(manifest.tiles.map(([face,level,x,y]) => {
+      const d=cubeFaceToDirection(face,-1+2*(x+.5)/2**level,-1+2*(y+.5)/2**level);
+      return source.requestCoordinate(source.sampler.faceCoordinate(
+        bodyFixedToGeodetic({xKm:d[0]*100,yKm:d[1]*100,zKm:d[2]*100},manifest.datum).latDeg,
+        Math.atan2(d[1],d[0])*180/Math.PI));
+    }));
+    const surface=new CubeGridSurface(source,'499','IAU_MARS');
+    for (const [lat,lon] of [[37,77],[0,45],[0,-135],[90,0],[-90,0],[35.264389682754654,45],[30,0],[30,180],[-37,-77]]) {
+      const zero=geodeticToBodyFixed({latDeg:lat,lonDeg:lon},manifest.datum);
+      const above=geodeticToBodyFixed({latDeg:lat,lonDeg:lon,heightKm:2},manifest.datum);
+      const ray={origin:above,direction:[zero.xKm-above.xKm,zero.yKm-above.yKm,zero.zKm-above.zKm] as [number,number,number],nearKm:0,farKm:4};
+      const control=surface.intersectRay(ray,{maxMeshErrorKm:0});
+      expect(control.kind).toBe('hit');
+      if(control.kind!=='hit') throw Error('control unavailable');
+      const sample=await source.sampleAnalysis(lat,lon);
+      expect(sample?.elevationKm).toBeCloseTo(2-control.distanceKm,8);
+      expect(sample?.source.version).toBe('one-build');
+      // Equivalent closed seam triangles may tie after roundoff in the
+      // different ray origins; both must retain finest source provenance.
+      expect(Number(sample?.tileId?.split('/')[1])).toBe(2);
+      if (Math.abs(lon) === 77) expect(sample?.tileId).toBe(control.tileId);
+    }
+  });
+
+  it('cancels during point traversal and never answers from a missing finest grid', async () => {
+    const { source }=fixture(3396.19,3376.2);
+    await source.ready;
+    const surface=new CubeGridSurface(source,'499','IAU_MARS');
+    let checks=0;
+    await expect(surface.sampleElevationAsync(37,77,{checkpoint:async()=>{
+      if(++checks===4) throw new DOMException('cancelled','AbortError');
+    }})).rejects.toMatchObject({name:'AbortError'});
+    expect(checks).toBe(4);
+    const cancelled=new AbortController();cancelled.abort();
+    await expect(source.sampleAnalysis(37,77,cancelled.signal)).rejects.toMatchObject({name:'AbortError'});
+    source.dispose();
+    // Existing coarse roots remain, but disposed/missing finest is not a
+    // physical-clearance answer from a convenient parent.
+    expect(await source.sampleAnalysis(37,77)).toBeNull();
   });
 
   it('preserves equivalent pole and antimeridian coordinates with CPU-only fallback', async () => {

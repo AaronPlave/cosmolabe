@@ -115,6 +115,7 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
     if (!jobs.some(j => j.object === object))
       faults.push({ code: 'unavailable', object, message: 'No matching catalog activity intervals for this object.' });
   let evaluations = 0;
+  let yieldDeadline = performance.now() + 8;
   let furthest = 0;
   const report = (fraction: number) => { furthest = Math.max(furthest, Math.min(1, fraction)); options.onProgress?.(furthest); };
   const maximum = q.maxEvaluations ?? 200000;
@@ -162,10 +163,12 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
         return null;
       }
       evaluations++;
-      if (evaluations % 256 === 0) {
-        await provider.yield?.();
+      if (provider.yield && performance.now() >= yieldDeadline) {
+        await provider.yield();
+        yieldDeadline = performance.now() + 8;
         report((index + (et - window.start) / Math.max(1, window.end - window.start)) / jobs.length);
       }
+      if (interrupted()) return null;
       let sample: Sample | null = null;
       try {
         const p = provider.position(object, et, q.body, q.frame);

@@ -120,7 +120,7 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
       || (datum.referenceShape.kind === 'sphere' ? datum.verticalDatum !== 'reference-sphere' || datum.heightConvention !== 'radial' : datum.verticalDatum !== 'ellipsoid' || datum.heightConvention !== 'geodetic-normal'))
       return null;
     const location = bodyFixedToGeodetic({ xKm: p[0], yKm: p[1], zKm: p[2] }, datum);
-    const sample = await terrainBody.requestTerrainAnalysisSample(location.latDeg, location.lonDeg);
+    const sample = await terrainBody.requestTerrainAnalysisSample(location.latDeg, location.lonDeg, opts.signal);
     if (!sample || sample.source.id !== q.terrain?.id || sample.source.version !== q.terrain.revision)
       return null;
     return { heightKm: sample.elevationKm, sourceUncertaintyKm: sample.source.uncertaintyKm ?? null };
