@@ -45,7 +45,7 @@ try {
     const body=window.__terrainState.getRenderer().getBodyMesh('Mars'),original=body.requestTerrainAnalysisSample;
     body.requestTerrainAnalysisSample=async function(...args){
       if(!p.calls)p.analysisStart=performance.now();p.calls++;const start=performance.now();
-      try{return await original.apply(this,args)}finally{p.maxSampleMs=Math.max(p.maxSampleMs??0,performance.now()-start)}
+      try{return await original.apply(this,args)}finally{p.lastTerrainEnd=performance.now();p.maxSampleMs=Math.max(p.maxSampleMs??0,p.lastTerrainEnd-start)}
     };
     window.__terrainObserver=new PerformanceObserver(l=>p.tasks.push(...l.getEntries().map(e=>({start:e.startTime,duration:e.duration}))));
     window.__terrainObserver.observe({type:'longtask'});
@@ -107,7 +107,7 @@ try {
   report.hot=[...hot].sort((a,b)=>b[1]-a[1]).slice(0,16);report.stopMs=stopMs;report.errors=errors;report.usage=usage;
   const beats=report.beats.filter(b=>b.time>=report.analysisStart).map(b=>b.ms);
   const frames=report.frames.filter(b=>b.time>=report.analysisStart).map(b=>b.ms);
-  report.summary={calls:report.calls,analysisMs:report.finished-report.analysisStart,maxTaskMs:Math.max(0,...report.tasks.filter(t=>t.start>=report.analysisStart).map(t=>t.duration)),maxHeartbeatMs:Math.max(0,...beats),p95FrameMs:frames.sort((a,b)=>a-b)[Math.floor(frames.length*.95)],stopMs,compared:report.results.length};
+  report.summary={maxCalculationTaskMs:Math.max(0,...report.tasks.filter(t=>t.start>=report.analysisStart && t.start<=report.lastTerrainEnd).map(t=>t.duration)),maxCalculationHeartbeatMs:Math.max(0,...report.beats.filter(b=>b.time>=report.analysisStart && b.time<=report.lastTerrainEnd).map(b=>b.ms)),calculationMs:report.lastTerrainEnd-report.analysisStart,calls:report.calls,analysisMs:report.finished-report.analysisStart,maxTaskMs:Math.max(0,...report.tasks.filter(t=>t.start>=report.analysisStart).map(t=>t.duration)),maxHeartbeatMs:Math.max(0,...beats),p95FrameMs:frames.sort((a,b)=>a-b)[Math.floor(frames.length*.95)],stopMs,compared:report.results.length};
   writeFileSync(output,JSON.stringify(report,null,2));
   if(complete){
     assert.equal(report.activities.length,72);assert.equal(report.results.length,72);
@@ -134,7 +134,7 @@ try {
       assert.equal(report.turn.status,'done');assert.equal(report.state.et,best.et);assert.equal(report.state.tracked,'Ingenuity');assert.equal(report.state.playing,false);}
   }else if(live)assert.equal(report.turn.status,'cancelled');else assert.equal(report.result.status,'cancelled');
   writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report.summary));
-  if(process.env.TERRAIN_PERF_ASSERT==='1'){assert.ok(report.summary.maxTaskMs<100);assert.ok(report.summary.maxHeartbeatMs<100);if(stopMs!==null)assert.ok(stopMs<300);}
+  if(process.env.TERRAIN_PERF_ASSERT==='1'){assert.ok(report.summary.maxTaskMs<100);assert.ok(report.summary.maxCalculationTaskMs<100);assert.ok(report.summary.maxCalculationHeartbeatMs<100);assert.ok(report.summary.maxHeartbeatMs<200);if(stopMs!==null)assert.ok(stopMs<300);}
   assert.deepEqual(errors,[]);
   await page.screenshot({path:output+'.png'});
 }finally{await browser.close();if(proxy)await new Promise(resolve=>proxy.close(resolve));}

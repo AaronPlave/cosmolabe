@@ -3,6 +3,48 @@
 PR #363 remains draft; no merge or readiness transition was performed. The controls below establish the recorded behavior, not statistical reliability.
 
 
+## Terrain-query responsiveness review
+
+The exact new review prompt is **“show me the highest altitude (above terrain) that ingenuity got to and fly to ingenuity at that point in time.”** The original `2c9fe679` scene genuinely froze under the native 72-flight physical-terrain workload. This review is addressed in the same PR; the existing solver, numerical allowances, coordinate/frame identities and Ask loop architecture remain.
+
+Point heights still intersect the Cartesian lattice along the geodetic normal. Exact cube-cell plane crossings replace repeated generic radial marching for this point query; finest ownership and closed seam/ancestor-boundary rules remain shared with ray queries. Mesh bounds reject unrelated triangle groups, and the resident-level index skips nonexistent levels. Analytical loading checks finest coverage along the normal and refuses missing grids instead of substituting a coarse parent or reference shape.
+
+Elapsed CPU-time checks target 8 ms in the solver and analytical terrain work. Triangle scans and tile traversal expose cooperative checkpoints; cancellation reaches the actual terrain consumer, with checks after loads/yields and between bounded triangle chunks. Shared grid fetches may still complete for other consumers; cancelled analysis starts no more terrain evaluations. No new worker, solver, planner, recovery-round framework, scene branch or model routing default was added.
+
+### Observed performance
+
+Dedicated, ownership-checked viewers loaded the same Ingenuity catalog on **ANGLE Metal / Apple M4 Max**, with ordinary renderer activation warmed for 30 seconds. Original-head isolation reused unchanged scientific assets; its initial LFS-pointer texture setup failure was excluded. Cache warmth and operating-system scheduling were uncontrolled. CPU profiles/reports/screenshots remain private temporary artifacts.
+
+| Workload | Longest main-thread task | Largest 20 ms heartbeat interval | Stop |
+| --- | ---: | ---: | ---: |
+| Original native workload, ten-second window | 1,434 ms | 2,838.8 ms | 1,101 ms |
+| Fixed native workload, ten-second window | no task ≥50 ms recorded | 41.5 ms | 26 ms |
+| Final exact-prompt UI calculation | no task ≥50 ms recorded | 41 ms | — |
+| Final exact-prompt UI, through final answer/navigation | no task ≥50 ms recorded | 74.4 ms | — |
+| Final UI interactions and Stop | no task ≥50 ms recorded | 78.2 ms | 205 ms |
+
+The matched native CPU probes reduced `finestResident`/`march`/`discover`/`resident` from **82.0% to 3.3%** of sampled CPU hits. The final UI calculation performed **387,231 terrain queries** in **91.67 s**; first terrain query through final answer was **97.51 s**, with a **16.6 ms p95 frame interval**. This is responsiveness evidence, not a claim that dense physical analysis is instantaneous.
+
+The normal Ask textarea/Send control used **Haiku `claude-haiku-5-5` only**, escalation pinned, fallback to another model disabled. Completion took **5 rounds / 69,987 processed tokens**. It compared all 72 native activity IDs, independently checked the returned height with a generic Cartesian ray, and checked model-delivered tool payloads plus exact epoch, pause, selection and tracking. The final model prose still misstated a withheld terrain identity, so the existing single-correction/fact-summary boundary supplied the truthful final answer. No additional recovery rounds or analysis retries were introduced.
+
+The Stop run used the same exact prompt while actual terrain evaluation was active. Timeline stepping, camera dragging and text input were observed before pressing the real Stop button. Timeline stepping completed in 123 ms; actual camera and input changes were verified before Stop returned in 205 ms. The evaluation count remained unchanged for 200 ms after Stop. It used 2 rounds / 23,443 processed tokens.
+
+### Scientific result and truthful partial scope
+
+The best available candidate is **Flight 61**, **0.0240184618532 km (~24 m)** geodetic-normal physical terrain clearance, at **2023-10-05T08:11:34.040Z**, ET **749765563.2247751**. The independent Cartesian-ray result differed by **3.41×10⁻¹³ km**; this numerical agreement does not certify source accuracy. The existing native navigation showed Ingenuity at that exact epoch.
+
+All **72** intervals produced candidates; **17** have no detected gaps and **55** retain declared trajectory endpoint gaps up to **20.0272 µs**. **One** interval also reached its local numerical allowance. That local limit did not stop the collection after 17 flights. No full-scope/global winner or height-error bound is established. The trajectories are estimated reconstructions, not telemetry. A versioned physical terrain source was used; withholding its private identifier from Ask does not make it unidentified or certify its accuracy.
+
+Structured tool summaries now report the evaluated and gap-free counts even when an interval hits a local budget. Typed facts preserve local budget counts and terrain-identity presence without disclosing private identifiers. Existing answer checks reject confusing the gap-free count with the comparison count, a false collection-stop claim, invented budget exhaustion, or an unidentified source inferred from a withheld identifier. Native factual fallback retains all qualifications.
+
+Earlier UI attempts are excluded from final acceptance: an unobserved-terrain-work timeout with no established cause; an independent control ray aimed upward at negative ellipsoid height; misleading scope/source prose; and an initial whole-turn 100 ms heartbeat gate that caught a **56 ms final-view activation task / 114.5 ms heartbeat**. The harness now records calculation and whole-turn timing separately and publishes both. Its gates are <100 ms main-thread tasks, <100 ms calculation heartbeat, <200 ms whole-turn heartbeat, and <300 ms Stop. These are observed regression bounds, not hard realtime guarantees. Software-renderer cold imagery uploads also showed independent stalls; the accepted timing runs use the identified physical GPU.
+
+### Validation and reproduction
+
+**555 focused tests in 35 files** pass across control contracts/answers and native trajectory, physical surface, terrain, navigation and viewer tests. Package builds, test/viewer/Svelte typechecks, changed-source ESLint, script syntax and diff checks pass. Regressions cover elapsed yielding before 256 evaluations, cancellation inside triangle/traversal work, flat ellipsoid/face/edge/pole agreement, missing finest grids, resident replacement/eviction, and actual misleading answer variants.
+
+`CL_VIEWER_URL=http://127.0.0.1:5202/ TERRAIN_PERF_REPORT=/tmp/terrain-native.json node scripts/test-terrain-analysis-responsiveness.mjs` runs the native stop probe. With a dedicated viewer configured for the proxy endpoint and an approved provider/scene, add `TERRAIN_PERF_LIVE=1`; `TERRAIN_PERF_COMPLETE=1` runs completion, otherwise it tests live interactions/Stop. `TERRAIN_PERF_ASSERT=1` enables timing gates. `TERRAIN_PERF_GPU` selects the browser backend; the report records the actual renderer. Paid inference is opt-in and pinned to Haiku. Final runtime source is `7412f370`; subsequent changes only improve the harness/evidence. Exact final-head CI is tracked in the PR description. PR remains draft and unmerged.
+
 ## Task-level height execution review
 
 The latest review's exact request, **“show me when ingenuity is at max elevation across all flights”**, now leads to one precise choice between reference-ellipsoid height and physical terrain clearance. The native task never silently substitutes a height datum. After choosing ellipsoid height, the existing numerical service evaluated **all 72 flight intervals**, stored native results, and navigated to its best available sampled candidate. The follow-up “show me” reused that result without another analysis.
@@ -19,7 +61,7 @@ Navigation retains goal/manual-takeover/scene-reload contracts. Marking its sync
 
 All 72 Ingenuity intervals produced numerical candidates. **17** have sampled-complete coverage; **55** retain declared trajectory endpoint gaps up to **0.0000200272 s**, observed between catalog activity epochs and loaded trajectory bounds. Those epochs were not snapped, clamped or extrapolated. Consequently `winnerId` stays null. The separately qualified best available ellipsoid-height candidate is **Flight 64**, about **−2.04024 km**, at **2023-10-27T20:47:55.095Z** (ET **751711744.2791412**). Negative ellipsoid height is not terrain clearance. Ingenuity's trajectories are estimated reconstructions, not 3D telemetry; source accuracy and a global height error remain unknown.
 
-The held-out minimum request selected **Flight 16**, about **−2.24908 km**, at **2021-11-21T02:04:19.916Z** (ET **690732329.1**), with the same partial-coverage qualification. Neither candidate certifies a global winner, altitude accuracy, contact or physical release. Full-flight physical AGL was not live-accepted here; the live height comparisons used explicitly chosen reference surfaces.
+The held-out minimum request selected **Flight 16**, about **−2.24908 km**, at **2021-11-21T02:04:19.916Z** (ET **690732329.1**), with the same partial-coverage qualification. Neither candidate certifies a global winner, altitude accuracy, contact or physical release. The controls in this section used explicitly chosen reference surfaces; the later terrain-query review above adds a qualified full-flight physical-clearance control.
 
 ### Final controls
 
