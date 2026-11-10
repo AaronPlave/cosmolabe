@@ -143,7 +143,7 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export type ResultFact = { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface HeightAnalysisFact {
   readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
   readonly requested: number; readonly completed: number; readonly metric: string;
@@ -152,6 +152,7 @@ export interface HeightAnalysisFact {
   readonly primaryId?: string | null;
   readonly candidate?: { value:number; utc:string; object:string; activityId:string|null } | null;
   readonly shown?: boolean;
+  readonly sourceKind?: 'estimated-reconstruction' | 'synthetic' | 'source-observed' | 'unknown';
 }
 /** Rendering existence is scene configuration, not physical event timing. */
 export interface SceneExistenceFact {
@@ -808,6 +809,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const words = q.match(/[a-z0-9]+/g) ?? [];
     const nameMatches = (name: string) => matches(name) || words.filter(w => name.toLowerCase().includes(w)).length >= Math.min(2, words.length || 1);
     const candidates: { kind: string; id: string; label: string; detail?: string; viewpoint?: ReturnType<typeof viewpointSummary> }[] = [];
+    let activityMatches: {total:number;returned:number;complete:boolean} | null=null;
     if (kinds.has('object')) {
       const objects = attempt(() => host.listObjects()) ?? [];
       const exact = objects.filter((n) => n.toLowerCase() === q);
@@ -827,14 +829,19 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const words = q.split(/\s+/).filter(Boolean);
       const acts = (attempt(() => host.listActivities!()) ?? [])
         .filter((a) => words.every((w) => `${a.name} ${a.id} ${a.kind} ${a.vehicle}`.toLowerCase().includes(w)));
+      activityMatches={total:acts.length,returned:Math.min(8,acts.length),complete:acts.length<=8};
       for (const a of acts.slice(0, 8)) candidates.push({ kind: 'activity', id: a.id, label: a.name, detail: `${a.kind}, ${a.vehicle}${a.site ? `, site ${a.site}` : ''}` });
     }
     const summary = candidates.length === 0
       ? `Nothing in this scene matches ${JSON.stringify(query)}.`
       : candidates.length === 1
         ? `${JSON.stringify(query)} is the ${candidates[0].kind} ${JSON.stringify(candidates[0].id)}.`
-        : `${candidates.length} candidates for ${JSON.stringify(query)}.`;
-    return { ok: true, summary, data: { candidates, ambiguous: candidates.length > 1 } };
+        : `${candidates.length} candidates shown for ${JSON.stringify(query)}.${activityMatches ? ` ${activityMatches.returned} of ${activityMatches.total} matching activities shown; this is name resolution, not a collection-analysis scope.` : ''}`;
+    const object=host.listObjects().find(n=>n.toLowerCase()===q);
+    const counts:Record<string,number>={};
+    if (object && host.listActivities) for (const a of host.listActivities({vehicle:object}).filter(a=>a.enabled!==false)) counts[a.kind]=(counts[a.kind]??0)+1;
+    return { ok: true, summary, data: { candidates, ambiguous: candidates.length > 1, activityMatches },
+      facts:object && Object.keys(counts).length ? [{kind:'activity-inventory',object,counts}] : [] };
   }
 
   function searchPlaces(input: Input): AgentToolResult {
@@ -1277,7 +1284,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               'data-unavailable': 'The analysis is supported, but relative-state or physical-terrain data did not cover the requested scope. Partial candidates do not establish a collection winner.',
               'work-budget': 'The requested scope exceeds the bounded numerical work available; no complete collection winner is established.',
             };
-            const message = taskResult.reason==='data-unavailable' && response?.results.length
+            const choices=taskResult.options.bodies.filter(b=>b.body===taskResult.body).flatMap(b=>b.metrics.filter(m=>m.available).map(m=>m.metric==='terrain-clearance'?`physical terrain clearance (AGL) on ${b.body}`:m.metric==='reference-ellipsoid-height'?`height above the ${b.body} reference ellipsoid`:`radial height above the ${b.body} reference sphere`));
+            const message = taskResult.reason==='ambiguous-metric' ? `Which measurement do you mean: ${choices.join(' or ')}? These are compatible scene configurations; full interval coverage is not established, and no analysis or navigation has run.`
+              : taskResult.reason==='data-unavailable' && response?.results.length
               ? `${response.results.length}/${taskResult.scope.requested} intervals produced sampled candidates; ${taskResult.scope.completed} have no detected gaps. ${taskResult.coverage.incompleteIntervals} have declared trajectory gaps, largest ${taskResult.coverage.maximumGapSeconds} seconds. The candidate compares ALL returned candidates, including partial intervals. No full-scope winner or global error bound is established.`
               : taskResult.reason ? messages[taskResult.reason] : 'Every requested interval compared using sampled and locally refined extrema, with unknown global height error and source accuracy.';
             const winner = response?.results.find(r => r.id === taskResult.winnerId);
@@ -1295,6 +1304,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
             const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
               evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
+              sourceKind:candidate ? /estimated|reconstruct/i.test(candidate.source.description??'') ? 'estimated-reconstruction' : candidate.source.classification : undefined,
               candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,
               winner: winner ? { value:winner.value, utc:winner.utc, object:winner.object, activityId:winner.activityId } : null };
             this.extremaFacts.set(key, fact);

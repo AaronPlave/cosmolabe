@@ -99,7 +99,7 @@ describe('routine extrema task boundary',()=>{
   const options={available:true,truncated:false,subjects:[{object:'Titan',bodies:['Saturn'],activities:72,activityKinds:['flight']}],bodies:[{body:'Saturn',frame:'IAU_SATURN',metrics:[{metric:'reference-sphere-height' as const,available:true,reason:null}]}]};
   const intent={objects:['Titan'],metric:'reference-sphere-height',extremum:'maximum',scope:{kind:'activities',activityKind:'flight'}};
   function taskHost() {
-    return Object.assign(host(),{getTrajectoryAnalysisOptions:()=>options,analyzeTrajectoryExtrema:vi.fn(async()=>({status:'complete' as const,reason:null,message:'/private/secret',started:true,query,scope:{requested:1,completed:1,activityIds:['flight:1']},options,response:response(),winnerId:'peak',candidateId:'peak',coverage:{assessed:true,incompleteIntervals:0,maximumGapSeconds:0}}))});
+    return Object.assign(host(),{getTrajectoryAnalysisOptions:()=>options,analyzeTrajectoryExtrema:vi.fn(async()=>({status:'complete' as const,body:'Saturn',reason:null,message:'/private/secret',started:true,query,scope:{requested:1,completed:1,activityIds:['flight:1']},options,response:response(),winnerId:'peak',candidateId:'peak',coverage:{assessed:true,incompleteIntervals:0,maximumGapSeconds:0}}))});
   }
   it('delivers bounded full-scope comparison and winner provenance without source/frame leakage',async()=>{
     const h=taskHost();const r=response();
@@ -172,4 +172,23 @@ it('distinguishes all available interval candidates from only the gap-free subse
   expect(checkAnswer('This is the highest of the 17 flights analyzed without gaps, not a verified winner across all 72.',[fact])).toContainEqual(expect.stringContaining('all 72 returned interval candidates'));
   expect(checkAnswer('This is the highest available sampled candidate across 72 flights; 17 have no gaps, and 55 have endpoint gaps. No full-scope winner is established.',[fact])).toEqual([]);
   expect(checkAnswer('The authored view is at 2014-11-08, more precisely 2014-11-12.',[{kind:'authored-viewpoint',name:'fixture',utc:'2014-11-12T08:35:40Z'}])).toContainEqual(expect.stringContaining('no authored viewpoint date'));
+});
+
+it('does not treat a preflight datum question as a claim to a computed collection maximum',()=>{
+  const fact={kind:'height-analysis' as const,status:'clarification',message:'Which height basis?',requested:72,completed:0,evaluated:0,metric:'elevation',winner:null};
+  expect(checkAnswer('Should I measure the maximum across all 72 flights above the reference ellipsoid or above physical terrain?',[fact])).toEqual([]);
+});
+
+it('requires declared estimated or synthetic source provenance with a numerical height answer',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAboveReferenceEllipsoid',winner:null,sourceKind:'estimated-reconstruction' as const};
+  expect(checkAnswer('The sampled candidate is -2.04 km; no full-scope winner is established.',[fact])).toContainEqual(expect.stringContaining('estimated reconstruction'));
+  expect(checkAnswer('The sampled candidate is -2.04 km from an estimated reconstruction; no full-scope winner is established.',[fact])).toEqual([]);
+});
+
+it('does not turn a bounded entity-resolution activity sample into the full collection count',async()=>{
+  const h=host();Object.assign(h,{listActivities:()=>Array.from({length:72},(_,i)=>({id:`titan:flight:${i}`,name:`Flight ${i}`,kind:'flight',vehicle:'Titan',enabled:true}))});
+  const tools=createAgentTools(h),r=await tools.call('resolve',{query:'Titan'});
+  expect(r).toMatchObject({data:{activityMatches:{total:72,returned:8,complete:false}}});
+  expect(checkAnswer('I will compare all 8 Titan flights.',r.facts!)).toContainEqual(expect.stringContaining('72 requested intervals'));
+  expect(checkAnswer('I will compare all 72 Titan flights.',r.facts!)).toEqual([]);tools.dispose();
 });

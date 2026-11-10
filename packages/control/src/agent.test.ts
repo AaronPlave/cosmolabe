@@ -188,7 +188,7 @@ describe('agent tools: scene context', () => {
     (host as ViewerControl).listActivities = () => [FLIGHT_5, { ...FLIGHT_5, id: 'ingenuity-flight-6', name: 'Flight 6' }];
     const tools = createAgentTools(host);
     const one = await tools.call('resolve', { query: 'flight 5' });
-    expect((one as { data: any }).data).toEqual({ candidates: [{ kind: 'activity', id: 'ingenuity-flight-5', label: 'Flight 5', detail: 'flight, Ingenuity' }], ambiguous: false });
+    expect((one as { data: any }).data).toEqual({ candidates: [{ kind: 'activity', id: 'ingenuity-flight-5', label: 'Flight 5', detail: 'flight, Ingenuity' }], ambiguous: false, activityMatches:{total:1,returned:1,complete:true} });
     const many = await tools.call('resolve', { query: 'mare', kinds: ['place'] });
     expect((many as { data: any }).data.ambiguous).toBe(true);
     const typo = await tools.call('resolve', { query: 'Enceladas', kinds: ['object'] });

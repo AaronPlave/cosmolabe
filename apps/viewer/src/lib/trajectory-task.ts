@@ -12,7 +12,7 @@ export const heightMetrics = {
  * never a model-paged inventory. Unknown coverage is checked by the solver, not invented. */
 export function resolveExtremaTask(universe: Universe | null, request: ScriptExtremaRequest, options: ScriptExtremaOptions,
   reference: (body: string, metric: keyof typeof heightMetrics) => { reference: TrajectoryExtremaQuery['reference']; terrain?: TrajectoryExtremaQuery['terrain'] } | null): ScriptExtremaResult {
-  const result: ScriptExtremaResult = { status: 'unavailable', reason: null, message: '', started: false, query: null,
+  const result: ScriptExtremaResult = { status: 'unavailable', reason: null, message: '', started: false, body:null, query: null,
     scope: { requested: 0, completed: 0, activityIds: [] }, options, response: null, winnerId: null, candidateId:null,
     coverage:{assessed:false,incompleteIntervals:0,maximumGapSeconds:0} };
   const fail = (reason: ScriptExtremaResult['reason'], message: string) => Object.assign(result, { reason, message });
@@ -33,10 +33,12 @@ export function resolveExtremaTask(universe: Universe | null, request: ScriptExt
     : [...new Set(request.objects.map(n => universe.getBody(n)?.parentName).filter((n): n is string => !!n))];
   if (bodies.length !== 1 || !universe.getBody(bodies[0])) return fail('ambiguous-body', 'Choose the central reference body; the subjects/scope do not identify one body.');
   const body = bodies[0], bodyOptions = options.bodies.find(b => b.body === body);
+  result.body=body;
   result.scope = { requested: scope.kind === 'activities' ? activities.length : scope.windows.length * request.objects.length,
     completed: 0, activityIds: scope.kind === 'activities' ? activities.map(a => a.id).slice(0, 128) : [] };
   if (result.scope.requested > 128) return fail('work-budget', 'More than 128 intervals requested; narrow the scope explicitly.');
   if (request.metric === 'elevation') {
+    if (!bodyOptions?.metrics.some(m=>m.available)) return fail('data-unavailable','No compatible declared height measurement is available for this subject/scope.');
     result.status = 'clarification';
     return fail('ambiguous-metric', 'Elevation can mean reference-surface height or physical terrain clearance (AGL). Which available metric do you mean? Ask one question with the available alternatives; do not substitute a datum.');
   }

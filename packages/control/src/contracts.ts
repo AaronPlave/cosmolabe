@@ -525,6 +525,7 @@ export interface ScriptExtremaResult {
   reason: 'ambiguous-metric' | 'invalid-scope' | 'missing-subject' | 'ambiguous-body' | 'unsupported-metric' | 'data-unavailable' | 'work-budget' | null;
   message: string;
   started: boolean;
+  body: string | null;
   query: TrajectoryExtremaQuery | null;
   scope: { requested: number; completed: number; activityIds: string[] };
   options: ScriptExtremaOptions;

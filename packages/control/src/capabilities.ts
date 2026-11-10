@@ -165,7 +165,7 @@ const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
     selectedObject: { type: ['string', 'null'] }, tracked: { type: ['string', 'null'] }, flight: NULLABLE_RECORD,
     selectedActivity: NULLABLE_RECORD, selectedPlace: NULLABLE_RECORD, objects: objectSchema({ names: STRINGS, total: NUMBER }),
     viewpoints: objectSchema({ names: STRINGS, total: NUMBER }), activities: NUMBER, focusSurfaceData: NULLABLE_RECORD, focusImagery: NULLABLE_RECORD, unsupported: STRINGS }),
-  resolve: objectSchema({ candidates: RECORDS, ambiguous: { type: 'boolean' } }, ['candidates', 'ambiguous']),
+  resolve: objectSchema({ candidates: RECORDS, ambiguous: { type: 'boolean' }, activityMatches:NULLABLE_RECORD }, ['candidates', 'ambiguous']),
   searchPlaces: { type: 'array', maxItems: 25, items: { type: 'object' } },
   listActivities: objectSchema({ total: NUMBER, offset: NUMBER, returned: NUMBER, nextOffset: { type: ['number', 'null'] }, complete: { type: 'boolean' },
     sort: TEXT, order: TEXT, missingDuration: NUMBER, activities: RECORDS }, ['total', 'offset', 'returned', 'nextOffset', 'complete', 'activities']),

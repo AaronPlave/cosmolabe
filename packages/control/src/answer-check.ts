@@ -47,13 +47,22 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
   const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
+  for (const m of text.matchAll(/\b(?:all|across|over)\s+(?:the\s+)?(\d+)\s+(?:[a-z][a-z'-]*\s+){0,3}?(flights?|hops?|activities|intervals?)\b/gi)) {
+    const kind=/^activit/i.test(m[2])?'activity':m[2].toLowerCase().replace(/s$/,'');
+    const inventory=facts.filter(f=>f.kind==='activity-inventory').filter(f=>text.toLowerCase().includes(f.object.toLowerCase())).at(-1);
+    const expected=height?.requested || (inventory ? kind==='activity'||kind==='interval' ? Object.values(inventory.counts).reduce((a,b)=>a+b,0) : inventory.counts[kind] : undefined);
+    if (expected!==undefined && Number(m[1])!==expected) issues.push(`The full native collection contains ${expected} requested intervals, not ${m[1]}. A bounded name-resolution candidate list is not the collection size.`);
+  }
   if (height) {
     if (height.evaluated && height.evaluated>height.completed) {
       const subset=new RegExp(`\\b(?:highest|lowest|best|maximum|minimum)\\b[^.!?]{0,100}\\b(?:of|among)\\s+(?:the\\s+)?${height.completed}\\s+(?:flights?|intervals?|results?)\\b`,'i');
-      if (subset.test(text)) issues.push(`The candidate compares all ${height.evaluated} returned interval candidates, including partial ones; ${height.completed} counts intervals without detected gaps, not the comparison subset. State that distinction.`);
+      const gapFreeSubset=/\b(?:highest|lowest|best|maximum|minimum)\b[^.!?]{0,50}\b(?:of|among)\b[^.!?]{0,80}\b(?:fully measured|fully covered|gap-free|without gaps)\b/i;
+      if (subset.test(text)||gapFreeSubset.test(text)) issues.push(`The candidate compares all ${height.evaluated} returned interval candidates, including partial ones; ${height.completed} counts intervals without detected gaps, not the comparison subset. State that distinction.`);
     }
+    if (height.sourceKind==='estimated-reconstruction' && !/estimated|reconstruct|not\s+(?:3D\s+)?telemetry/i.test(text)) issues.push('The trajectory source is an estimated reconstruction, not telemetry. State that provenance with the numerical result.');
+    if (height.sourceKind==='synthetic' && !/synthetic|demo/i.test(text)) issues.push('The numerical source is synthetic. State that provenance with the result.');
     if (sentences(text).some(s => /\b(?:certified|verified|true|exact)\s+(?:global\s+)?(?:maximum|minimum|highest|lowest|winner)\b/i.test(s) && !NEGATED.test(s))) issues.push('Height extrema are sampled and locally refined; no certified global height error or physical accuracy is available.');
-    if (!height.winner && sentences(text).some(s => /\b(?:highest|lowest|winner|maximum|minimum)\b/i.test(s) && /\b(?:all|every|entire)\b/i.test(s) && !/\b(?:sampled|available|covered|partial|candidate)\b/i.test(s) && !NEGATED.test(s))) issues.push('Incomplete or unexecuted height scope cannot establish a collection winner. State the actual limitation and completed/requested interval counts.');
+    if (!height.winner && height.status!=='clarification' && sentences(text).some(s => !s.includes('?') && /\b(?:highest|lowest|winner|maximum|minimum)\b/i.test(s) && /\b(?:all|every|entire)\b/i.test(s) && !/\b(?:sampled|available|covered|partial|candidate)\b/i.test(s) && !NEGATED.test(s))) issues.push('Incomplete or unexecuted height scope cannot establish a collection winner. State the actual limitation and completed/requested interval counts.');
   }
   const authored=facts.filter(f=>f.kind==='authored-viewpoint');
   if (authored.length && !events.length && !facts.some(f=>f.kind==='sampled-range')) {
@@ -123,8 +132,10 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
 /** A plain account of published event or sampled-range facts: what the host shows when the model's answer contradicts them. */
 export function factSummary(facts: readonly ResultFact[]): string {
   const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
-  if (height?.candidate && !height.winner) return `${height.evaluated}/${height.requested} intervals produced numerical candidates; ${height.completed} have no detected gaps. The best available sampled ${height.metric} candidate is ${height.candidate.value} km at ${height.candidate.utc} (${height.candidate.activityId??height.candidate.object}); ${height.gapIntervals} intervals have declared trajectory gaps up to ${height.maximumGapSeconds} seconds. No full-scope winner or global error bound is established.${height.shown?' The viewer is paused at this candidate with its vehicle selected and tracked.':''}`;
-  if (height) return height.winner ? `${height.completed}/${height.requested} requested intervals have sampled-complete results. The sampled and locally refined ${height.metric} result for ${height.winner.object} is ${height.winner.value} km at ${height.winner.utc}${height.winner.activityId ? ` (${height.winner.activityId})` : ''}. Global height error and source accuracy are not certified; navigation is a separate viewer outcome.`
+  if (height?.status==='clarification') return height.message;
+  const source=height?.sourceKind==='estimated-reconstruction'?' Source is an estimated reconstruction, not telemetry.':height?.sourceKind==='synthetic'?' Source is synthetic.':'';
+  if (height?.candidate && !height.winner) return `${height.evaluated}/${height.requested} intervals produced numerical candidates; ${height.completed} have no detected gaps. The best available sampled ${height.metric} candidate is ${height.candidate.value} km at ${height.candidate.utc} (${height.candidate.activityId??height.candidate.object}); ${height.gapIntervals} intervals have declared trajectory gaps up to ${height.maximumGapSeconds} seconds. No full-scope winner or global error bound is established.${source}${height.shown?' The viewer is paused at this candidate with its vehicle selected and tracked.':''}`;
+  if (height) return height.winner ? `${height.completed}/${height.requested} requested intervals have sampled-complete results. The sampled and locally refined ${height.metric} result for ${height.winner.object} is ${height.winner.value} km at ${height.winner.utc}${height.winner.activityId ? ` (${height.winner.activityId})` : ''}. Global height error and source accuracy are not certified; navigation is a separate viewer outcome.${source}`
     : `${height.message} ${height.completed}/${height.requested} requested intervals completed; no collection winner was established.`;
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
   const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
@@ -134,7 +145,8 @@ export function factSummary(facts: readonly ResultFact[]): string {
   if (!events.length) {
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
     const authored=facts.filter(f=>f.kind==='authored-viewpoint').at(-1);
-    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : '';
+    const inventory=facts.filter(f=>f.kind==='activity-inventory').at(-1);
+    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : '';
   }
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;
