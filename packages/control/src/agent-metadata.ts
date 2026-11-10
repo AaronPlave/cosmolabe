@@ -64,7 +64,7 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     datum:r.datum.kind === 'sphere' ? {kind:'sphere',radiusKm:r.datum.radiusKm} : {kind:'ellipsoid',radiiKm:r.datum.radiiKm.slice(0,3)},
     heightConvention:r.heightConvention,
     window:{start:r.window.start,end:r.window.end},coverage:r.coverage,
-    source:{id:text(r.source.id),revision:text(r.source.revision),classification:r.source.classification},
+    source:{id:text(r.source.id),revision:text(r.source.revision),classification:r.source.classification, estimatedReconstruction: /estimated|reconstruct/i.test(r.source.description ?? '')},
     terrain:r.terrain ? {id:text(r.terrain.id),revision:text(r.terrain.revision),sourceUncertaintyKm:r.terrain.sourceUncertaintyKm} : null,
     method:{guarantee:r.method.guarantee,stepSeconds:r.method.stepSeconds,timeToleranceSeconds:r.method.timeToleranceSeconds,evaluations:r.method.evaluations,heightErrorBoundKm:r.method.heightErrorBoundKm,
       limits:'Sampled and locally refined; no certified global height error. Source accuracy is separate.'},

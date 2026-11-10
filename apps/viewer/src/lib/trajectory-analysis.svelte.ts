@@ -4,6 +4,53 @@ import { analysis, createConfiguredEventQuery, setEventResults } from './analysi
 import { selectEvent, syncEventResultsInScene, removeConfiguredQuery } from './event-finder.svelte';
 import { analysisResultGuards } from './trajectory-analysis-identity';
 import { getRenderer, getSceneUniverse, sceneId, vs, asHostTimeChange, onViewerEvent } from './viewer-state.svelte';
+import type { ScriptExtremaOptions, ScriptExtremaRequest, ScriptExtremaResult } from '@cosmolabe/control';
+import { heightMetrics, resolveExtremaTask } from './trajectory-task';
+
+export function getTrajectoryAnalysisOptions(objects?: string[], explicitBody?: string): ScriptExtremaOptions {
+  const universe = getSceneUniverse();
+  if (!universe) return { available: false, subjects: [], bodies: [], truncated: false };
+  const all = objects ? objects.map(n => universe.getBody(n)).filter(b => !!b) : universe.getAllBodies().filter(b => universe.activities.list().some(a => a.enabled !== false && a.vehicle === b.name));
+  const subjects = all.slice(0, 32).map(b => {
+    const activities = universe.activities.list().filter(a => a.enabled !== false && a.vehicle === b.name);
+    return { object: b.name, bodies: [...new Set(activities.length ? activities.map(a => a.body) : b.parentName ? [b.parentName] : [])], activities: activities.length, activityKinds: [...new Set(activities.map(a => a.kind))] };
+  });
+  const bodies = [...new Set([...subjects.flatMap(s => s.bodies), ...(explicitBody ? [explicitBody] : [])])].slice(0, 32).map(body => {
+    const frame = universe.frames.bodyFixedFrameFor(body), availability = trajectoryMetricAvailability(body);
+    return { body, frame, metrics: (Object.keys(heightMetrics) as (keyof typeof heightMetrics)[]).map(metric => ({ metric,
+      available: availability[heightMetrics[metric]] === null, reason: availability[heightMetrics[metric]] ?? null })) };
+  });
+  return { available: true, subjects, bodies, truncated: all.length > subjects.length };
+}
+
+export async function analyzeTrajectoryExtrema(request: ScriptExtremaRequest, options: TrajectoryAnalysisOptions = {}): Promise<ScriptExtremaResult> {
+  const universe = getSceneUniverse();
+  const result = resolveExtremaTask(universe, request, getTrajectoryAnalysisOptions(request.objects, request.body), (name, metric) => {
+    const body = universe?.getBody(name), mesh = getRenderer()?.getBodyMesh(name);
+    if (metric === 'terrain-clearance') return mesh?.terrainDatum && mesh.terrainSourceId && mesh.terrainSourceRevision
+      ? { reference: mesh.terrainDatum.referenceShape, terrain: { id: mesh.terrainSourceId, revision: mesh.terrainSourceRevision } } : null;
+    if (metric === 'reference-ellipsoid-height') return body?.radii ? { reference: { kind: 'ellipsoid', radiiKm: body.radii } } : null;
+    const shape = mesh?.terrainDatum?.referenceShape;
+    const radius = body?.radii?.every(r => r === body.radii![0]) ? body.radii[0] : shape?.kind === 'sphere' ? shape.radiusKm : undefined;
+    return radius ? { reference: { kind: 'sphere', radiusKm: radius } } : null;
+  });
+  if (!result.query) return result;
+  if (options.signal?.aborted) return { ...result, status: 'cancelled', message: 'Analysis cancelled before execution.' };
+  result.started = true;
+  clearDirectResults();
+  const response = await runAnalysis(result.query, options, undefined, true);
+  result.response = response;
+  result.status = response.status;
+  result.scope.completed = response.results.filter(r => r.coverage === 'sampled-complete').length;
+  if (response.results.length) result.candidateId = response.results.reduce((a,b)=>(request.extremum==='maximum'?b.value>a.value:b.value<a.value)?b:a).id;
+  const complete = response.status === 'complete' && !response.faults.length && response.results.length === result.scope.requested && result.scope.completed === result.scope.requested;
+  if (complete) result.winnerId = response.results.reduce((a, b) => (request.extremum === 'maximum' ? b.value > a.value : b.value < a.value) ? b : a).id;
+  else if (response.status === 'complete') result.status = 'partial';
+  result.reason = response.faults.some(f => f.code === 'budget') ? 'work-budget' : complete ? null : 'data-unavailable';
+  result.message = complete ? 'Compared every requested interval using sampled and locally refined results. This is not a certified global extremum or telemetry accuracy bound.'
+    : 'Analysis did not cover every requested interval. Report the established candidates and missing intervals; no collection winner is established. Do not rerun equivalent analysis.';
+  return result;
+}
 let active: AbortController | null = null;
 let sequence = 0;
 const stored = new Map<string, {
@@ -29,7 +76,7 @@ export function findViewerTrajectoryExtrema(query: TrajectoryExtremaQuery, optio
   clearDirectResults();
   return runAnalysis(query, options);
 }
-async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAnalysisOptions = {}, eventQuery?: import('@cosmolabe/core').EventQuery): Promise<TrajectoryExtremaResponse> {
+async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAnalysisOptions = {}, eventQuery?: import('@cosmolabe/core').EventQuery, collection = false): Promise<TrajectoryExtremaResponse> {
   const invalid = validateTrajectoryExtremaQuery(query);
   if (invalid)
     return { status: 'unavailable', results: [], faults: [invalid] };
@@ -80,9 +127,32 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
   };
   options.signal?.addEventListener?.('abort', abort);
   try {
-    const response = await compute(query, provider, { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: fraction => {
+    const computeOptions: TrajectoryAnalysisOptions = { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: fraction => {
         options.onProgress?.(fraction);
-      } });
+      } };
+    let response: TrajectoryExtremaResponse;
+    if (collection && query.scope.kind === 'activities') {
+      // One native collection operation, bounded by 128 intervals and one million
+      // evaluations. Source knots determine each existing solver call's allowance;
+      // dense early activities cannot consume the entire collection's budget.
+      const scope=query.scope;
+      const jobs=activities.filter(a=>a.enabled!==false && query.objects.includes(a.vehicle) && a.body===query.body && (!scope.ids || scope.ids.includes(a.id)));
+      response={status:'complete',results:[],faults:[]};let evaluations=0;
+      const position=provider.position;
+      provider.position=(...args)=>{evaluations++;return position(...args);};
+      for (const [i,a] of jobs.entries()) {
+        if (!current() || computeOptions.signal?.aborted) { response={status:computeOptions.signal?.aborted?'cancelled':'stale',results:[],faults:[{code:computeOptions.signal?.aborted?'cancelled':'stale',message:'Collection cancelled or authoritative inputs changed.'}]};break; }
+        const window={start:Math.max(a.start,scope.window?.start??a.start),end:Math.min(a.end,scope.window?.end??a.end)};
+        const knots=provider.knots?.(a.vehicle,window).length??0;
+        const budget=Math.min(1000000-evaluations,query.maxEvaluations??200000,Math.max(4096,Math.ceil(knots*8+(window.end-window.start)/query.stepSeconds)));
+        if (budget<1) { response.status='partial';response.faults.push({code:'budget',object:a.vehicle,activityId:a.id,window,message:'Collection evaluation budget exhausted.'});continue; }
+        const part=await compute({...query,objects:[a.vehicle],scope:{...scope,ids:[a.id]},maxEvaluations:budget},provider,{...computeOptions,onProgress:f=>options.onProgress?.((i+f)/jobs.length)});
+        response.results.push(...part.results);response.faults.push(...part.faults);
+        if (part.status==='cancelled'||part.status==='stale') { response=part;break; }
+        if (part.status!=='complete') response.status='partial';
+      }
+      if (!response.results.length && response.status==='partial') response.status='unavailable';
+    } else response = await compute(query, provider, computeOptions);
     if (active !== token)
       return { status: 'cancelled', results: [], faults: [{ code: 'cancelled', message: 'Superseded by a newer analysis.' }] };
     if (response.results.length && current()) {

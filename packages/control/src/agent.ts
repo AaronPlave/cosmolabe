@@ -30,6 +30,8 @@ import type {
   ScriptActivity,
   ScriptProfileData,
   ScriptClosestApproachRequest,
+  ScriptExtremaRequest,
+  ScriptExtremaOptions,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -119,7 +121,10 @@ export type AgentErrorCode =
 export type AgentToolResult = (
   | { readonly ok: true; readonly summary: string; readonly data?: unknown; readonly completion?: { readonly kind: 'flight'; readonly id: number; readonly outcome: 'arrived' } }
   | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string; readonly data?: unknown }
-) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[] };
+) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[];
+  /** The operation exhausted its own retry/input budget. Stop this request and
+   * report its established facts, without another model recovery round. */
+  readonly terminal?: true };
 
 /**
  * What a write left, judged by its own contract: the predicates it had to
@@ -138,7 +143,16 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export type ResultFact = { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export interface HeightAnalysisFact {
+  readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
+  readonly requested: number; readonly completed: number; readonly metric: string;
+  readonly winner: { value: number; utc: string; object: string; activityId: string | null } | null;
+  readonly evaluated?: number; readonly gapIntervals?: number; readonly maximumGapSeconds?: number;
+  readonly primaryId?: string | null;
+  readonly candidate?: { value:number; utc:string; object:string; activityId:string|null } | null;
+  readonly shown?: boolean;
+}
 /** Rendering existence is scene configuration, not physical event timing. */
 export interface SceneExistenceFact {
   readonly kind: 'scene-existence'; readonly object: string; readonly startEt: number;
@@ -354,9 +368,25 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   { name: 'getSurfaceAppearance', contract: { namespace: 'surface', writes: [] }, effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
   { name: 'getReadiness', contract: { namespace: 'readiness', writes: [] }, effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, current-view physical terrain coverage, or an exact event/run/epoch with explicit timeline/native-draw policy and limitations. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain', 'event'] }, body: { type: 'string' }, layer: { type: 'string' }, reference: { type: 'object', properties: { scene: { type: 'number' }, query: { type: 'string' }, id: { type: 'string' }, revision: { type: 'number' } }, required: ['scene', 'query', 'id', 'revision'], additionalProperties: false }, et: { type: 'number' }, policy: { type: 'string', enum: ['timeline', 'native-draw'] } }, required: ['kind'], additionalProperties: false } },
   {
+    name: 'getTrajectoryAnalysisOptions', effect: 'read', method: 'getTrajectoryAnalysisOptions',
+    contract: { namespace: 'analysis', writes: [] },
+    description: 'Current scene height-analysis families, native activity counts/kinds and compatible reference/terrain metrics for subjects. Available means compatible configuration, not proven trajectory/terrain coverage. Use analyzeTrajectoryExtrema for routine across-activity extrema instead of configuring the expert solver.',
+    inputSchema: { type: 'object', additionalProperties: false, properties: { objects: { type: 'array', minItems: 1, maxItems: 32, items: { type: 'string' } }, body:{type:'string'} } },
+  },
+  {
+    name: 'analyzeTrajectoryExtrema', effect: 'read', method: 'analyzeTrajectoryExtrema',
+    contract: { namespace: 'analysis', writes: [], guide: 'Routine highest/lowest/elevation across activities: use analyzeTrajectoryExtrema. Native metadata resolves the frame, reference, complete activity scope and bounded solver settings. elevation is ambiguous: one precise question chooses reference-surface height versus physical terrain clearance. Report full requested/completed scope, datum, source classification and sampled/local-refinement limits. winnerId requires gap-free full-scope comparison; candidate compares ALL available interval candidates including partial ones. Neither certifies a global extremum. For show/go, use navigateToAnalysisResult with winnerId or candidate.id after checkGoal, explaining gaps; do not stop at offering navigation already requested. On terminal failure report the actual reason; do not try expert solver/frame guesses.' },
+    description: 'Execute a bounded routine height maximum/minimum across ALL matching native activities or explicit windows, using existing numerical solver/results. Pass subject names and metric intent; no frame/radius/terrain IDs or numerical guesses. elevation returns available choices for one clarification; explicit reference height and terrain clearance remain distinct. No camera/time change; navigateToAnalysisResult shows returned results. Partial scope has no winnerId.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['objects','metric','extremum','scope'], properties: {
+      objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' },
+      metric: { type: 'string', enum: ['elevation','reference-sphere-height','reference-ellipsoid-height','terrain-clearance'] }, extremum: { type: 'string', enum: ['maximum','minimum'] },
+      scope: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['activities','windows'] }, activityKind: { type: 'string' }, ids: { type: 'array', maxItems: 128, items: { type: 'string' } }, window: { type: 'object', additionalProperties: false, required: ['start','end'], properties: { start: { type: 'number' }, end: { type: 'number' } } }, windows: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'object', additionalProperties: false, required: ['start','end'], properties: { start: { type: 'number' }, end: { type: 'number' } } } } } },
+    } },
+  },
+  {
     name: 'findTrajectoryExtrema', effect: 'read', method: 'findTrajectoryExtrema',
-    contract: { namespace: 'analysis', writes: [], guide: 'Height extrema: take the frame, reference shape and source from getSurfaceData; never invent a radius or compute from raw points. Distinguish sphere height, ellipsoid height and terrain clearance (AGL), and ask when the datum is ambiguous. For flights use catalog flight intervals, excluding parked time. Report provenance, coverage, sampling and unknown height error; a partial result cannot name a winner.' },
-    description: 'Compute height extrema using the shared numerical analysis. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner. May offer Show me with navigateToAnalysisResult.',
+    contract: { namespace: 'analysis', writes: [], guide: 'For routine height extrema across activities use analyzeTrajectoryExtrema; the expert query requires explicit compatible source settings. Never guess a frame/radius/datum or evade task failures. Report provenance, coverage, sampling and unknown height error; a partial result cannot establish a collection winner.' },
+    description: 'Expert explicit numerical query. Prefer analyzeTrajectoryExtrema for routine height/elevation across activities; it resolves native defaults and full scope. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['objects', 'body', 'frame', 'metric', 'extremum', 'reference', 'scope', 'stepSeconds', 'timeToleranceSeconds'], properties: {
       objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' }, frame: { type: 'string' },
       metric: { type: 'string', enum: ['radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'] }, extremum: { type: 'string', enum: ['maximum', 'minimum'] },
@@ -654,7 +684,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   let taskSeq = 0;
   let current: TaskImpl | null = null;
   let numericalSubjects: string[] = [];
-  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null }>();
+  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null; fact?:HeightAnalysisFact }>();
+  const extremaOptions = (o: ScriptExtremaOptions) => ({ available: o.available, truncated: o.truncated,
+    subjects: o.subjects.slice(0,32).map(s => ({ object: s.object, bodies: s.bodies.slice(0,32), activities: s.activities, activityKinds: s.activityKinds.slice(0,16) })),
+    bodies: o.bodies.slice(0,32).map(b => ({ body: b.body, frame: metadata.text(b.frame), metrics: b.metrics.slice(0,3).map(m => ({ metric: m.metric, available: m.available,
+      reason: m.available ? null : m.metric === 'terrain-clearance' ? 'No compatible declared versioned CPU terrain datum/frame/source; physical geometry availability is not assessed.' : 'No compatible declared reference surface.' })) })) });
 
   const available = () => (opts.vocabulary === 'catalog' ? agentDefinitions() : fixedAgentDefinitions()).filter(t => !t.method || has(host, t.method));
   const list = (): readonly AgentToolDef[] => available().map(({ method: _m, contract: _c, ...def }) => def);
@@ -724,6 +758,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       ...(v.epoch !== null && opts.formatTime ? { utc: opts.formatTime(v.epoch) } : {}),
       center: v.origin } : { name };
   }
+  function viewpointFacts(view: ReturnType<NonNullable<ViewerControl['getViewpointInfo']>>): ResultFact[] {
+    const utc=typeof view?.authoredTime==='string' ? view.authoredTime : view?.epoch!=null ? opts.formatTime?.(view.epoch) : null;
+    return view && utc ? [{kind:'authored-viewpoint',name:view.name,utc}] : [];
+  }
 
   function describeScene(): AgentToolResult {
     const scene = attempt(() => host.getScene?.()) ?? null;
@@ -751,8 +789,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       objects: { names: objects.items, total: objects.total },
       viewpoints: { names: viewpoints.items, total: viewpoints.total, evidence: 'Authored scene annotations, not computed physical events. Exact ET available; getViewpointInfo reads pose/time agreement.', items: viewpoints.items.map(viewpointSummary) },
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
-      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); return data ? metadata.surface(data) : null; }) ?? null : null,
-      focusImagery: imagery ? metadata.imagery(imagery) : null,
+      analysis: attempt(()=>host.getTrajectoryAnalysisOptions ? extremaOptions(host.getTrajectoryAnalysisOptions()) : { available: false }) ?? { available:false },
+      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); if (!data) return null; const s=metadata.surface(data); return {body:s.body,bodyFrame:s.bodyFrame,referenceShape:s.referenceShape,surface:s.surface,terrain:s.terrain,cubeImagery:s.cubeImagery,details:'getSurfaceData'}; }) ?? null : null,
+      focusImagery: imagery ? {body:imagery.body,surface:imagery.surface,imageryOnly:imagery.imageryOnly,layers:imagery.layers.slice(0,8).map(l=>({id:l.id,role:l.role,visible:l.visible,status:l.status})),total:imagery.layers.length,details:'getImagery'} : null,
       unsupported: lacks,
     };
     const summary = scene === null && has(host, 'getScene')
@@ -863,7 +902,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     if (name === 'viewpoint' && host.getViewpointInfo) {
       const view = host.getViewpointInfo(String(args.name));
       return { note: 'Authored view applied; pose/time agreement is separate from physical event evidence. Visibility has not been assessed by this action. Read getViewComposition for ALL objects the person requested before answering; an unlisted object is not evidence of absence or invisibility.',
-        data: { viewpoint: view } };
+        data: { viewpoint: view }, facts:viewpointFacts(view) };
     }
     if (name === 'selectGeographicFeature'  && host.getSelectedGeographicFeature && host.listGeographicLayers) {
       const selected = host.getSelectedGeographicFeature();
@@ -942,7 +981,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   const reads: Record<string, (input: Input) => AgentToolResult> = {
-    getViewpointInfo: input => ({ ok: true, summary: 'Authored scene view and current navigation, not a computed event.', data: host.getViewpointInfo!(input.name as string) ?? null }),
+    getTrajectoryAnalysisOptions: input => ({ ok: true, summary: 'Configured height analysis and native activity scope; execution establishes actual coverage.', data: extremaOptions(host.getTrajectoryAnalysisOptions!(input.objects as string[] | undefined, input.body as string | undefined)) }),
+    getViewpointInfo: input => { const view=host.getViewpointInfo!(input.name as string);return { ok: true, summary: 'Authored scene view and current navigation, not a computed event.', data: view ?? null, facts:viewpointFacts(view) }; },
     getObjectContext: input => {
       const context = host.getObjectContext!(input.object as string);
       const window = (w: { start: number | null; end: number | null }) => ({ ...w,
@@ -1105,6 +1145,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     private sampledApproachComplete = false;
     private readonly closestPairs = new Set<string>();
     private readonly closestPreflights = new Map<string, number>();
+    private readonly extremaSubjects = new Set<string>();
+    private readonly extremaFacts = new Map<string, HeightAnalysisFact>();
+    private extremaPreflights = 0;
+    private invalidExtremaInputs = 0;
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -1164,7 +1208,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       }
       input = normalizeInput(def.inputSchema, input ?? {});
       const problem = violation(def.inputSchema, input, 'input');
-      if (problem) return { ok: false, code: 'invalid-input', error: problem };
+      if (problem) {
+        const facts: HeightAnalysisFact[] = ['analyzeTrajectoryExtrema','findTrajectoryExtrema'].includes(name) && ++this.invalidExtremaInputs>=2
+          ? [{kind:'height-analysis',status:'unavailable',metric:'unresolved',requested:0,completed:0,winner:null,message:'The requested height analysis did not execute: its inputs failed validation twice. No numerical result or viewer navigation is established.'}] : [];
+        return { ok: false, code: 'invalid-input', error: problem, ...(facts.length?{facts,terminal:true as const}:{}) };
+      }
       const refused = this.gate(def);
       if (refused) return refused;
       if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
@@ -1204,30 +1252,83 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         finally { this.writing = false; }
       }
 
-      if (name === 'findTrajectoryExtrema') {
+      if (name === 'analyzeTrajectoryExtrema' || name === 'findTrajectoryExtrema') {
+        const key = JSON.stringify([...(args.objects as string[])].sort());
+        if (this.extremaSubjects.has(key) || this.extremaPreflights >= 2) return { ok: false, code: 'refused', terminal:true, error: 'Height analysis for these subjects is terminal in this request. Report the previous structured reason/result or ask the one datum question. Changing frames, metric, windows or solver cannot repair missing data or establish full coverage.', facts: this.extremaFacts.has(key) ? [this.extremaFacts.get(key)!] : [] };
+        if (name === 'analyzeTrajectoryExtrema' && opts.omittedTools?.findTrajectoryExtrema) return { ok: false, code: 'refused', error: `Height analysis requires findTrajectoryExtrema: ${opts.omittedTools.findTrajectoryExtrema}` };
+        this.extremaSubjects.add(key);
         measuredResults.clear();
         try {
-          const response = await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
+          const taskResult = name === 'analyzeTrajectoryExtrema' ? await host.analyzeTrajectoryExtrema!(args as unknown as ScriptExtremaRequest, { signal: this.signal }) : null;
+          const response = taskResult ? taskResult.response : await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
           const late = this.gate(def);
           if (late) return late;
+          // One correction only for a rejected scope; a changed datum requires a new user turn.
+          if (taskResult && !taskResult.started && taskResult.reason === 'invalid-scope') { this.extremaSubjects.delete(key); this.extremaPreflights++; }
           measuredResults.clear();
-          for (const result of response.results.slice(0,128)) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          for (const result of response?.results.slice(0,128) ?? []) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          if (taskResult) {
+            const messages = {
+              'ambiguous-metric': 'Elevation has no unique datum. Ask one precise question choosing an available reference-surface height or physical terrain clearance (AGL). No analysis ran.',
+              'invalid-scope': 'The complete requested activity/window scope is invalid or unmatched; no partial subset was selected. Correct the scope once or explain the limitation.',
+              'missing-subject': 'One or more requested subjects are absent or invalid; no analysis ran.',
+              'ambiguous-body': 'The requested subjects/activities do not identify one reference body. Ask which body.',
+              'unsupported-metric': 'This measurement lacks a compatible declared reference or versioned CPU terrain datum/frame/source. Do not infer that no physical geometry is loaded or substitute a different metric.',
+              'data-unavailable': 'The analysis is supported, but relative-state or physical-terrain data did not cover the requested scope. Partial candidates do not establish a collection winner.',
+              'work-budget': 'The requested scope exceeds the bounded numerical work available; no complete collection winner is established.',
+            };
+            const message = taskResult.reason==='data-unavailable' && response?.results.length
+              ? `${response.results.length}/${taskResult.scope.requested} intervals produced sampled candidates; ${taskResult.scope.completed} have no detected gaps. ${taskResult.coverage.incompleteIntervals} have declared trajectory gaps, largest ${taskResult.coverage.maximumGapSeconds} seconds. The candidate compares ALL returned candidates, including partial intervals. No full-scope winner or global error bound is established.`
+              : taskResult.reason ? messages[taskResult.reason] : 'Every requested interval compared using sampled and locally refined extrema, with unknown global height error and source accuracy.';
+            const winner = response?.results.find(r => r.id === taskResult.winnerId);
+            const candidate = response?.results.find(r => r.id === taskResult.candidateId);
+            const data = { status: taskResult.status, reason: taskResult.reason, message, started: taskResult.started,
+              scope: { ...taskResult.scope, activityIds:taskResult.scope.activityIds.slice(0,4), activityIdsTotal:taskResult.scope.activityIds.length, activityIdsTruncated:taskResult.scope.activityIds.length>4 },
+              options: extremaOptions(taskResult.options), winnerId: taskResult.winnerId, winner: winner ? metadata.trajectoryExtremum(winner) : null,
+              candidate: candidate && !winner ? metadata.trajectoryExtremum(candidate) : null, coverage:taskResult.coverage,
+              candidateUse: candidate && !winner ? 'Best available candidate only. For a requested view you may show it with navigateToAnalysisResult, explicitly stating incomplete intervals/gaps and that no full-scope/global winner is established.' : null,
+              // Bounded comparison inventory keeps all interval identities without returning 128 full reports.
+              comparedCount: response?.results.length ?? 0,
+              compared: response?.results.slice(0,1).map(r => ({ id:r.id, object:r.object, activityId:r.activityId, window:r.window, value:r.value, coverage:r.coverage })) ?? [],
+              faultsTotal: response?.faults.length ?? 0,
+              faults: response?.faults.slice(0,3).map(f => ({ code:f.code, object:f.object, activityId:f.activityId, window:f.window })) ?? [],
+              parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
+            const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
+              evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
+              candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,
+              winner: winner ? { value:winner.value, utc:winner.utc, object:winner.object, activityId:winner.activityId } : null };
+            this.extremaFacts.set(key, fact);
+            for (const entry of measuredResults.values()) entry.fact=fact;
+            return { ok: true, summary: `Height task ${taskResult.status}. ${message} Do not repeat equivalent analysis.`, data, facts:[fact] };
+          }
+          if (!response) return { ok:false, code:'failed', error:'Height analysis returned no result.' };
           // Closed projection: provenance may contain private source paths.
           const data = { status: response.status, results: response.results.slice(0,128).map(metadata.trajectoryExtremum), faults: response.faults.slice(0,128).map(f => ({ code: f.code, object: f.object, activityId: f.activityId, window: f.window ? {start:f.window.start,end:f.window.end} : undefined, message: 'Analysis unavailable, incomplete or interrupted; inspect the local result for details.' })) };
-          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data };
-        } catch { return { ok: false, code: 'failed', error: 'Height analysis failed; inspect the local source and coverage.' }; }
+          const fact: HeightAnalysisFact = { kind:'height-analysis', status:response.status, metric:args.metric as string, requested:0, completed:response.results.filter(r=>r.coverage==='sampled-complete').length, winner:null,
+            message: `Explicit height analysis ${response.status}; ${response.results.length} candidates. ${response.faults.some(f=>f.code==='invalid-query') ? 'The supplied metric/datum/frame/sampling query is invalid. Use the native task-level operation in a new request rather than guessing solver settings.' : 'Coverage and global height error are not certified. Report the returned faults or candidates; do not rerun an equivalent search.'}` };
+          this.extremaFacts.set(key,fact);
+          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data, facts:[fact] };
+        } catch {
+          const fact:HeightAnalysisFact={kind:'height-analysis',status:'unavailable',metric:args.metric as string,requested:0,completed:0,winner:null,message:'The height analysis failed before returning numerical evidence. No result or navigation is established; source availability must be checked in the viewer.'};
+          this.extremaFacts.set(key,fact);
+          return { ok: false, code: 'failed', terminal:true, error: fact.message, facts:[fact] };
+        }
       }
       if (name === 'navigateToAnalysisResult') {
         const expected = measuredResults.get(args.resultId as string);
         if (!expected) return { ok:false,code:'refused',error:'Unknown or superseded analysis result. Run the analysis in this session before navigating.' };
-        const done = host.navigateToAnalysisResult!(args.resultId as string);
+        let done: boolean;
+        this.writing=true;
+        try { done = host.navigateToAnalysisResult!(args.resultId as string); }
+        finally { this.writing=false; }
         if (!done) return { ok:false,code:'refused',error:'The result is unavailable or stale.' };
         const late = this.gate(def);
         if (late) return late;
         const observed = {et:host.getTime(),object:host.getSelected(),tracked:host.getTracked(),playing:host.isPlaying(),activityId:host.getSelectedActivity?.()?.id ?? null};
         const verified = !!expected && Math.abs(observed.et-expected.et)<1e-5 && observed.object===expected.object && observed.tracked===expected.object && !observed.playing && (!expected.activityId || observed.activityId===expected.activityId);
         if (!verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
-        return judged(def, name, args, { summary:'Selected and framed the measured vehicle at the observed result epoch.', data:{verified,observed:{...observed, et: expected.et}} });
+        return { ...judged(def, name, args, { summary:'Selected and framed the measured vehicle at the observed result epoch.', data:{verified,observed:{...observed, et: expected.et}} }),
+          ...(expected.fact?.primaryId===args.resultId ? {facts:[{...expected.fact!,shown:true}]} : {}) };
       }
 
       if (name === 'checkGoal' && ++this.goalChecks > 3) return { ok: false, code: 'refused', error: 'Three outcome checks already ran for this request. Report the observed state and the unmet part plainly.' };

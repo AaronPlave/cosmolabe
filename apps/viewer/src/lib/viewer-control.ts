@@ -32,7 +32,7 @@ import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImage
  */
 import { getViewpointInfo, getObjectContext } from './viewpoint-control';
 import { surfaceData } from './surface-data';
-import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
+import { findViewerTrajectoryExtrema, navigateToAnalysisResult, analyzeTrajectoryExtrema, getTrajectoryAnalysisOptions } from './trajectory-analysis.svelte';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
@@ -269,6 +269,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
   };
 
   const port: Required<ViewerControl> = {
+    getTrajectoryAnalysisOptions,
+    analyzeTrajectoryExtrema,
     findTrajectoryExtrema: findViewerTrajectoryExtrema,
     navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
     selectPlace: (ref, opts) => {

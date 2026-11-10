@@ -505,7 +505,40 @@ export interface ScriptClosestApproachResult {
   limitations: readonly string[];
 }
 
+/** Task intent; native metadata supplies datum, frame and numerical defaults. */
+export interface ScriptExtremaRequest {
+  objects: string[];
+  body?: string;
+  metric: 'elevation' | 'reference-sphere-height' | 'reference-ellipsoid-height' | 'terrain-clearance';
+  extremum: 'maximum' | 'minimum';
+  scope: { kind: 'activities'; activityKind?: string; ids?: string[]; window?: { start: number; end: number } }
+    | { kind: 'windows'; windows: { start: number; end: number }[] };
+}
+export interface ScriptExtremaOptions {
+  available: boolean;
+  subjects: { object: string; bodies: string[]; activities: number; activityKinds: string[] }[];
+  bodies: { body: string; frame: string; metrics: { metric: Exclude<ScriptExtremaRequest['metric'], 'elevation'>; available: boolean; reason: string | null }[] }[];
+  truncated: boolean;
+}
+export interface ScriptExtremaResult {
+  status: 'complete' | 'partial' | 'unavailable' | 'clarification' | 'cancelled' | 'stale';
+  reason: 'ambiguous-metric' | 'invalid-scope' | 'missing-subject' | 'ambiguous-body' | 'unsupported-metric' | 'data-unavailable' | 'work-budget' | null;
+  message: string;
+  started: boolean;
+  query: TrajectoryExtremaQuery | null;
+  scope: { requested: number; completed: number; activityIds: string[] };
+  options: ScriptExtremaOptions;
+  response: TrajectoryExtremaResponse | null;
+  /** Only when every requested interval has a sampled-complete result. Still not a certified global extremum. */
+  winnerId: string | null;
+  /** Best available numerical candidate; partial scope remains explicitly unranked. */
+  candidateId: string | null;
+  coverage: { assessed: boolean; incompleteIntervals: number; maximumGapSeconds: number };
+}
+
 export interface ViewerControl {
+  getTrajectoryAnalysisOptions?(objects?: string[], body?: string): ScriptExtremaOptions;
+  analyzeTrajectoryExtrema?(request: ScriptExtremaRequest, options?: TrajectoryAnalysisOptions): Promise<ScriptExtremaResult>;
   findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
   /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
   navigateToAnalysisResult?(resultId: string): boolean;

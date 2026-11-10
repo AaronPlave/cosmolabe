@@ -46,6 +46,19 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
+  if (height) {
+    if (height.evaluated && height.evaluated>height.completed) {
+      const subset=new RegExp(`\\b(?:highest|lowest|best|maximum|minimum)\\b[^.!?]{0,100}\\b(?:of|among)\\s+(?:the\\s+)?${height.completed}\\s+(?:flights?|intervals?|results?)\\b`,'i');
+      if (subset.test(text)) issues.push(`The candidate compares all ${height.evaluated} returned interval candidates, including partial ones; ${height.completed} counts intervals without detected gaps, not the comparison subset. State that distinction.`);
+    }
+    if (sentences(text).some(s => /\b(?:certified|verified|true|exact)\s+(?:global\s+)?(?:maximum|minimum|highest|lowest|winner)\b/i.test(s) && !NEGATED.test(s))) issues.push('Height extrema are sampled and locally refined; no certified global height error or physical accuracy is available.');
+    if (!height.winner && sentences(text).some(s => /\b(?:highest|lowest|winner|maximum|minimum)\b/i.test(s) && /\b(?:all|every|entire)\b/i.test(s) && !/\b(?:sampled|available|covered|partial|candidate)\b/i.test(s) && !NEGATED.test(s))) issues.push('Incomplete or unexecuted height scope cannot establish a collection winner. State the actual limitation and completed/requested interval counts.');
+  }
+  const authored=facts.filter(f=>f.kind==='authored-viewpoint');
+  if (authored.length && !events.length && !facts.some(f=>f.kind==='sampled-range')) {
+    for (const date of statedDates(text)) if (!authored.some(f=>dayOf(f.utc)===date.day)) issues.push(`"${date.text}" matches no authored viewpoint date read in this request.`);
+  }
   const existence = facts.filter(f => f.kind === 'scene-existence');
   for (const sentence of sentences(text).filter(s => /exist|scene|configur/i.test(s))) {
     const later = /\b(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|hours?|hrs?)(?:\s*(?:and\s*)?(\d+(?:\.\d+)?)\s*(seconds?|secs?|s))?\s+later\b/ig;
@@ -109,6 +122,10 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
 
 /** A plain account of published event or sampled-range facts: what the host shows when the model's answer contradicts them. */
 export function factSummary(facts: readonly ResultFact[]): string {
+  const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
+  if (height?.candidate && !height.winner) return `${height.evaluated}/${height.requested} intervals produced numerical candidates; ${height.completed} have no detected gaps. The best available sampled ${height.metric} candidate is ${height.candidate.value} km at ${height.candidate.utc} (${height.candidate.activityId??height.candidate.object}); ${height.gapIntervals} intervals have declared trajectory gaps up to ${height.maximumGapSeconds} seconds. No full-scope winner or global error bound is established.${height.shown?' The viewer is paused at this candidate with its vehicle selected and tracked.':''}`;
+  if (height) return height.winner ? `${height.completed}/${height.requested} requested intervals have sampled-complete results. The sampled and locally refined ${height.metric} result for ${height.winner.object} is ${height.winner.value} km at ${height.winner.utc}${height.winner.activityId ? ` (${height.winner.activityId})` : ''}. Global height error and source accuracy are not certified; navigation is a separate viewer outcome.`
+    : `${height.message} ${height.completed}/${height.requested} requested intervals completed; no collection winner was established.`;
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
   const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
@@ -116,7 +133,8 @@ export function factSummary(facts: readonly ResultFact[]): string {
   }
   if (!events.length) {
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
-    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : '';
+    const authored=facts.filter(f=>f.kind==='authored-viewpoint').at(-1);
+    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : '';
   }
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;

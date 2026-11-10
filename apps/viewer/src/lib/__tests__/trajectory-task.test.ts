@@ -1,0 +1,96 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Body, FixedPointTrajectory, FixedRotation, InterpolatedStatesTrajectory, Universe, type MissionActivity } from '@cosmolabe/core';
+import type { ScriptExtremaRequest } from '@cosmolabe/control';
+const runtime = vi.hoisted(() => ({ universe: null as Universe | null, renderer: null as unknown }));
+vi.mock('../viewer-state.svelte', async original => ({ ...await original<typeof import('../viewer-state.svelte')>(), getSceneUniverse:()=>runtime.universe, getRenderer:()=>runtime.renderer }));
+import { analyzeTrajectoryExtrema, getTrajectoryAnalysisOptions } from '../trajectory-analysis.svelte';
+import { resolveExtremaTask } from '../trajectory-task';
+import { resetForScene } from '../event-finder.svelte';
+
+afterEach(()=>{ runtime.renderer=null; resetForScene(); runtime.universe=null; });
+function scene(count=3) {
+  const u=new Universe();
+  u.addBody(new Body({name:'Moon',radii:[10,10,10],trajectory:new FixedPointTrajectory([0,0,0]),rotation:new FixedRotation([1,0,0,0],'ECLIPJ2000','IAU_MOON')}));
+  u.addBody(new Body({name:'hopper',parentName:'Moon',description:'Estimated reconstruction, not telemetry',trajectory:new InterpolatedStatesTrajectory([
+    {et:0,position:[11,0,0],velocity:[0,0,0]},{et:10,position:[13,0,0],velocity:[0,0,0]},
+    {et:20,position:[12,0,0],velocity:[0,0,0]},{et:30,position:[12,0,0],velocity:[0,0,0]},
+  ],{frame:'IAU_MOON'})}));
+  const activities:MissionActivity[]=Array.from({length:count},(_,i)=>({version:1,id:`flight:${i}`,name:`Flight ${i}`,kind:'flight',vehicle:'hopper',body:'Moon',temporality:'interval',start:i*10,end:(i+1)*10,provenance:{source:'fixture',version:'v1',authority:'estimated',timing:'estimated',limitations:'test'}}));
+  u.activities.replace('fixture',activities);runtime.universe=u;
+  runtime.renderer={getBodyMesh:()=>undefined,setEventResults:()=>{},setEventPreview:()=>{}};
+  return u;
+}
+const request:ScriptExtremaRequest={objects:['hopper'],metric:'reference-sphere-height',extremum:'maximum',scope:{kind:'activities',activityKind:'flight'}};
+describe('native routine extrema resolution',()=>{
+  it('asks one datum question without running or choosing an AGL substitute',async()=>{
+    scene();
+    const result=await analyzeTrajectoryExtrema({...request,metric:'elevation'});
+    expect(result).toMatchObject({status:'clarification',reason:'ambiguous-metric',started:false,query:null,scope:{requested:3},winnerId:null});
+    expect(result.options.bodies[0].metrics).toContainEqual(expect.objectContaining({metric:'terrain-clearance',available:false}));
+  });
+  it('resolves the full unpaged collection and uses existing sampled/refined results',async()=>{
+    scene();
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r).toMatchObject({status:'complete',started:true,query:{frame:'IAU_MOON',reference:{kind:'sphere',radiusKm:10},sampling:'adaptive',maxEvaluations:200000},scope:{requested:3,completed:3,activityIds:['flight:0','flight:1','flight:2']}});
+    expect(r.response?.results).toHaveLength(3);
+    const winner=r.response!.results.find(v=>v.id===r.winnerId)!;
+    expect(winner.value).toBeCloseTo(3);expect(winner.et).toBeCloseTo(10);
+    expect(winner.source.description).toContain('Estimated');
+    expect(winner.method.heightErrorBoundKm).toBeNull();
+  });
+  it('keeps missing intervals partial and refuses a collection winner',async()=>{
+    scene(4); // Fourth interval extends beyond trajectory coverage.
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r.status).toBe('partial');expect(r.scope.requested).toBe(4);
+    expect(r.scope.completed).toBeLessThan(4);expect(r.winnerId).toBeNull();
+  });
+  it('does not silently truncate more than 128 activities or ignore an unmatched explicit ID',async()=>{
+    scene(129);
+    expect(await analyzeTrajectoryExtrema(request)).toMatchObject({reason:'work-budget',started:false,scope:{requested:129}});
+    expect(await analyzeTrajectoryExtrema({...request,scope:{kind:'activities',ids:['flight:0','missing']}})).toMatchObject({reason:'invalid-scope',started:false});
+  });
+  it('separates compatible operation with absent states from unsupported physical data',async()=>{
+    const u=scene();
+    u.activities.replace('fixture',u.activities.list().map(a=>({...a,start:100,end:110})));
+    expect(await analyzeTrajectoryExtrema(request)).toMatchObject({reason:'data-unavailable',started:false});
+    expect(await analyzeTrajectoryExtrema({...request,metric:'terrain-clearance'})).toMatchObject({reason:'data-unavailable',started:false});
+  });
+  it('excludes parked/disabled activities and never derives scope from current timeline',async()=>{
+    const u=scene();
+    u.activities.replace('fixture',u.activities.list().map((a,i)=>({...a,...(i===1?{kind:'landing'}:i===2?{enabled:false}:{})})));
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r.scope.activityIds).toEqual(['flight:0']);expect(r.scope.requested).toBe(1);
+  });
+  it('rejects malformed windows and honors cancellation before execution',async()=>{
+    scene();
+    expect(await analyzeTrajectoryExtrema({...request,scope:{kind:'windows',windows:[]}})).toMatchObject({reason:'invalid-scope',started:false});
+    expect(await analyzeTrajectoryExtrema(request,{signal:{aborted:true}})).toMatchObject({status:'cancelled',started:false,winnerId:null});
+  });
+  it('does not guess a central body for mixed-body activity comparisons',()=>{
+    const u=scene();
+    u.addBody(new Body({name:'Mars',radii:[20,20,20],trajectory:new FixedPointTrajectory([0,0,0])}));
+    u.activities.replace('fixture',u.activities.list().map((a,i)=>({...a,body:i===1?'Mars':'Moon'})));
+    expect(resolveExtremaTask(u,request,getTrajectoryAnalysisOptions(),()=>({reference:{kind:'sphere',radiusKm:10}}))).toMatchObject({reason:'ambiguous-body',started:false});
+  });
+  it('evaluates a dense collection beyond a single solver budget without hiding endpoint gaps',async()=>{
+    const u=scene(72);
+    // More than 200,000 mandatory subdivisions across the collection. Each
+    // source segment remains represented; increasing model retries is no help.
+    const records=Array.from({length:57601},(_,i)=>({et:i/80,position:[11+i/57600,0,0] as [number,number,number],velocity:[1/720,0,0] as [number,number,number]}));
+    u.addBody(new Body({name:'hopper',parentName:'Moon',trajectory:new InterpolatedStatesTrajectory(records,{frame:'IAU_MOON'})}));
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r.status).toBe('complete');expect(r.scope.completed).toBe(72);expect(r.response?.results).toHaveLength(72);
+    expect(r.response!.results.reduce((n,r)=>n+r.method.evaluations,0)).toBeLessThanOrEqual(1000000);
+    expect(r.response!.results.find(v=>v.id===r.winnerId)?.value).toBeCloseTo(2);
+  },30000);
+  it('reports actual tiny endpoint gaps and all available candidates separately from a winner',async()=>{
+    const u=scene(1);
+    u.addBody(new Body({name:'hopper',parentName:'Moon',trajectory:new InterpolatedStatesTrajectory([
+      {et:.00002,position:[11,0,0],velocity:[0,0,0]},{et:9.99998,position:[12,0,0],velocity:[0,0,0]},
+    ],{frame:'IAU_MOON'})}));
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r).toMatchObject({status:'partial',winnerId:null,scope:{requested:1,completed:0},coverage:{assessed:true,incompleteIntervals:1}});
+    expect(r.coverage.maximumGapSeconds).toBeCloseTo(.00002,8);expect(r.candidateId).toBeTruthy();
+    expect(r.response?.results).toHaveLength(1);expect(r.response!.results[0].window).toEqual({start:0,end:10});
+  });
+});

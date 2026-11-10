@@ -213,6 +213,8 @@ function compactEvidence(turn: readonly AgentMessage[]): string | null {
     let d: Record<string, unknown>;
     try { d = JSON.parse(c.content).data; } catch { continue; }
     if (!d || typeof d !== 'object') continue;
+    if ((d.winner || d.candidate) && typeof (d.winner??d.candidate) === 'object') evidence.set('height', { source:'sampled-and-locally-refined-height', winnerId:d.winnerId, winner:d.winner, candidate:d.candidate, scope:d.scope, coverage:d.coverage,
+      limit:'candidate compares ALL returned numerical candidates, including partial intervals; scope.completed counts intervals without detected gaps, not the comparison subset. Only winnerId establishes gap-free full-scope comparison; global height error is still unknown. For show/go reuse the exact winner/candidate ID with navigateToAnalysisResult; stale IDs refuse.' });
     if (pointCalls.has(c.toolUseId) && Array.isArray(d.position) && d.position.length === 3 && d.position.every(n => typeof n === 'number' && Number.isFinite(n)) && typeof d.et === 'number') {
       const input = inputs.get(c.toolUseId);
       points.push({ object: input?.object, center: d.center, et: d.et, rangeKm: Math.hypot(...d.position as number[]) });
@@ -551,6 +553,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       const results: AgentContent[] = [];
       const delivered: string[] = [];
       let batchFailed = false;
+      let terminalAnswer: string | null = null;
       for (const use of uses) {
         opts.onEvent?.({ type: 'tool', id: use.id, name: use.name, input: use.input });
         const read = isRead(use.name, use.input);
@@ -561,7 +564,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         }) : [];
         const notes = pending.length ? pending.map(g => g.name === actionName(use) ? g.guide : `${g.name}: ${g.guide}`).join(' ') : null;
         let result: AgentToolResult;
-        if (isCheck(use) && opts.tools.verify) result = task.ended ? { ok: false, code: task.ended, error: 'this request was stopped; nothing was checked' } : runCheck(use);
+        if (terminalAnswer!==null) result={ok:false,code:'refused',error:'The bounded operation already ended; later operations in this batch were not run.'};
+        else if (isCheck(use) && opts.tools.verify) result = task.ended ? { ok: false, code: task.ended, error: 'this request was stopped; nothing was checked' } : runCheck(use);
         else if (batchFailed && !read && !task.ended) result = { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' };
         else {
           const conflict = read ? null : !goalStated && opts.tools.verify
@@ -580,6 +584,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
           } else unobservable.push(`${actionName(use)}: ${result.outcome.unobservable}`);
         }
         if (result.facts) facts.push(...result.facts);
+        if (result.terminal) terminalAnswer=factSummary(result.facts??[]) || (result.ok?result.summary:result.error);
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
@@ -590,6 +595,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       }
       for (const name of delivered) noted.add(name);
       messages.push({ role: 'user', content: results });
+      // Operations own their failure budgets. Honor a terminal outcome without
+      // adding model recovery rounds or inferring control flow from scientific facts.
+      if (terminalAnswer!==null) {
+        answer = terminalAnswer;
+        messages.push({ role:'assistant', content:[{type:'text',text:answer}] });
+        return finish({kind:'done'});
+      }
     }
     return finish(ended() ?? { kind: 'step-limit' });
   } finally {
