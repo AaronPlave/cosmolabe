@@ -59,6 +59,20 @@ describe('moonfall-shackleton.json: Sun and Earth over the south pole', () => {
     expect(kernels).toEqual(expect.arrayContaining(['naif0012.tls', 'pck00011.tpc', 'de440s.bsp', 'moon_080317.tf.gz', 'moon_pa_de421_1900_2050.bpc.gz']));
   });
 
+  it('inherits Earth rotation while retaining the MoonFall lunar override', () => {
+    const u = new Universe(spice);
+    for (const j of json) u.loadCatalog(j);
+    const earth = u.getBody('Earth')!;
+    const moon = u.getBody('Moon')!;
+    expect(earth.rotation).toBeDefined();
+    expect(u.bodyToWorldQuat('Earth', t0)).toBeDefined();
+    expect(u.bodyToWorldQuat('Earth', t0 + 6 * 3600)).not.toEqual(u.bodyToWorldQuat('Earth', t0));
+    expect(moon.rotation?.bodyFixedFrame).toBe('MOON_ME_DE421');
+    expect(moon.geometryData?.terrain).toMatchObject({ frame: 'MOON_ME_DE421' });
+    expect(earth.children.filter((body) => body.name === 'Moon')).toEqual([moon]);
+    expect(u.getBody('Polaris-A')?.parentName).toBe('Moon');
+  });
+
   // Geometric scene versus the apparent (LT+S) sky, with the original
   // elevation/azimuth acceptance tolerances preserved.
   it('matches the SPICE Sun and Earth sky in the declared surface frame', () => {
