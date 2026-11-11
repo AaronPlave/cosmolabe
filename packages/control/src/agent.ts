@@ -148,7 +148,7 @@ export interface HeightAnalysisFact {
   readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
   readonly requested: number; readonly completed: number; readonly metric: string;
   readonly winner: { value: number; utc: string; object: string; activityId: string | null } | null;
-  readonly temporalComplete?: number; readonly endpointReconciledIntervals?: number; readonly unavailableSampleIntervals?: number;
+  readonly numericalComplete?: number; readonly temporalComplete?: number; readonly endpointReconciledIntervals?: number; readonly unavailableSampleIntervals?: number;
   readonly evaluated?: number; readonly gapIntervals?: number; readonly maximumGapSeconds?: number;
   readonly budgetExhausted?: boolean; readonly budgetLimitedIntervals?: number; readonly terrainSourceKnown?: boolean;
   readonly primaryId?: string | null;
@@ -1297,7 +1297,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
             const data = { status: taskResult.status, reason: taskResult.reason, message, started: taskResult.started,
               scope: { ...taskResult.scope, activityIds:taskResult.scope.activityIds.slice(0,4), activityIdsTotal:taskResult.scope.activityIds.length, activityIdsTruncated:taskResult.scope.activityIds.length>4 },
               options: extremaOptions(taskResult.options), winnerId: taskResult.winnerId, winner: winner ? metadata.trajectoryExtremum(winner) : null,
-              candidate: candidate && !winner ? metadata.trajectoryExtremum(candidate) : null, coverage:taskResult.coverage,
+              candidate: candidate && !winner ? metadata.trajectoryExtremum(candidate) : null, coverage:taskResult.coverage, numerical:taskResult.numerical,
               candidateUse: candidate && !winner ? 'Best available candidate only. For a requested view you may show it with navigateToAnalysisResult, explicitly stating incomplete intervals/gaps and that no full-scope/global winner is established.' : null,
               // Bounded comparison inventory keeps all interval identities without returning 128 full reports.
               comparedCount: response?.results.length ?? 0,
@@ -1308,7 +1308,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
               parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
             const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
               budgetLimitedIntervals,budgetExhausted:budgetLimitedIntervals>0,terrainSourceKnown:!!((winner??candidate)?.terrain?.id && (winner??candidate)?.terrain?.revision),
-              temporalComplete:taskResult.coverage.completeIntervals,endpointReconciledIntervals:taskResult.coverage.endpointReconciledIntervals,unavailableSampleIntervals:taskResult.coverage.unavailableSampleIntervals,
+              numericalComplete:taskResult.numerical?.completeIntervals,temporalComplete:taskResult.coverage.completeIntervals,endpointReconciledIntervals:taskResult.coverage.endpointReconciledIntervals,unavailableSampleIntervals:taskResult.coverage.unavailableSampleIntervals,
               evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
               sourceKind:candidate ? /estimated|reconstruct/i.test(candidate.source.description??'') ? 'estimated-reconstruction' : candidate.source.classification : undefined,
               candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,

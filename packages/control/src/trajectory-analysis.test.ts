@@ -231,8 +231,9 @@ it('distinguishes local refinement limits from a collection stopping after the g
 });
 
 it('keeps numerical completion distinct from reconciled temporal coverage in answers',()=>{
-  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:71,evaluated:72,temporalComplete:72,endpointReconciledIntervals:55,gapIntervals:0,maximumGapSeconds:0,metric:'heightAbovePhysicalTerrain',winner:null,budgetLimitedIntervals:1,budgetExhausted:true,candidate:{value:.024,utc:'2023-10-05T08:11:34.040Z',object:'Ingenuity',activityId:'flight:61'}};
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:71,evaluated:72,numericalComplete:71,temporalComplete:72,endpointReconciledIntervals:55,gapIntervals:0,maximumGapSeconds:0,metric:'heightAbovePhysicalTerrain',winner:null,budgetLimitedIntervals:1,budgetExhausted:true,candidate:{value:.024,utc:'2023-10-05T08:11:34.040Z',object:'Ingenuity',activityId:'flight:61'}};
   expect(checkAnswer('Only 71 of 72 flights were fully covered.',[fact])).not.toEqual([]);
+  expect(checkAnswer('Flight 61 is the best candidate; 71 of 72 flights completed and Flight 1 hit its numerical limit.',[fact])).toContainEqual(expect.stringContaining('all 72 intervals were compared'));
   const reply=factSummary([fact]);
   expect(reply).toContain('72 have complete temporal coverage');expect(reply).toContain('71 completed numerical search');
   expect(reply).toContain('could contain a higher value');expect(checkAnswer(reply,[fact])).toEqual([]);

@@ -141,5 +141,14 @@ try {
   writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report.summary));
   if(process.env.TERRAIN_PERF_ASSERT==='1'){assert.ok(report.summary.maxTaskMs<100);assert.ok(report.summary.maxCalculationTaskMs<100);assert.ok(report.summary.maxCalculationHeartbeatMs<100);assert.ok(report.summary.maxHeartbeatMs<200);if(stopMs!==null)assert.ok(stopMs<300);}
   assert.deepEqual(errors,[]);
+  if(live && complete){
+    await page.evaluate(()=>window.__terrainShell.openTool('events'));
+    await page.locator('.event-coverage-details > summary').click();
+    report.eventFinder=await page.locator('.event-coverage-details').innerText();
+    assert.match(report.eventFinder,/72 intervals produced candidates; 72 have complete temporal coverage/);
+    assert.match(report.eventFinder,/1 reached local numerical limits/);
+    assert.match(await page.locator('.height-context').first().innerText(),/Flight 61/);
+    writeFileSync(output,JSON.stringify(report,null,2));
+  }
   await page.screenshot({path:output+'.png'});
 }finally{await browser.close();if(proxy)await new Promise(resolve=>proxy.close(resolve));}
