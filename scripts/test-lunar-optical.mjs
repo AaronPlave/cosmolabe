@@ -13,23 +13,25 @@ import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5198';
 const baseline = process.argv.includes('--baseline');
-const hosted = process.argv.includes('--hosted');
+const production = process.argv.includes('--production');
+const hosted = production || process.argv.includes('--hosted');
 const defaultOnly = process.argv.includes('--default-only');
 const out = 'work/lunar-optical', label = baseline ? 'baseline' : 'separate';
 await mkdir(out, { recursive: true });
 const path = 'apps/viewer/test-catalogs/moonfall-shackleton.json';
 const baselineRef = process.env.LUNAR_OPTICAL_BASELINE_REF ?? 'bcecc2ec';
 const source = JSON.parse(baseline ? execFileSync('git', ['show', `${baselineRef}:${path}`], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }) : await readFile(path, 'utf8'));
-// Render original/local cube payloads. Hosted verification is separately done by
-// publish-data with the production and localhost:5173 CORS origins.
+// Local replay uses original/generated payloads; --production loads public pins
+// directly, and --hosted uses the normal Vite proxy on other development ports.
 const datasets = loadDatasets().datasets;
 const selected = hosted ? datasets : Object.fromEntries(Object.entries(datasets).filter(([, ds]) => ds.kind === 'kernels'));
 const catalog = rewriteCatalog(source, 'test-catalogs/moonfall-shackleton.json', selected,
-  hosted ? `${base}/test-catalogs/__hosted/` : 'https://data.aaronplave.com').json;
+  hosted && !production ? `${base}/test-catalogs/__hosted/` : 'https://data.aaronplave.com').json;
 const browser = await chromium.launch({ headless: true,
   executablePath: process.env.CHROMIUM_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
-const report = { baseline, defaultOnly, transport: hosted ? 'hosted-through-vite-proxy' : 'local-payloads', errors: [], psrRequests: [], views: [], passed: false };
+  args: [...(process.env.CHROMIUM_HOST_RESOLVER_RULES ? [`--host-resolver-rules=${process.env.CHROMIUM_HOST_RESOLVER_RULES}`] : []),
+    '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const report = { baseline, defaultOnly, transport: production ? 'public-hosted-payloads' : hosted ? 'hosted-through-vite-proxy' : 'local-payloads', errors: [], psrRequests: [], views: [], passed: false };
 const at = (lat, lon, height) => {
   const a = lat * Math.PI / 180, b = lon * Math.PI / 180, r = 1737.4 + height;
   return [r * Math.cos(a) * Math.cos(b), r * Math.cos(a) * Math.sin(b), r * Math.sin(a)];
@@ -97,6 +99,7 @@ try {
     assert.equal(stats.frame.kind, 'available');
     assert.equal(stats.imagery.baseUncoveredBlocks, 0); assert.equal(stats.imagery.gpuError, null);
     assert.equal(stats.imagery.failedTiles, 0);
+    for (const layer of stats.layers) if (layer.visible && layer.opacity > 0) assert.notEqual(layer.status, 'failed', `${layer.id} must initialize`);
     const canvas = await page.evaluate(() => {
       window.renderer.renderFrame(); return window.renderer.getContext().webglRenderer.domElement.toDataURL();
     });
@@ -112,6 +115,8 @@ try {
         sum += error; large += error > 16; max = Math.max(max, error);
       }
       result.difference = { meanMaxChannelDn: sum / (a.width * a.height), fractionAbove16Dn: large / (a.width * a.height), maximumDn: max };
+      assert.ok(result.difference.meanMaxChannelDn < 1, `${name}/${mode}: default appearance changed materially`);
+      assert.ok(result.difference.fractionAbove16Dn < .001, `${name}/${mode}: too many high-contrast differences`);
     }
     report.views.push(result); console.log(label, name, mode, result.difference ?? 'captured');
   };
