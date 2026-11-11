@@ -47,11 +47,19 @@
       <dt>Location</dt><dd>{formatCoordinates(result.location.latitudeDeg, result.location.longitudeDeg)}</dd>
       <dt>Reference</dt><dd>{event.metrics?.[0]?.label} · {result.body}</dd>
       <dt>Source</dt><dd>{result.source.classification === 'synthetic' ? 'Synthetic trajectory' : result.source.description?.split(/[,.!?\n]/)[0] || 'Trajectory classification unknown'}</dd>
+      {#if result.completeness}
+        <dt>Temporal coverage</dt><dd>{result.completeness.temporal}{result.completeness.endpointReconciliations.length ? ' at source epoch encoding precision' : ''}; {result.completeness.unavailableSamples} unavailable samples</dd>
+        <dt>Numerical search</dt><dd>{result.completeness.numerical === 'budget-limited' ? 'Local allowance reached — could miss a higher value' : 'Sampled and locally refined'}</dd>
+      {:else}
       <dt>Coverage</dt><dd class:incomplete={result.coverage === 'partial'}>{result.coverage === 'partial' ? 'Incomplete — candidate only' : 'Sampled — not a certified global extremum'}</dd>
+      {/if}
     </dl>
     <details class="calculation-details ui-helper">
       <summary onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>Calculation &amp; sources</summary>
       <dl class="measurement-rows">
+        {#each result.completeness?.endpointReconciliations ?? [] as endpoint}
+          <dt>Endpoint representation</dt><dd>ET {endpoint.requestedEt} and source ET {endpoint.sourceEt} encode the same binary64 Julian date; samples remain inside source coverage.</dd>
+        {/each}
         <dt>Frame</dt><dd>{result.frame}</dd>
         {#if result.source.description}
           <dt>Source notes</dt><dd>{result.source.description}</dd>

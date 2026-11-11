@@ -1,5 +1,5 @@
 /** Resolve routine intent once, then use the existing numerical service. No solver here. */
-import { universeTrajectoryAnalysisProvider, type Universe, type TrajectoryExtremaQuery } from '@cosmolabe/core';
+import { assessTrajectoryCoverage, universeTrajectoryAnalysisProvider, type Universe, type TrajectoryExtremaQuery } from '@cosmolabe/core';
 import type { ScriptExtremaOptions, ScriptExtremaRequest, ScriptExtremaResult } from '@cosmolabe/control';
 
 export const heightMetrics = {
@@ -53,13 +53,11 @@ export function resolveExtremaTask(universe: Universe | null, request: ScriptExt
   for (const w of windows) {
     const intervals = provider.coverage?.(w.object);
     if (!intervals) { result.coverage.assessed = false; continue; }
-    let edge = w.start, largest = 0;
-    for (const piece of intervals.filter(p=>p.end>=w.start && p.start<=w.end).sort((a,b)=>a.start-b.start)) {
-      largest = Math.max(largest, Math.max(0,piece.start-edge)); edge=Math.max(edge,Math.min(w.end,piece.end));
-    }
-    largest=Math.max(largest,w.end-edge);
-    if (largest>0) result.coverage.incompleteIntervals++;
-    result.coverage.maximumGapSeconds=Math.max(result.coverage.maximumGapSeconds,largest);
+    const assessment=assessTrajectoryCoverage(w,intervals);
+    if (assessment.temporal==='partial') result.coverage.incompleteIntervals++;
+    result.coverage.maximumGapSeconds=Math.max(result.coverage.maximumGapSeconds,assessment.maximumGapSeconds);
+    if (assessment.endpointReconciliations.length) result.coverage.endpointReconciledIntervals=(result.coverage.endpointReconciledIntervals??0)+1;
+
   }
   // These probes establish that execution is meaningful, not complete coverage.
   const anyState = windows.some(w => {

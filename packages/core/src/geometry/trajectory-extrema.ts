@@ -3,16 +3,20 @@ import type { MissionActivity } from '../MissionActivity.js';
 import type { Universe } from '../Universe.js';
 import type { Trajectory } from '../trajectories/Trajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
+import { InterpolatedStatesTrajectory } from '../trajectories/InterpolatedStates.js';
 import { WaypointTrajectory } from '../trajectories/WaypointTrajectory.js';
 import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { bodyFixedToGeodetic } from '../geographic/coordinates.js';
 import { etToDate } from '../time.js';
 import type { InstantEvent } from './events/types.js';
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';
-type Window = {
+export type TrajectoryCoverageWindow = {
   start: number;
   end: number;
+  startJulianDate?: number;
+  endJulianDate?: number;
 };
+type Window = TrajectoryCoverageWindow;
 export interface TrajectoryAnalysisProvider {
   activities: readonly MissionActivity[];
   /** Changes only when authoritative inputs change, never for cache residency. */
@@ -39,6 +43,28 @@ export interface TrajectoryAnalysisProvider {
   } | null>;
   /** Host yields to input/progress without making the algorithm depend on timers. */
   yield?(): Promise<void>;
+}
+/** Compare only outer endpoints in the source's actual XYZV binary64 encoding.
+ * Interior gaps remain gaps, even if small. Sampling still uses the intersection:
+ * neither state extrapolation nor endpoint movement is authorized by equivalence. */
+export function assessTrajectoryCoverage(window: Window, coverage: readonly Window[] | undefined) {
+  const pieces = coverage ? coverage.map(w => ({ ...w, start: Math.max(w.start, window.start), end: Math.min(w.end, window.end) })).filter(w => w.start <= w.end).sort((a,b) => a.start-b.start) : [window];
+  const endpointReconciliations: NonNullable<TrajectoryExtremum['completeness']>['endpointReconciliations'] = [];
+  const equivalent = (requestedEt: number, sourceEt: number, jd: number | undefined) => {
+    if (jd === undefined || (jd-2451545)*86400 !== sourceEt || requestedEt/86400+2451545 !== jd) return false;
+    endpointReconciliations.push({requestedEt,sourceEt,encoding:'julian-date-f64'});
+    return true;
+  };
+  let edge=window.start, maximumGapSeconds=0;
+  if (coverage) {
+    for (const [i,piece] of pieces.entries()) {
+      if (piece.start>edge && !(i===0 && equivalent(window.start,piece.start,piece.startJulianDate))) maximumGapSeconds=Math.max(maximumGapSeconds,piece.start-edge);
+      edge=Math.max(edge,piece.end);
+    }
+    const last=pieces.at(-1);
+    if (edge<window.end && !(last && equivalent(window.end,last.end,last.endJulianDate))) maximumGapSeconds=Math.max(maximumGapSeconds,window.end-edge);
+  }
+  return { pieces, temporal: !coverage ? 'unknown' as const : !pieces.length || maximumGapSeconds>0 ? 'partial' as const : 'complete' as const, maximumGapSeconds, endpointReconciliations };
 }
 function validFields(q: TrajectoryExtremaQuery): boolean {
   const ref = q?.reference;
@@ -128,19 +154,9 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
       return response(stopped);
     }
     const { object, window, activity } = job;
-    let missing = false, budget = false;
-    const coverage = provider.coverage?.(object);
-    const pieces = coverage ? coverage.map(w => ({ start: Math.max(w.start, window.start), end: Math.min(w.end, window.end) })).filter(w => w.start <= w.end).sort((a, b) => a.start - b.start) : [window];
-    if (coverage) {
-      let edge = window.start;
-      for (const piece of pieces) {
-        if (piece.start > edge)
-          missing = true;
-        edge = Math.max(edge, piece.end);
-      }
-      if (!pieces.length || edge < window.end)
-        missing = true;
-    }
+    const temporal = assessTrajectoryCoverage(window, provider.coverage?.(object));
+    const pieces = temporal.pieces;
+    let missing = temporal.temporal === 'partial', budget = false, unavailableSamples = 0;
     type Sample = {
       et: number;
       value: number;
@@ -183,8 +199,9 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
         }
       }
       catch { /* Availability and conversion failures are data gaps, not invented samples. */ }
-      if (!sample)
-        missing = true;
+      if (!sample) {
+        missing = true; unavailableSamples++;
+      }
       else if (!best || direction * (sample.value - best.value) > 0 || (sample.value === best.value && et < best.et))
         best = sample;
       cache.set(et, sample);
@@ -264,6 +281,7 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
         metric: q.metric, extremum: q.extremum, value: best.value, units: 'km', et: best.et, utc: etToDate(best.et).toISOString(),
         location: { positionKm: [...p], latitudeDeg: Math.atan2(p[2], Math.hypot(p[0], p[1])) * 180 / Math.PI, longitudeDeg: Math.atan2(p[1], p[0]) * 180 / Math.PI, convention: 'planetocentric' },
         datum: q.reference, heightConvention: q.reference.kind === 'sphere' ? 'radial' : 'geodetic-normal', window, source: provider.source(object, best.et), terrain: q.metric === 'heightAbovePhysicalTerrain' ? { ...q.terrain!, sourceUncertaintyKm: best.uncertainty } : null,
+        completeness: { temporal: temporal.temporal, maximumGapSeconds: temporal.maximumGapSeconds, endpointReconciliations: temporal.endpointReconciliations, unavailableSamples, numerical: budget ? 'budget-limited' : 'complete' },
         coverage: missing || budget ? 'partial' : 'sampled-complete', method: { guarantee: 'sampled-and-locally-refined', stepSeconds: actualStep, timeToleranceSeconds: q.timeToleranceSeconds, evaluations: evaluations - before, heightErrorBoundKm: null,
           limits: 'Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error.' } });
     }
@@ -317,7 +335,13 @@ export function universeTrajectoryAnalysisProvider(universe: Universe, revision:
           }
           catch { /* Unknown coverage is still checked by each state probe. */ }
         }
-        return windows.map(({ start, end }) => ({ start: Math.max(start, b.existsFrom ?? -Infinity), end: Math.min(end, b.existsUntil ?? Infinity) })).filter(w => w.start <= w.end);
+        return windows.map(({ start, end }) => {
+          const from=Math.max(start,b.existsFrom??-Infinity), until=Math.min(end,b.existsUntil??Infinity);
+          const t=arc.trajectory;
+          return { start:from,end:until,
+            ...(t instanceof InterpolatedStatesTrajectory && from===t.startTime ? {startJulianDate:t.startJulianDate} : {}),
+            ...(t instanceof InterpolatedStatesTrajectory && until===t.endTime ? {endJulianDate:t.endJulianDate} : {}) };
+        }).filter(w => w.start <= w.end);
       });
     },
     knots: (object, window) => { const b = universe.getBody(object); return b ? arcs(b.trajectory).flatMap(a => [a.start, a.end, ...(a.trajectory.samplingBreakpoints?.(window.start, window.end) ?? [])]).filter(t => t >= window.start && t <= window.end) : []; },

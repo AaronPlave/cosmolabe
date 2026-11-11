@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Body, FixedPointTrajectory, FixedRotation, InterpolatedStatesTrajectory, Universe, type MissionActivity } from '@cosmolabe/core';
+import { Body, FixedPointTrajectory, FixedRotation, InterpolatedStatesTrajectory, Universe, parseXyzv, type MissionActivity } from '@cosmolabe/core';
 import type { ScriptExtremaRequest } from '@cosmolabe/control';
 const runtime = vi.hoisted(() => ({ universe: null as Universe | null, renderer: null as unknown }));
 vi.mock('../viewer-state.svelte', async original => ({ ...await original<typeof import('../viewer-state.svelte')>(), getSceneUniverse:()=>runtime.universe, getRenderer:()=>runtime.renderer }));
@@ -83,6 +83,16 @@ describe('native routine extrema resolution',()=>{
     expect(r.response!.results.reduce((n,r)=>n+r.method.evaluations,0)).toBeLessThanOrEqual(1000000);
     expect(r.response!.results.find(v=>v.id===r.winnerId)?.value).toBeCloseTo(2);
   },30000);
+  it('publishes source-encoding reconciliation separately from numerical and sampled completeness',async()=>{
+    const u=scene(1),start=672089519.3,end=672089558.4;
+    const records=parseXyzv([start,end].map(t=>`${(t/86400+2451545).toFixed(12)} 12 0 0 0 0 0`).join('\n'));
+    u.addBody(new Body({name:'hopper',parentName:'Moon',trajectory:new InterpolatedStatesTrajectory(records,{frame:'IAU_MOON'})}));
+    u.activities.replace('fixture',u.activities.list().map(a=>({...a,start,end})));
+    const r=await analyzeTrajectoryExtrema(request);
+    expect(r).toMatchObject({status:'complete',scope:{evaluated:1,completed:1},coverage:{completeIntervals:1,incompleteIntervals:0,maximumGapSeconds:0,endpointReconciledIntervals:1,unavailableSampleIntervals:0},numerical:{completeIntervals:1,budgetLimitedIntervals:0}});
+    expect(r.winnerId).toBeTruthy();
+    expect(r.response!.results[0].completeness?.endpointReconciliations.length).toBeGreaterThan(0);
+  });
   it('reports actual tiny endpoint gaps and all available candidates separately from a winner',async()=>{
     const u=scene(1);
     u.addBody(new Body({name:'hopper',parentName:'Moon',trajectory:new InterpolatedStatesTrajectory([

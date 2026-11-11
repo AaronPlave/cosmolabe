@@ -88,6 +88,15 @@ export interface TrajectoryExtremum {
     sourceUncertaintyKm: number | null;
   } | null;
   coverage: 'sampled-complete' | 'partial';
+  /** Separate temporal representation, failed samples and numerical search limits.
+   * Optional for older hosts. No scientific/source accuracy is implied. */
+  completeness?: {
+    temporal: 'complete' | 'partial' | 'unknown';
+    maximumGapSeconds: number;
+    endpointReconciliations: { requestedEt: number; sourceEt: number; encoding: 'julian-date-f64' }[];
+    unavailableSamples: number;
+    numerical: 'complete' | 'budget-limited';
+  };
   method: {
     guarantee: 'sampled-and-locally-refined';
     stepSeconds: number;

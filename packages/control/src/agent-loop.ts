@@ -214,7 +214,7 @@ function compactEvidence(turn: readonly AgentMessage[]): string | null {
     try { d = JSON.parse(c.content).data; } catch { continue; }
     if (!d || typeof d !== 'object') continue;
     if ((d.winner || d.candidate) && typeof (d.winner??d.candidate) === 'object') evidence.set('height', { source:'sampled-and-locally-refined-height', winnerId:d.winnerId, winner:d.winner, candidate:d.candidate, scope:d.scope, coverage:d.coverage,
-      limit:'candidate compares ALL returned numerical candidates, including partial intervals; scope.completed counts intervals without detected gaps, not the comparison subset. Only winnerId establishes gap-free full-scope comparison; global height error is still unknown. For show/go reuse the exact winner/candidate ID with navigateToAnalysisResult; stale IDs refuse.' });
+      limit:'candidate compares ALL returned numerical candidates, including partial intervals; scope.completed counts sampled-complete searches, not the comparison subset. coverage.completeIntervals reports temporal coverage separately; endpoint encoding equivalences do not extrapolate samples. numerical reports local search limits. Only winnerId establishes a complete sampled full-scope comparison; global height error is still unknown. For show/go reuse the exact winner/candidate ID with navigateToAnalysisResult; stale IDs refuse.' });
     if (pointCalls.has(c.toolUseId) && Array.isArray(d.position) && d.position.length === 3 && d.position.every(n => typeof n === 'number' && Number.isFinite(n)) && typeof d.et === 'number') {
       const input = inputs.get(c.toolUseId);
       points.push({ object: input?.object, center: d.center, et: d.et, rangeKm: Math.hypot(...d.position as number[]) });

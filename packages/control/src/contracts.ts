@@ -527,14 +527,16 @@ export interface ScriptExtremaResult {
   started: boolean;
   body: string | null;
   query: TrajectoryExtremaQuery | null;
-  scope: { requested: number; completed: number; activityIds: string[] };
+  /** completed counts sampled-complete searches, not temporal coverage or compared candidates. */
+  scope: { requested: number; completed: number; evaluated?: number; activityIds: string[] };
   options: ScriptExtremaOptions;
   response: TrajectoryExtremaResponse | null;
   /** Only when every requested interval has a sampled-complete result. Still not a certified global extremum. */
   winnerId: string | null;
   /** Best available numerical candidate; partial scope remains explicitly unranked. */
   candidateId: string | null;
-  coverage: { assessed: boolean; incompleteIntervals: number; maximumGapSeconds: number };
+  coverage: { assessed: boolean; incompleteIntervals: number; maximumGapSeconds: number; completeIntervals?: number; endpointReconciledIntervals?: number; unavailableSampleIntervals?: number };
+  numerical?: { completeIntervals: number; budgetLimitedIntervals: number };
 }
 
 export interface ViewerControl {

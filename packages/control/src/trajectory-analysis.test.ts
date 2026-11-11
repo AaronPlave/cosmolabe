@@ -229,3 +229,11 @@ it('distinguishes local refinement limits from a collection stopping after the g
   expect(checkAnswer('The search ran out of budget after 17 of 72 flights, so this is not a confirmed maximum.',[fact])).toContainEqual(expect.stringContaining('Local numerical limits did not stop'));
   expect(checkAnswer('All 72 flights produced candidates. One interval reached its refinement allowance; 17 intervals have no detected gaps. No full-scope winner is established.',[fact])).toEqual([]);
 });
+
+it('keeps numerical completion distinct from reconciled temporal coverage in answers',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:71,evaluated:72,temporalComplete:72,endpointReconciledIntervals:55,gapIntervals:0,maximumGapSeconds:0,metric:'heightAbovePhysicalTerrain',winner:null,budgetLimitedIntervals:1,budgetExhausted:true,candidate:{value:.024,utc:'2023-10-05T08:11:34.040Z',object:'Ingenuity',activityId:'flight:61'}};
+  expect(checkAnswer('Only 71 of 72 flights were fully covered.',[fact])).not.toEqual([]);
+  const reply=factSummary([fact]);
+  expect(reply).toContain('72 have complete temporal coverage');expect(reply).toContain('71 completed numerical search');
+  expect(reply).toContain('could contain a higher value');expect(checkAnswer(reply,[fact])).toEqual([]);
+});

@@ -228,3 +228,50 @@ describe('general activity-independent height scope',()=>{
     expect(await findTrajectoryExtrema(query({scope:{kind:'activities',ids:['descent'],window:{start:0,end:7}}}),p)).toMatchObject({status:'complete',results:[{et:7,activityId:'descent'}]});
   });
 });
+
+// Source encoding precision is evidence, not a generic time tolerance.
+describe('source epoch coverage semantics',()=>{
+  it('reconciles only outer endpoints that encode to the actual retained Julian date',async()=>{
+    const {assessTrajectoryCoverage}=await import('../geometry/trajectory-extrema.js');
+    const start=672089519.3,end=672089558.4;
+    const jd=(t:number)=>t/86400+2451545,et=(j:number)=>(j-2451545)*86400;
+    const source={start:et(jd(start)),end:et(jd(end)),startJulianDate:jd(start),endJulianDate:jd(end)};
+    const a=assessTrajectoryCoverage({start,end},[source]);
+    expect(a.temporal).toBe('complete');expect(a.endpointReconciliations.length).toBeGreaterThan(0);
+    const seen:number[]=[];const p=provider(t=>{seen.push(t);return [12,0,0];});p.coverage=()=>[source];
+    const r=await findTrajectoryExtrema(query({scope:{kind:'windows',windows:[{start,end}]}}),p);
+    expect(r).toMatchObject({status:'complete',results:[{coverage:'sampled-complete',completeness:{temporal:'complete',numerical:'complete',unavailableSamples:0}}]});
+    expect(Math.min(...seen)).toBeGreaterThanOrEqual(source.start);expect(Math.max(...seen)).toBeLessThanOrEqual(source.end);
+    expect(r.results[0].window).toEqual({start,end});
+    // The identical mismatch without source encoding evidence remains a gap.
+    expect(assessTrajectoryCoverage({start,end},[{start:source.start,end:source.end}]).temporal).toBe('partial');
+    expect(assessTrajectoryCoverage({start:start-.001,end},[source]).temporal).toBe('partial');
+    const mid=(start+end)/2;
+    expect(assessTrajectoryCoverage({start,end},[{...source,end:mid},{...source,start:mid+.000001}]).temporal).toBe('partial');
+  });
+  it('keeps temporal coverage, failed samples and numerical limits independent',async()=>{
+    const p=provider(t=>t===5?null:[12+t,0,0]);p.coverage=()=>[{start:0,end:10}];
+    const r=await findTrajectoryExtrema(query({maxEvaluations:8}),p);
+    expect(r.results[0].completeness).toMatchObject({temporal:'complete',numerical:'budget-limited'});
+    const missing=await findTrajectoryExtrema(query(),p);
+    expect(missing.results[0].completeness).toMatchObject({temporal:'complete',numerical:'complete',unavailableSamples:1});
+    expect(missing.results[0].coverage).toBe('partial');
+  });
+  it('audits all real Ingenuity activity endpoints against their retained XYZV encodings',async()=>{
+    const {readFileSync}=await import('node:fs');
+    const {parseXyzv}=await import('../trajectories/XyzvParser.js');
+    const {assessTrajectoryCoverage}=await import('../geometry/trajectory-extrema.js');
+    const root=new URL('../../../../apps/viewer/test-catalogs/',import.meta.url);
+    const catalog=JSON.parse(readFileSync(new URL('ingenuity-jezero.json',root),'utf8'));
+    let reconciled=0;
+    for(const a of catalog.activities.filter((a:{kind:string})=>a.kind==='flight')) {
+      const records=parseXyzv(readFileSync(new URL(a.references.sourceSegment,root),'utf8'));
+      const first=records[0],last=records.at(-1)!;
+      const assessment=assessTrajectoryCoverage(a,[{start:first.et,end:last.et,startJulianDate:first.julianDate,endJulianDate:last.julianDate}]);
+      expect(assessment.temporal,a.id).toBe('complete');
+      if(assessment.endpointReconciliations.length)reconciled++;
+    }
+    expect(catalog.activities.filter((a:{kind:string})=>a.kind==='flight')).toHaveLength(72);
+    expect(reconciled).toBe(55);
+  });
+});

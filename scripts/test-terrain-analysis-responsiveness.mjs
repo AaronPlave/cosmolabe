@@ -129,7 +129,12 @@ try {
     assert.ok(Math.abs(report.control.value-best.value)<1e-7);
     if(live){
       assert.deepEqual(checkAnswer(report.turn.reply,report.turn.result.facts),[]);
-      assert.match(report.turn.reply,/72/);assert.match(report.turn.reply,/17/);assert.match(report.turn.reply,/gap|partial|incomplet/i);
+      assert.match(report.turn.reply,/72/);assert.match(report.turn.reply,/numerical|allowance|budget/i);
+      assert.equal(report.results.filter(r=>r.completeness?.temporal==='complete').length,72);
+      assert.equal(report.results.filter(r=>r.completeness?.endpointReconciliations.length).length,55);
+      assert.equal(report.results.filter(r=>r.completeness?.numerical==='budget-limited').length,1);
+      assert.equal(report.results.filter(r=>r.completeness?.unavailableSamples).length,0);
+      assert.doesNotMatch(report.turn.reply,/only\s+17|55\s+.*(?:unexamined|uncovered)/i);
       for(const step of report.turn.steps.filter(s=>s.result?.data)){assert.ok(payloads.has(step.id));assert.ok(!payloads.get(step.id).includes('result-too-large'));}
       assert.equal(report.turn.status,'done');assert.equal(report.state.et,best.et);assert.equal(report.state.tracked,'Ingenuity');assert.equal(report.state.playing,false);}
   }else if(live)assert.equal(report.turn.status,'cancelled');else assert.equal(report.result.status,'cancelled');

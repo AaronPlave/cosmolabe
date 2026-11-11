@@ -3,6 +3,8 @@ import type { CartesianState, Trajectory } from './Trajectory.js';
 
 export interface StateRecord {
   et: number;
+  /** Original binary64 Julian date, retained by the XYZV decoder. */
+  julianDate?: number;
   position: Vec3;
   velocity: Vec3;
 }
@@ -18,6 +20,9 @@ export class InterpolatedStatesTrajectory implements Trajectory {
     this.records = [...records].sort((a, b) => a.et - b.et);
     if (this.records.length < 2) throw new Error('InterpolatedStates requires at least 2 records');
   }
+
+  get startJulianDate(): number | undefined { return this.records[0].julianDate; }
+  get endJulianDate(): number | undefined { return this.records[this.records.length - 1].julianDate; }
 
   get startTime(): number { return this.records[0].et; }
   get endTime(): number { return this.records[this.records.length - 1].et; }

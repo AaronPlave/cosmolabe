@@ -41,14 +41,18 @@ export async function analyzeTrajectoryExtrema(request: ScriptExtremaRequest, op
   const response = await runAnalysis(result.query, options, undefined, true);
   result.response = response;
   result.status = response.status;
+  result.scope.evaluated=response.results.length;
   result.scope.completed = response.results.filter(r => r.coverage === 'sampled-complete').length;
+  result.coverage.completeIntervals=response.results.filter(r=>r.completeness?.temporal==='complete').length;
+  result.coverage.unavailableSampleIntervals=response.results.filter(r=>(r.completeness?.unavailableSamples??0)>0).length;
+  result.numerical={completeIntervals:response.results.filter(r=>r.completeness?.numerical==='complete').length,budgetLimitedIntervals:response.faults.filter(f=>f.code==='budget').length};
   if (response.results.length) result.candidateId = response.results.reduce((a,b)=>(request.extremum==='maximum'?b.value>a.value:b.value<a.value)?b:a).id;
   const complete = response.status === 'complete' && !response.faults.length && response.results.length === result.scope.requested && result.scope.completed === result.scope.requested;
   if (complete) result.winnerId = response.results.reduce((a, b) => (request.extremum === 'maximum' ? b.value > a.value : b.value < a.value) ? b : a).id;
   else if (response.status === 'complete') result.status = 'partial';
   result.reason = response.faults.some(f => f.code === 'budget') ? 'work-budget' : complete ? null : 'data-unavailable';
   result.message = complete ? 'Compared every requested interval using sampled and locally refined results. This is not a certified global extremum or telemetry accuracy bound.'
-    : 'Analysis did not cover every requested interval. Report the established candidates and missing intervals; no collection winner is established. Do not rerun equivalent analysis.';
+    : `${response.results.length}/${result.scope.requested} intervals produced candidates; ${result.coverage.completeIntervals} have complete temporal coverage at source epoch encoding precision; ${result.numerical.budgetLimitedIntervals} reached numerical limits. Report these separately from unavailable samples and source accuracy. A limited interval could contain a higher value; no full-scope winner is established. Do not rerun equivalent analysis.`;
   return result;
 }
 let active: AbortController | null = null;
