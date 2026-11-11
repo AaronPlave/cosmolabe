@@ -71,7 +71,8 @@ The [compact controls](controls.png) retain acquisition years and indirect-light
 
 ## Verification
 
-121 focused JavaScript tests (68 renderer/manager, 24 catalogs, 29 publisher)
+220 focused JavaScript tests (68 renderer/manager, 24 catalogs, 29 publisher,
+99 viewer-control)
 and six GDAL raster tests pass. Package build, test/viewer/Svelte typechecks,
 changed-file lint, production build and the hosted catalog rewrite pass.
 All three public products verified before their registry pins were written.
