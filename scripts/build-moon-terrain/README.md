@@ -124,6 +124,82 @@ runtime design are in [the ADR](../../docs/design/cube-sphere-experiment.md#inde
 
 ## Sources (public, no auth)
 
+### Independent optical layers (#147)
+
+`optical.py` builds the ordinary cube imagery stack used by LRO and MoonFall:
+WAC context, the original controlled NAC detail enabled by default, and optional
+PSR observations disabled by default. `scripts/lib/lunar-optical-imagery.mjs`
+also supplies the MoonFall generator. Terrain, source grids and simulation-time
+Sun calculations are unchanged. WAC and NAC retain the previous catalog lighting
+policy to preserve appearance; the PSR observation explicitly declares `baked`.
+
+```sh
+# Use the original WAC COG and the published composite's imagery.json as inputs.
+# The composite supplies tile selection only; its JPEG pixels are never sampled.
+python3 scripts/build-moon-terrain/optical.py split \
+  --base scripts/build-moon-terrain/data/source/wac-global-100m-cog.tif \
+  --baseline apps/viewer/test-catalogs/data/moon-imagery-cube-wac-nac/imagery.json \
+  --out apps/viewer/test-catalogs/data
+# Download ORIGINAL PDS IMG, not the lower-resolution GeoTIFF browse product.
+python3 scripts/build-moon-terrain/optical.py psr \
+  --source scripts/build-moon-terrain/data/source/NAC_POLE_PSR_SOUTH_STRETCH.IMG \
+  --out apps/viewer/test-catalogs/data
+python3 scripts/build-moon-terrain/validate-optical.py \
+  --source scripts/build-moon-terrain/data/source/NAC_POLE_PSR_SOUTH_STRETCH.IMG \
+  --product apps/viewer/test-catalogs/data/moon-imagery-cube-psr-nac-stretch
+```
+
+Run from the repository root. One worker and a 64 MB GDAL cache per process are
+the defaults; an earlier 12-worker build exhausted memory. Use fresh output
+directories. An interrupted `work/lunar-optical/psr-validity.tif` is incomplete
+and must be removed before retrying. Source files and large generated products
+are ignored by Git. Existing `publish-data.mjs` validates, uploads and verifies
+immutable builds before recording their IDs in `datasets.json`.
+The sampler vectorizes only the exact zero-origin, unit-scale spherical
+south-polar projection. Tests compare it with GDAL and reject different
+meridians, scales and pole origins; other projections retain the GDAL path.
+
+Pinned inputs and source qualifications:
+
+- **WAC:** the original baseline's `wac-global-100m-cog.tif`, SHA-256
+  `fa1af0ace36c1d481b246c8362c3fd6128b7757ee5114a9d69ef98efdfecbdac`.
+  It comes from `Lunar_LRO_LROC-WAC_Mosaic_global_100m_June2013.tif` via the
+  existing `cube-imagery.sh wac-nac` source preparation. Same overview policy,
+  3x3 box quadrature, and JPEG quality 90 as the shipped composite. WAC retains
+  the entire original tile selection, including deep polar fallback tiles.
+- **NAC:** the exact [USGS mirror COG](https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif)
+  sampled by `cube-imagery-composite-3f34a19541af7710`; 77,174,580,438 bytes,
+  ETag `bed0aa45cad34ee85a59fa4084b4522d-9200`, checked before and after the
+  build. 364214-square, 1 m, polar stereographic on the 1737400 m sphere,
+  affine `[-182107,1,0,182107,0,-1]`; zero is transparent. No new stretch,
+  balancing, registration shift, or attempt to unblend the shipped JPEGs.
+  The mirror's modification time is December 2024; the old builder's November
+  2025 release attribution was unsupported. The linked controlled-average
+  product's 2023 README does not establish this mirror's exact release date.
+- **PSR:** [original PDS product](https://pds.mcp.nasa.gov/data/store/img/lunar_reconnaissance_orbiter/pds4/lroc/lro-l-lroc-5-rdr/LROLRC_2001/DATA/BDR/NAC_POLE/NAC_POLE_PSR_SOUTH/NAC_POLE_PSR_SOUTH_STRETCH.IMG),
+  v1.1, 3,696,944,006 bytes, SHA-256
+  `7d8f3f48a439f673263a46e133fe37803203786597f35ee328b1621326383a1d`;
+  60802-square at 10 m, affine `[-304010,10,0,304010,0,-10]`. Creation
+  2022-12-02; acquisition 2012-08-01 to 2017-08-31. Valid display DN are
+  **3–254**, including black 3 and clipped display white 254. NULL 0, LIS 1,
+  LRS 2 and high saturation 255 are excluded **before** constructing area-average
+  premultiplied DN/validity overviews. No-data remains transparent at every LOD.
+  The supplied browse TIFF has 51810-square pixels at 11.735572 m and is not
+  substituted for the original 10 m PDS raster. The built detail footprint is
+  finite, finer near Shackleton/pole, not uniform 10 m coverage of 80–90°S.
+
+[LROC's source description](https://data.lroc.im-ldi.com/lroc/view_rdr/NAC_POLE_PSR_SOUTH)
+documents 20–80x exposures, elongated effective footprints (10–40 by 1–4 m),
+per-PSR stretch/gamma, arbitrary display values and **uncontrolled** placement.
+Pixels inside a shadowed floor are indirect-light observations, not evidence of
+sunlight at the selected epoch. Registration uses the LRO DE421 mean-Earth map
+convention documented in [the frame audit](../../docs/validation/lunar-frames/README.md)
+and [LROC's coordinate discussion](https://doi.org/10.3847/psj/ad54c6); spherical
+polar projection is a map conversion, not an IAU-to-DE421 orientation transform.
+Absolute registration accuracy remains unknown. LROC PDS data are
+[public domain with requested attribution](https://www.lroc.im-ldi.com/about/terms).
+ShadowCam outreach composites are not inputs to this build.
+
 - **Canonical global:** LRO LOLA LDEM 118 m (Mar 2014), USGS Astrogeology
   mosaic. Int16 half-metres above the 1737.4 km sphere. This is the file
   `build-moonfall-flights.mjs` samples (nearest pixel) for the authoritative

@@ -355,6 +355,7 @@ export class CubeImageryLayer {
   private readonly coverKeys = new Map<number, string>();
   private readonly horizonRadiusKm: () => number;
   private disposed = false;
+  private activateSource: (source: Source) => void = () => {};
   private counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 };
   private last = {
     queued: 0, budgetLimited: false, tiles: 0, splitTiles: 0, blocks: 0, extraDraws: 0,
@@ -429,11 +430,18 @@ export class CubeImageryLayer {
     };
     this.retryManifests = () => {
       if (this.disposed || !this.manifest) return;
-      for (const source of this.sources) if (source.index > 0 && source.setupFailed && !loading.has(source)) {
+      for (const source of this.sources) if (source.index > 0 && source.info.visible && source.info.opacity > 0 && source.setupFailed && !loading.has(source)) {
         void loadSource(source).then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
       }
     };
-    this.ready = Promise.all(this.sources.map(loadSource)).then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
+    this.activateSource = source => {
+      if (this.disposed || source.manifest || source.setupFailed || loading.has(source)) return;
+      void loadSource(source).then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
+    };
+    // A disabled observation must not contact its host or allocate texture pages.
+    // Its manifest is requested only on first activation, through ordinary controls.
+    this.ready = Promise.all(this.sources.filter(s => s.index === 0 || (s.info.visible && s.info.opacity > 0)).map(loadSource))
+      .then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
   }
 
   /** Source state uses the same Globe.imagery UI contract as geographic overlays. */
@@ -450,6 +458,7 @@ export class CubeImageryLayer {
     const source = this.sources.find(s => s.info.id === id);
     if (!source || !source.info.optional || source.info.visible === visible) return false;
     source.info.visible = visible;
+    if (visible && source.info.opacity > 0) this.activateSource(source);
     source.cover = [];
     if (source.manifest) source.refinement = new ImageryRefinement(source.manifest.tiles);
     if (!visible) {
@@ -465,6 +474,7 @@ export class CubeImageryLayer {
     if (!source) return false;
     const wasActive = source.info.opacity > 0;
     source.info.opacity = clampOpacity(opacity);
+    if (source.info.visible && source.info.opacity > 0) this.activateSource(source);
     if (!wasActive && source.info.opacity > 0 && source.manifest) source.refinement = new ImageryRefinement(source.manifest.tiles);
     return true;
   }

@@ -432,6 +432,32 @@ describe('CubeImageryLayer paged imagery', () => {
 });
 
 describe("source ingestion and bounded recovery",()=>{
+  it('leaves disabled observations unfetched until activation and loads them only once', async () => {
+    const layers = [
+      { type: 'cube' as const, id: 'base', url: 'http://base/imagery.json' },
+      { type: 'cube' as const, id: 'psr', url: 'http://psr/imagery.json', visible: false },
+      { type: 'cube' as const, id: 'transparent', url: 'http://transparent/imagery.json', opacity: 0 },
+    ];
+    const fetchManifest = vi.fn(async (_url: string) => manifest(1));
+    const loadTexture = vi.fn(async (_url: string) => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0 }, { fetchManifest, loadTexture });
+    try {
+      await layer.ready;
+      await vi.waitFor(() => expect(layer.stats.inFlight).toBe(0));
+      expect(fetchManifest.mock.calls.map(([url]) => url)).toEqual(['http://base/imagery.json']);
+      expect(loadTexture.mock.calls.every(([url]) => url.startsWith('http://base/'))).toBe(true);
+      expect(layer.setLayerVisible('psr', true)).toBe(true);
+      layer.setLayerOpacity('psr', .5); // activation already in flight
+      await vi.waitFor(() => expect(layer.imageryLayers[1].maxLevel).toBe(1));
+      expect(fetchManifest.mock.calls.map(([url]) => url)).toEqual(['http://base/imagery.json', 'http://psr/imagery.json']);
+      layer.setLayerVisible('psr', false);
+      layer.setLayerVisible('psr', true);
+      expect(fetchManifest).toHaveBeenCalledTimes(2);
+      layer.setLayerOpacity('transparent', .5);
+      await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledTimes(3));
+    } finally { layer.dispose(); }
+  });
+
   it('keeps the lower layer when an optional source manifest fails or is incompatible', async () => {
     const layers = ['base', 'outage', 'wrong-body'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
     const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {

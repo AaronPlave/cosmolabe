@@ -65,7 +65,7 @@ def grid_alignment(detail, image, independent=False):
             'note':'Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.'}
 
 
-def prepare_imagery(source, target):
+def prepare_imagery(source, target, valid_range=None):
     """Deterministic area-average pyramid of premultiplied DN and coverage.
 
     Averaging both channels preserves invalid-area transparency at every level;
@@ -83,6 +83,8 @@ def prepare_imagery(source, target):
         a = band.ReadAsArray(0,row,ds.RasterXSize,height)
         valid = np.isfinite(a) & (band.GetMaskBand().ReadAsArray(0,row,ds.RasterXSize,height)>0)
         if band.GetNoDataValue() is not None: valid &= a != band.GetNoDataValue()
+        if valid_range is not None:
+            valid &= (a >= valid_range[0]) & (a <= valid_range[1])
         out.GetRasterBand(1).WriteArray(np.where(valid,a,0).astype(np.float32),0,row)
         out.GetRasterBand(2).WriteArray(valid.astype(np.float32),0,row)
     factors=[]; factor=2
@@ -92,7 +94,8 @@ def prepare_imagery(source, target):
     out=None
     return {'method':'GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature',
             'overviewFactors':factors,'sha256':sha(target),'bytes':Path(target).stat().st_size,
-            'gdal':gdal.VersionInfo('RELEASE_NAME'),'supersample':4}
+            'gdal':gdal.VersionInfo('RELEASE_NAME'),'supersample':4,
+            **({'validRange':list(valid_range)} if valid_range is not None else {})}
 
 
 def valid_subset(ds, source, gt):
