@@ -213,6 +213,15 @@ opt-in fixture `moon-illumination-provenance` declares the WAC+NAC composite
 `baked` for anyone who wants to see it. Confidence is stated where the primary
 source is thin.
 
+Issue #147 separates the original WAC and controlled-NAC inputs into ordinary
+cube layers, preserving their existing default lighting policy. Its optional
+PSR optical observation is explicitly `baked`, initially disabled, and labeled
+as stretched indirect-light photography. The source pins, masks and frame
+qualifications are in the [optical builder notes](../scripts/build-moon-terrain/README.md#independent-optical-layers-147).
+The composite below remains the immutable comparison baseline; source shading
+is not removed by separating its inputs. The deployed NAC mirror was already
+present in December 2024, so the former November 2025 release attribution is unsupported.
+
 | Product (used by) | Evidence | Supported classification |
 | --- | --- | --- |
 | LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product (`WAC_EMP_643NM`, 304 px/deg = 99.75 m/px) exists; it is **not** what the composite uses. | `baked` |

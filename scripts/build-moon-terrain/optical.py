@@ -37,6 +37,7 @@ FRAME = 'MOON_ME_DE421'
 PSR_URL = ('https://pds.mcp.nasa.gov/data/store/img/lunar_reconnaissance_orbiter/pds4/lroc/'
            'lro-l-lroc-5-rdr/LROLRC_2001/DATA/BDR/NAC_POLE/NAC_POLE_PSR_SOUTH/'
            'NAC_POLE_PSR_SOUTH_STRETCH.IMG')
+PSR_SHA256 = '7d8f3f48a439f673263a46e133fe37803203786597f35ee328b1621326383a1d'
 
 
 def pin_nac():
@@ -59,6 +60,26 @@ def source_grid(path):
             'nodata': ds.GetRasterBand(1).GetNoDataValue()}
 
 
+def public_metadata(path):
+    """Publish a reproduction template without disclosing local source paths.
+
+    This changes only the descriptive command. Tile identity, source pins and
+    the generator hashes used for the actual build are retained.
+    """
+    path = Path(path)
+    manifest = json.loads(path.read_text())
+    name = manifest['source']['id']
+    if name == 'psr-nac-stretch':
+        command = 'psr --source PINNED_NAC_POLE_PSR_SOUTH_STRETCH.IMG'
+    else:
+        assert name in ('wac', 'nac-independent')
+        command = ('split --base PINNED_WAC_COG --baseline PINNED_COMPOSITE/imagery.json '
+                   '--only ' + ('wac' if name == 'wac' else 'nac'))
+    manifest['generator']['command'] = f'python3 scripts/build-moon-terrain/optical.py {command} --out DATA_DIRECTORY'
+    manifest['generator']['commandKind'] = 'reproduction-template'
+    path.write_text(json.dumps(manifest, indent=1) + '\n')
+
+
 def emit(args, name, kind, source, tiles, provenance, reg, supersample=3):
     output = Path(args.out) / f'moon-imagery-cube-{name}'
     assert not (output / 'imagery.json').exists(), f'{output}: use a fresh output directory'
@@ -71,6 +92,7 @@ def emit(args, name, kind, source, tiles, provenance, reg, supersample=3):
                   'inputGrid': source_grid(source)}
     cube.run(job, kind, tiles, {'id': name, 'kind': 'imagery', **provenance}, reg, 'srgb',
              extra={'provenance': provenance})
+    public_metadata(output / 'imagery.json')
 
 
 def split(args):
@@ -101,6 +123,9 @@ def split(args):
 
 def psr(args):
     source = Path(args.source)
+    assert source.stat().st_size == 3696944006, 'PSR source size differs from the verified PDS product'
+    source_sha = cube.file_sha256(str(source))
+    assert source_sha == PSR_SHA256, 'PSR source bytes changed; audit before rebuilding'
     ds = gdal.Open(str(source))
     assert ds.GetDriver().ShortName == 'PDS', 'use original PDS IMG, not the resampled browse TIFF'
     assert (ds.RasterXSize, ds.RasterYSize) == (60802, 60802)
@@ -118,7 +143,7 @@ def psr(args):
         'south-pole@-90,0:1=500,2=500,3=500,4=500,5=500,6=400,7=310,8=100,9=50,10=25',
         'shackleton@-89.67,129.78:8=100,9=50,10=25']]
     emit(args, 'psr-nac-stretch', 'raster', prepared, cube.select_tiles(0, regions),
-         {'url': PSR_URL, 'sha256': cube.file_sha256(str(source)), 'productVersion': 'v1.1',
+         {'url': PSR_URL, 'sha256': source_sha, 'productVersion': 'v1.1',
           'nativeResolutionMeters': 10, 'effectivePixelDimensionsMeters': '10-40 by 1-4 (long exposure)',
           'acquisitionStart': '2012-08-01T13:41:45', 'acquisitionEnd': '2017-08-31T00:44:41',
           'created': '2022-12-02T19:58:55', 'validityPreparation': receipt,
