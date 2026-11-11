@@ -38,7 +38,7 @@ export async function analyzeTrajectoryExtrema(request: ScriptExtremaRequest, op
   if (options.signal?.aborted) return { ...result, status: 'cancelled', message: 'Analysis cancelled before execution.' };
   result.started = true;
   clearDirectResults();
-  const response = await runAnalysis(result.query, options, undefined, true);
+  const response = await runAnalysis(result.query, options);
   result.response = response;
   result.status = response.status;
   result.scope.evaluated=response.results.length;
@@ -80,7 +80,7 @@ export function findViewerTrajectoryExtrema(query: TrajectoryExtremaQuery, optio
   clearDirectResults();
   return runAnalysis(query, options);
 }
-async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAnalysisOptions = {}, eventQuery?: import('@cosmolabe/core').EventQuery, collection = false): Promise<TrajectoryExtremaResponse> {
+async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAnalysisOptions = {}, eventQuery?: import('@cosmolabe/core').EventQuery): Promise<TrajectoryExtremaResponse> {
   const invalid = validateTrajectoryExtremaQuery(query);
   if (invalid)
     return { status: 'unavailable', results: [], faults: [invalid] };
@@ -135,13 +135,22 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
         options.onProgress?.(fraction);
       } };
     let response: TrajectoryExtremaResponse;
-    if (collection && query.scope.kind === 'activities') {
-      // One native collection operation, bounded by 128 intervals and one million
-      // evaluations. Source knots determine each existing solver call's allowance;
-      // dense early activities cannot consume the entire collection's budget.
+    if (query.scope.kind === 'activities') {
+      // Shared by native UI, routines, expert scripts and configured reruns.
+      // Preserve source knots while preventing dense early activities from
+      // consuming all work before later activities get a candidate. These are
+      // numerical allowances, never an upper bound on unsearched heights.
       const scope=query.scope;
-      const jobs=activities.filter(a=>a.enabled!==false && query.objects.includes(a.vehicle) && a.body===query.body && (!scope.ids || scope.ids.includes(a.id)));
+      const jobs=query.objects.flatMap(object=>activities.filter(a=>a.enabled!==false && a.vehicle===object && a.body===query.body && (!scope.ids || scope.ids.includes(a.id))
+        && (!scope.activityKind || a.kind===scope.activityKind) && (!scope.window || a.start<=scope.window.end && a.end>=scope.window.start)));
+      if (!jobs.length || jobs.length>128)
+        return {status:'unavailable',results:[],faults:[{code:'unavailable',message:'No matching catalog intervals, or more than 128 intervals requested. Narrow the scope.'}]};
       response={status:'complete',results:[],faults:[]};let evaluations=0;
+      for (const object of query.objects)
+        if (!jobs.some(a=>a.vehicle===object)) {
+          response.status='partial';
+          response.faults.push({code:'unavailable',object,message:'No matching catalog activity intervals for this object.'});
+        }
       const position=provider.position;
       provider.position=(...args)=>{evaluations++;return position(...args);};
       for (const [i,a] of jobs.entries()) {
@@ -156,6 +165,8 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
         if (part.status!=='complete') response.status='partial';
       }
       if (!response.results.length && response.status==='partial') response.status='unavailable';
+      const direction=query.extremum==='maximum'?1:-1;
+      response.results.sort((a,b)=>direction*(b.value-a.value)||a.et-b.et||a.object.localeCompare(b.object));
     } else response = await compute(query, provider, computeOptions);
     if (active !== token)
       return { status: 'cancelled', results: [], faults: [{ code: 'cancelled', message: 'Superseded by a newer analysis.' }] };
@@ -275,10 +286,14 @@ export function trajectoryMetricAvailability(bodyName?: string, frameOverride?: 
 }
 function eventConfiguration(query: TrajectoryExtremaQuery, activities: readonly import('@cosmolabe/core').MissionActivity[]): import('@cosmolabe/core').EventQueryConfiguration {
   const scope = query.scope;
-  const windows = scope.kind === 'windows' ? scope.windows : activities.filter(a => query.objects.includes(a.vehicle) && (!scope.ids || scope.ids.includes(a.id))).map(a => ({ start: a.start, end: a.end }));
+  const selected = scope.kind === 'activities' ? activities.filter(a => a.enabled!==false && query.objects.includes(a.vehicle) && a.body===query.body && (!scope.ids || scope.ids.includes(a.id))
+    && (!scope.activityKind || a.kind===scope.activityKind) && (!scope.window || a.start<=scope.window.end && a.end>=scope.window.start)) : [];
+  const windows = scope.kind === 'windows' ? scope.windows : selected.map(a => ({ start: Math.max(a.start,scope.window?.start??a.start), end: Math.min(a.end,scope.window?.end??a.end) }));
   return { kind: 'trajectory-extremum', bodies: { center: query.body, ...(query.objects.length === 1 ? { observer: query.objects[0] } : {}) },
     window: { start: Math.min(...windows.map(w => w.start)), end: Math.max(...windows.map(w => w.end)) }, step: query.stepSeconds, abcorr: 'NONE',
-    params: { metric: query.metric, extremum: query.extremum, scope: query.scope.kind === 'windows' ? 'window' : 'activities', timeToleranceSeconds: query.timeToleranceSeconds, sampling: query.sampling ?? 'fixed', frame: query.frame,
+    params: { metric: query.metric, extremum: query.extremum, scope: scope.kind === 'windows' ? 'window' : 'selected-activities',
+      ...(scope.kind==='activities'?{activityIds:selected.map(a=>a.id),...(scope.activityKind?{activityKind:scope.activityKind}:{})}:{}),
+      timeToleranceSeconds: query.timeToleranceSeconds, sampling: query.sampling ?? 'fixed', frame: query.frame,
       ...(query.reference.kind === 'sphere' ? { radiusKm: query.reference.radiusKm } : {}), ...(query.terrain ? { terrainId: query.terrain.id, terrainRevision: query.terrain.revision } : {}) } };
 }
 function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtremaQuery['reference']): boolean {

@@ -60,6 +60,8 @@ export const trajectoryExtremumKind: EventKind = {
     const response = await ctx.trajectoryAnalysis(query);
     for (const fault of response.faults)
       ctx.reportFault?.({ code: fault.code === 'invalid-query' ? 'invalid-params' : 'unavailable', message: fault.message, window: fault.window });
-    return response.results.map(result => trajectoryExtremumEvent(response.status === 'partial' ? { ...result, coverage: 'partial' } : result, query.id));
+    // Collection faults limit the overall ranking, not every interval's own
+    // coverage. Keep the solver's per-interval evidence unchanged in the UI.
+    return response.results.map(result => trajectoryExtremumEvent(result, query.id));
   },
 };

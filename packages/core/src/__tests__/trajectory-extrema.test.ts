@@ -148,6 +148,15 @@ describe('native trajectory Event Finder kind',()=>{
     const found=await search.run({id:'height-search',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}});
     expect(found).toMatchObject({ok:true,faults:[{code:'unavailable'}],events:[{kind:'trajectory-extremum',queryId:'height-search',primaryRole:'observer',trajectoryAnalysis:{coverage:'partial'}}]});
   });
+  it('does not make complete intervals partial because a different interval hit a limit',async()=>{
+    const {EventSearch}=await import('../geometry/events/search.js');
+    const {builtinEventKinds}=await import('../geometry/events/kinds/index.js');
+    const numerical=await findTrajectoryExtrema(query(),provider(()=>[13,0,0]));
+    const unavailable=()=>{throw Error('GF must not be called');};
+    const search=new EventSearch({registry:builtinEventKinds(),provider:{gfdist:unavailable,gfsep:unavailable,gfposc:unavailable,gfoclt:unavailable},trajectoryAnalysis:async()=>({...numerical,status:'partial',faults:[{code:'budget',object:'other',message:'Other interval reached its allowance.'}]})});
+    const found=await search.run({id:'height-search',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}});
+    expect(found).toMatchObject({ok:true,faults:[{code:'unavailable'}],events:[{trajectoryAnalysis:{coverage:'sampled-complete'}}]});
+  });
   it('allows activity-independent windows and reports unavailable host ports',async()=>{
     const {EventSearch}=await import('../geometry/events/search.js');
     const {builtinEventKinds}=await import('../geometry/events/kinds/index.js');

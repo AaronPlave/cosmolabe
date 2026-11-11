@@ -3,9 +3,11 @@ import { Body, FixedPointTrajectory, FixedRotation, InterpolatedStatesTrajectory
 import type { ScriptExtremaRequest } from '@cosmolabe/control';
 const runtime = vi.hoisted(() => ({ universe: null as Universe | null, renderer: null as unknown }));
 vi.mock('../viewer-state.svelte', async original => ({ ...await original<typeof import('../viewer-state.svelte')>(), getSceneUniverse:()=>runtime.universe, getRenderer:()=>runtime.renderer }));
-import { analyzeTrajectoryExtrema, getTrajectoryAnalysisOptions } from '../trajectory-analysis.svelte';
+vi.mock('../loader', async original => ({ ...await original<typeof import('../loader')>(), getUniverse:()=>runtime.universe }));
+import { analyzeTrajectoryExtrema, findViewerTrajectoryExtrema, getTrajectoryAnalysisOptions, runTrajectoryEventQuery } from '../trajectory-analysis.svelte';
 import { resolveExtremaTask } from '../trajectory-task';
-import { resetForScene } from '../event-finder.svelte';
+import { ef, openConfiguredQuery, resetForScene, runSearch } from '../event-finder.svelte';
+import { analysis } from '../analysis.svelte';
 
 afterEach(()=>{ runtime.renderer=null; resetForScene(); runtime.universe=null; });
 function scene(count=3) {
@@ -60,6 +62,8 @@ describe('native routine extrema resolution',()=>{
     u.activities.replace('fixture',u.activities.list().map((a,i)=>({...a,...(i===1?{kind:'landing'}:i===2?{enabled:false}:{})})));
     const r=await analyzeTrajectoryExtrema(request);
     expect(r.scope.activityIds).toEqual(['flight:0']);expect(r.scope.requested).toBe(1);
+    const explicit=await findViewerTrajectoryExtrema({...r.query!,scope:{kind:'activities',activityKind:'flight',window:{start:0,end:9}}});
+    expect(explicit.results.map(r=>[r.activityId,r.window])).toEqual([['flight:0',{start:0,end:9}]]);
   });
   it('rejects malformed windows and honors cancellation before execution',async()=>{
     scene();
@@ -82,7 +86,26 @@ describe('native routine extrema resolution',()=>{
     expect(r.status).toBe('complete');expect(r.scope.completed).toBe(72);expect(r.response?.results).toHaveLength(72);
     expect(r.response!.results.reduce((n,r)=>n+r.method.evaluations,0)).toBeLessThanOrEqual(1000000);
     expect(r.response!.results.find(v=>v.id===r.winnerId)?.value).toBeCloseTo(2);
+    const canonical=(response:NonNullable<typeof r.response>)=>response.results.map(({id:_,...value})=>value).sort((a,b)=>a.activityId!.localeCompare(b.activityId!));
+    const expert=await findViewerTrajectoryExtrema(r.query!);
+    const native=await runTrajectoryEventQuery({id:'native',kind:'trajectory-extremum',bodies:{center:'Moon',observer:'hopper'},window:{start:0,end:720},step:.1,params:{metric:'radialHeightAboveReferenceSphere',extremum:'maximum',scope:'activities',activityKind:'flight',timeToleranceSeconds:.005,sampling:'adaptive'}},{});
+    expect(canonical(expert)).toEqual(canonical(r.response!));
+    expect(canonical(native)).toEqual(canonical(r.response!));
   },30000);
+  it('reruns the original typed scope from the native form until the user edits it',async()=>{
+    scene();
+    const r=await analyzeTrajectoryExtrema({...request,scope:{kind:'activities',ids:['flight:1']}});
+    const item=analysis.items.find(item=>item.type==='event-query')!;
+    openConfiguredQuery(item.id);
+    await runSearch();
+    expect(item.query.trajectoryAnalysis).toEqual(r.query);
+    expect(ef.fault).toBeNull();
+    expect(analysis.eventResults[item.id].map(e=>e.trajectoryAnalysis?.activityId)).toEqual(['flight:1']);
+    ef.form!.params.scope='window';
+    await runSearch();
+    expect(item.query.trajectoryAnalysis).toBeUndefined();
+    expect(analysis.eventResults[item.id].map(e=>e.trajectoryAnalysis?.activityId)).toEqual([null]);
+  });
   it('publishes source-encoding reconciliation separately from numerical and sampled completeness',async()=>{
     const u=scene(1),start=672089519.3,end=672089558.4;
     const records=parseXyzv([start,end].map(t=>`${(t/86400+2451545).toFixed(12)} 12 0 0 0 0 0`).join('\n'));
