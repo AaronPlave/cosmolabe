@@ -106,6 +106,19 @@ describe('native routine extrema resolution',()=>{
     expect(item.query.trajectoryAnalysis).toBeUndefined();
     expect(analysis.eventResults[item.id].map(e=>e.trajectoryAnalysis?.activityId)).toEqual([null]);
   });
+  it('retains disjoint windows and the explicit numerical cap on configured reruns',async()=>{
+    const u=scene();
+    const ready=resolveExtremaTask(u,{...request,scope:{kind:'windows',windows:[{start:0,end:2},{start:18,end:20}]}},getTrajectoryAnalysisOptions(),()=>({reference:{kind:'sphere',radiusKm:10}}));
+    const query={...ready.query!,maxEvaluations:1000};
+    const original=await findViewerTrajectoryExtrema(query);
+    const item=analysis.items.find(item=>item.type==='event-query')!;
+    openConfiguredQuery(item.id);
+    await runSearch();
+    expect(ef.fault).toBeNull();
+    expect(item.query.trajectoryAnalysis).toEqual(query);
+    expect(analysis.eventResults[item.id].map(e=>e.trajectoryAnalysis!.window)).toEqual([{start:0,end:2},{start:18,end:20}]);
+    expect(analysis.eventResults[item.id].map(e=>e.trajectoryAnalysis!.method.evaluations)).toEqual(original.results.map(r=>r.method.evaluations));
+  });
   it('publishes source-encoding reconciliation separately from numerical and sampled completeness',async()=>{
     const u=scene(1),start=672089519.3,end=672089558.4;
     const records=parseXyzv([start,end].map(t=>`${(t/86400+2451545).toFixed(12)} 12 0 0 0 0 0`).join('\n'));

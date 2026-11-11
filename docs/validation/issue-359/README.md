@@ -2,6 +2,33 @@
 
 PR #363 remains draft; no merge or readiness transition was performed. The controls below establish the recorded behavior, not statistical reliability.
 
+## Native UI / Ask execution parity review
+
+Runtime source: `45ac4418`. The blocking review at `c22716ee` was valid: native UI/configured reruns used one 200,000-evaluation solver call, while the routine used by Ask allocated work per activity. Before the fix, the actual native **Find maximum** button exhausted 200,000 physical-terrain evaluations in **39.43 s**, producing only **12/72** candidates (11 numerically complete). Its best was Flight 10, ~12.18 m. The operation used by Ask produced all 72 candidates with 387,231 evaluations (140.43 s in that diagnostic). The ellipsoid control similarly returned only 13 candidates through UI versus all 72 through the routine. The faster UI result was not equivalent.
+
+The Ask-only execution switch is removed. Activity requests now share scope filtering, source-knot-derived interval allocations, cancellation/progress and publication through `runAnalysis`, regardless of UI, routine, expert API or stored rerun. Existing limits remain 128 intervals, 200,000 per solver call and one million per collection; Flight 1's allowance was not increased. Empty/out-of-window/disabled restrictions remain effective. Unchanged configured reruns retain the full typed scope and explicit work cap, including disjoint windows; a form edit replaces that definition. The generated form also retains selected activity IDs. Event Finder no longer changes every interval's coverage to partial merely because a different interval has a numerical limit.
+
+The repeatable [comparison harness](../../../scripts/test-trajectory-path-parity.mjs) uses fresh contexts, the same 1400×900 canvas/Events pane, 30 s ordinary renderer warmup, all 72 catalog flight IDs/windows, IAU_MARS, adaptive requested step 0.1 s and refinement tolerance 0.005 s. Both metrics use Mars's declared ellipsoid `[3396.19, 3396.19, 3376.2]` km and geodetic-normal height. Terrain pins `cube-fused-e7a6cf73d237-g2-m15-b66ee59ba`; its source accuracy remains unknown. Reports retain every window, actual spacing, per-flight evaluation count, datum/source, result and viewer state. No inference time is included in these numerical cells.
+
+| Metric / path | Evaluations / terrain queries | Candidates / temporal complete / numerical complete | Wall time |
+| --- | ---: | ---: | ---: |
+| Physical terrain / native UI | 387,231 / 387,231 | 72 / 72 / 71 | 104.29 s |
+| Physical terrain / Ask operation, without inference | 387,231 / 387,231 | 72 / 72 / 71 | 133.57 s |
+| Physical terrain / stored native rerun | 387,231 / 387,231 | 72 / 72 / 71 | 99.26 s |
+| Ellipsoid / native UI | 337,703 / 0 | 72 / 72 / 72 | 11.98 s |
+| Ellipsoid / Ask operation, without inference | 337,703 / 0 | 72 / 72 / 72 | 11.40 s |
+| Ellipsoid / stored native rerun | 337,703 / 0 | 72 / 72 / 72 | 10.32 s |
+
+All per-flight result fields, including evaluation counts and qualifications, compare exactly across the three paths after excluding ephemeral IDs. Both native paths clicked the actual best result row and verified exact epoch, pause, selection and tracking. Physical clearance selects Flight 61 at ~24.018 m; ellipsoid height selects Flight 64 at ~−2.04024 km and is not a terrain substitute. Flight 1 still reaches 9,872 evaluations with a ~2.989 m partial candidate and no proven upper bound. No full-scope physical-height winner is established.
+
+The 66,604 source records imply roughly 266,200 endpoint/quarter-segment probes under the existing solver policy before local refinement, already beyond the old total cap. All 387,231 evaluated terrain locations were distinct; exact point memoization would not remove these calls. No coarser search, discarded source knots, spatial quantization or new refinement framework was adopted: the measured fast UI path does not demonstrate an equivalent cheaper answer. This remains expensive shared physical analysis. All runs used ANGLE Metal / Apple M4 Max; OS scheduling and network/cache warmth remain uncontrolled. Earlier diagnostics ranged 78–186 s; these are observations, not a latency guarantee. The controlled six-cell run recorded at most a 52 ms main-thread task and 119.5 ms heartbeat interval.
+
+The **exact natural-language prompt** below also passed through the ordinary Ask textarea/Send control on this runtime, **Haiku only**: **387,231 terrain queries; 82.20 s calculation; 88.70 s first terrain query through final answer/navigation; five rounds / 71,100 processed tokens**. Model-delivered tool payloads, all 72 candidates, rendered Event Finder coverage, exact ET and independent Cartesian height control passed. No task ≥50 ms was recorded; calculation/whole-turn maximum heartbeat was 49.8/72.5 ms and p95 frame interval 16.6 ms. The answer checker rejected scope/winner wording after the existing single correction, so the displayed answer used the truthful native fact summary. It explicitly compares 72/72, separates Flight 1's numerical limit and disclaims a global winner and telemetry accuracy. This run does not establish independent model-prose reliability.
+
+The actual live **Stop** control passed after **61,214 terrain calls**: timeline stepping 120 ms, real camera drag and text input verified, Stop **146 ms**, cancelled status, zero published candidates and no new evaluations for 200 ms afterward. No task ≥50 ms was recorded; maximum heartbeat 86.1 ms; two Haiku rounds / 24,055 processed tokens. An initial live setup attempt had no Ask endpoint and stopped before inference; restoring the development endpoint resolved it.
+
+Validation: **455 tests pass in 27 files; five optional external Cosmographia-fixture tests skipped**. Package builds, test/viewer/Svelte typechecks, changed-source ESLint, harness syntax and diff checks pass. `agent-loop.ts`, model routing, recovery rounds and scientific source data are unchanged by this review. Raw reports/profiles/screenshots remain temporary. To repeat numerical parity: `TRAJECTORY_PARITY_ASSERT=1 node scripts/test-trajectory-path-parity.mjs`; live completion/Stop use the existing responsiveness harness and its explicit Haiku opt-in, with the dedicated viewer's `VITE_ASK_ENDPOINT` pointing to the local proxy.
+
 
 ## Source epoch coverage review
 

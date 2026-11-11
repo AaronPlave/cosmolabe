@@ -12,6 +12,7 @@ try {
     if(process.env.TRAJECTORY_PARITY_CELLS&&!process.env.TRAJECTORY_PARITY_CELLS.split(',').includes(`${metric}:${path}`))continue;
     console.log('starting',metric,path);
     const context=await browser.newContext({viewport:{width:1400,height:900}}),page=await context.newPage();
+    await page.bringToFront();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(new URL('?catalog=test-catalogs/ingenuity-jezero',base).href);
     await page.waitForFunction(()=>window.cosmo?.getScene()?.ready,null,{timeout:600000});
@@ -31,13 +32,18 @@ try {
       p.request={objects:['Ingenuity'],metric,extremum:'maximum',scope:{kind:'activities',activityKind:'flight'}};
       p.query={objects:['Ingenuity'],body:'Mars',frame:universe.frames.bodyFixedFrameFor('Mars'),metric:metric==='terrain-clearance'?'heightAbovePhysicalTerrain':'heightAboveReferenceEllipsoid',extremum:'maximum',reference:metric==='terrain-clearance'?mesh.terrainDatum.referenceShape:{kind:'ellipsoid',radiiKm:universe.getBody('Mars').radii},scope:{...p.request.scope,ids:acts.map(a=>a.id)},stepSeconds:.1,timeToleranceSeconds:.005,sampling:'adaptive',maxEvaluations:200000,...(metric==='terrain-clearance'?{terrain:{id:mesh.terrainSourceId,revision:mesh.terrainSourceRevision}}:{})};
       p.activities=acts.map(a=>({id:a.id,start:a.start,end:a.end}));
+      // Keep the rendered workspace/pane layout identical for the routine and
+      // UI cells; rendering load competes with cooperative numerical work.
+      p.shell.openTool('events');
       if(path!=='ask-operation'){
         const item=p.analysis.createConfiguredEventQuery({kind:'trajectory-extremum',bodies:{center:'Mars',observer:'Ingenuity'},window:{start:Math.min(...acts.map(a=>a.start)),end:Math.max(...acts.map(a=>a.end))},step:.1,abcorr:'NONE',params:{metric:p.query.metric,extremum:'maximum',scope:'selected-activities',activityIds:acts.map(a=>a.id),activityKind:'flight',timeToleranceSeconds:.005,sampling:'adaptive',frame:p.query.frame}},'72 flight parity','explicit');
         if(path==='stored-rerun')item.query.trajectoryAnalysis=p.query;
-        p.finder.openConfiguredQuery(item.id);p.shell.openTool('events');
+        p.finder.openConfiguredQuery(item.id);
       }
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       const gl=document.querySelector('canvas').getContext('webgl2'),ext=gl.getExtension('WEBGL_debug_renderer_info');
       p.renderer=gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+      const rect=document.querySelector('canvas').getBoundingClientRect();p.canvas={width:rect.width,height:rect.height};
       p.calls=0;p.locations=new Set();p.progress=[];p.tasks=[];p.beats=[];
       const original=mesh.requestTerrainAnalysisSample;
       mesh.requestTerrainAnalysisSample=async function(...args){p.firstTerrain??=performance.now();p.calls++;p.locations.add(`${args[0]},${args[1]}`);try{return await original.apply(this,args)}finally{p.lastTerrain=performance.now()}};
@@ -54,7 +60,7 @@ try {
     const report=await page.evaluate(({metric,path})=>{
       const p=window.__parity;clearInterval(p.timer);p.observer.disconnect();
       const results=Object.values(p.analysis.analysis.eventResults).flat().filter(e=>e.trajectoryAnalysis).map(e=>e.trajectoryAnalysis);
-      return{metric,path,renderer:p.renderer,query:p.query,activities:p.activities,wallMs:p.end-p.start,terrainMs:p.lastTerrain-p.firstTerrain,terrainCalls:p.calls,uniqueLocations:p.locations.size,maxTaskMs:Math.max(0,...p.tasks),maxHeartbeatMs:Math.max(0,...p.beats),progress:p.progress,result:p.result,fault:p.finder.ef.fault,hint:p.finder.ef.hint,storedDefinition:p.analysis.analysis.items.find(i=>i.type==='event-query')?.query,results};
+      return{metric,path,renderer:p.renderer,canvas:p.canvas,query:p.query,activities:p.activities,wallMs:p.end-p.start,terrainMs:p.lastTerrain-p.firstTerrain,terrainCalls:p.calls,uniqueLocations:p.locations.size,maxTaskMs:Math.max(0,...p.tasks),maxHeartbeatMs:Math.max(0,...p.beats),progress:p.progress,result:p.result,fault:p.finder.ef.fault,hint:p.finder.ef.hint,storedDefinition:p.analysis.analysis.items.find(i=>i.type==='event-query')?.query,results};
     },{metric,path});
     assert.deepEqual(errors,[]);assert.equal(report.fault,null);
     if(path==='stored-rerun'&&process.env.TRAJECTORY_PARITY_ASSERT==='1')assert.deepEqual(report.storedDefinition.trajectoryAnalysis,report.query);
