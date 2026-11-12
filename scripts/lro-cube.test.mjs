@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { loadDatasets } from './data-hosting/lib/datasets.mjs';
+import { loadDatasets, remotePrefix } from './data-hosting/lib/datasets.mjs';
 import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
+import { lunarOpticalImagery } from './lib/lunar-optical-imagery.mjs';
 const read = name => JSON.parse(readFileSync(new URL(`../apps/viewer/test-catalogs/${name}.json`, import.meta.url)));
 const catalog = read('lro-moon');
 const moon = catalog.items.find(i => i.name === 'Moon');
@@ -16,15 +17,29 @@ describe('LRO hosted lunar surface migration', () => {
     expect(catalog.spiceKernels).toContainEqual(expect.objectContaining({ url: 'kernels/lro/moon_pa_de421_1900_2050.bpc.gz' }));
   });
 
-  it('rewrites all three surface products to the immutable production revisions', () => {
-    const result = rewriteCatalog(catalog, 'test-catalogs/lro-moon.json', loadDatasets().datasets, 'https://data.aaronplave.com');
+  it('rewrites the terrain and independent optical products to immutable production revisions', () => {
+    const datasets = loadDatasets().datasets;
+    const result = rewriteCatalog(catalog, 'test-catalogs/lro-moon.json', datasets, 'https://data.aaronplave.com');
     expect(result.unpublished).toEqual([]);
     const terrain = result.json.items.find(i => i.name === 'Moon').geometry.terrain;
     const root = 'https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/';
     expect(terrain.url).toBe(root + 'tileset.json');
     expect(terrain.cubeSphere.cpuGrids).toBe(root + 'cpu-grids.json');
-    expect(terrain.imagery[0].url).toBe('https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json');
+    for (const [i, name] of ['wac', 'nac-independent', 'psr-nac-stretch'].entries()) {
+      const dataset = datasets[`cube-imagery/moon-imagery-cube-${name}`];
+      expect(dataset.build).toBeTruthy();
+      expect(terrain.imagery[i].url).toBe(`https://data.aaronplave.com/${remotePrefix(dataset)}imagery.json`);
+    }
     expect(catalog.items.find(i => i.name === 'Moon').geometry.terrain.url).toBe('data/moon-terrain-cube/tileset.json');
+  });
+
+  it('shares the generated stack, retains NAC by default, and identifies optional PSR photography', () => {
+    const layers = moon.geometry.terrain.imagery;
+    expect(layers).toEqual(lunarOpticalImagery());
+    expect(layers.map(l => l.id)).toEqual(['wac', 'nac', 'psr-nac']);
+    expect(layers[1].visible).not.toBe(false);
+    expect(layers[2]).toMatchObject({ visible: false, illumination: 'baked', resolutionMeters: 10 });
+    expect(layers[2].description).toContain('not calibrated reflectance or sunlight at the simulation time');
   });
 
   it('keeps the real mission and instrument definitions independent of surface authoring', () => {

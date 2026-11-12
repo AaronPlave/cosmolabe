@@ -15,6 +15,49 @@ import numpy as np
 gdal.UseExceptions()
 
 class RasterImageryTests(unittest.TestCase):
+    def test_exact_south_polar_projection_matches_gdal_and_rejects_other_origins(self):
+        srs=osr.SpatialReference();srs.ImportFromProj4('+proj=stere +lat_0=-90 +lon_0=0 +k=1 +R=1737400 +units=m')
+        geog=srs.CloneGeogCS();geog.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        tr=osr.CoordinateTransformation(geog,srs)
+        lon,lat=np.meshgrid([-180.,-135.,-90.,0.,45.,90.,180.],[-90.,-89.67,-84.,-80.,-35.])
+        x,y=cube.south_stereographic(lon.ravel(),lat.ravel(),1737400)
+        reference=np.array(tr.TransformPoints(np.column_stack([lon.ravel(),lat.ravel()]).tolist()))
+        np.testing.assert_allclose(np.column_stack([x,y]),reference[:,:2],rtol=0,atol=2e-9)
+        with tempfile.TemporaryDirectory() as d:
+            for meridian,scale,origin,expected in [(0,1,-90,True),(10,1,-90,False),(0,.99,-90,False),(0,1,90,False)]:
+                crs=osr.SpatialReference();crs.ImportFromProj4(f'+proj=stere +lat_0={origin} +lon_0={meridian} +k={scale} +R=1737400 +units=m')
+                path=str(Path(d)/f'{meridian}-{scale}-{origin}.tif')
+                ds=gdal.GetDriverByName('GTiff').Create(path,64,64,1,gdal.GDT_Byte)
+                ds.SetProjection(crs.ExportToWkt());ds.SetGeoTransform((-32000,1000,0,32000,0,-1000))
+                ds.GetRasterBand(1).WriteArray(np.arange(64*64,dtype=np.uint8).reshape(64,64));ds=None
+                original_radius=cube.R_KM;cube.R_KM=1737.4
+                try:
+                    src=cube.raster_open(path)
+                    self.assertEqual(src['south_stereo'],expected)
+                    if expected:
+                        fast=cube.raster_tile(path,'nz',6,32,32,16,2,3)
+                        src['south_stereo']=False
+                        slow=cube.raster_tile(path,'nz',6,32,32,16,2,3)
+                        for a,b in zip(fast,slow):np.testing.assert_allclose(a,b,atol=1e-8)
+                finally:cube.R_KM=original_radius
+
+    def test_psr_special_pixels_are_masked_before_area_averaging(self):
+        with tempfile.TemporaryDirectory() as d:
+            source=Path(d)/'psr.tif'; target=Path(d)/'validity.tif'
+            values=np.tile(np.array([0,1,2,3,100,254,255,0],np.uint8),(64,8))
+            self.create(source,values)
+            receipt=prepare_imagery(source,target,valid_range=(3,254))
+            self.assertEqual(receipt['validRange'],[3,254])
+            ds=gdal.Open(str(target)); expected=(values>=3)&(values<=254)
+            np.testing.assert_array_equal(ds.GetRasterBand(2).ReadAsArray(),expected)
+            np.testing.assert_array_equal(ds.GetRasterBand(1).ReadAsArray(),np.where(expected,values,0))
+            # The coarsest footprint retains missing area rather than stretching
+            # the special pixels into photographic signal; DN 3 and 254 survive.
+            for band,mean in [(1,(3+100+254)/8),(2,3/8)]:
+                b=ds.GetRasterBand(band)
+                np.testing.assert_allclose(b.GetOverview(b.GetOverviewCount()-1).ReadAsArray(),mean)
+
     def test_original_ctx_grid_requires_explicit_independent_policy(self):
         detail=(4577366.,1.,0.,1106618.,0.,-1.)
         ctx=(4573663.250853,6.,0.,1109693.140188,0.,-6.)

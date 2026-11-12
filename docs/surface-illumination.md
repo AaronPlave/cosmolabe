@@ -213,11 +213,20 @@ opt-in fixture `moon-illumination-provenance` declares the WAC+NAC composite
 `baked` for anyone who wants to see it. Confidence is stated where the primary
 source is thin.
 
+Issue #147 separates the original WAC and controlled-NAC inputs into ordinary
+cube layers, preserving their existing default lighting policy. Its optional
+PSR optical observation is explicitly `baked`, initially disabled, and labeled
+as stretched indirect-light photography. The source pins, masks and frame
+qualifications are in the [optical builder notes](../scripts/build-moon-terrain/README.md#independent-optical-layers-147).
+The composite below remains the immutable comparison baseline; source shading
+is not removed by separating its inputs. The deployed NAC mirror was already
+present in December 2024, so the former November 2025 release attribution is unsupported.
+
 | Product (used by) | Evidence | Supported classification |
 | --- | --- | --- |
 | LROC WAC global **morphology** mosaic, 100 m, v3 June 2013 (LRO, MoonFall, base of the WAC+NAC composite) | USGS Astropedia: "To even out the incidence angle variations (generally angles between 55-75 degrees), this morphology mosaic (at 643 nm) is comprised of data collected over three periods", i.e. built for topographic shading; the 2015 LPSC abstract (Wagner et al.) lists it as the "WAC Morphology Basemap". A separate photometrically normalized WAC reflectance product (`WAC_EMP_643NM`, 304 px/deg = 99.75 m/px) exists; it is **not** what the composite uses. | `baked` |
-| LROC NAC south pole **controlled average** mosaic, 1 m (Nov 2025; NAC half of the composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
-| WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (`terrain.imagery[]`, id `wac-nac`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` |
+| LROC NAC south pole **controlled average** mosaic, 1 m (deployed mirror present Dec 2024; NAC half of the baseline composite) | The polar NAC mosaics layer images by sub-solar geometry and were hand-reordered "to result in uniform lighting" (LPSC 2015 abstract, product README); the CM_AVG product averages per-sub-solar-longitude mosaics; permanently shadowed floors are black (build README) and nodata `0` is transparent so the WAC shows through. No photometric normalization to albedo. | `baked` |
+| WAC+NAC cube composite `cube-imagery-composite-3f34a19541af7710` (previous `terrain.imagery[]`, id `wac-nac`) | Both inputs above, composited offline into one opaque JPEG pyramid (`imagery.json` `source.base` / `source.detail`); one layer cannot be half baked. | `baked` |
 | Viking MDIM 2.1 (Mars base, `viking`) | USGS Astropedia: the B/W mosaic "is processed to emphasize local topographic features"; the colour product is blended over it. | `baked` |
 | Murray Lab CTX global mosaic and Jezero/Gale CTX orthomosaics | Single-pass image mosaics seam-blended at acquisition lighting; no albedo normalization found in the product documentation. **Medium confidence**: the V01 processing section was not retrieved. | `baked` |
 | HiRISE orthomosaics (Jezero, Gale) | Single-acquisition lighting; not normalized. | `baked` |

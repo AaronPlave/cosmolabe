@@ -432,6 +432,63 @@ describe('CubeImageryLayer paged imagery', () => {
 });
 
 describe("source ingestion and bounded recovery",()=>{
+  it('leaves disabled observations unfetched until activation and loads them only once', async () => {
+    const layers = [
+      { type: 'cube' as const, id: 'base', url: 'http://base/imagery.json' },
+      { type: 'cube' as const, id: 'psr', url: 'http://psr/imagery.json', visible: false },
+      { type: 'cube' as const, id: 'transparent', url: 'http://transparent/imagery.json', opacity: 0 },
+    ];
+    const fetchManifest = vi.fn(async (_url: string) => manifest(1));
+    const loadTexture = vi.fn(async (_url: string) => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0 }, { fetchManifest, loadTexture });
+    try {
+      await layer.ready;
+      await vi.waitFor(() => expect(layer.stats.inFlight).toBe(0));
+      expect(fetchManifest.mock.calls.map(([url]) => url)).toEqual(['http://base/imagery.json']);
+      expect(loadTexture.mock.calls.every(([url]) => url.startsWith('http://base/'))).toBe(true);
+      expect(layer.setLayerVisible('psr', true)).toBe(true);
+      layer.setLayerOpacity('psr', .5); // activation already in flight
+      await vi.waitFor(() => expect(layer.imageryLayers[1].maxLevel).toBe(1));
+      expect(fetchManifest.mock.calls.map(([url]) => url)).toEqual(['http://base/imagery.json', 'http://psr/imagery.json']);
+      layer.setLayerVisible('psr', false);
+      layer.setLayerVisible('psr', true);
+      expect(fetchManifest).toHaveBeenCalledTimes(2);
+      layer.setLayerOpacity('transparent', .5);
+      await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledTimes(3));
+    } finally { layer.dispose(); }
+  });
+
+  it('retries a failed first activation only after an explicit inactive-to-active transition', async () => {
+    const layers = [
+      { type: 'cube' as const, id: 'base', url: 'http://base/imagery.json' },
+      { type: 'cube' as const, id: 'psr', url: 'http://psr/imagery.json', visible: false },
+    ];
+    let offline = true, attempts = 0;
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
+      fetchManifest: async url => {
+        if (url.includes('//psr/')) { attempts++; if (offline) throw new Error('offline'); }
+        return manifest(1);
+      },
+      loadTexture: async () => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }),
+    });
+    try {
+      await layer.ready;
+      layer.setLayerVisible('psr', true);
+      await vi.waitFor(() => expect(layer.imageryLayers[1].status).toBe('failed'));
+      layer.setLayerVisible('psr', true);
+      layer.setLayerOpacity('psr', .5);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(attempts).toBe(1); // unchanged visibility and active opacity edits do not retry
+      layer.setLayerVisible('psr', false);
+      offline = false;
+      layer.setLayerVisible('psr', true);
+      layer.setLayerOpacity('psr', .75); // in-flight activation remains deduplicated
+      await vi.waitFor(() => expect(layer.imageryLayers[1].maxLevel).toBe(1));
+      expect(layer.imageryLayers[1].status).not.toBe('failed');
+      expect(attempts).toBe(2);
+    } finally { layer.dispose(); }
+  });
+
   it('keeps the lower layer when an optional source manifest fails or is incompatible', async () => {
     const layers = ['base', 'outage', 'wrong-body'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
     const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
