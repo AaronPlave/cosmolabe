@@ -467,7 +467,8 @@ export class Universe {
    * Compute a body's absolute position in km by walking up the parent chain.
    * Trajectories give positions relative to their center body, so Moon's position
    * is relative to Earth, Earth's is relative to Sun, etc. The result is in the
-   * scene frame, ECLIPJ2000.
+   * scene frame, ECLIPJ2000. Scientific reads are coverage-bound by default;
+   * the renderer may explicitly request display-only endpoint pose holding.
    *
    * Every leg is one frame-registry transform: the accumulated offset is
    * re-expressed from the child's frame into the parent's before the parent's
@@ -477,13 +478,14 @@ export class Universe {
    * rotation to ICRF comes from the parent's rotation model, so a ground
    * station turns with its planet with no special case.
    */
-  absolutePositionOf(bodyName: string, et: number): [number, number, number] {
+  absolutePositionOf(bodyName: string, et: number, purpose: 'scientific' | 'display' = 'scientific'): [number, number, number] {
     try {
       const body = this.getBody(bodyName);
       if (!body) return [NaN, NaN, NaN];
 
       if (!this.trajectoryPlacementAvailable(body, et)) return [NaN, NaN, NaN];
-      const state = body.stateAt(et);
+      if (purpose === 'scientific' && body.trajectory.availabilityAt?.(et).available === false) return [NaN, NaN, NaN];
+      const state = purpose === 'display' && body.trajectory.displayStateAt ? body.trajectory.displayStateAt(et) : body.stateAt(et);
       let pos: Vec3 = [state.position[0], state.position[1], state.position[2]];
       if (isNaN(pos[0])) return [NaN, NaN, NaN];
 
@@ -501,7 +503,8 @@ export class Universe {
         const parent = this.getBody(currentParent);
         if (!parent) break;
         if (!this.trajectoryPlacementAvailable(parent, et)) return [NaN, NaN, NaN];
-        const ps = parent.stateAt(et);
+        if (purpose === 'scientific' && parent.trajectory.availabilityAt?.(et).available === false) return [NaN, NaN, NaN];
+        const ps = purpose === 'display' && parent.trajectory.displayStateAt ? parent.trajectory.displayStateAt(et) : parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
 
         // Same rule at every level: a composite ancestor's active arc center

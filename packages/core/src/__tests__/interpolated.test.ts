@@ -22,15 +22,19 @@ describe('InterpolatedStatesTrajectory', () => {
     expect(state.position[2]).toBeCloseTo(0);
   });
 
-  it('clamps before start', () => {
+  it('holds a display pose before start but refuses scientific extrapolation', () => {
     const traj = new InterpolatedStatesTrajectory(records);
-    const state = traj.stateAt(-10);
+    expect(traj.stateAt(-10).position.every(Number.isNaN)).toBe(true);
+    expect(traj.availabilityAt(-10)).toMatchObject({ available: false, reason: 'before-coverage' });
+    const state = traj.displayStateAt(-10);
     expect(state.position).toEqual([100, 0, 0]);
   });
 
-  it('clamps after end', () => {
+  it('holds a display pose after end but refuses scientific extrapolation', () => {
     const traj = new InterpolatedStatesTrajectory(records);
-    const state = traj.stateAt(100);
+    expect(traj.stateAt(100).position.every(Number.isNaN)).toBe(true);
+    expect(traj.availabilityAt(100)).toMatchObject({ available: false, reason: 'after-coverage' });
+    const state = traj.displayStateAt(100);
     expect(state.position).toEqual([100, 200, 50]);
   });
 

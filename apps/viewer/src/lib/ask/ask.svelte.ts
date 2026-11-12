@@ -18,7 +18,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, guidanceExamples, runAgent, type AskExample, type GuidanceScene, type CapabilityTools, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -202,7 +202,7 @@ function currentTransport(): AgentTransport | null {
 
 // ── The conversation ──
 
-let tools: AgentTools | null = null;
+let tools: CapabilityTools | null = null;
 const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
   ...(embedded ? hostCapabilities : {
     allowAuthoring: true, allowExternal: true,
@@ -216,6 +216,21 @@ const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
   },
   surface: ask.toolMode, formatTime: etToUtcString, metadata: builtInAgentMetadata,
 }));
+
+/** Opening examples performs local reads only. Selection, rather than default
+ * camera tracking, supplies the subject of a possible distance investigation. */
+export function askExamples(): AskExample[] {
+  const adapter = agentTools(), host = getCosmo();
+  const observed = adapter.inspect?.();
+  if (!observed?.ok) return [];
+  const selected = host.getSelected();
+  const context = selected ? host.getSpatialContext?.(selected) : null;
+  const parent = context?.parent;
+  const pair = selected && parent ? { observer: selected, target: parent, explicitlySelected: true,
+    positionAvailable: context?.state?.positionAvailability.available === true && host.getObjectState?.(parent)?.positionAvailability.available === true } : null;
+  return guidanceExamples({ capabilities: adapter.describeCapabilities(['camera.viewpoint', 'surface.getImagery', 'profiles.upsertProfile', 'profiles.sampleProfileData']),
+    scene: observed.data as GuidanceScene, pair });
+}
 
 /** Exact-call approval owned by the visible Ask UI, never by model/catalog text. */
 export const askApproval = $state({ pending: null as null | { kind: 'authoring' | 'external'; operation: string; input: string } });

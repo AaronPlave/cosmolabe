@@ -15,10 +15,11 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
+    ask, askExamples, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
-  import { etToUtcString } from '../lib/viewer-state.svelte';
+  import type { AskExample } from '@cosmolabe/control';
+  import { etToUtcString, vs } from '../lib/viewer-state.svelte';
   import { parseAnswer, type AnswerBlock, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -29,6 +30,12 @@
   let { onClose }: Props = $props();
 
   let prompt = $state('');
+  let examples = $state<AskExample[] | null>(null);
+  let composer = $state<HTMLTextAreaElement | null>(null);
+  $effect(() => { void vs.selectedBodyName; void vs.trackedBodyName; void vs.sceneLoaded; examples = null; });
+  async function chooseExample(example: AskExample) {
+    prompt = example.prompt; examples = null; await tick(); composer?.focus();
+  }
   let transcript = $state<HTMLElement | null>(null);
 
   // Follow the newest step as it lands.
@@ -258,8 +265,27 @@
       </div>
     {/if}
 
+    <div class="shrink-0 border-t border-border px-3 py-1.5">
+      <button class="ui-helper text-text-secondary hover:text-text-primary" aria-expanded={examples !== null}
+        disabled={ask.running} onclick={() => { examples = examples === null ? askExamples() : null; }}>What can I do here?</button>
+      {#if examples !== null}
+        <div class="mt-1 flex flex-col gap-1" aria-label="Scene examples">
+          <p class="ui-helper text-text-faint">Choose an example to edit. Nothing runs until you send.</p>
+          {#each examples as example}
+            <button class="rounded border border-border px-2 py-1 text-left hover:bg-hover" onclick={() => chooseExample(example)}>
+              <span class="ui-body block text-text-primary">{example.label}</span>
+              <span class="ui-helper block whitespace-normal text-text-faint">{example.evidence}</span>
+            </button>
+          {:else}
+            <p class="ui-helper text-text-faint">No grounded examples for this selection. Select an object or ask what data is available.</p>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
     <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
       <textarea
+        bind:this={composer}
         bind:value={prompt}
         onkeydown={onKeydown}
         rows="2"

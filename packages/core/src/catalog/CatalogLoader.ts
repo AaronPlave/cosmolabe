@@ -10,7 +10,7 @@ import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
 import { parseOem } from '@cosmolabe/interop';
-import { oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
+import { oemCoverage, oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
 import { parseViewpoint as parseViewpointItem, type ViewpointDefinition } from '../viewpoint.js';
@@ -1204,19 +1204,18 @@ export class CatalogLoader {
         // renderable arc. Needs SPICE, and says so — OEM epochs are calendar
         // strings in a declared time system, so converting them without leap
         // seconds would offset the whole ephemeris by tens of seconds.
-        if (!spec.source || !this.resolveFile) return new FixedPointTrajectory([0, 0, 0]);
+        if (!spec.source || !this.resolveFile) return new FixedPointTrajectory([NaN, NaN, NaN]);
         if (!this.spice) {
           console.warn(
             `OEM trajectory for "${item.name}" needs SPICE for epoch conversion ` +
-              `(leap seconds); no instance was supplied, so the body is placed at its ` +
-              `parent's origin. Load an LSK and pass a Spice instance to CatalogLoader.`,
+              `(leap seconds); no instance was supplied, so the body has no available position. Load an LSK and pass a Spice instance to CatalogLoader.`,
           );
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
         const text = this.resolveFile(spec.source);
         if (!text) {
           console.warn(`OEM trajectory for "${item.name}": could not resolve ${spec.source}.`);
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
         try {
           const oem = parseOem(text);
@@ -1244,14 +1243,14 @@ export class CatalogLoader {
               `OEM trajectory for "${item.name}": ${spec.source} has ${records.length} ` +
                 `state(s); at least 2 are needed to interpolate.`,
             );
-            return new FixedPointTrajectory([0, 0, 0]);
+            return new FixedPointTrajectory([NaN, NaN, NaN]);
           }
-          return new InterpolatedStatesTrajectory(records, { frame: oemFrame });
+          return new InterpolatedStatesTrajectory(records, { frame: oemFrame, coverage: oemCoverage(oem, t => this.spice!.str2et(t)) });
         } catch (e) {
           console.warn(
             `OEM trajectory for "${item.name}": ${e instanceof Error ? e.message : String(e)}`,
           );
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
       }
 

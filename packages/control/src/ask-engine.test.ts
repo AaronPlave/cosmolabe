@@ -764,3 +764,9 @@ describe('the model-facing context stays bounded as operations are added', () =>
     } finally { unregister.forEach(u => u()); }
   });
 });
+
+it('does not treat speeds in a native history comparison as contradictory distances', () => {
+  expect(statedDistancesKm('Incoming at -10.96 kilometers per second, outgoing at +13.43 km/s; the center distance is 104,291 km.'))
+    .toEqual([{ text: '104,291 km', km: 104291 }]);
+  expect(statedDistancesKm('0.5 m/s and 10 km per second versus 50 m.')).toEqual([{ text: '50 m', km: 0.05 }]);
+});

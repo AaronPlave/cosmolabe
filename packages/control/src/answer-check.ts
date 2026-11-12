@@ -18,7 +18,7 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 
 /** Distances an answer states, in km. */
 export function statedDistancesKm(text: string): { text: string; km: number }[] {
-  return [...text.matchAll(DISTANCE)].map(m => {
+  return [...text.matchAll(DISTANCE)].filter(m => !/^\s*(?:\/\s*s(?:ec(?:ond)?s?)?\b|per\s+seconds?\b|s[−-]1\b)/i.test(text.slice(m.index! + m[0].length))).map(m => {
     const base = Number(m[1].replace(/,/g, '')) * (m[2] ? 10 ** Number(m[2]) : 1) * (m[3] ? SCALE[m[3].toLowerCase()] : 1);
     return { text: m[0], km: /^a/i.test(m[4]) ? base * AU_KM : /^m/i.test(m[4]) ? base / 1000 : base };
   }).filter(d => Number.isFinite(d.km));

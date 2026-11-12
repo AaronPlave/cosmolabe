@@ -291,7 +291,7 @@ try {
               const objects = await page.evaluate(() => window.cosmo.listObjects());
               turn.projection = await page.evaluate(names => window.__probeComposition(names), objects);
               if (captures) {
-                turn.capture = `${test.id}-${repeat}-${i}.png`;
+                turn.capture = `${test.id}-${model}-${mode}-${repeat}-${i}.png`;
                 await page.screenshot({ path: `${captures}/${turn.capture}` });
               }
             }

@@ -247,6 +247,8 @@ export interface ScriptActivityFilter { vehicle?: string; kind?: string }
 
 /** Whether part of an object's state exists at an epoch, and why not (core's `StateAvailability`). */
 export interface ScriptAvailability {
+  /** Declared evaluable ET intervals, when the source supplies them. */
+  readonly coverage?: readonly { readonly start: number; readonly end: number }[];
   readonly available: boolean;
   readonly reason?: string;
   readonly message?: string;

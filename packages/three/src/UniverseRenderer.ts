@@ -815,7 +815,7 @@ export class UniverseRenderer {
    * Delegates to Universe.absolutePositionOf().
    */
   absolutePositionOf = (bodyName: string, et: number): [number, number, number] => {
-    return this.universe.absolutePositionOf(bodyName, et);
+    return this.universe.absolutePositionOf(bodyName, et, 'display');
   };
 
   /** Replace the persistent, semantic measurements and direction indicators. */

@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import { setTimelineDepth } from './shell.svelte';
 /** The host adapter for Event Finder's existing configuration, solver and selection. */
 import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt, ScriptEventResultPage, ScriptReadinessRequest, ScriptReadiness } from '@cosmolabe/control';
 import { builtinEventKinds, resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
 import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery, visibleTimelineEvents, currentEventResultRun } from './analysis.svelte';
 import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, inspectEventQuery, recordEventSearchOutcome } from './event-finder.svelte';
 import { validateEventLinkState } from './event-link-state';
-import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit, vs, frameBody, frameBodyPair, setPlaying } from './viewer-state.svelte';
+import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit, vs, frameBody, frameBodyPair, setPlaying, extendTimelineBase, setScrubberWindow } from './viewer-state.svelte';
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 function guard(expected?: number) {
   if (!getSceneUniverse()) throw new Error('No scene is loaded');
@@ -176,6 +177,15 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     const focused = eventControl.focusEventResult(ref, 'middle', opts);
     if (!['observed','partial'].includes(focused.status)) return focused;
     if (!(framing === 'pair' && observer ? frameBodyPair(target, observer) : frameBody(target))) return refused('unavailable');
+    // Showing a computed result also exposes its native evidence. Preserve all
+    // configured query lanes; fit the selected query's declared search interval
+    // rather than leaving a dated comparison compressed into a mission decade.
+    const query = snapshotEventQueries().find(q => q.id === ref.query);
+    if (query) {
+      extendTimelineBase(query.query.window.start, query.query.window.end);
+      setScrubberWindow(query.query.window.start, query.query.window.end);
+    }
+    setTimelineDepth('expanded');
     const expectedEt = focused.observation.et;
     let interrupted = false;
     const off = onViewerEvent('cameraInput', () => { interrupted = true; });

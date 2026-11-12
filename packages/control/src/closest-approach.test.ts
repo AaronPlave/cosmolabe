@@ -254,3 +254,13 @@ describe('configured existence timing is grounded independently of physical rele
     expect(checkAnswer('Its configured scene existence starts 201 seconds later.', facts)).toEqual([]);
   });
 });
+
+it('checks a compute-only approach against its saved native search, without a false camera failure', async () => {
+  const host = fixture(), tools = createAgentTools(host, { allowAuthoring: true });
+  const before = { et: host.getTime(), playing: host.isPlaying() };
+  const result = await tools.call('findClosestApproach', { ...request, present: false });
+  expect(result).toMatchObject({ ok: true, outcome: { expected: [{ p: 'eventRun' }], unobservable: null, report: { status: 'met' } } });
+  expect(host.presentEventResult).not.toHaveBeenCalled();
+  expect({ et: host.getTime(), playing: host.isPlaying() }).toEqual(before);
+  tools.dispose();
+});
