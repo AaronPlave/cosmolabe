@@ -3,7 +3,7 @@ export function lunarOpticalImagery() {
   return [
     {
       type: 'cube', id: 'wac', name: 'Moon · WAC context',
-      description: 'LROC global morphology mosaic, June 2013, 100 m/px. Original acquisition shading retained; the context beneath NAC and missing observations.',
+      description: 'LROC global morphology mosaic, June 2013 edition, 100 m/px; source images acquired November 2009–February 2011. Original acquisition shading retained; the context beneath NAC and missing observations.',
       attribution: 'LROC team / USGS Astrogeology / ASU', resolutionMeters: 100,
       url: 'data/moon-imagery-cube-wac/imagery.json',
     },

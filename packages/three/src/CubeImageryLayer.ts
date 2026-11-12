@@ -434,8 +434,10 @@ export class CubeImageryLayer {
         void loadSource(source).then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
       }
     };
+    // Called only by explicit inactive-to-active control transitions. A previous
+    // setup failure may retry here; frame updates and active opacity edits cannot.
     this.activateSource = source => {
-      if (this.disposed || source.manifest || source.setupFailed || loading.has(source)) return;
+      if (this.disposed || source.manifest || loading.has(source)) return;
       void loadSource(source).then(() => { if (!this.disposed) this.schedule(this.coarseWanted().map(id => [id]), new Set()); });
     };
     // A disabled observation must not contact its host or allocate texture pages.
@@ -474,7 +476,7 @@ export class CubeImageryLayer {
     if (!source) return false;
     const wasActive = source.info.opacity > 0;
     source.info.opacity = clampOpacity(opacity);
-    if (source.info.visible && source.info.opacity > 0) this.activateSource(source);
+    if (!wasActive && source.info.visible && source.info.opacity > 0) this.activateSource(source);
     if (!wasActive && source.info.opacity > 0 && source.manifest) source.refinement = new ImageryRefinement(source.manifest.tiles);
     return true;
   }

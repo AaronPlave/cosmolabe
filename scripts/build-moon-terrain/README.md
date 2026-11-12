@@ -163,6 +163,9 @@ Pinned inputs and source qualifications:
 
 - **WAC:** the original baseline's `wac-global-100m-cog.tif`, SHA-256
   `fa1af0ace36c1d481b246c8362c3fd6128b7757ee5114a9d69ef98efdfecbdac`.
+  The **June 2013 mosaic edition** uses images acquired November 2009–February
+  2011 ([LROC source](https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLOBAL/));
+  June 2013 is not an acquisition date.
   It comes from `Lunar_LRO_LROC-WAC_Mosaic_global_100m_June2013.tif` via the
   existing `cube-imagery.sh wac-nac` source preparation. Same overview policy,
   3x3 box quadrature, and JPEG quality 90 as the shipped composite. WAC retains

@@ -85,3 +85,60 @@ and normal sessions: Track LRO, Moon Overview, LRO Close-up, Lunar North Pole,
 LROC WAC instrument view and Shackleton Close-up, including physical terrain
 picks. No page or asset errors were recorded. Phone/integrated GPU performance
 and independent absolute geolocation are unmeasured.
+
+## PR review follow-up
+
+A failed optional manifest now retries when the user disables and re-enables
+its layer (or restores opacity from zero). Changing opacity while already active
+and unchanged visibility do not retry. Overlapping activations share a request;
+there is no frame-driven retry. The fail → disable → enable regression passes,
+alongside 93 focused renderer/manager/catalog tests, package build, test/viewer
+typechecks and changed TypeScript lint.
+
+WAC metadata distinguishes the June 2013 **mosaic edition** from its November
+2009–February 2011 source acquisitions ([LROC product description](https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLOBAL/)).
+
+### Default-stack performance
+
+Reproduce against this checkout's viewer:
+
+```sh
+node scripts/test-lunar-optical.mjs http://127.0.0.1:5198 --hosted --baseline --performance
+node scripts/test-lunar-optical.mjs http://127.0.0.1:5198 --hosted --performance
+```
+
+The two sequential runs use fresh Chrome caches, the same current renderer,
+1280 × 900 viewport, fixed paused epoch and 50° FOV. Only the catalog imagery
+stack changes: original composite at `bcecc2ec` versus default independent
+WAC + NAC. PSR stays disabled. Both use public immutable payloads through the
+normal Vite data proxy. After orbit settles, 360 animation frames interpolate
+the same eye/target from orbit to Shackleton (zoom and tilt); 120 stationary
+frames follow full refinement. The camera then returns to orbit and repeats
+the path with the accumulated cache. Frame intervals are browser rAF intervals;
+CPU timings wrap the normal renderer call, without extra renders or a blocking
+GPU finish. They measure CPU submission, not GPU execution time. Residency is
+reported separately from allocated image-pool capacity. Counts include manifests,
+tiles and aborted requests, and can vary with asynchronous arrival/refinement.
+This is one focused desktop comparison, not a device-wide performance bound.
+
+Measured on Apple M4 Max / ANGLE Metal (one sequential pair). All median frame
+intervals were 16.7 ms; p95 intervals were 16.7–16.8 ms in both stacks.
+CPU render-call timings below are median / p95 in milliseconds:
+
+| Stage | Composite CPU ms | WAC + NAC CPU ms | Composite peak resident MiB | WAC + NAC peak resident MiB | Cumulative imagery requests, old / new |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Orbit settled | 8.9 / 10.3 | 9.4 / 10.9 | 63.1 | 64.2 | 179 / 188 |
+| Cold zoom / tilt | 9.8 / 12.1 | 10.6 / 13.2 | 127.6 | 126.2 | 372 / 372 |
+| Shackleton settled | 9.5 / 11.0 | 9.7 / 11.3 | 181.9 | 183.3 | 518 / 526 |
+| Warm zoom out | 10.6 / 12.4 | 11.2 / 13.1 | 197.5 | 206.7 | 563 / 594 |
+| Warm zoom / tilt | 9.7 / 10.8 | 10.3 / 11.4 | 202.8 | 214.1 | 587 / 623 |
+
+Both pools allocated **513.3 MiB** throughout (same 512 MiB configured budget,
+plus table/transition overhead). After final refinement, composite residency was
+575 tiles / **203.8 MiB**, versus 612 tiles / **215.9 MiB** for WAC + NAC.
+Final imagery requests were **587 versus 623** (+6.1%); resident bytes increased
+by **12.1 MiB** (+5.9%). Median CPU submission increased 0.2–0.8 ms across these
+stages. This run shows measurable incremental CPU/network/residency cost without
+a frame-cadence or allocated-pool regression on this GPU. Neither stack reported
+GPU errors, failed tiles or uncovered base blocks; PSR requests remained zero.
+Raw per-stage reports remain in ignored `work/lunar-optical/*-performance-browser.json`.

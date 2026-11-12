@@ -110,7 +110,7 @@ def split(args):
         emit(args, 'wac', 'base', args.base, tiles,
              {'baselineRevision': BASELINE, 'nativeResolutionMeters': 100,
               'sha256': WAC_SHA256,
-              'attribution': 'LROC team / USGS; WAC global morphology, June 2013; acquisition shading retained'},
+              'attribution': 'LROC team / USGS; WAC global morphology, June 2013 mosaic edition; images November 2009-February 2011; acquisition shading retained'},
              registration('global; same bounded tile selection as shipped WAC+NAC', sampling), ss)
     if args.only in (None, 'nac'):
         emit(args, 'nac-independent', 'nac', '/vsicurl/' + NAC_URL,

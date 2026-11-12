@@ -1,6 +1,8 @@
 /** Real lunar product comparison, #147. Run against this checkout's Vite server:
  * node scripts/test-lunar-optical.mjs http://127.0.0.1:5198 --baseline
  * node scripts/test-lunar-optical.mjs http://127.0.0.1:5198
+ * Add --performance (and --baseline for the old stack) for the focused
+ * orbit-to-Shackleton default-cost comparison.
  * Captures and measurements go to ignored work/lunar-optical/.
  */
 import assert from 'node:assert/strict';
@@ -13,6 +15,7 @@ import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5198';
 const baseline = process.argv.includes('--baseline');
+const performance = process.argv.includes('--performance');
 const production = process.argv.includes('--production');
 const hosted = production || process.argv.includes('--hosted');
 const defaultOnly = process.argv.includes('--default-only');
@@ -44,6 +47,8 @@ const poses = {
 };
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const imageryRequests = [];
+  page.on('request', r => { if (/moon-imagery-cube[^/]*\//.test(r.url())) imageryRequests.push(r.url()); });
   page.on('pageerror', e => report.errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') console.error(m.text()); });
   page.on('request', r => { if (r.url().includes('moon-imagery-cube-psr-nac-stretch/')) report.psrRequests.push(r.url()); });
@@ -120,45 +125,98 @@ try {
     }
     report.views.push(result); console.log(label, name, mode, result.difference ?? 'captured');
   };
-  for (const [name, view] of Object.entries(poses)) {
-    await pose(view);
-    for (const mode of ['natural', 'flood']) await capture(name, mode);
-  }
-  if (!baseline) assert.deepEqual(report.psrRequests, [], 'disabled PSR must make no requests, including its manifest');
-  if (!baseline && !defaultOnly) {
-    await pose(poses.shackleton);
-    await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
-    await page.getByRole('button', { name: 'Moon imagery', exact: true }).click();
-    const nac = page.getByRole('checkbox', { name: 'Show Moon · NAC south-pole detail', exact: true });
-    const psr = page.getByRole('checkbox', { name: 'Show PSR observations · stretched / indirectly lit', exact: true });
-    await nac.uncheck();
-    await capture('wac-only', 'flood');
-    await nac.check();
-    await page.getByRole('button', { name: 'Moon · NAC south-pole detail details', exact: true }).click();
-    const opacity = page.getByRole('slider', { name: 'Moon · NAC south-pole detail opacity', exact: true });
-    await opacity.focus(); await opacity.press('Home');
-    for (let i = 0; i < 10; i++) await opacity.press('ArrowRight');
-    assert.equal(await opacity.inputValue(), '0.5');
-    await capture('nac-half', 'flood');
-    await opacity.press('End'); await psr.check();
-    await page.waitForFunction(() => window.renderer.getBodyMesh('Moon').imageryLayers.find(l => l.id === 'psr-nac').maxLevel > 0);
-    for (const mode of ['natural', 'flood']) await capture('psr', mode);
-    assert.ok(report.psrRequests.some(url => /\/tiles\//.test(url)), 'must load actual PSR payloads');
-    await psr.uncheck();
-    await capture('restored', 'flood');
-    const count = report.psrRequests.length;
+  if (performance) {
+    // Same current renderer, fixed epoch, fresh browser/cache and identical camera
+    // history: isolates the incremental cost of the default imagery stack.
+    report.performance = { method: 'Normal render loop; 1280x900; fixed epoch; 50 degree FOV; 120 steady / 360 movement frames; fresh browser cache; shared current renderer', stages: [] };
+    const sample = async (name, frames, from, to) => {
+      const data = await page.evaluate(async ({ frames, from, to }) => {
+        const r = window.renderer, b = r.getBodyMesh('Moon'), t = b.terrainManager;
+        const V = r.camera.position.constructor, centre = new V(); b.getWorldPosition(centre);
+        const world = a => new V(a[0], a[2], -a[1]).applyQuaternion(b.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+        const intervals = [], render = [], pools = []; let last;
+        const original = r.renderFrame;
+        r.renderFrame = function (...args) {
+          const began = performance.now();
+          try { return original.apply(this, args); }
+          finally { render.push(performance.now() - began); }
+        };
+        try {
+          for (let i = 0; i < frames; i++) {
+            const now = await new Promise(resolve => requestAnimationFrame(resolve));
+            if (last !== undefined) intervals.push(now - last); last = now;
+            const f = frames === 1 ? 1 : i / (frames - 1), lerp = (a, z) => a.map((v, j) => v + (z[j] - v) * f);
+            const eye = world(lerp(from.eye, to.eye)), target = world(lerp(from.target, to.target));
+            r.camera.position.copy(eye); r.camera.up.copy(eye.clone().sub(centre).normalize());
+            r.cameraController.controls.target.copy(target); r.camera.lookAt(target); r.camera.updateMatrixWorld(true);
+            const s = t.cubeImageryStats;
+            pools.push({ gpuAllocatedBytes: s.gpuAllocatedBytes, textureBytes: s.textureBytes, textures: s.textures });
+          }
+        } finally { r.renderFrame = original; }
+        return { intervals, render, pools };
+      }, { frames, from, to });
+      const summarize = values => { const sorted = [...values].sort((a,b) => a-b); return { median: sorted[Math.floor(sorted.length*.5)], p95: sorted[Math.floor(sorted.length*.95)], max: sorted.at(-1) }; };
+      const imagery = await page.evaluate(() => window.renderer.getBodyMesh('Moon').terrainManager.cubeImageryStats);
+      report.performance.stages.push({ name, frameIntervalMs: summarize(data.intervals), renderCpuMs: summarize(data.render),
+        peakPool: Object.fromEntries(Object.keys(data.pools[0]).map(k => [k, Math.max(...data.pools.map(p => p[k]))])), imagery,
+        networkRequests: imageryRequests.length });
+      console.log(label, name, JSON.stringify(report.performance.stages.at(-1)));
+    };
     await pose(poses.orbit); await settle();
-    assert.equal(report.psrRequests.length, count, 'disabled PSR must stop requesting');
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: 'PSR observations · stretched / indirectly lit details', exact: true }).click();
-    assert.equal(await psr.isVisible(), true);
-    assert.equal(await page.getByText(/not calibrated reflectance or sunlight at the simulation time/).isVisible(), true);
-    report.compact = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
-    assert.ok(report.compact.scrollWidth <= report.compact.width);
-    await page.screenshot({ path: `${out}/separate-compact-controls.png` });
+    await sample('orbit-steady', 120, poses.orbit, poses.orbit);
+    await sample('cold-zoom-tilt', 360, poses.orbit, poses.shackleton);
+    await settle();
+    await sample('shackleton-steady', 120, poses.shackleton, poses.shackleton);
+    await sample('warm-zoom-out', 360, poses.shackleton, poses.orbit);
+    await settle();
+    await sample('warm-zoom-tilt', 360, poses.orbit, poses.shackleton);
+    await settle();
+    report.performance.imageryRequests = imageryRequests;
+    assert.deepEqual(report.psrRequests, []);
+    const finalStats = await page.evaluate(() => window.renderer.getBodyMesh('Moon').terrainManager.cubeImageryStats);
+    report.performance.finalImagery = finalStats;
+    assert.equal(finalStats.gpuError, null); assert.equal(finalStats.baseUncoveredBlocks, 0); assert.equal(finalStats.failedTiles, 0);
+  } else {
+    for (const [name, view] of Object.entries(poses)) {
+      await pose(view);
+      for (const mode of ['natural', 'flood']) await capture(name, mode);
+    }
+    if (!baseline) assert.deepEqual(report.psrRequests, [], 'disabled PSR must make no requests, including its manifest');
+    if (!baseline && !defaultOnly) {
+      await pose(poses.shackleton);
+      await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
+      await page.getByRole('button', { name: 'Moon imagery', exact: true }).click();
+      const nac = page.getByRole('checkbox', { name: 'Show Moon · NAC south-pole detail', exact: true });
+      const psr = page.getByRole('checkbox', { name: 'Show PSR observations · stretched / indirectly lit', exact: true });
+      await nac.uncheck();
+      await capture('wac-only', 'flood');
+      await nac.check();
+      await page.getByRole('button', { name: 'Moon · NAC south-pole detail details', exact: true }).click();
+      const opacity = page.getByRole('slider', { name: 'Moon · NAC south-pole detail opacity', exact: true });
+      await opacity.focus(); await opacity.press('Home');
+      for (let i = 0; i < 10; i++) await opacity.press('ArrowRight');
+      assert.equal(await opacity.inputValue(), '0.5');
+      await capture('nac-half', 'flood');
+      await opacity.press('End'); await psr.check();
+      await page.waitForFunction(() => window.renderer.getBodyMesh('Moon').imageryLayers.find(l => l.id === 'psr-nac').maxLevel > 0);
+      for (const mode of ['natural', 'flood']) await capture('psr', mode);
+      assert.ok(report.psrRequests.some(url => /\/tiles\//.test(url)), 'must load actual PSR payloads');
+      await psr.uncheck();
+      await capture('restored', 'flood');
+      const count = report.psrRequests.length;
+      await pose(poses.orbit); await settle();
+      assert.equal(report.psrRequests.length, count, 'disabled PSR must stop requesting');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: 'PSR observations · stretched / indirectly lit details', exact: true }).click();
+      assert.equal(await psr.isVisible(), true);
+      assert.equal(await page.getByText(/not calibrated reflectance or sunlight at the simulation time/).isVisible(), true);
+      report.compact = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+      assert.ok(report.compact.scrollWidth <= report.compact.width);
+      await page.screenshot({ path: `${out}/separate-compact-controls.png` });
+    }
   }
   assert.deepEqual(report.errors, []); report.passed = true;
 } finally {
-  await writeFile(`${out}/${label}${defaultOnly ? '-default' : ''}-browser.json`, JSON.stringify(report, null, 2) + '\n');
+  await writeFile(`${out}/${label}${performance ? '-performance' : defaultOnly ? '-default' : ''}-browser.json`, JSON.stringify(report, null, 2) + '\n');
   await browser.close();
 }
