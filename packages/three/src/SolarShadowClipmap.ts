@@ -93,7 +93,8 @@ export type SolarShadowQuality = keyof typeof SOLAR_SHADOW_QUALITY;
 const SITE_ALTITUDES = 4;
 /**
  * When the site moves, what was drawn keeps drawing until every level is rebuilt and re-rendered at the new site, then
- * cross-fades into it over this long: points whose level changed sharpen (or soften) instead of popping.
+ * cross-fades into it over this long: points whose level changed sharpen (or soften) instead of popping. Under fast
+ * playback the copied maps go stale (they hold the Sun of the move) and the new site's maps replace them at once.
  */
 const SITE_FADE_MS = 800;
 /** Gnomonic texels stretch by 1/cos² away from the anchor: 3 % at 10°. A reset discards every level, so it must be rare. */
@@ -268,8 +269,8 @@ export class SolarShadowClipmap {
   private anchorResets = 0;
   private site: [number, number] | null = null;
   private siteMoves = 0;
-  /** A site move in progress: the levels as drawn before it, whether their maps are copied yet, and when the fade began. */
-  private transition: { old: LevelData[]; copied: boolean; beganMs: number; startMs: number | null } | null = null;
+  /** A site move in progress: the levels as drawn before it, whether their maps are copied yet (and for which Sun), and when the fade began. */
+  private transition: { old: LevelData[]; copied: boolean; sun: THREE.Vector3 | null; beganMs: number; startMs: number | null } | null = null;
   private nowMs = 0;
   /** `SITE_FADE_MS`; 0 swaps at once (for A/B diagnostics). */
   siteFadeMs = SITE_FADE_MS;
@@ -394,7 +395,7 @@ export class SolarShadowClipmap {
     u.oldOffA.value.set(o[0][0], o[0][1], o[1]?.[0] ?? 0, o[1]?.[1] ?? 0);
     u.oldOffB.value.set(o[2]?.[0] ?? 0, o[2]?.[1] ?? 0, o[3]?.[0] ?? 0, o[3]?.[1] ?? 0);
     u.oldValid.value.set(...[0, 1, 2, 3].map(i => (old[i]?.offset ? 1 : 0)) as [number, number, number, number]);
-    this.transition = { old, copied: false, beganMs: this.nowMs, startMs: null };
+    this.transition = { old, copied: false, sun: null, beganMs: this.nowMs, startMs: null };
   }
 
   /** Level l holds the data for the current site. */
@@ -559,10 +560,6 @@ export class SolarShadowClipmap {
     // Unknown relief within the source spacing (`SLOPE_UNCERTAINTY`) also could reach that much higher.
     u.hMax.value = Math.max(hMax, anyUnknown ? this.unknownReliefKm : -Infinity) + u.bias.value + SLOPE_UNCERTAINTY * cMax;
     u.enabled.value = valid.some(v => v > 0) ? 1 : 0;
-    const tr = this.transition;
-    u.fade.value = !tr ? 1 : tr.startMs === null ? 0 : this.siteFadeMs > 0 ? Math.min(1, (this.nowMs - tr.startMs) / this.siteFadeMs) : 1;
-    if (tr && u.fade.value >= 1) this.transition = null;
-
     // Anchor surface point and basis in the camera's view space, scaled to km.
     const scale = frame.scaleFactor;
     const camQ = new THREE.Quaternion().setFromRotationMatrix(frame.camera.matrixWorld);
@@ -582,6 +579,11 @@ export class SolarShadowClipmap {
       const distKm = originWorld.distanceTo(frame.sunPosition) / scale;
       u.sunRad.value = Math.asin(Math.min(1, SUN_RADIUS_KM / distKm));
     } else u.enabled.value = 0;
+    // The copied maps are for the Sun when they were copied: once it has moved as far as would re-render a map (fast
+    // playback), they are stale, so the new maps (drawn for this Sun) take over at once instead of fading from old shadows.
+    const tr = this.transition, stale = !!tr?.sun && tr.sun.angleTo(u.sun.value) >= u.sunRad.value / 16;
+    u.fade.value = !tr || stale ? 1 : tr.startMs === null ? 0 : this.siteFadeMs > 0 ? Math.min(1, (this.nowMs - tr.startMs) / this.siteFadeMs) : 1;
+    if (tr && u.fade.value >= 1) this.transition = null;
   }
 
   /**
@@ -622,8 +624,9 @@ export class SolarShadowClipmap {
     }
     const h = this.horizon;
     // A site move began this frame: copy the maps as drawn, before any is re-rendered for the new site.
-    if (this.transition && !this.transition.copied) { this.copyToAtlas(renderer, h.targets); this.transition.copied = true; }
-    const sun = this.uniforms.sun.value, minAngle = this.uniforms.sunRad.value / 16;
+    const sun = this.uniforms.sun.value;
+    if (this.transition && !this.transition.copied) { this.copyToAtlas(renderer, h.targets); this.transition.copied = true; this.transition.sun = sun.clone(); }
+    const minAngle = this.uniforms.sunRad.value / 16;
     const own = (i: number) => `${this.anchorResets}:${this.levels[i].builds}`;
     const has = (i: number) => this.levels[i].offset !== null;
     const lag = (i: number) => h.at[i].sun.angleTo(sun);

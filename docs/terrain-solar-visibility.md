@@ -189,6 +189,17 @@ revision ([drag.json](validation/terrain-solar-shadow/camera/drag.json)). The Su
   the camera holds still is the shadow's own. Without the fade, a move changes up to 2.5 % of the Sun-fraction view's
   pixels in one frame; with it, no held frame changes more than 0.04 %. At this Sun (0.28°) the lit image changes on
   no held frame in either case: there is too little direct light for the level change to show.
+- **Site moves under fast playback** (`--path site-time [--cost]`; [site-time.mp4](validation/terrain-solar-shadow/camera/site-time.mp4): lit | Sun
+  fraction, live over settled; series and cost in [site-time.json](validation/terrain-solar-shadow/camera/site-time.json)). Same height, a continuous 12 km
+  pan over 8 s across two site moves while the clock runs 1 day/s (60 render frames per second, 24 min each; the Sun
+  sets during it). Each captured frame is rendered again at the same pose and time once the clipmap has settled. The
+  copied pre-move maps hold the Sun of the move, so the previous revision faded in shadows up to 0.8 s old: up to 79 % of
+  the Sun-fraction view and 15 % of the lit view differed from the settled frame. Now the copied maps are dropped once
+  the Sun has moved as far as would re-render a map (1/16 of its radius; at 1× that takes 2 minutes, so paused or slow
+  playback still fades), and the new site's maps, drawn for the current Sun, take over at once. Live vs settled: at
+  most 0.01 % (lit) and 2 % (Sun fraction, the move frame itself), median 0; map Sun lag at most 0.4°, as without a
+  move. Frame time over the sequence (M4 Max, 1280×720, vsync off): 13.5 ms p50 with shadows on and off alike; the moving
+  camera's terrain streaming dominates.
 - **No lighting edge where the source gets coarser** (`--path boundary`; [boundary.mp4](validation/terrain-solar-shadow/camera/boundary.mp4): lit and Sun fraction,
   previous | this revision; [still](validation/terrain-solar-shadow/camera/boundary-before-after.png) with debug view 2). 40 km up at 115°E, the view moves 90 km from
   84.5°S to 80.5°S across the product's 0.85 → 1.7 km change, while the clock runs 5 min per frame (Sun ~2° up).
