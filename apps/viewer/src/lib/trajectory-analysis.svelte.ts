@@ -131,8 +131,8 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
   };
   options.signal?.addEventListener?.('abort', abort);
   try {
-    const computeOptions: TrajectoryAnalysisOptions = { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: fraction => {
-        options.onProgress?.(fraction);
+    const computeOptions: TrajectoryAnalysisOptions = { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: (fraction, work) => {
+        options.onProgress?.(fraction, work);
       } };
     let response: TrajectoryExtremaResponse;
     if (query.scope.kind === 'activities') {
@@ -159,7 +159,9 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
         const knots=provider.knots?.(a.vehicle,window).length??0;
         const budget=Math.min(1000000-evaluations,query.maxEvaluations??200000,Math.max(4096,Math.ceil(knots*8+(window.end-window.start)/query.stepSeconds)));
         if (budget<1) { response.status='partial';response.faults.push({code:'budget',object:a.vehicle,activityId:a.id,window,message:'Collection evaluation budget exhausted.'});continue; }
-        const part=await compute({...query,objects:[a.vehicle],scope:{...scope,ids:[a.id]},maxEvaluations:budget},provider,{...computeOptions,onProgress:f=>options.onProgress?.((i+f)/jobs.length)});
+        options.onProgress?.(i/jobs.length,{completedIntervals:i,totalIntervals:jobs.length,evaluations});
+        const before=evaluations;
+        const part=await compute({...query,objects:[a.vehicle],scope:{...scope,ids:[a.id]},maxEvaluations:budget},provider,{...computeOptions,onProgress:(f,work)=>options.onProgress?.((i+f)/jobs.length,{completedIntervals:i+(work?.completedIntervals??0),totalIntervals:jobs.length,evaluations:before+(work?.evaluations??0)})});
         response.results.push(...part.results);response.faults.push(...part.faults);
         if (part.status==='cancelled'||part.status==='stale') { response=part;break; }
         if (part.status!=='complete') response.status='partial';

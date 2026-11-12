@@ -9,7 +9,7 @@ import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { bodyFixedToGeodetic } from '../geographic/coordinates.js';
 import { etToDate } from '../time.js';
 import type { InstantEvent } from './events/types.js';
-export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';
+export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from '@cosmolabe/interop';
 export type TrajectoryCoverageWindow = {
   start: number;
   end: number;
@@ -143,7 +143,10 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
   let evaluations = 0;
   let yieldDeadline = performance.now() + 8;
   let furthest = 0;
-  const report = (fraction: number) => { furthest = Math.max(furthest, Math.min(1, fraction)); options.onProgress?.(furthest); };
+  const report = (fraction: number, completedIntervals: number) => {
+    furthest = Math.max(furthest, Math.min(1, fraction));
+    options.onProgress?.(furthest, { completedIntervals, totalIntervals: jobs.length, evaluations });
+  };
   const maximum = q.maxEvaluations ?? 200000;
   const direction = q.extremum === 'maximum' ? 1 : -1;
   for (const [index, job] of jobs.entries()) {
@@ -182,7 +185,7 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
       if (provider.yield && performance.now() >= yieldDeadline) {
         await provider.yield();
         yieldDeadline = performance.now() + 8;
-        report((index + (et - window.start) / Math.max(1, window.end - window.start)) / jobs.length);
+        report((index + (et - window.start) / Math.max(1, window.end - window.start)) / jobs.length, index);
       }
       if (interrupted()) return null;
       let sample: Sample | null = null;
@@ -285,7 +288,7 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
         coverage: missing || budget ? 'partial' : 'sampled-complete', method: { guarantee: 'sampled-and-locally-refined', stepSeconds: actualStep, timeToleranceSeconds: q.timeToleranceSeconds, evaluations: evaluations - before, heightErrorBoundKm: null,
           limits: 'Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error.' } });
     }
-    report((index + 1) / jobs.length);
+    report((index + 1) / jobs.length, index + 1);
   }
   const stopped = interrupted();
   if (stopped) {

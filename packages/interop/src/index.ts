@@ -40,4 +40,4 @@ export {
 export { parseCdm, CdmError, type Cdm, type CdmObject } from './cdm.js';
 export { parseAem, AemError, type Aem, type AemMetadata, type AemRecord } from './aem.js';
 export { writeAem } from './aem-write.js';
-export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisFault, TrajectoryAnalysisSource, TrajectoryAnalysisOptions } from './trajectory-analysis.js';
+export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisFault, TrajectoryAnalysisSource, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from './trajectory-analysis.js';

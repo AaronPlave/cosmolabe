@@ -91,6 +91,6 @@ export type {
   AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun, RequestResult, RequestStatus,
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';
-export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';
+export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from '@cosmolabe/interop';
 
 export { findClosestApproach } from './closest-approach.js';

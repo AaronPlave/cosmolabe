@@ -122,6 +122,12 @@ export interface TrajectoryExtremaResponse {
   results: TrajectoryExtremum[];
   faults: TrajectoryAnalysisFault[];
 }
+export interface TrajectoryAnalysisProgress {
+  /** Finished intervals, including searches that reached a numerical limit. Not a completeness claim. */
+  completedIntervals: number;
+  totalIntervals: number;
+  evaluations: number;
+}
 export interface TrajectoryAnalysisOptions {
   /** Structural cancellation port works in the browser and deterministic hosts. */
   signal?: {
@@ -129,5 +135,5 @@ export interface TrajectoryAnalysisOptions {
     addEventListener?(type: 'abort', listener: () => void): void;
     removeEventListener?(type: 'abort', listener: () => void): void;
   };
-  onProgress?: (fraction: number) => void;
+  onProgress?: (fraction: number, work?: TrajectoryAnalysisProgress) => void;
 }

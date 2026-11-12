@@ -14,7 +14,7 @@ const response=(): TrajectoryExtremaResponse=>({status:'complete',faults:[],resu
 }]});
 function host() {
   return Object.assign(new FakeViewer(),{
-    findTrajectoryExtrema:vi.fn(async (_q: TrajectoryExtremaQuery)=>response()),
+    findTrajectoryExtrema:vi.fn(async (_q: TrajectoryExtremaQuery,_options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>response()),
     navigateToAnalysisResult:vi.fn((_id:string)=>true),
   });
 }
@@ -99,8 +99,19 @@ describe('routine extrema task boundary',()=>{
   const options={available:true,truncated:false,subjects:[{object:'Titan',bodies:['Saturn'],activities:72,activityKinds:['flight']}],bodies:[{body:'Saturn',frame:'IAU_SATURN',metrics:[{metric:'reference-sphere-height' as const,available:true,reason:null}]}]};
   const intent={objects:['Titan'],metric:'reference-sphere-height',extremum:'maximum',scope:{kind:'activities',activityKind:'flight'}};
   function taskHost() {
-    return Object.assign(host(),{getTrajectoryAnalysisOptions:()=>options,analyzeTrajectoryExtrema:vi.fn(async()=>({status:'complete' as const,body:'Saturn',reason:null,message:'/private/secret',started:true,query,scope:{requested:1,completed:1,activityIds:['flight:1']},options,response:response(),winnerId:'peak',candidateId:'peak',coverage:{assessed:true,incompleteIntervals:0,maximumGapSeconds:0}}))});
+    return Object.assign(host(),{getTrajectoryAnalysisOptions:()=>options,analyzeTrajectoryExtrema:vi.fn(async(_request?:import('./contracts.js').ScriptExtremaRequest,_options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>({status:'complete' as const,body:'Saturn',reason:null,message:'/private/secret',started:true,query,scope:{requested:1,completed:1,activityIds:['flight:1']},options,response:response(),winnerId:'peak',candidateId:'peak',coverage:{assessed:true,incompleteIntervals:0,maximumGapSeconds:0}}))});
   }
+  it('passes routine work to the local observer without letting observer failures alter the result',async()=>{
+    const h=taskHost(),value=await h.analyzeTrajectoryExtrema();
+    h.analyzeTrajectoryExtrema.mockImplementation(async(_request,options)=>{
+      options!.onProgress!(1,{completedIntervals:1,totalIntervals:1,evaluations:20});
+      return value;
+    });
+    const onProgress=vi.fn(()=>{throw new Error('UI disposed');}),tools=createAgentTools(h,{onProgress});
+    expect(await tools.call('analyzeTrajectoryExtrema',intent)).toMatchObject({ok:true});
+    expect(onProgress).toHaveBeenCalledWith(expect.any(Number),'analyzeTrajectoryExtrema',1,{completedIntervals:1,totalIntervals:1,evaluations:20});
+    tools.dispose();
+  });
   it('delivers bounded full-scope comparison and winner provenance without source/frame leakage',async()=>{
     const h=taskHost();const r=response();
     r.results=Array.from({length:72},(_,i)=>({...r.results[0],id:i===0?'peak':`p${i}`,activityId:`flight:${i}`}));
@@ -237,4 +248,24 @@ it('keeps numerical completion distinct from reconciled temporal coverage in ans
   const reply=factSummary([fact]);
   expect(reply).toContain('72 have complete temporal coverage');expect(reply).toContain('71 completed numerical search');
   expect(reply).toContain('could contain a higher value');expect(checkAnswer(reply,[fact])).toEqual([]);
+});
+
+
+it('forwards native progress through both capability surfaces and suppresses late task updates',async()=>{
+  for(const surface of ['fixed','discovery'] as const){
+    const h=host(),onProgress=vi.fn();let report!:NonNullable<import('@cosmolabe/interop').TrajectoryAnalysisOptions['onProgress']>;
+    let finish!:(value:TrajectoryExtremaResponse)=>void;
+    h.findTrajectoryExtrema.mockImplementation((_q,options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>{
+      report=options!.onProgress!;
+      return new Promise(resolve=>{finish=resolve;});
+    });
+    const tools=createCapabilityTools(h,{surface,onProgress}),task=tools.begin();
+    const pending=task.call('invokeCapability',{id:'analysis.findTrajectoryExtrema',input:query});
+    await vi.waitFor(()=>expect(report).toBeTypeOf('function'));
+    const work={completedIntervals:2,totalIntervals:72,evaluations:12345};
+    report(.04,work);
+    expect(onProgress).toHaveBeenLastCalledWith(task.id,'findTrajectoryExtrema',.04,work);
+    task.cancel();report(.5,{...work,completedIntervals:36});finish(response());
+    await pending;expect(onProgress).toHaveBeenCalledTimes(1);tools.dispose();
+  }
 });

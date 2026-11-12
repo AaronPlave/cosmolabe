@@ -39,3 +39,13 @@ describe('Ask presentation of the shared action contract', () => {
   });
 
 });
+
+
+it('shows actual trajectory work only while its operation is pending',()=>{
+  const step={id:'height',name:'analyzeTrajectoryExtrema',input:{},result:null};
+  const progress={operation:step.name,fraction:.4,completedIntervals:28,totalIntervals:72,evaluations:150000};
+  expect(actionStatus({status:'running',steps:[step],progress})).toBe('Analyzing trajectory: 28/72 intervals searched · 150,000 evaluations…');
+  expect(actionStatus({status:'running',steps:[{...step,name:'invokeCapability',input:{id:'analysis.analyzeTrajectoryExtrema'}}],progress})).toContain('28/72');
+  expect(actionStatus({status:'running',steps:[{...step,result:{ok:true,summary:''}}],progress})).toBe('Researching…');
+  expect(actionStatus({status:'cancelled',steps:[step],progress})).toBe('Request stopped');
+});

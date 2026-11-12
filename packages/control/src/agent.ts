@@ -41,7 +41,7 @@ import type {
   VerbValue,
   ViewerControl,
 } from './contracts.js';
-import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
+import type { TrajectoryExtremaQuery, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
 import { missingFrameDependency } from './closest-approach.js';
@@ -225,6 +225,8 @@ export interface AgentTools {
 export interface AgentToolsOptions {
   /** Catalog adapter only: include all registered verbs, retaining execute as the dispatcher. */
   vocabulary?: 'curated' | 'catalog';
+  /** Local native work only; never provider text or an estimate of remaining time. */
+  onProgress?(taskId: number, operation: string, fraction: number, work?: TrajectoryAnalysisProgress): void;
   /** Trusted per-tool omissions, enforced even for direct task calls. */
   omittedTools?: Readonly<Record<string, string>>;
   /** Trusted host permission; captures are refused by default even in catalog mode. */
@@ -1268,8 +1270,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         this.extremaSubjects.add(key);
         measuredResults.clear();
         try {
-          const taskResult = name === 'analyzeTrajectoryExtrema' ? await host.analyzeTrajectoryExtrema!(args as unknown as ScriptExtremaRequest, { signal: this.signal }) : null;
-          const response = taskResult ? taskResult.response : await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
+          const options: TrajectoryAnalysisOptions = { signal: this.signal, onProgress: (fraction, work) => {
+            if (this.gate(def)) return;
+            // A UI observer cannot change execution or turn a valid search into a failure.
+            try { opts.onProgress?.(this.id, name, fraction, work); } catch { /* Local observer only. */ }
+          } };
+          const taskResult = name === 'analyzeTrajectoryExtrema' ? await host.analyzeTrajectoryExtrema!(args as unknown as ScriptExtremaRequest, options) : null;
+          const response = taskResult ? taskResult.response : await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, options);
           const late = this.gate(def);
           if (late) return late;
           // One correction only for a rejected scope; a changed datum requires a new user turn.

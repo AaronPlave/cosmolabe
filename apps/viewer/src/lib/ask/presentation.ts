@@ -15,12 +15,18 @@ const definitions = agentDefinitions();
 function stepName(step: Pick<AskStep, 'name' | 'input'>) {
   return step.name === 'invokeCapability' ? words(record(step.input).id).split('.').at(-1)! : step.name;
 }
-export function actionStatus(turn: Pick<AskTurn, 'status' | 'steps'>, approvalPending = false): string {
+export function actionStatus(turn: Pick<AskTurn, 'status' | 'steps' | 'progress'>, approvalPending = false): string {
   if (turn.status === 'running') {
     if (approvalPending) return 'Approval needed';
     const step = turn.steps.at(-1);
     if (step && !step.result) {
       const name = stepName(step);
+      if (['analyzeTrajectoryExtrema','findTrajectoryExtrema'].includes(name)) {
+        const p = turn.progress;
+        return p?.operation === name && p.totalIntervals !== undefined
+          ? `Analyzing trajectory: ${p.completedIntervals}/${p.totalIntervals} intervals searched · ${p.evaluations?.toLocaleString()} evaluations…`
+          : 'Analyzing trajectory…';
+      }
       if (name === 'runEventQuery') return 'Running Event Finder…';
       if (name === 'upsertEventQuery' || name === 'getEventSearchOptions') return 'Preparing event search…';
       if (definitions.find(d => d.name === name)?.effect !== 'read' && !actionMetadata(step).diagnostic) return `${actionMetadata(step).label}…`;

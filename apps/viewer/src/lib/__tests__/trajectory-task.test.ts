@@ -40,6 +40,16 @@ describe('native routine extrema resolution',()=>{
     expect(winner.source.description).toContain('Estimated');
     expect(winner.method.heightErrorBoundKm).toBeNull();
   });
+  it('reports real collection work without equating finished intervals with completeness',async()=>{
+    scene(4);
+    const progress: {completedIntervals:number;totalIntervals:number;evaluations:number}[]=[];
+    const r=await analyzeTrajectoryExtrema(request,{onProgress:(_f,work)=>{if(work)progress.push(work);}});
+    expect(progress[0]).toEqual({completedIntervals:0,totalIntervals:4,evaluations:0});
+    expect(progress.at(-1)?.completedIntervals).toBe(4);
+    expect(progress.at(-1)?.evaluations).toBe(r.response!.results.reduce((n,r)=>n+r.method.evaluations,0));
+    expect(progress.every((p,i)=>!i || p.evaluations>=progress[i-1].evaluations && p.completedIntervals>=progress[i-1].completedIntervals)).toBe(true);
+    expect(r.winnerId).toBeNull();
+  });
   it('keeps missing intervals partial and refuses a collection winner',async()=>{
     scene(4); // Fourth interval extends beyond trajectory coverage.
     const r=await analyzeTrajectoryExtrema(request);
