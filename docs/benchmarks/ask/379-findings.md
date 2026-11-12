@@ -1,5 +1,9 @@
 # Exploratory Ask assessment: 2026-11-12
 
+This is the original diagnostic baseline. [Review implementation and final
+regressions](379-review.md) supersede its assessment-only scope and follow-up
+recommendations; the identified shared fixes remain in PR #380.
+
 Ask can produce useful native views and bounded sampled explanations in unfamiliar
 catalogs. It does not yet reliably turn an open investigation or comparison into
 a useful visual explanation. The observed limits point first to source/coverage

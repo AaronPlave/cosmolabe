@@ -1,0 +1,524 @@
+{
+  "version": 1,
+  "runtimeRevision": "d198eb7ac30b2e23608f023718de39399439beda",
+  "runtimeFingerprint": {
+    "sha256": "f63dad03b912352920d32ff99be628fd798fc2cdec64de1f0aafdb17b7d11f94",
+    "files": [
+      "apps/viewer/src/components/AskPanel.svelte",
+      "apps/viewer/src/lib/ask/ask.svelte.ts",
+      "apps/viewer/src/lib/ask/public-metadata.ts",
+      "apps/viewer/src/lib/event-control.ts",
+      "apps/viewer/src/lib/viewer-control.ts",
+      "packages/control/src/agent-loop.ts",
+      "packages/control/src/agent-metadata.ts",
+      "packages/control/src/agent.ts",
+      "packages/control/src/answer-check.ts",
+      "packages/control/src/ask-guidance.ts",
+      "packages/control/src/capabilities.ts",
+      "packages/control/src/contracts.ts",
+      "packages/control/src/event-agent-metadata.ts",
+      "packages/control/src/index.ts",
+      "packages/control/src/verbs.ts",
+      "packages/core/src/Universe.ts",
+      "packages/core/src/catalog/CatalogLoader.ts",
+      "packages/core/src/trajectories/CompositeTrajectory.ts",
+      "packages/core/src/trajectories/InterpolatedStates.ts",
+      "packages/core/src/trajectories/OemAdapter.ts",
+      "packages/core/src/trajectories/Trajectory.ts",
+      "packages/interop/src/oem.ts",
+      "packages/three/src/UniverseRenderer.ts"
+    ]
+  },
+  "frozenCasesSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
+  "reports": [
+    {
+      "label": "ab",
+      "source": "f8d61d8e017f1ade39e7cae814e875bd8309ee27",
+      "cells": 4,
+      "sha256": "400ffcee399a43e71483f0381f34f155c752be98e9e0b2381e91b81594f4c198",
+      "estimatedUsd": 0.16359771
+    },
+    {
+      "label": "history",
+      "source": "f8d61d8e017f1ade39e7cae814e875bd8309ee27",
+      "cells": 2,
+      "sha256": "2f121c1744941f048cb82722a14f2fd018fce036896cf52fc08ab0ac111f36ee",
+      "estimatedUsd": 0.06441564999999999
+    },
+    {
+      "label": "final",
+      "source": "37aee936f58ca1a9f31ccf7d6e405a74e4d41ea5",
+      "cells": 12,
+      "sha256": "b3967cebef86719cf8dcf9765b5abe169dec784551d2a295a3f46dd7767cd5a5",
+      "estimatedUsd": 0.029913315000000003
+    },
+    {
+      "label": "gate",
+      "source": "5214840c08a2ec446a74effba5571e35d520329d",
+      "cells": 12,
+      "sha256": "da56a7499e21d6a6af1090b4a3dca53985d6699dbbdb75b482666ddf03fb2597",
+      "estimatedUsd": 0.032711935000000004
+    },
+    {
+      "label": "stronger",
+      "source": "5214840c08a2ec446a74effba5571e35d520329d",
+      "cells": 2,
+      "sha256": "592d91f2429074ce06713121616624959d7712829021c7641d0d5fafe9946793",
+      "estimatedUsd": 0.16970580000000002
+    },
+    {
+      "label": "reviewed",
+      "source": "d198eb7ac30b2e23608f023718de39399439beda",
+      "cells": 12,
+      "sha256": "96648ef95a04f99aa49b6990311cd4e639edc8df4519a6c09dc50ab57fdf0db5",
+      "estimatedUsd": 0.02903870500000001
+    },
+    {
+      "label": "reviewed-stronger",
+      "source": "d198eb7ac30b2e23608f023718de39399439beda",
+      "cells": 2,
+      "sha256": "ea0a7d5996a0534a6c355f639507c2dc0d0c9d89469125ae61cdf7826d09f249",
+      "estimatedUsd": 0.13914030000000002
+    }
+  ],
+  "usage": {
+    "review": {
+      "cells": 46,
+      "rawProcessed": 4609546,
+      "estimatedUsd": 0.6285234150000001
+    },
+    "priorAssessmentEstimatedUsd": 0.036606785,
+    "totalEstimatedUsd": 0.6651302000000001,
+    "authorizedCapUsd": 2,
+    "actualBilledUsd": null
+  },
+  "finalHaiku": [
+    {
+      "task": "em-explore",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "rounds": 7,
+      "latencyMs": 14741,
+      "hostReplacedAnswer": false,
+      "profiles": []
+    },
+    {
+      "task": "em-context",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "unverified",
+      "rounds": 9,
+      "latencyMs": 16328,
+      "hostReplacedAnswer": false,
+      "profiles": [],
+      "continuity": {
+        "epochs": [
+          773366469.184,
+          773366469.184
+        ],
+        "moonRangeKm": [
+          5211.000000000001,
+          5211.000000000002
+        ],
+        "bothInView": [
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "task": "em-ambiguous",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "no-change",
+      "rounds": 2,
+      "latencyMs": 4501,
+      "hostReplacedAnswer": false,
+      "fullStableStateUnchanged": true,
+      "profiles": []
+    },
+    {
+      "task": "iss-explore",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "verified",
+      "rounds": 6,
+      "latencyMs": 10938,
+      "hostReplacedAnswer": false,
+      "profiles": []
+    },
+    {
+      "task": "iss-appearance",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "verified",
+      "rounds": 6,
+      "latencyMs": 12758,
+      "hostReplacedAnswer": false,
+      "profiles": []
+    },
+    {
+      "task": "iss-unsupported",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "no-change",
+      "rounds": 2,
+      "latencyMs": 5797,
+      "hostReplacedAnswer": false,
+      "fullStableStateUnchanged": true,
+      "profiles": []
+    },
+    {
+      "task": "oem-investigate",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "rounds": 7,
+      "latencyMs": 17569,
+      "hostReplacedAnswer": false,
+      "profiles": [
+        {
+          "quantity": "range",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        },
+        {
+          "quantity": "range-rate",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        }
+      ]
+    },
+    {
+      "task": "oem-compare",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "rounds": 10,
+      "latencyMs": 21551,
+      "hostReplacedAnswer": true,
+      "profiles": [
+        {
+          "quantity": "range",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        },
+        {
+          "quantity": "range-rate",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        }
+      ]
+    },
+    {
+      "task": "oem-contact",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "no-change",
+      "rounds": 2,
+      "latencyMs": 3966,
+      "hostReplacedAnswer": false,
+      "fullStableStateUnchanged": true,
+      "profiles": []
+    },
+    {
+      "task": "clipper-explore",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "verified",
+      "rounds": 5,
+      "latencyMs": 10070,
+      "hostReplacedAnswer": false,
+      "profiles": [],
+      "event": {
+        "kind": "closest-approach",
+        "bodies": {
+          "observer": "Europa Clipper",
+          "target": "Europa"
+        },
+        "window": {
+          "start": 782198880.4723655,
+          "end": 1094143570.0131
+        },
+        "step": 3600,
+        "params": {
+          "scope": "local"
+        },
+        "scope": "local",
+        "maxRangeKm": null,
+        "total": 885,
+        "presented": true,
+        "selectedEt": 1003830456.8034713,
+        "selectedRangeKm": 1584.73393011446,
+        "selectedAltitudeKm": 24.99987489666576
+      }
+    },
+    {
+      "task": "clipper-compare",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "verified",
+      "rounds": 5,
+      "latencyMs": 12091,
+      "hostReplacedAnswer": false,
+      "profiles": [],
+      "event": {
+        "kind": "closest-approach",
+        "bodies": {
+          "observer": "Europa Clipper",
+          "target": "Europa"
+        },
+        "window": {
+          "start": 983361669.184,
+          "end": 986040068.184
+        },
+        "step": 3600,
+        "params": {
+          "scope": "local"
+        },
+        "scope": "local",
+        "maxRangeKm": null,
+        "total": 7,
+        "presented": true,
+        "selectedEt": 985658652.6123381,
+        "selectedRangeKm": 1838.607708583299,
+        "selectedAltitudeKm": 277.7341337364047
+      }
+    },
+    {
+      "task": "clipper-science",
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "viewerVerdict": "no-change",
+      "rounds": 3,
+      "latencyMs": 4991,
+      "hostReplacedAnswer": false,
+      "fullStableStateUnchanged": true,
+      "profiles": []
+    }
+  ],
+  "finalStronger": [
+    {
+      "task": "oem-compare",
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "rounds": 7,
+      "latencyMs": 18880,
+      "hostReplacedAnswer": true,
+      "profiles": [
+        {
+          "quantity": "range",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        },
+        {
+          "quantity": "range-rate",
+          "present": true,
+          "traceVisible": true,
+          "missing": 128
+        }
+      ]
+    },
+    {
+      "task": "clipper-compare",
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "viewerVerdict": "verified",
+      "rounds": 7,
+      "latencyMs": 16067,
+      "hostReplacedAnswer": false,
+      "profiles": [],
+      "event": {
+        "kind": "closest-approach",
+        "bodies": {
+          "observer": "Europa Clipper",
+          "target": "Europa"
+        },
+        "window": {
+          "start": 983361669.184,
+          "end": 986040069.184
+        },
+        "step": 3600,
+        "params": {
+          "scope": "local"
+        },
+        "scope": "local",
+        "maxRangeKm": null,
+        "total": 7,
+        "presented": true,
+        "selectedEt": 985658652.6123381,
+        "selectedRangeKm": 1838.607708583299,
+        "selectedAltitudeKm": 277.7341337364047
+      }
+    }
+  ],
+  "independentPointStateChecks": {
+    "method": "Uniform coarse point-state samples with local golden-section candidate refinement, independent of Event Finder; loaded ephemerides only, not external truth or global certification.",
+    "results": [
+      {
+        "target": "Europa",
+        "start": 782198877.4723655,
+        "end": 1094143573.0131,
+        "samples": 40001,
+        "missing": 0,
+        "candidates": 884,
+        "et": 1003830456.8030763,
+        "km": 1584.7339300875135
+      },
+      {
+        "target": "Europa",
+        "start": 983361669.1853725,
+        "end": 986040069.1856542,
+        "samples": 3001,
+        "missing": 0,
+        "candidates": 7,
+        "et": 985658652.6143906,
+        "km": 1838.607708663169
+      },
+      {
+        "target": "Ganymede",
+        "start": 983361669.1853725,
+        "end": 986040069.1856542,
+        "samples": 3001,
+        "missing": 0,
+        "candidates": 6,
+        "et": 983886916.6426445,
+        "km": 442173.32551466377
+      }
+    ],
+    "agreement": {
+      "rangeKm": 1e-06,
+      "timeSeconds": 0.05
+    }
+  },
+  "localControls": {
+    "sourceBounds": "At real OEM first-1, first, midpoint, last, last+1: outside null, both endpoints/interior available; five profile samples have two missing. Display-only endpoint poses remain finite.",
+    "gapRegression": "Declared two-segment OEM with an interior gap; no inferred cadence threshold. In-range interpolation and dependent-body refusal tested.",
+    "guidanceCatalogs": [
+      {
+        "catalog": "earth-moon",
+        "examples": [
+          "Show Earth Close",
+          "Show Lunar Orbit",
+          "Explore Moon\u2013Earth distance"
+        ]
+      },
+      {
+        "catalog": "iss",
+        "examples": [
+          "Show Earth from orbit",
+          "Show Regional view",
+          "Explore ISS\u2013Earth distance"
+        ]
+      },
+      {
+        "catalog": "oem-ingest",
+        "examples": [
+          "Show SOI outbound",
+          "Show Periapsis close-up",
+          "Explore Cassini\u2013Saturn distance"
+        ]
+      },
+      {
+        "catalog": "europa-clipper",
+        "examples": [
+          "Show Jupiter System Overview",
+          "Show Europa Close-up",
+          "Explore Europa Clipper\u2013Jupiter distance"
+        ]
+      }
+    ],
+    "guidanceFillOnly": true,
+    "externalModelCalls": 0,
+    "stop": "Actual Stop after a selection, then deliver a late proposed selection. ET, full camera pose, tracking and selected Moon unchanged after 500 ms.",
+    "comprehension": "One developer walkthrough confirmed prompt prefill and found technical labels vague. Replaced by plain camera/data wording; no independent first-time-user usability study."
+  },
+  "captureNote": "Raw searchComplete combined active-editor search identity with selection. Compact evidence omits it; completed computed responses and per-query event predicates verify results. Harness now observes selected-query page status.",
+  "imageryProjectionCheck": [
+    {
+      "modelVisible": true,
+      "surface": "streamed",
+      "layers": [
+        {
+          "id": "blue-marble",
+          "time": null,
+          "evidence": {
+            "configured": true,
+            "requests": "ok",
+            "drawnInView": false,
+            "coversView": null,
+            "completeTiles": null
+          }
+        },
+        {
+          "id": "viirs-daily",
+          "time": {
+            "policy": "follow-simulation",
+            "cadence": "day",
+            "date": "2026-11-04",
+            "requestedDate": "2026-11-04",
+            "state": "exact",
+            "offsetDays": 0,
+            "pending": false,
+            "rangeStart": "2022-01-14",
+            "rangeEnd": null,
+            "illumination": "baked"
+          },
+          "evidence": {
+            "configured": true,
+            "requests": "ok",
+            "drawnInView": true,
+            "coversView": true,
+            "completeTiles": true
+          }
+        }
+      ]
+    },
+    {
+      "modelVisible": true,
+      "surface": "streamed",
+      "layers": [
+        {
+          "id": "blue-marble",
+          "time": null,
+          "evidence": {
+            "configured": true,
+            "requests": "ok",
+            "drawnInView": false,
+            "coversView": null,
+            "completeTiles": null
+          }
+        },
+        {
+          "id": "viirs-daily",
+          "time": {
+            "policy": "follow-simulation",
+            "cadence": "day",
+            "date": "2026-11-05",
+            "requestedDate": "2026-11-05",
+            "state": "exact",
+            "offsetDays": 0,
+            "pending": false,
+            "rangeStart": "2022-01-14",
+            "rangeEnd": null,
+            "illumination": "baked"
+          },
+          "evidence": {
+            "configured": true,
+            "requests": "ok",
+            "drawnInView": true,
+            "coversView": true,
+            "completeTiles": true
+          }
+        }
+      ]
+    }
+  ]
+}

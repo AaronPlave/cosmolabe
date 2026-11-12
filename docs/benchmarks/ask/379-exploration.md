@@ -1,8 +1,9 @@
 # Exploratory scene assessment (#379)
 
-Status: tasks frozen on 2026-11-12; authorized live assessment and independent
-review completed. See [findings and decision](379-findings.md). The only runtime
-change is generic operation-ID presentation; production routing is unchanged.
+Status: tasks frozen on 2026-11-12. The [baseline findings](379-findings.md)
+precede the [review implementation and final regressions](379-review.md).
+The frozen wording/rubric is unchanged; PR #380 now implements the shared
+findings and composer guidance. Production routing is unchanged.
 
 Local preparation verified all four catalogs reach scene readiness and render
 in this checkout's dedicated viewer. Baseline views were visually inspected;

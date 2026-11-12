@@ -210,7 +210,7 @@ try {
             }
             const metric = k => selectedEvent?.metrics?.find(m => m.key === k)?.value;
             return { id, kind: q?.kind ?? null, bodies: q?.bodies ?? {}, window: q?.window ?? null, step: q?.step ?? null, params: q?.params ?? {}, scope: q?.params?.scope ?? null, maxRangeKm: q?.params?.maxRangeKm ?? null,
-              searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected && !v.playing,
+              searchComplete: ['ready', 'no-results'].includes(page.status), total: page.total, presented: !!v.selected && !v.playing,
               ...(selectedEvent ? { selectedEt: selectedEvent.temporality === 'instant' ? selectedEvent.et : (selectedEvent.start + selectedEvent.end) / 2, selectedRangeKm: metric('range'), selectedAltitudeKm: metric('altitude') } : {}) };
           };
           // Independent truth for "closest": coarse range sampling over the windows, then refinement around the minimum.
