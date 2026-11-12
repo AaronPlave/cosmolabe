@@ -260,7 +260,7 @@ const catalog = {
   // Real ephemeris and DE421 mean-Earth orientation (de440s, lunar binary PCK): where the Sun and Earth
   // sit in the polar sky — grazing sun, Earth dipping below the horizon — is
   // the point of a south-pole mission.
-  require: ['base/earth-system.json', 'base/lunar-surface.json', 'places/moon.json', 'places/moonfall-sites.json'],
+  require: ['base/naif.json', 'base/lunar-surface.json', 'places/moon.json', 'places/moonfall-sites.json'],
   defaultGeographicNames: ['Moon'],
   items: [
     surfaceView('Shackleton Overview', -89.6, 0, 60),
@@ -279,6 +279,22 @@ const catalog = {
       trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
       geometry: { type: 'Globe', radius: 695000 },
       label: { color: [1.0, 0.9, 0.3] },
+    },
+    {
+      name: 'Earth',
+      class: 'planet',
+      center: 'Sun',
+      trajectory: { type: 'Builtin', name: 'Earth' },
+      bodyFrame: 'EquatorJ2000',
+      rotationModel: { type: 'Builtin' },
+      trajectoryPlot: { visible: false },
+      geometry: {
+        type: 'Globe',
+        radius: 6378,
+        baseMap: 'textures/earth-5k.jpg',
+        atmosphere: 'Earth',
+      },
+      label: { color: [0.4, 0.6, 1.0] },
     },
     {
       name: 'Moon',

@@ -59,11 +59,14 @@ describe('moonfall-shackleton.json: Sun and Earth over the south pole', () => {
     expect(kernels).toEqual(expect.arrayContaining(['naif0012.tls', 'pck00011.tpc', 'de440s.bsp', 'moon_080317.tf.gz', 'moon_pa_de421_1900_2050.bpc.gz']));
   });
 
-  it('inherits Earth rotation while retaining the MoonFall lunar override', () => {
+  it('rotates Earth while preserving the MoonFall hierarchy and hidden Earth trail', () => {
     const u = new Universe(spice);
     for (const j of json) u.loadCatalog(j);
     const earth = u.getBody('Earth')!;
     const moon = u.getBody('Moon')!;
+    expect(earth.parentName).toBe('Sun');
+    expect(u.getBody('Sun')!.children.filter((body) => body.name === 'Earth')).toEqual([earth]);
+    expect(earth.trajectoryPlot?.visible).toBe(false);
     expect(earth.rotation).toBeDefined();
     expect(u.bodyToWorldQuat('Earth', t0)).toBeDefined();
     expect(u.bodyToWorldQuat('Earth', t0 + 6 * 3600)).not.toEqual(u.bodyToWorldQuat('Earth', t0));

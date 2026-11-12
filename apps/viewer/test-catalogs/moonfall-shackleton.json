@@ -485,7 +485,7 @@
   "defaultTime": "2028-12-15T10:04:00Z",
   "defaultViewpoint": "Shackleton Overview",
   "require": [
-    "base/earth-system.json",
+    "base/naif.json",
     "base/lunar-surface.json",
     "places/moon.json",
     "places/moonfall-sites.json"
@@ -561,6 +561,35 @@
           0.9,
           0.3
         ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "trajectoryPlot": {
+        "visible": false
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1
+        ]
+      },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Builtin"
       }
     },
     {
