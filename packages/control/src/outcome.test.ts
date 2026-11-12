@@ -125,6 +125,17 @@ describe('outcome predicates', () => {
     expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toBeNull();
   });
 
+  it('allows only an operation contract to classify incomplete state evidence as partial', () => {
+    const h = host({ getProfile: () => ({ status: 'partial', definition: { id: 'p' } }) as never });
+    const reads = new Set(['getProfile']);
+    const presentation: Predicate = { p: 'state', read: 'getProfile', args: ['p'], path: 'status', equals: 'available', soft: true };
+    const definition: Predicate = { p: 'state', read: 'getProfile', args: ['p'], path: 'definition.id', equals: 'p' };
+    expect(evaluate(h, [definition, presentation], { reads }).status).toBe('partial');
+    expect(evaluate(h, [{ ...definition, equals: 'missing' }, presentation], { reads }).status).toBe('unmet');
+    const modelGoal = parsePredicate(presentation);
+    expect(modelGoal).not.toHaveProperty('soft');
+    expect(evaluate(h, [modelGoal], { reads }).status).toBe('unmet');
+  });
   it('state predicates compare any registered read; unregistered reads are not called', () => {
     const settings = { baseColor: 'elevation', palette: 'terrain' };
     let called = false;
@@ -232,4 +243,32 @@ describe('outcome predicates', () => {
     // A model cannot mark its own predicate as stated.
     expect(parsePredicate({ p: 'paused', value: true, stated: true })).toEqual({ p: 'paused', value: true });
   });
+});
+
+it('authored view goals share one replaceable camera slot and yield to manual takeover', () => {
+  const initial = adopt([], [{ p: 'viewpoint', id: 'Arrival' }, { p: 'epoch', et: 1 }]).held;
+  const next = adopt(initial, [{ p: 'viewpoint', id: 'Release' }, { p: 'epoch', et: 2 }]).held;
+  expect(next).toEqual([{ p: 'viewpoint', id: 'Release' }, { p: 'epoch', et: 2 }]);
+  expect(retireDomain(next, 'camera')).toEqual([{ p: 'epoch', et: 2 }]);
+  expect(evaluate(host({ getViewpointInfo: () => ({ navigation: { poseMatches: false, observedEt: 2 }, epoch: 2 }) as never }), next).checks.find(c => c.slot === 'viewpoint')?.ok).toBe(false);
+  expect(evaluate(host({}), [{ p: 'viewpoint', id: 'unknown' }]).status).toBe('inconclusive');
+  expect(() => parsePredicate({ p: 'viewpoint' })).toThrow(/exact name/);
+  const stated = adopt([], [{ p: 'viewpoint', id: 'Arrival' }], 'person').held;
+  expect(preconditionProblem(host({}), [{ p: 'viewpoint', id: 'Release' }], stated)).toMatch(/restate/);
+});
+
+
+it('does not confirm composition from body placements predating a seek', () => {
+  const h = view({});
+  const get = h.getViewComposition!;
+  h.getViewComposition = objects => ({ ...get(objects), fresh: false, observedEt: 100, et: 200 });
+  const result = evaluate(h, [{ p: 'inView', object: 'Psyche' }]);
+  expect(result.status).toBe('inconclusive');
+  expect(result.checks[0].detail).toContain('still at ET 100');
+});
+
+it('does not turn model-bound overlaps into a claim that an object is invisible', () => {
+  const result = evaluate(view({ occlusion: { by: 'array', kind: 'full', basis: 'model-bounds' } }), [{ p: 'inView', object: 'Mars' }]);
+  expect(result.status).toBe('inconclusive');
+  expect(result.checks[0].detail).toContain('actual mesh occlusion is unassessed');
 });

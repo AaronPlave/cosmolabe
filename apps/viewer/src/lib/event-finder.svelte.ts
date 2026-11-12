@@ -886,6 +886,14 @@ function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined 
   const kind = currentKind();
   const concrete = buildQuery(kind, ef.form, ef.configuredId ?? 'draft');
   const previous = currentConfiguredQuery();
+  // Opening/running an existing numerical query must retain richer typed scopes
+  // (multiple vehicles/windows) and its work cap. Only a changed form replaces
+  // that definition. Compare through the same form normalization used on open.
+  if (previous?.query.trajectoryAnalysis && kind.engine==='trajectory-analysis') {
+    const restored=buildQuery(kind,configuredQueryForm(kind,previous),concrete.id);
+    if (eventQuerySignature(concrete)===eventQuerySignature(restored))
+      concrete.trajectoryAnalysis=previous.query.trajectoryAnalysis;
+  }
   if (kind.engine === 'trajectory-analysis') concrete.abcorr = 'NONE';
   else if (previous?.query.abcorr !== undefined) concrete.abcorr = previous.query.abcorr;
   if (previous?.query.label !== undefined) concrete.label = previous.query.label;
@@ -1019,15 +1027,7 @@ export function createNewSearch() {
 }
 
 /** Reopen a configured search and its cached results for browsing or editing. */
-function openQuery(id: string) {
-  const item = configuredItem(id);
-  if (!item || item.type !== 'event-query') return;
-  const kind = registry.get(item.query.kind);
-  if (!kind) return;
-
-  cancelSearch();
-  inFlight++;
-  ef.kind = kind.kind;
+function configuredQueryForm(kind: EventKind<never>, item: ConfiguredEventQuery): EventQueryForm {
   const window = item.query.window ?? catalogWindow();
   const form = formForKind(kind, window);
   form.bodies = { ...(item.query.bodies ?? {}) };
@@ -1038,6 +1038,18 @@ function openQuery(id: string) {
     if (form.params[key] === undefined) form.params[key] = String(value);
   }
   form.step = item.query.step ?? kind.defaultStep;
+  return form;
+}
+function openQuery(id: string) {
+  const item = configuredItem(id);
+  if (!item || item.type !== 'event-query') return;
+  const kind = registry.get(item.query.kind);
+  if (!kind) return;
+
+  cancelSearch();
+  inFlight++;
+  ef.kind = kind.kind;
+  const form=configuredQueryForm(kind,item);
   ef.form = form;
   ef.configuredId = id;
   ef.events = [...(analysis.eventResults[id] ?? [])];

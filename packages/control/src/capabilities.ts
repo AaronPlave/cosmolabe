@@ -98,7 +98,7 @@ export interface CapabilityTools extends AgentTools {
 
 /** A small schema shortlist, never an authorization allowlist. All other
  * registry operations are invocable through the same validated dispatcher. */
-export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'findClosestApproach', 'analyzeTrajectoryExtrema', 'navigateToAnalysisResult', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
 export function defaultAskDefinitions() {
   return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
 }
@@ -131,10 +131,23 @@ const TEXT: AgentJsonSchema = { type: 'string' }, NUMBER: AgentJsonSchema = { ty
 const NULLABLE_RECORD: AgentJsonSchema = { type: ['object', 'null'] };
 const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
+const PROFILE_DATA_OUTPUT = objectSchema({ scene: { type: ['number', 'null'] }, id: TEXT, status: TEXT,
+  quantity: { type: ['string', 'null'] }, unit: { type: ['string', 'null'] }, bodies: NULLABLE_RECORD,
+  requestedWindow: { type: 'object' }, window: NULLABLE_RECORD, samples: { type: 'array', maxItems: 32, items: { type: 'object' } },
+  missing: NUMBER, gaps: RECORDS, minimum: NULLABLE_RECORD, maximum: NULLABLE_RECORD, sampling: { type: 'object' }, limitations: STRINGS });
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  getViewpointInfo: NULLABLE_RECORD, getObjectContext: NULLABLE_RECORD,
+  getProfileValue: PROFILE_DATA_OUTPUT,
+  sampleProfileData: PROFILE_DATA_OUTPUT,
+  getProfileOptions: objectSchema({ quantities: RECORDS, window: { type: 'object' }, limitations: STRINGS }),
+  listProfiles: objectSchema({ scene: { type: ['number','null'] }, total: NUMBER, items: RECORDS }),
+  getProfile: objectSchema({ scene: { type: ['number','null'] }, status: TEXT, definition: NULLABLE_RECORD, resolved: NULLABLE_RECORD, timeline: { type: 'object' }, limitations: STRINGS }),
+  findClosestApproach: objectSchema({ query: TEXT, status: { type: 'string', enum: ['computed','sampled','unavailable','no-results','interrupted'] }, reason: { type: ['string','null'] }, computedEventVerified: { type: 'boolean' }, searchStarted: { type: 'boolean' }, sampledEpochSelected: { type: 'boolean' }, windows: RECORDS, stepSeconds: { type: ['number','null'] }, candidates: NUMBER, result: NULLABLE_RECORD, presentation: NULLABLE_RECORD, samples: NULLABLE_RECORD, sampledView: NULLABLE_RECORD, limitations: STRINGS }, ['query','status','reason','computedEventVerified','windows','samples']),
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
-  getViewComposition: objectSchema({ et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
+  getTrajectoryAnalysisOptions: objectSchema({ available: { type:'boolean' }, subjects:RECORDS, bodies:RECORDS, truncated:{type:'boolean'} }),
+  analyzeTrajectoryExtrema: objectSchema({ status:TEXT, reason:{type:['string','null']}, message:TEXT, started:{type:'boolean'}, scope:{type:'object'}, options:{type:'object'}, winnerId:{type:['string','null']}, winner:NULLABLE_RECORD, candidate:NULLABLE_RECORD, candidateUse:{type:['string','null']}, coverage:{type:'object'}, comparedCount:NUMBER, compared:RECORDS, faultsTotal:NUMBER, faults:RECORDS, parameters:NULLABLE_RECORD }),
+  getViewComposition: objectSchema({ fresh: { type: 'boolean' }, observedEt: { type: ['number','null'] }, et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
   checkGoal: objectSchema({ kind: TEXT, status: { type: 'string', enum: ['met', 'partial', 'unmet', 'inconclusive'] }, checks: RECORDS }, ['kind', 'status', 'checks']),
   getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
@@ -152,7 +165,7 @@ const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
     selectedObject: { type: ['string', 'null'] }, tracked: { type: ['string', 'null'] }, flight: NULLABLE_RECORD,
     selectedActivity: NULLABLE_RECORD, selectedPlace: NULLABLE_RECORD, objects: objectSchema({ names: STRINGS, total: NUMBER }),
     viewpoints: objectSchema({ names: STRINGS, total: NUMBER }), activities: NUMBER, focusSurfaceData: NULLABLE_RECORD, focusImagery: NULLABLE_RECORD, unsupported: STRINGS }),
-  resolve: objectSchema({ candidates: RECORDS, ambiguous: { type: 'boolean' } }, ['candidates', 'ambiguous']),
+  resolve: objectSchema({ candidates: RECORDS, ambiguous: { type: 'boolean' }, activityMatches:NULLABLE_RECORD }, ['candidates', 'ambiguous']),
   searchPlaces: { type: 'array', maxItems: 25, items: { type: 'object' } },
   listActivities: objectSchema({ total: NUMBER, offset: NUMBER, returned: NUMBER, nextOffset: { type: ['number', 'null'] }, complete: { type: 'boolean' },
     sort: TEXT, order: TEXT, missingDuration: NUMBER, activities: RECORDS }, ['total', 'offset', 'returned', 'nextOffset', 'complete', 'activities']),
@@ -207,7 +220,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
   };
   const summary = (def: ReturnType<typeof definitions>[number]): CapabilitySummary => {
     const id = idOf(def);
-    const blockedNavigation = def.name === 'navigateToAnalysisResult' ? ['time.setTime','time.setPlaying','scene.select','camera.frameObject'].find(operation => opts.omitted?.[operation]) : undefined;
+    const blockedNavigation = (def.name === 'navigateToAnalysisResult' ? ['time.setTime','time.setPlaying','scene.select','camera.frameObject'] : def.name === 'analyzeTrajectoryExtrema' ? ['analysis.findTrajectoryExtrema'] : []).find(operation => opts.omitted?.[operation]);
     const reason = opts.omitted?.[id] ?? (blockedNavigation ? `Result navigation requires ${blockedNavigation}: ${opts.omitted![blockedNavigation]}` : undefined) ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
       : effectOf(def) !== 'read' && (!host.getScene || scope().scene === null) ? 'Scene identity is required for writes'
         : def.requiresAuthoring && !opts.allowAuthoring ? 'Host authoring permission required'
@@ -313,7 +326,12 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         const availability = summary(def);
         if (!availability.available) return fail(availability.reason!, 'refused');
         const problem = violation(def.inputSchema, input, 'input');
-        if (problem) return fail(`${problem}. Expected input schema: ${JSON.stringify(def.inputSchema)}`);
+        if (problem) {
+          // Preserve the numerical task's bounded validation failures through the
+          // public bridge; no invalid input reaches the native service.
+          const bounded=['analyzeTrajectoryExtrema','findTrajectoryExtrema'].includes(name) ? await task.call(name,input) : null;
+          return { ...fail(`${problem}. Expected input schema: ${JSON.stringify(def.inputSchema)}`), ...(bounded?.facts ? {facts:bounded.facts} : {}), ...(bounded?.terminal?{terminal:true as const}:{}) };
+        }
         if (name === 'waitUntilReady') {
           try { captureReadiness = { request: JSON.parse((input as { json: string }).json) as ScriptReadinessRequest, ready: false }; }
           catch { return fail('Invalid readiness JSON'); }
@@ -359,7 +377,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         const verified = observation.state !== null && result.ok && (effectOf(def) === 'read' ? true : outcome?.report?.status === 'met');
         const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
-            : result.code === 'failed' ? 'partial' : 'refused';
+            : ['failed', 'missing-dependency'].includes(result.code) ? 'partial' : 'refused';
         const outcomeWarnings = !result.ok || effectOf(def) === 'read' ? [] : !outcome?.report ? [`Not observable: ${outcome?.unobservable ?? 'no result declared'}.`]
           : outcome.report.status === 'met' ? [] : [`Viewer check ${outcome.report.status}: ${outcome.report.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}.`];
         const resolvedTarget: Record<string, string> = {};
@@ -391,7 +409,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const receipt: OperationReceipt = {
         id: `${instance}:${++sequence}`, operation: def ? idOf(def) : `unknown.${name.slice(0, 160)}`,
         version: CAPABILITY_VERSION, scope: bound, task: task.id,
-        status: !result.ok && result.code === 'stale' ? 'stale' : !result.ok && ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled' : !result.ok && result.code === 'failed' ? 'partial' : 'refused',
+        status: !result.ok && result.code === 'stale' ? 'stale' : !result.ok && ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled' : !result.ok && ['failed', 'missing-dependency'].includes(result.code) ? 'partial' : 'refused',
         requestedTarget: {}, resolvedTarget: {}, observation: observe(), warnings: result.ok ? [] : [result.error],
         provenance: 'viewer-observation', verification: 'host-return',
       };

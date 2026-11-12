@@ -234,7 +234,7 @@ describe('verified receipts and partial workflows', () => {
     // Only the directly offered tools' notes are in the prompt; the rest come from the registry on demand.
     expect(prompt).toContain('- composeView: To bring another object into a close-up');
     expect(prompt).not.toContain('- getSurfaceData:');
-    expect(tools.describeCapabilities(['surface.getSurfaceData'])[0].guide).toMatch(/^Zero getImagery layers/);
+    expect(tools.describeCapabilities(['surface.getSurfaceData'])[0].guide).toContain('Zero getImagery layers');
     for (const name of ['listCapabilities', 'describeCapabilities', 'invokeCapability']) expect(prompt).toContain(name);
     expect(prompt).toContain('source provenance withheld');
     // Discovery offers describeScene alone directly, so only its notes are in the prompt.

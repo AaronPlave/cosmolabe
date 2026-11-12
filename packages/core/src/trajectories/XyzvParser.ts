@@ -25,6 +25,7 @@ export function parseXyzv(text: string): StateRecord[] {
 
     records.push({
       et: (jd - JD_J2000) * 86400,
+      julianDate: jd,
       position: [x, y, z] as Vec3,
       velocity: [vx, vy, vz] as Vec3,
     });

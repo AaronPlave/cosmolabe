@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { findTrajectoryExtrema, trajectoryExtremumEvent, type TrajectoryAnalysisProvider, type TrajectoryExtremaQuery } from '../geometry/trajectory-extrema.js';
 import { WaypointTrajectory } from '../trajectories/WaypointTrajectory.js';
 
@@ -108,6 +108,19 @@ describe('shared trajectory height extrema', () => {
     expect((await findTrajectoryExtrema(query(),p)).status).toBe('unavailable');
     expect((await findTrajectoryExtrema(query({ maxEvaluations:2 }),provider(() => [12,0,0]))).faults[0].code).toBe('budget');
   });
+  it('yields by elapsed work before 256 evaluations and observes cancellation immediately', async () => {
+    let clock=0, positions=0, yields=0;
+    const now=vi.spyOn(performance,'now').mockImplementation(()=>clock);
+    const signal={aborted:false};
+    const p=provider(()=>{positions++;clock+=5;return [12,0,0];});
+    p.yield=async()=>{if(++yields===2)signal.aborted=true;};
+    try {
+      const result=await findTrajectoryExtrema(query(),p,{signal});
+      expect(result).toMatchObject({status:'cancelled',results:[]});
+      expect(yields).toBe(2);
+      expect(positions).toBe(4);
+    } finally {now.mockRestore();}
+  });
   it('discards late results on cancellation or source revision changes', async () => {
     const signal={ aborted:false }, p=provider(() => [12,0,0]);
     p.terrain=async () => { signal.aborted=true; return { heightKm:1,sourceUncertaintyKm:null }; };
@@ -134,6 +147,15 @@ describe('native trajectory Event Finder kind',()=>{
     const search=new EventSearch({registry:builtinEventKinds(),provider:{gfdist:unavailable,gfsep:unavailable,gfposc:unavailable,gfoclt:unavailable},trajectoryAnalysis:async()=>numerical});
     const found=await search.run({id:'height-search',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}});
     expect(found).toMatchObject({ok:true,faults:[{code:'unavailable'}],events:[{kind:'trajectory-extremum',queryId:'height-search',primaryRole:'observer',trajectoryAnalysis:{coverage:'partial'}}]});
+  });
+  it('does not make complete intervals partial because a different interval hit a limit',async()=>{
+    const {EventSearch}=await import('../geometry/events/search.js');
+    const {builtinEventKinds}=await import('../geometry/events/kinds/index.js');
+    const numerical=await findTrajectoryExtrema(query(),provider(()=>[13,0,0]));
+    const unavailable=()=>{throw Error('GF must not be called');};
+    const search=new EventSearch({registry:builtinEventKinds(),provider:{gfdist:unavailable,gfsep:unavailable,gfposc:unavailable,gfoclt:unavailable},trajectoryAnalysis:async()=>({...numerical,status:'partial',faults:[{code:'budget',object:'other',message:'Other interval reached its allowance.'}]})});
+    const found=await search.run({id:'height-search',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}});
+    expect(found).toMatchObject({ok:true,faults:[{code:'unavailable'}],events:[{trajectoryAnalysis:{coverage:'sampled-complete'}}]});
   });
   it('allows activity-independent windows and reports unavailable host ports',async()=>{
     const {EventSearch}=await import('../geometry/events/search.js');
@@ -213,5 +235,52 @@ describe('general activity-independent height scope',()=>{
     p.activities=[{version:1,id:'drive',name:'Traverse',kind:'drive',vehicle:'drone',body:'Moon',temporality:'interval',start:2,end:4,provenance},{version:1,id:'descent',name:'Descent',kind:'descent',vehicle:'drone',body:'Moon',temporality:'interval',start:6,end:8,provenance}];
     expect(await findTrajectoryExtrema(query({scope:{kind:'activities',activityKind:'drive'}}),p)).toMatchObject({status:'complete',results:[{et:4,activityId:'drive'}]});
     expect(await findTrajectoryExtrema(query({scope:{kind:'activities',ids:['descent'],window:{start:0,end:7}}}),p)).toMatchObject({status:'complete',results:[{et:7,activityId:'descent'}]});
+  });
+});
+
+// Source encoding precision is evidence, not a generic time tolerance.
+describe('source epoch coverage semantics',()=>{
+  it('reconciles only outer endpoints that encode to the actual retained Julian date',async()=>{
+    const {assessTrajectoryCoverage}=await import('../geometry/trajectory-extrema.js');
+    const start=672089519.3,end=672089558.4;
+    const jd=(t:number)=>t/86400+2451545,et=(j:number)=>(j-2451545)*86400;
+    const source={start:et(jd(start)),end:et(jd(end)),startJulianDate:jd(start),endJulianDate:jd(end)};
+    const a=assessTrajectoryCoverage({start,end},[source]);
+    expect(a.temporal).toBe('complete');expect(a.endpointReconciliations.length).toBeGreaterThan(0);
+    const seen:number[]=[];const p=provider(t=>{seen.push(t);return [12,0,0];});p.coverage=()=>[source];
+    const r=await findTrajectoryExtrema(query({scope:{kind:'windows',windows:[{start,end}]}}),p);
+    expect(r).toMatchObject({status:'complete',results:[{coverage:'sampled-complete',completeness:{temporal:'complete',numerical:'complete',unavailableSamples:0}}]});
+    expect(Math.min(...seen)).toBeGreaterThanOrEqual(source.start);expect(Math.max(...seen)).toBeLessThanOrEqual(source.end);
+    expect(r.results[0].window).toEqual({start,end});
+    // The identical mismatch without source encoding evidence remains a gap.
+    expect(assessTrajectoryCoverage({start,end},[{start:source.start,end:source.end}]).temporal).toBe('partial');
+    expect(assessTrajectoryCoverage({start:start-.001,end},[source]).temporal).toBe('partial');
+    const mid=(start+end)/2;
+    expect(assessTrajectoryCoverage({start,end},[{...source,end:mid},{...source,start:mid+.000001}]).temporal).toBe('partial');
+  });
+  it('keeps temporal coverage, failed samples and numerical limits independent',async()=>{
+    const p=provider(t=>t===5?null:[12+t,0,0]);p.coverage=()=>[{start:0,end:10}];
+    const r=await findTrajectoryExtrema(query({maxEvaluations:8}),p);
+    expect(r.results[0].completeness).toMatchObject({temporal:'complete',numerical:'budget-limited'});
+    const missing=await findTrajectoryExtrema(query(),p);
+    expect(missing.results[0].completeness).toMatchObject({temporal:'complete',numerical:'complete',unavailableSamples:1});
+    expect(missing.results[0].coverage).toBe('partial');
+  });
+  it('audits all real Ingenuity activity endpoints against their retained XYZV encodings',async()=>{
+    const {readFileSync}=await import('node:fs');
+    const {parseXyzv}=await import('../trajectories/XyzvParser.js');
+    const {assessTrajectoryCoverage}=await import('../geometry/trajectory-extrema.js');
+    const root=new URL('../../../../apps/viewer/test-catalogs/',import.meta.url);
+    const catalog=JSON.parse(readFileSync(new URL('ingenuity-jezero.json',root),'utf8'));
+    let reconciled=0;
+    for(const a of catalog.activities.filter((a:{kind:string})=>a.kind==='flight')) {
+      const records=parseXyzv(readFileSync(new URL(a.references.sourceSegment,root),'utf8'));
+      const first=records[0],last=records.at(-1)!;
+      const assessment=assessTrajectoryCoverage(a,[{start:first.et,end:last.et,startJulianDate:first.julianDate,endJulianDate:last.julianDate}]);
+      expect(assessment.temporal,a.id).toBe('complete');
+      if(assessment.endpointReconciliations.length)reconciled++;
+    }
+    expect(catalog.activities.filter((a:{kind:string})=>a.kind==='flight')).toHaveLength(72);
+    expect(reconciled).toBe(55);
   });
 });

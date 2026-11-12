@@ -7,7 +7,8 @@
    */
   import type { ContinuousProfileConfiguration } from '@cosmolabe/core';
   import { vs } from '../../lib/viewer-state.svelte';
-  import { analysis, createConfiguredProfile } from '../../lib/analysis.svelte';
+  import { analysis } from '../../lib/analysis.svelte';
+  import { profileControl } from '../../lib/profile-control';
   import { profileQuantity } from '../../lib/profile-sampling';
   import { Plus } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
@@ -38,7 +39,7 @@
   }
 
   function add(profile: ContinuousProfileConfiguration) {
-    createConfiguredProfile(profile, profileQuantity(profile.quantity)?.label ?? profile.quantity);
+    profileControl.upsertProfile({ id: `continuous-profile-${crypto.randomUUID()}`, profile, label: profileQuantity(profile.quantity)?.label ?? profile.quantity });
     open = false;
   }
 </script>

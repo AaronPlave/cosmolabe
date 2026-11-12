@@ -88,6 +88,15 @@ export interface TrajectoryExtremum {
     sourceUncertaintyKm: number | null;
   } | null;
   coverage: 'sampled-complete' | 'partial';
+  /** Separate temporal representation, failed samples and numerical search limits.
+   * Optional for older hosts. No scientific/source accuracy is implied. */
+  completeness?: {
+    temporal: 'complete' | 'partial' | 'unknown';
+    maximumGapSeconds: number;
+    endpointReconciliations: { requestedEt: number; sourceEt: number; encoding: 'julian-date-f64' }[];
+    unavailableSamples: number;
+    numerical: 'complete' | 'budget-limited';
+  };
   method: {
     guarantee: 'sampled-and-locally-refined';
     stepSeconds: number;
@@ -113,6 +122,12 @@ export interface TrajectoryExtremaResponse {
   results: TrajectoryExtremum[];
   faults: TrajectoryAnalysisFault[];
 }
+export interface TrajectoryAnalysisProgress {
+  /** Finished intervals, including searches that reached a numerical limit. Not a completeness claim. */
+  completedIntervals: number;
+  totalIntervals: number;
+  evaluations: number;
+}
 export interface TrajectoryAnalysisOptions {
   /** Structural cancellation port works in the browser and deterministic hosts. */
   signal?: {
@@ -120,5 +135,5 @@ export interface TrajectoryAnalysisOptions {
     addEventListener?(type: 'abort', listener: () => void): void;
     removeEventListener?(type: 'abort', listener: () => void): void;
   };
-  onProgress?: (fraction: number) => void;
+  onProgress?: (fraction: number, work?: TrajectoryAnalysisProgress) => void;
 }

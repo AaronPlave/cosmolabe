@@ -64,8 +64,11 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     datum:r.datum.kind === 'sphere' ? {kind:'sphere',radiusKm:r.datum.radiusKm} : {kind:'ellipsoid',radiiKm:r.datum.radiiKm.slice(0,3)},
     heightConvention:r.heightConvention,
     window:{start:r.window.start,end:r.window.end},coverage:r.coverage,
-    source:{id:text(r.source.id),revision:text(r.source.revision),classification:r.source.classification},
-    terrain:r.terrain ? {id:text(r.terrain.id),revision:text(r.terrain.revision),sourceUncertaintyKm:r.terrain.sourceUncertaintyKm} : null,
+    completeness:r.completeness ? {temporal:r.completeness.temporal,maximumGapSeconds:r.completeness.maximumGapSeconds,
+      endpointReconciliations:r.completeness.endpointReconciliations.slice(0,2).map(e=>({requestedEt:e.requestedEt,sourceEt:e.sourceEt,encoding:e.encoding})),
+      unavailableSamples:r.completeness.unavailableSamples,numerical:r.completeness.numerical} : undefined,
+    source:{id:text(r.source.id),revision:text(r.source.revision),classification:r.source.classification, estimatedReconstruction: /estimated|reconstruct/i.test(r.source.description ?? '')},
+    terrain:r.terrain ? {identified:!!(r.terrain.id && r.terrain.revision),id:text(r.terrain.id),revision:text(r.terrain.revision),sourceUncertaintyKm:r.terrain.sourceUncertaintyKm} : null,
     method:{guarantee:r.method.guarantee,stepSeconds:r.method.stepSeconds,timeToleranceSeconds:r.method.timeToleranceSeconds,evaluations:r.method.evaluations,heightErrorBoundKm:r.method.heightErrorBoundKm,
       limits:'Sampled and locally refined; no certified global height error. Source accuracy is separate.'},
   });
@@ -100,7 +103,7 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
   const availability = (a: ScriptObjectState['positionAvailability']) => ({ available: a.available,
     reason: ['pending','before-coverage','after-coverage','gap','disconnected','stale','unbound','error','dependency'].includes(a.reason ?? '') ? a.reason : null,
     sourceId: text(a.sourceId), classification: text(a.classification) });
-  const objectState = (s: ScriptObjectState | null | undefined) => !s ? null : ({ et: s.et, frame: text(s.frame), center: s.center,
+  const objectState = (s: ScriptObjectState | null | undefined) => !s ? null : ({ et: s.et, frame: text(s.frame), center: s.center, positionUnit: 'km',
     position: s.position?.slice(0,3) ?? null, attitude: s.attitude?.slice(0,4) ?? null,
     positionAvailability: availability(s.positionAvailability), attitudeAvailability: s.attitudeAvailability ? availability(s.attitudeAvailability) : null });
   const coordinates = (c: ScriptSpatialContext['coordinates']) => !c ? null : ({ frame: text(c.frame), latitude: c.latitude,

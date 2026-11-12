@@ -1263,8 +1263,8 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /** Async source analysis; never depends on renderer zoom or substitutes a sphere. */
-  async requestTerrainAnalysisSample(latDeg: number, lonDeg: number): Promise<TerrainSample | null> {
-    return await this.terrainManager?.requestAnalysisSample(latDeg, lonDeg) ?? null;
+  async requestTerrainAnalysisSample(latDeg: number, lonDeg: number, signal?: { readonly aborted: boolean }): Promise<TerrainSample | null> {
+    return await this.terrainManager?.requestAnalysisSample(latDeg, lonDeg, signal) ?? null;
   }
 
   sampleTerrainBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {

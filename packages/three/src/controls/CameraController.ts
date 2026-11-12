@@ -1160,7 +1160,13 @@ export class CameraController {
     this.camera.up.copy(pose.up);
     this._prevTargetPos.copy(pose.target);
     this.camera.lookAt(pose.target);
-    this.syncOrbitTargetFromCamera();
+    // The pose is already expressed in the new origin. Its mesh may still
+    // hold last frame's coordinates after a seek/origin switch; subtracting
+    // those creates a false orbit offset which displaces the target next frame.
+    if (opts.track && opts.track === opts.origin) {
+      this._clearSurfacePivot();
+      this._orbitOffset = pose.target.lengthSq() > 1e-30 ? { body: opts.track, offset: pose.target.clone() } : null;
+    } else this.syncOrbitTargetFromCamera();
   }
 
   /** Preserve an explicitly authored orbit target across the next tracking update.

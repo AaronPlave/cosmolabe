@@ -4,6 +4,57 @@ import { analysis, createConfiguredEventQuery, setEventResults } from './analysi
 import { selectEvent, syncEventResultsInScene, removeConfiguredQuery } from './event-finder.svelte';
 import { analysisResultGuards } from './trajectory-analysis-identity';
 import { getRenderer, getSceneUniverse, sceneId, vs, asHostTimeChange, onViewerEvent } from './viewer-state.svelte';
+import type { ScriptExtremaOptions, ScriptExtremaRequest, ScriptExtremaResult } from '@cosmolabe/control';
+import { heightMetrics, resolveExtremaTask } from './trajectory-task';
+
+export function getTrajectoryAnalysisOptions(objects?: string[], explicitBody?: string): ScriptExtremaOptions {
+  const universe = getSceneUniverse();
+  if (!universe) return { available: false, subjects: [], bodies: [], truncated: false };
+  const all = objects ? objects.map(n => universe.getBody(n)).filter(b => !!b) : universe.getAllBodies().filter(b => universe.activities.list().some(a => a.enabled !== false && a.vehicle === b.name));
+  const subjects = all.slice(0, 32).map(b => {
+    const activities = universe.activities.list().filter(a => a.enabled !== false && a.vehicle === b.name);
+    return { object: b.name, bodies: [...new Set(activities.length ? activities.map(a => a.body) : b.parentName ? [b.parentName] : [])], activities: activities.length, activityKinds: [...new Set(activities.map(a => a.kind))] };
+  });
+  const bodies = [...new Set([...subjects.flatMap(s => s.bodies), ...(explicitBody ? [explicitBody] : [])])].slice(0, 32).map(body => {
+    const frame = universe.frames.bodyFixedFrameFor(body), availability = trajectoryMetricAvailability(body);
+    return { body, frame, metrics: (Object.keys(heightMetrics) as (keyof typeof heightMetrics)[]).map(metric => ({ metric,
+      available: availability[heightMetrics[metric]] === null, reason: availability[heightMetrics[metric]] ?? null })) };
+  });
+  return { available: true, subjects, bodies, truncated: all.length > subjects.length };
+}
+
+export async function analyzeTrajectoryExtrema(request: ScriptExtremaRequest, options: TrajectoryAnalysisOptions = {}): Promise<ScriptExtremaResult> {
+  const universe = getSceneUniverse();
+  const result = resolveExtremaTask(universe, request, getTrajectoryAnalysisOptions(request.objects, request.body), (name, metric) => {
+    const body = universe?.getBody(name), mesh = getRenderer()?.getBodyMesh(name);
+    if (metric === 'terrain-clearance') return mesh?.terrainDatum && mesh.terrainSourceId && mesh.terrainSourceRevision
+      ? { reference: mesh.terrainDatum.referenceShape, terrain: { id: mesh.terrainSourceId, revision: mesh.terrainSourceRevision } } : null;
+    if (metric === 'reference-ellipsoid-height') return body?.radii ? { reference: { kind: 'ellipsoid', radiiKm: body.radii } } : null;
+    const shape = mesh?.terrainDatum?.referenceShape;
+    const radius = body?.radii?.every(r => r === body.radii![0]) ? body.radii[0] : shape?.kind === 'sphere' ? shape.radiusKm : undefined;
+    return radius ? { reference: { kind: 'sphere', radiusKm: radius } } : null;
+  });
+  if (!result.query) return result;
+  if (options.signal?.aborted) return { ...result, status: 'cancelled', message: 'Analysis cancelled before execution.' };
+  result.started = true;
+  clearDirectResults();
+  const response = await runAnalysis(result.query, options);
+  result.response = response;
+  result.status = response.status;
+  result.scope.evaluated=response.results.length;
+  result.scope.completed = response.results.filter(r => r.coverage === 'sampled-complete').length;
+  result.coverage.completeIntervals=response.results.filter(r=>r.completeness?.temporal==='complete').length;
+  result.coverage.unavailableSampleIntervals=response.results.filter(r=>(r.completeness?.unavailableSamples??0)>0).length;
+  result.numerical={completeIntervals:response.results.filter(r=>r.completeness?.numerical==='complete').length,budgetLimitedIntervals:response.faults.filter(f=>f.code==='budget').length};
+  if (response.results.length) result.candidateId = response.results.reduce((a,b)=>(request.extremum==='maximum'?b.value>a.value:b.value<a.value)?b:a).id;
+  const complete = response.status === 'complete' && !response.faults.length && response.results.length === result.scope.requested && result.scope.completed === result.scope.requested;
+  if (complete) result.winnerId = response.results.reduce((a, b) => (request.extremum === 'maximum' ? b.value > a.value : b.value < a.value) ? b : a).id;
+  else if (response.status === 'complete') result.status = 'partial';
+  result.reason = response.faults.some(f => f.code === 'budget') ? 'work-budget' : complete ? null : 'data-unavailable';
+  result.message = complete ? 'Compared every requested interval using sampled and locally refined results. This is not a certified global extremum or telemetry accuracy bound.'
+    : `${response.results.length}/${result.scope.requested} intervals produced candidates; ${result.coverage.completeIntervals} have complete temporal coverage at source epoch encoding precision; ${result.numerical.budgetLimitedIntervals} reached numerical limits. Report these separately from unavailable samples and source accuracy. A limited interval could contain a higher value; no full-scope winner is established. Do not rerun equivalent analysis.`;
+  return result;
+}
 let active: AbortController | null = null;
 let sequence = 0;
 const stored = new Map<string, {
@@ -73,16 +124,52 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
       || (datum.referenceShape.kind === 'sphere' ? datum.verticalDatum !== 'reference-sphere' || datum.heightConvention !== 'radial' : datum.verticalDatum !== 'ellipsoid' || datum.heightConvention !== 'geodetic-normal'))
       return null;
     const location = bodyFixedToGeodetic({ xKm: p[0], yKm: p[1], zKm: p[2] }, datum);
-    const sample = await terrainBody.requestTerrainAnalysisSample(location.latDeg, location.lonDeg);
+    const sample = await terrainBody.requestTerrainAnalysisSample(location.latDeg, location.lonDeg, opts.signal);
     if (!sample || sample.source.id !== q.terrain?.id || sample.source.version !== q.terrain.revision)
       return null;
     return { heightKm: sample.elevationKm, sourceUncertaintyKm: sample.source.uncertaintyKm ?? null };
   };
   options.signal?.addEventListener?.('abort', abort);
   try {
-    const response = await compute(query, provider, { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: fraction => {
-        options.onProgress?.(fraction);
-      } });
+    const computeOptions: TrajectoryAnalysisOptions = { signal: { get aborted() { return token.signal.aborted || !!options.signal?.aborted; }, addEventListener: (_type, listener) => token.signal.addEventListener('abort', listener), removeEventListener: (_type, listener) => token.signal.removeEventListener('abort', listener) }, onProgress: (fraction, work) => {
+        options.onProgress?.(fraction, work);
+      } };
+    let response: TrajectoryExtremaResponse;
+    if (query.scope.kind === 'activities') {
+      // Shared by native UI, routines, expert scripts and configured reruns.
+      // Preserve source knots while preventing dense early activities from
+      // consuming all work before later activities get a candidate. These are
+      // numerical allowances, never an upper bound on unsearched heights.
+      const scope=query.scope;
+      const jobs=query.objects.flatMap(object=>activities.filter(a=>a.enabled!==false && a.vehicle===object && a.body===query.body && (!scope.ids || scope.ids.includes(a.id))
+        && (!scope.activityKind || a.kind===scope.activityKind) && (!scope.window || a.start<=scope.window.end && a.end>=scope.window.start)));
+      if (!jobs.length || jobs.length>128)
+        return {status:'unavailable',results:[],faults:[{code:'unavailable',message:'No matching catalog intervals, or more than 128 intervals requested. Narrow the scope.'}]};
+      response={status:'complete',results:[],faults:[]};let evaluations=0;
+      for (const object of query.objects)
+        if (!jobs.some(a=>a.vehicle===object)) {
+          response.status='partial';
+          response.faults.push({code:'unavailable',object,message:'No matching catalog activity intervals for this object.'});
+        }
+      const position=provider.position;
+      provider.position=(...args)=>{evaluations++;return position(...args);};
+      for (const [i,a] of jobs.entries()) {
+        if (!current() || computeOptions.signal?.aborted) { response={status:computeOptions.signal?.aborted?'cancelled':'stale',results:[],faults:[{code:computeOptions.signal?.aborted?'cancelled':'stale',message:'Collection cancelled or authoritative inputs changed.'}]};break; }
+        const window={start:Math.max(a.start,scope.window?.start??a.start),end:Math.min(a.end,scope.window?.end??a.end)};
+        const knots=provider.knots?.(a.vehicle,window).length??0;
+        const budget=Math.min(1000000-evaluations,query.maxEvaluations??200000,Math.max(4096,Math.ceil(knots*8+(window.end-window.start)/query.stepSeconds)));
+        if (budget<1) { response.status='partial';response.faults.push({code:'budget',object:a.vehicle,activityId:a.id,window,message:'Collection evaluation budget exhausted.'});continue; }
+        options.onProgress?.(i/jobs.length,{completedIntervals:i,totalIntervals:jobs.length,evaluations});
+        const before=evaluations;
+        const part=await compute({...query,objects:[a.vehicle],scope:{...scope,ids:[a.id]},maxEvaluations:budget},provider,{...computeOptions,onProgress:(f,work)=>options.onProgress?.((i+f)/jobs.length,{completedIntervals:i+(work?.completedIntervals??0),totalIntervals:jobs.length,evaluations:before+(work?.evaluations??0)})});
+        response.results.push(...part.results);response.faults.push(...part.faults);
+        if (part.status==='cancelled'||part.status==='stale') { response=part;break; }
+        if (part.status!=='complete') response.status='partial';
+      }
+      if (!response.results.length && response.status==='partial') response.status='unavailable';
+      const direction=query.extremum==='maximum'?1:-1;
+      response.results.sort((a,b)=>direction*(b.value-a.value)||a.et-b.et||a.object.localeCompare(b.object));
+    } else response = await compute(query, provider, computeOptions);
     if (active !== token)
       return { status: 'cancelled', results: [], faults: [{ code: 'cancelled', message: 'Superseded by a newer analysis.' }] };
     if (response.results.length && current()) {
@@ -201,10 +288,14 @@ export function trajectoryMetricAvailability(bodyName?: string, frameOverride?: 
 }
 function eventConfiguration(query: TrajectoryExtremaQuery, activities: readonly import('@cosmolabe/core').MissionActivity[]): import('@cosmolabe/core').EventQueryConfiguration {
   const scope = query.scope;
-  const windows = scope.kind === 'windows' ? scope.windows : activities.filter(a => query.objects.includes(a.vehicle) && (!scope.ids || scope.ids.includes(a.id))).map(a => ({ start: a.start, end: a.end }));
+  const selected = scope.kind === 'activities' ? activities.filter(a => a.enabled!==false && query.objects.includes(a.vehicle) && a.body===query.body && (!scope.ids || scope.ids.includes(a.id))
+    && (!scope.activityKind || a.kind===scope.activityKind) && (!scope.window || a.start<=scope.window.end && a.end>=scope.window.start)) : [];
+  const windows = scope.kind === 'windows' ? scope.windows : selected.map(a => ({ start: Math.max(a.start,scope.window?.start??a.start), end: Math.min(a.end,scope.window?.end??a.end) }));
   return { kind: 'trajectory-extremum', bodies: { center: query.body, ...(query.objects.length === 1 ? { observer: query.objects[0] } : {}) },
     window: { start: Math.min(...windows.map(w => w.start)), end: Math.max(...windows.map(w => w.end)) }, step: query.stepSeconds, abcorr: 'NONE',
-    params: { metric: query.metric, extremum: query.extremum, scope: query.scope.kind === 'windows' ? 'window' : 'activities', timeToleranceSeconds: query.timeToleranceSeconds, sampling: query.sampling ?? 'fixed', frame: query.frame,
+    params: { metric: query.metric, extremum: query.extremum, scope: scope.kind === 'windows' ? 'window' : 'selected-activities',
+      ...(scope.kind==='activities'?{activityIds:selected.map(a=>a.id),...(scope.activityKind?{activityKind:scope.activityKind}:{})}:{}),
+      timeToleranceSeconds: query.timeToleranceSeconds, sampling: query.sampling ?? 'fixed', frame: query.frame,
       ...(query.reference.kind === 'sphere' ? { radiusKm: query.reference.radiusKm } : {}), ...(query.terrain ? { terrainId: query.terrain.id, terrainRevision: query.terrain.revision } : {}) } };
 }
 function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtremaQuery['reference']): boolean {

@@ -46,6 +46,8 @@ export interface AskTurn {
   /** Set on the first request of a conversation the model started over: why it does not remember the ones above. */
   readonly fresh: string | null;
   steps: AskStep[];
+  /** Current native search work; completed intervals can still have numerical limits. */
+  progress?: { operation: string; fraction: number; completedIntervals?: number; totalIntervals?: number; evaluations?: number };
   /** The model's answer: the text of its last message, not its narration while it worked. */
   reply: string;
   /** That narration, kept for the Details view and out of the answer. */
@@ -207,6 +209,11 @@ const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
     confirmAuthoring: (operation: string, input: unknown) => requestApproval('authoring', operation, input),
     confirmExternal: (operation: string, input: unknown) => requestApproval('external', operation, input),
   }),
+  onProgress: (taskId, operation, fraction, work) => {
+    const turn = ask.turns.at(-1);
+    if (task?.id !== taskId || task.signal.aborted || turn?.status !== 'running') return;
+    turn.progress = { operation, fraction, ...work };
+  },
   surface: ask.toolMode, formatTime: etToUtcString, metadata: builtInAgentMetadata,
 }));
 
@@ -309,6 +316,8 @@ export async function submitAsk(prompt: string): Promise<void> {
     history,
     goals,
     prompt: text,
+    // Both surfaces expose listCapabilities; its presence does not identify mode.
+    maxSteps: ask.toolMode === 'fixed' ? 10 : 20,
     onEvent: (e) => {
       const view = live();
       if (!view) return;

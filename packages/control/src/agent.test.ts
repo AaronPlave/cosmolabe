@@ -188,7 +188,7 @@ describe('agent tools: scene context', () => {
     (host as ViewerControl).listActivities = () => [FLIGHT_5, { ...FLIGHT_5, id: 'ingenuity-flight-6', name: 'Flight 6' }];
     const tools = createAgentTools(host);
     const one = await tools.call('resolve', { query: 'flight 5' });
-    expect((one as { data: any }).data).toEqual({ candidates: [{ kind: 'activity', id: 'ingenuity-flight-5', label: 'Flight 5', detail: 'flight, Ingenuity' }], ambiguous: false });
+    expect((one as { data: any }).data).toEqual({ candidates: [{ kind: 'activity', id: 'ingenuity-flight-5', label: 'Flight 5', detail: 'flight, Ingenuity' }], ambiguous: false, activityMatches:{total:1,returned:1,complete:true} });
     const many = await tools.call('resolve', { query: 'mare', kinds: ['place'] });
     expect((many as { data: any }).data.ambiguous).toBe(true);
     const typo = await tools.call('resolve', { query: 'Enceladas', kinds: ['object'] });
@@ -757,6 +757,21 @@ describe('review regressions: camera and clock ownership', () => {
 });
 
 describe('agent tools: provider metadata boundary', () => {
+  it('delivers the surface-inventory limit to the provider when terrain is null', async () => {
+    const host = new MissionViewer();
+    (host as ViewerControl).getSurfaceData = () => ({ body: 'Titan', bodyFrame: null, surface: null,
+      terrain: null, cubeImagery: null, textures: [], imageryProducts: [], overlays: [] });
+    const tools = createAgentTools(host);
+    const transport = new MockTransport([
+      { stop: 'tool_use', content: [use('surface', 'getSurfaceData', { object: 'Titan' })] },
+      { stop: 'end', content: [{ type: 'text', text: 'Physical clearance profiles are unsupported; physical surface availability is not assessed.' }] },
+    ]);
+    await runAgent({ tools, transport, prompt: 'Show physical surface height in the timeline' });
+    const wire = JSON.stringify(transport.requests[1]);
+    expect(wire).toContain('availability is not assessed');
+    expect(wire).toContain('null terrain does not establish absent geometry');
+    tools.dispose();
+  });
   it.each(['https://internal.example/PATH_EMBEDDED_SECRET/catalog.json', '/Users/private/PATH_EMBEDDED_SECRET/catalog.json', 'relative/PATH_EMBEDDED_SECRET/catalog.json'])('withholds private metadata on every nested read and the next provider wire request: %s', async (identity) => {
     const host = new MissionViewer();
     const secret = 'PATH_EMBEDDED_SECRET';
@@ -849,5 +864,29 @@ describe('agent tools: mis-encoded model input', () => {
     expect(host.listMeasurements().map(m => m.id)).toEqual(['m']);
     expect(fail(await tools.call('setTimeRate', { rate: '10x' })).code).toBe('invalid-input');
     expect(fail(await tools.call('select', JSON.parse('{"object":"Titan","__proto__":{}}'))).code).toBe('invalid-input');
+  });
+});
+
+describe('scene evidence and numerical-navigation readback', () => {
+  it('rejects unresolved aliases without declaring the scene body absent', async () => {
+    const host = new FakeViewer(); host.objects = ['67P/Churyumov-Gerasimenko', 'Probe'];
+    const tools = createAgentTools(host);
+    expect(await tools.call('getViewComposition', { objects: ['67P'] })).toMatchObject({ ok: false, code: 'refused',
+      data: { unknown: ['67P'], candidates: [{ name: '67P', matches: ['67P/Churyumov-Gerasimenko'] }] } });
+    expect(await tools.call('getViewComposition', { objects: ['67P/Churyumov-Gerasimenko'] })).toMatchObject({ ok: true });
+    tools.dispose();
+  });
+  it('publishes requested and observed ET plus measured-body context without extra seek gates', async () => {
+    const host = Object.assign(new FakeViewer(), { getObjectState: () => ({ et: 123.456789, frame: 'ECLIPJ2000', center: 'Carrier', position: [0.003, 0.004, 0], positionAvailability: { status: 'available' } }) as never });
+    host.objects = ['Probe', 'Carrier']; host.playing = false;
+    const tools = createAgentTools(host);
+    await tools.call('getObjectState', { object: 'Probe', center: 'Carrier', et: 123.456789 });
+    expect(await tools.call('setTime', { when: 123.456789 })).toMatchObject({ ok: true,
+      data: { requestedTime: 123.456789, observedEt: 123.456789, playing: false, numericalSubjects: ['Probe','Carrier'], composition: { objects: [{ object: 'Probe' }, { object: 'Carrier' }] } } });
+    host.emit('load', { objects: [] });
+    const result = await tools.call('setTime', { when: 200 });
+    expect(result).toMatchObject({ ok: true, data: { observedEt: 200 } });
+    expect(result.ok && (result.data as Record<string, unknown>).numericalSubjects).toBeUndefined();
+    tools.dispose();
   });
 });

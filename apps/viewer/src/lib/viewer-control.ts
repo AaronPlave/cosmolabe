@@ -1,6 +1,7 @@
 import { spatialControl } from './spatial-control';
 import { validateViewState } from '@cosmolabe/control';
 import { presentationControl } from './presentation-control';
+import { profileControl } from './profile-control';
 import { eventControl, snapshotEventQueries } from './event-control';
 import { definitionEndpoints } from './measurement-link-state';
 import { setPlaceSourceEnabled, showPlaceDataset, selectPlace } from './places';
@@ -29,14 +30,16 @@ import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImage
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { getViewpointInfo, getObjectContext } from './viewpoint-control';
 import { surfaceData } from './surface-data';
-import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
+import { findViewerTrajectoryExtrema, navigateToAnalysisResult, analyzeTrajectoryExtrema, getTrajectoryAnalysisOptions } from './trajectory-analysis.svelte';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
 import {
   snapshotScript,
+  findClosestApproach,
   type ScriptCamera,
   type ScriptEventMap,
   type ScriptEventName,
@@ -60,6 +63,7 @@ import {
   displayNote,
   flyToBody,
   frameBody,
+  frameBodyPair,
   getRenderer,
   noteIsTimed,
   gotoObject,
@@ -269,7 +273,9 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     }
   };
 
-  return {
+  const port: Required<ViewerControl> = {
+    getTrajectoryAnalysisOptions,
+    analyzeTrajectoryExtrema,
     findTrajectoryExtrema: findViewerTrajectoryExtrema,
     navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
     selectPlace: (ref, opts) => {
@@ -292,7 +298,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
       showPlaceDataset(id, visible); return true;
     },
-    ...analysisControl, ...spatialControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
+    findClosestApproach: (request, opts) => findClosestApproach(port, request, opts, frameBodyPair),
+    ...profileControl, ...analysisControl, ...spatialControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
@@ -566,6 +573,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     setImageryVisible, setImageryOpacity, moveImageryLayer,
 
     listObjects: () => bodyNames(),
+    getViewpointInfo: name => getViewpointInfo(name, camera()),
+    getObjectContext,
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
     getViewerState: () => {
@@ -665,4 +674,5 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       }
     },
   };
+  return port;
 }

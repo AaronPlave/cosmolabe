@@ -28,6 +28,10 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  */
 import type {
   ScriptActivity,
+  ScriptProfileData,
+  ScriptClosestApproachRequest,
+  ScriptExtremaRequest,
+  ScriptExtremaOptions,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -37,9 +41,10 @@ import type {
   VerbValue,
   ViewerControl,
 } from './contracts.js';
-import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
+import type { TrajectoryExtremaQuery, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { missingFrameDependency } from './closest-approach.js';
 import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
@@ -53,15 +58,19 @@ type FlightEnd = ScriptEventMap['flightEnd'];
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 /** The model-facing composition: rounded, no fields it cannot use. */
 export function compositionData(v: ScriptViewComposition) {
-  return { et: v.et, playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
+  if (v.fresh === false) return { et: v.et, fresh: false, observedEt: v.observedEt,
+    objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
+    limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
+  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
-      bearingDeg: o.bearingDeg?.map(r3) ?? null, hiddenBy: o.occlusion ? `${o.occlusion.by} (${o.occlusion.kind})` : null }) };
+      object: o.object, inView: o.inView, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */
 export function compositionSentence(v: ScriptViewComposition): string {
+  if (v.fresh === false) return `Native body placements are still at ET ${v.observedEt ?? 'unknown'}; current clock ET ${v.et}. Object visibility at the requested time is unassessed.`;
   return v.objects.map(o => !o.available ? `${o.object} is not in this scene`
-    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
+    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
 }
 
 /** The JSON Schema subset the tools are described in. */
@@ -98,6 +107,7 @@ export interface AgentToolDef {
  * - `refused`: the viewer refused — usually no such name; the message says
  *   which names exist.
  * - `failed`: the viewer tried and could not (an unreachable place, say).
+ * - `missing-dependency`: an environment dependency cannot be repaired by retrying the same operation.
  * - `no-scene`: nothing is loaded.
  * - `stale`: the scene changed since the task began.
  * - `superseded`: a newer request replaced this task.
@@ -105,13 +115,16 @@ export interface AgentToolDef {
  * - `interrupted`: the person took over the camera during this task.
  */
 export type AgentErrorCode =
-  | 'invalid-input' | 'unknown-tool' | 'refused' | 'failed' | 'no-scene'
+  | 'invalid-input' | 'unknown-tool' | 'refused' | 'failed' | 'missing-dependency' | 'no-scene'
   | 'stale' | 'superseded' | 'cancelled' | 'interrupted';
 
 export type AgentToolResult = (
   | { readonly ok: true; readonly summary: string; readonly data?: unknown; readonly completion?: { readonly kind: 'flight'; readonly id: number; readonly outcome: 'arrived' } }
-  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string }
-) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[] };
+  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string; readonly data?: unknown }
+) & { readonly receipt?: OperationReceipt; readonly outcome?: OperationOutcome; readonly facts?: readonly ResultFact[];
+  /** The operation exhausted its own retry/input budget. Stop this request and
+   * report its established facts, without another model recovery round. */
+  readonly terminal?: true };
 
 /**
  * What a write left, judged by its own contract: the predicates it had to
@@ -130,7 +143,24 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export type ResultFact = { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export interface HeightAnalysisFact {
+  readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
+  readonly requested: number; readonly completed: number; readonly metric: string;
+  readonly winner: { value: number; utc: string; object: string; activityId: string | null } | null;
+  readonly numericalComplete?: number; readonly temporalComplete?: number; readonly endpointReconciledIntervals?: number; readonly unavailableSampleIntervals?: number;
+  readonly evaluated?: number; readonly gapIntervals?: number; readonly maximumGapSeconds?: number;
+  readonly budgetExhausted?: boolean; readonly budgetLimitedIntervals?: number; readonly terrainSourceKnown?: boolean;
+  readonly primaryId?: string | null;
+  readonly candidate?: { value:number; utc:string; object:string; activityId:string|null } | null;
+  readonly shown?: boolean;
+  readonly sourceKind?: 'estimated-reconstruction' | 'synthetic' | 'source-observed' | 'unknown';
+}
+/** Rendering existence is scene configuration, not physical event timing. */
+export interface SceneExistenceFact {
+  readonly kind: 'scene-existence'; readonly object: string; readonly startEt: number;
+  readonly startUtc: string | null; readonly observedEt: number; readonly secondsBeforeStart: number;
+}
 export interface EventResultFact {
   readonly kind: 'event-result';
   readonly query: string;
@@ -195,6 +225,8 @@ export interface AgentTools {
 export interface AgentToolsOptions {
   /** Catalog adapter only: include all registered verbs, retaining execute as the dispatcher. */
   vocabulary?: 'curated' | 'catalog';
+  /** Local native work only; never provider text or an estimate of remaining time. */
+  onProgress?(taskId: number, operation: string, fraction: number, work?: TrajectoryAnalysisProgress): void;
   /** Trusted per-tool omissions, enforced even for direct task calls. */
   omittedTools?: Readonly<Record<string, string>>;
   /** Trusted host permission; captures are refused by default even in catalog mode. */
@@ -233,6 +265,7 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'circleCenterDown', effect: 'camera' },
   { verb: 'dolly', effect: 'camera' },
   { verb: 'composeView', effect: 'camera' },
+  { verb: 'findClosestApproach', effect: 'camera' },
   { verb: 'stopFlight', effect: 'camera' },
   { verb: 'setTime', effect: 'time' },
   { verb: 'setTimeRate', effect: 'time' },
@@ -301,9 +334,16 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 export type AgentDefinition = AgentToolDef & { readonly method?: keyof ViewerControl; readonly contract: OperationContract };
 
 const READ_TOOLS: readonly AgentDefinition[] = [
+  { name: 'getViewpointInfo', effect: 'read', method: 'getViewpointInfo', contract: { namespace: 'camera', writes: [] }, description: 'Read an authored catalog or session viewpoint: exact ET, authored time, camera pose and current pose/epoch agreement. Authored annotation is distinct from computed events/contact. Read-only; use viewpoint to show it.', inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'], additionalProperties: false } },
+  { name: 'getObjectContext', effect: 'read', method: 'getObjectContext', contract: { namespace: 'scene', writes: [] }, description: 'Bounded configured existence window, trajectory arcs and time-switched geometry boundaries for one scene object, in ET with UTC. These are scene facts, not measured mission events. No resource paths/identities.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
+  { name: 'getProfileOptions', effect: 'read', method: 'getProfileOptions', contract: { namespace: 'profiles', writes: [] }, description: 'Supported continuous timeline profile quantities: distance/range (center-to-center), relative speed, range rate and phase angle. Parameter meanings, units, window and sampling limits. No SPICE GF search; not physical surface clearance.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listProfiles', effect: 'read', method: 'listProfiles', contract: { namespace: 'profiles', writes: [] }, description: 'List existing continuous timeline profile IDs/configurations and enabled/visible flags in this scene. Native UI, scripts, embedding and Ask share these profiles.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getProfile', effect: 'read', method: 'getProfile', contract: { namespace: 'profiles', writes: [] }, description: 'Read an existing continuous timeline profile: quantity, body pair, time window, enabled/visible, native timeline presence, sampled trace visibility and gaps. Partial/unavailable never proves success. Does not seek or move the scene.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
+  { name: 'getProfileValue', effect: 'read', method: 'getProfileValue', contract: { namespace: 'profiles', writes: [], guide: 'Evaluate the existing profile at the exact ET; null is missing position data or outside its configured window, never zero. No interpolation. For a sampled minimum/maximum use sampleProfileData, then navigate with existing setTime at the returned ET only when asked. Center minimum is not clearance/contact/first touchdown.' }, description: 'Numerical value of an existing timeline profile at one ET, with quantity/unit, exact epoch/UTC, missing positions and sampling limits. Read only; independent of visibility. Not surface clearance.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, et: { type: 'number' } }, required: ['id', 'et'], additionalProperties: false } },
+  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. For a transition investigation, first read relevant getObjectContext timing boundaries and inspect how the quantity changes across a localized interval. A brief event needs seconds/minutes cadence, not mission-wide samples; after a coarse first pass, at most one tighter bounded read of the change bracket can improve the estimate. A minimum does not identify onset/release/contact. In the final answer give both effective interval endpoints as UTC dates or ET numbers, the actual sample count or spacing, and explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
   { name: 'getTimelineWindow', effect: 'read', method: 'getTimelineWindow', contract: { namespace: 'time', writes: [] }, description: 'The timeline\'s visible window, ET and UTC. Moves nothing.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getViewComposition', contract: { namespace: 'camera', writes: [] }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
-  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
+  { name: 'getViewComposition', contract: { namespace: 'camera', writes: [], guide: 'Read all referenced objects using exact resolved names. In-frame, draw-enabled and analytical sphere occlusion are separate; sphere bounds are not resolved mesh silhouettes or proof of invisible pixels. Unlisted or unresolved names do not establish absence. Fresh false means native body placements have not caught up after a seek/origin change; read again once before claiming a view. If an object is hidden, getObjectContext distinguishes configured existence limits from camera geometry.' }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
+  { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: viewpoint {id:exactName}; selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. Before creating a search, use eventSelected/eventRun without query; eventFramed/eventEpoch/eventDrawn require an already-saved exact query ID. Presenting a result checks epoch/framing/drawing automatically. Sampled history or extrema use epoch/paused and requested view goals, never a computed-event requirement. If you mistakenly required an outcome the person did not request, release/restate it in this request rather than carrying it forward or narrating an internal check failure. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
     require: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, required: ['p'], properties: {
       p: { type: 'string', enum: [...PREDICATE_KINDS] }, object: { type: ['string', 'null'] }, maxKm: { type: 'number' }, minKm: { type: 'number' }, et: { type: 'number' }, utc: { type: 'string' },
       value: { type: ['boolean', 'number'] }, query: { type: 'string' }, id: { type: ['string', 'null'] }, pick: { type: 'string', enum: ['closest'] }, encounter: { type: 'boolean' },
@@ -313,10 +353,10 @@ const READ_TOOLS: readonly AgentDefinition[] = [
     release: { type: 'array', maxItems: 12, items: { type: 'string' }, description: 'Held predicates the person explicitly gave up, by slot (e.g. "range:Psyche", "view:Mars", "clock").' },
   } }, contract: { namespace: 'scene', writes: [] } },
   { name: 'getSpatialContext', contract: { namespace: 'spatial', writes: [], guide: 'For "top of a body", the north pole and the top of the visible disc differ: ask when ambiguous. Take reference shape and body-fixed frame from this read, never from memory. It is body-scoped: check a saved feature on its layer\'s body (Mars), not on the vehicle above it (Ingenuity).' }, effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
-  { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
+  { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. Position units are km. For a transition investigation, read getObjectContext for relevant scene boundaries and inspect a bounded numerical history; isolated point ranges/minima do not prove release/contact. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['rendered','reference','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', contract: { namespace: 'spatial', writes: [], guide: 'The pin is transient display, not a saved point. When the person asks for a point after a pin ("place a point", "save it"), they mean a saved annotation at the pin: make it with geographic.editAnnotation (describe it for its notes); never report the pin itself as that point.' }, effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventSearchOptions', description: 'Registry kinds, defaults and coverage for custom Event Finder work. For routine find/show closest-approach requests prefer findClosestApproach, which composes these controls and reports structured results. Catalog dates alone do not prove coverage. Custom searches require exact scene participant names, numeric ET bounds and the kind default step; do not change body IDs or frames to evade failures.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventResultPage', contract: { namespace: 'events', writes: [], guide: 'For "closest", order range-ascending: it compares every measured candidate before paging; the first chronological result is not the smallest range. State the searched start and end dates (windowUtc) and step limits; never imply all-time coverage. Each result says whether its range minimum is an encounter and by which criterion: quote its distances and classification, not your own.' }, effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', contract: { namespace: 'events', writes: [] }, effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -333,9 +373,25 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   { name: 'getSurfaceAppearance', contract: { namespace: 'surface', writes: [] }, effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
   { name: 'getReadiness', contract: { namespace: 'readiness', writes: [] }, effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, current-view physical terrain coverage, or an exact event/run/epoch with explicit timeline/native-draw policy and limitations. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain', 'event'] }, body: { type: 'string' }, layer: { type: 'string' }, reference: { type: 'object', properties: { scene: { type: 'number' }, query: { type: 'string' }, id: { type: 'string' }, revision: { type: 'number' } }, required: ['scene', 'query', 'id', 'revision'], additionalProperties: false }, et: { type: 'number' }, policy: { type: 'string', enum: ['timeline', 'native-draw'] } }, required: ['kind'], additionalProperties: false } },
   {
+    name: 'getTrajectoryAnalysisOptions', effect: 'read', method: 'getTrajectoryAnalysisOptions',
+    contract: { namespace: 'analysis', writes: [] },
+    description: 'Current scene height-analysis families, native activity counts/kinds and compatible reference/terrain metrics for subjects. Available means compatible configuration, not proven trajectory/terrain coverage. Use analyzeTrajectoryExtrema for routine across-activity extrema instead of configuring the expert solver.',
+    inputSchema: { type: 'object', additionalProperties: false, properties: { objects: { type: 'array', minItems: 1, maxItems: 32, items: { type: 'string' } }, body:{type:'string'} } },
+  },
+  {
+    name: 'analyzeTrajectoryExtrema', effect: 'read', method: 'analyzeTrajectoryExtrema',
+    contract: { namespace: 'analysis', writes: [], guide: 'Routine highest/lowest/elevation across activities: use analyzeTrajectoryExtrema. Native metadata resolves the frame, reference, complete activity scope and bounded solver settings. elevation is ambiguous: one precise question chooses reference-surface height versus physical terrain clearance. Report full requested/completed scope, datum, source classification and sampled/local-refinement limits. winnerId requires gap-free full-scope comparison; candidate compares ALL available interval candidates including partial ones. Neither certifies a global extremum. For show/go, use navigateToAnalysisResult with winnerId or candidate.id after checkGoal, explaining gaps; do not stop at offering navigation already requested. On terminal failure report the actual reason; do not try expert solver/frame guesses.' },
+    description: 'Execute a bounded routine height maximum/minimum across ALL matching native activities or explicit windows, using existing numerical solver/results. Pass subject names and metric intent; no frame/radius/terrain IDs or numerical guesses. elevation returns available choices for one clarification; explicit reference height and terrain clearance remain distinct. No camera/time change; navigateToAnalysisResult shows returned results. Partial scope has no winnerId.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['objects','metric','extremum','scope'], properties: {
+      objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' },
+      metric: { type: 'string', enum: ['elevation','reference-sphere-height','reference-ellipsoid-height','terrain-clearance'] }, extremum: { type: 'string', enum: ['maximum','minimum'] },
+      scope: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['activities','windows'] }, activityKind: { type: 'string' }, ids: { type: 'array', maxItems: 128, items: { type: 'string' } }, window: { type: 'object', additionalProperties: false, required: ['start','end'], properties: { start: { type: 'number' }, end: { type: 'number' } } }, windows: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'object', additionalProperties: false, required: ['start','end'], properties: { start: { type: 'number' }, end: { type: 'number' } } } } } },
+    } },
+  },
+  {
     name: 'findTrajectoryExtrema', effect: 'read', method: 'findTrajectoryExtrema',
-    contract: { namespace: 'analysis', writes: [], guide: 'Height extrema: take the frame, reference shape and source from getSurfaceData; never invent a radius or compute from raw points. Distinguish sphere height, ellipsoid height and terrain clearance (AGL), and ask when the datum is ambiguous. For flights use catalog flight intervals, excluding parked time. Report provenance, coverage, sampling and unknown height error; a partial result cannot name a winner.' },
-    description: 'Compute height extrema using the shared numerical analysis. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner. May offer Show me with navigateToAnalysisResult.',
+    contract: { namespace: 'analysis', writes: [], guide: 'For routine height extrema across activities use analyzeTrajectoryExtrema; the expert query requires explicit compatible source settings. Never guess a frame/radius/datum or evade task failures. Report provenance, coverage, sampling and unknown height error; a partial result cannot establish a collection winner.' },
+    description: 'Expert explicit numerical query. Prefer analyzeTrajectoryExtrema for routine height/elevation across activities; it resolves native defaults and full scope. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['objects', 'body', 'frame', 'metric', 'extremum', 'reference', 'scope', 'stepSeconds', 'timeToleranceSeconds'], properties: {
       objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' }, frame: { type: 'string' },
       metric: { type: 'string', enum: ['radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'] }, extremum: { type: 'string', enum: ['maximum', 'minimum'] },
@@ -422,10 +478,10 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   },
   {
     name: 'getSurfaceData',
-    contract: { namespace: 'surface', writes: [], guide: 'Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
+    contract: { namespace: 'surface', writes: [], guide: 'This inventory does not assess DSK or irregular mesh availability: terrain:null never establishes no physical surface model. Physical-surface clearance timeline profiles are unsupported; say that capability limit without inferring absent geometry. Zero getImagery layers means no independently managed overlays, never no imagery or terrain. Name configured products separately from readiness, residency and view coverage; unknown observations, resolution and provenance stay unknown. coversDrawnTiles covers drawn terrain only; when coversView is null say current-view coverage is unknown.' },
     effect: 'read',
     method: 'getSurfaceData',
-    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
+    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Does not assess DSK/irregular mesh availability; terrain:null does not mean no physical surface model. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -622,7 +678,7 @@ export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
   for (const { verb } of AGENT_VERBS) {
     if (!VERBS.has(verb)) throw new Error(`Unregistered fixed agent verb: ${verb}`);
   }
-  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult']);
+  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult', 'findClosestApproach']);
   return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
 }
 
@@ -632,7 +688,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   const placeSummary = metadata.place;
   let taskSeq = 0;
   let current: TaskImpl | null = null;
-  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null }>();
+  let numericalSubjects: string[] = [];
+  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null; fact?:HeightAnalysisFact }>();
+  const extremaOptions = (o: ScriptExtremaOptions) => ({ available: o.available, truncated: o.truncated,
+    subjects: o.subjects.slice(0,32).map(s => ({ object: s.object, bodies: s.bodies.slice(0,32), activities: s.activities, activityKinds: s.activityKinds.slice(0,16) })),
+    bodies: o.bodies.slice(0,32).map(b => ({ body: b.body, frame: metadata.text(b.frame), metrics: b.metrics.slice(0,3).map(m => ({ metric: m.metric, available: m.available,
+      reason: m.available ? null : m.metric === 'terrain-clearance' ? 'No compatible declared versioned CPU terrain datum/frame/source; physical geometry availability is not assessed.' : 'No compatible declared reference surface.' })) })) });
 
   const available = () => (opts.vocabulary === 'catalog' ? agentDefinitions() : fixedAgentDefinitions()).filter(t => !t.method || has(host, t.method));
   const list = (): readonly AgentToolDef[] => available().map(({ method: _m, contract: _c, ...def }) => def);
@@ -647,7 +708,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   // A clock change while this task is not itself writing is someone else's: the person's scrubbing or play button.
   const offTime = host.on('time', e => { if (current && !current.writing && e.cause !== 'playback') current.clockTaken = true; });
   const offPlayback = host.on('playback', () => { if (current && !current.writing) current.clockTaken = true; });
-  const offLoad = host.on('load', () => { measuredResults.clear(); current?.end('stale'); });
+  const offLoad = host.on('load', () => { numericalSubjects = []; measuredResults.clear(); current?.end('stale'); });
 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
@@ -696,6 +757,17 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     };
   }
 
+  function viewpointSummary(name: string) {
+    const v = attempt(() => host.getViewpointInfo?.(name));
+    return v ? { name: v.name, source: v.source, epoch: v.epoch, authoredTime: v.authoredTime,
+      ...(v.epoch !== null && opts.formatTime ? { utc: opts.formatTime(v.epoch) } : {}),
+      center: v.origin } : { name };
+  }
+  function viewpointFacts(view: ReturnType<NonNullable<ViewerControl['getViewpointInfo']>>): ResultFact[] {
+    const utc=typeof view?.authoredTime==='string' ? view.authoredTime : view?.epoch!=null ? opts.formatTime?.(view.epoch) : null;
+    return view && utc ? [{kind:'authored-viewpoint',name:view.name,utc}] : [];
+  }
+
   function describeScene(): AgentToolResult {
     const scene = attempt(() => host.getScene?.()) ?? null;
     const et = host.getTime();
@@ -720,10 +792,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       selectedActivity: activity ? activitySummary(activity) : null,
       selectedPlace: place ? placeSummary(place) : null,
       objects: { names: objects.items, total: objects.total },
-      viewpoints: { names: viewpoints.items, total: viewpoints.total },
+      viewpoints: { names: viewpoints.items, total: viewpoints.total, evidence: 'Authored scene annotations, not computed physical events. Exact ET available; getViewpointInfo reads pose/time agreement.', items: viewpoints.items.map(viewpointSummary) },
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
-      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); return data ? metadata.surface(data) : null; }) ?? null : null,
-      focusImagery: imagery ? metadata.imagery(imagery) : null,
+      analysis: attempt(()=>host.getTrajectoryAnalysisOptions ? extremaOptions(host.getTrajectoryAnalysisOptions()) : { available: false }) ?? { available:false },
+      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); if (!data) return null; const s=metadata.surface(data); return {body:s.body,bodyFrame:s.bodyFrame,referenceShape:s.referenceShape,surface:s.surface,terrain:s.terrain,cubeImagery:s.cubeImagery,details:'getSurfaceData'}; }) ?? null : null,
+      focusImagery: imagery ? {body:imagery.body,surface:imagery.surface,imageryOnly:imagery.imageryOnly,layers:imagery.layers.slice(0,8).map(l=>({id:l.id,role:l.role,visible:l.visible,status:l.status})),total:imagery.layers.length,details:'getImagery'} : null,
       unsupported: lacks,
     };
     const summary = scene === null && has(host, 'getScene')
@@ -737,7 +810,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const kinds = new Set((input.kinds as string[] | undefined) ?? ['object', 'viewpoint', 'place', 'activity']);
     const q = query.toLowerCase();
     const matches = (name: string) => name.toLowerCase().includes(q);
-    const candidates: { kind: string; id: string; label: string; detail?: string }[] = [];
+    const words = q.match(/[a-z0-9]+/g) ?? [];
+    const nameMatches = (name: string) => matches(name) || words.filter(w => name.toLowerCase().includes(w)).length >= Math.min(2, words.length || 1);
+    const candidates: { kind: string; id: string; label: string; detail?: string; viewpoint?: ReturnType<typeof viewpointSummary> }[] = [];
+    let activityMatches: {total:number;returned:number;complete:boolean} | null=null;
     if (kinds.has('object')) {
       const objects = attempt(() => host.listObjects()) ?? [];
       const exact = objects.filter((n) => n.toLowerCase() === q);
@@ -746,7 +822,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       for (const n of near.slice(0, 8)) candidates.push({ kind: 'object', id: n, label: n });
     }
     if (kinds.has('viewpoint')) {
-      for (const n of (attempt(() => host.listViewpoints()) ?? []).filter(matches).slice(0, 5)) candidates.push({ kind: 'viewpoint', id: n, label: n });
+      for (const n of (attempt(() => host.listViewpoints()) ?? []).filter(nameMatches).slice(0, 5)) candidates.push({ kind: 'viewpoint', id: n, label: n, viewpoint: viewpointSummary(n) });
     }
     if (kinds.has('place') && has(host, 'searchPlaces')) {
       for (const p of attempt(() => host.searchPlaces!(query, { limit: 5 })) ?? []) {
@@ -757,14 +833,19 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const words = q.split(/\s+/).filter(Boolean);
       const acts = (attempt(() => host.listActivities!()) ?? [])
         .filter((a) => words.every((w) => `${a.name} ${a.id} ${a.kind} ${a.vehicle}`.toLowerCase().includes(w)));
+      activityMatches={total:acts.length,returned:Math.min(8,acts.length),complete:acts.length<=8};
       for (const a of acts.slice(0, 8)) candidates.push({ kind: 'activity', id: a.id, label: a.name, detail: `${a.kind}, ${a.vehicle}${a.site ? `, site ${a.site}` : ''}` });
     }
     const summary = candidates.length === 0
       ? `Nothing in this scene matches ${JSON.stringify(query)}.`
       : candidates.length === 1
         ? `${JSON.stringify(query)} is the ${candidates[0].kind} ${JSON.stringify(candidates[0].id)}.`
-        : `${candidates.length} candidates for ${JSON.stringify(query)}.`;
-    return { ok: true, summary, data: { candidates, ambiguous: candidates.length > 1 } };
+        : `${candidates.length} candidates shown for ${JSON.stringify(query)}.${activityMatches ? ` ${activityMatches.returned} of ${activityMatches.total} matching activities shown; this is name resolution, not a collection-analysis scope.` : ''}`;
+    const object=host.listObjects().find(n=>n.toLowerCase()===q);
+    const counts:Record<string,number>={};
+    if (object && host.listActivities) for (const a of host.listActivities({vehicle:object}).filter(a=>a.enabled!==false)) counts[a.kind]=(counts[a.kind]??0)+1;
+    return { ok: true, summary, data: { candidates, ambiguous: candidates.length > 1, activityMatches },
+      facts:object && Object.keys(counts).length ? [{kind:'activity-inventory',object,counts}] : [] };
   }
 
   function searchPlaces(input: Input): AgentToolResult {
@@ -807,7 +888,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const name = input.object as string;
     const data = host.getSurfaceData!(name);
     if (!data) return { ok: false, code: 'refused', error: `surface data unavailable for ${JSON.stringify(name)}` };
-    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data: metadata.surface(data) };
+    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null. Physical-surface/DSK/irregular mesh availability is not assessed by this inventory; null terrain does not establish absent geometry.`, data: metadata.surface(data) };
   }
 
   function getImagery(input: Input): AgentToolResult {
@@ -828,8 +909,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
    * objects now sit in the view, what the clock reads. Whether the write took
    * effect is the contract's predicates' job (`outcomeOf`), not this note's.
    */
-  function note(name: string, args: Input): { note: string; data?: unknown } | null {
-    if (name === 'selectGeographicFeature' && host.getSelectedGeographicFeature && host.listGeographicLayers) {
+  function note(name: string, args: Input): { note: string; data?: unknown; facts?: readonly ResultFact[] } | null {
+    if (name === 'viewpoint' && host.getViewpointInfo) {
+      const view = host.getViewpointInfo(String(args.name));
+      return { note: 'Authored view applied; pose/time agreement is separate from physical event evidence. Visibility has not been assessed by this action. Read getViewComposition for ALL objects the person requested before answering; an unlisted object is not evidence of absence or invisibility.',
+        data: { viewpoint: view }, facts:viewpointFacts(view) };
+    }
+    if (name === 'selectGeographicFeature'  && host.getSelectedGeographicFeature && host.listGeographicLayers) {
       const selected = host.getSelectedGeographicFeature();
       const layer = selected ? host.listGeographicLayers().find(l => l.id === selected.layer) : undefined;
       const context = layer?.body ? host.getSpatialContext?.(layer.body) : null;
@@ -849,7 +935,24 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     }
     if (name === 'seekActivity' || name === 'setTime' || name === 'setPlaying' || name === 'runTo') {
       const utc = opts.formatTime ? attempt(() => opts.formatTime!(host.getTime())) : null;
-      return { note: `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.` };
+      const clock = `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.`;
+      if (name === 'setTime') {
+        const composition = numericalSubjects.length && host.getViewComposition ? host.getViewComposition(numericalSubjects) : null;
+        const sceneTiming = numericalSubjects.map(object => {
+          const existence = host.getObjectContext?.(object)?.existence ?? null;
+          const start = existence?.start;
+          return { object, existence, startUtc: start == null ? null : opts.formatTime?.(start) ?? null,
+            secondsBeforeStart: start != null && host.getTime() < start ? start - host.getTime() : null,
+            source: 'scene-configuration, not measured event timing' };
+        });
+        const timingFacts: ResultFact[] = sceneTiming.flatMap(t => t.secondsBeforeStart == null ? [] : [{ kind: 'scene-existence', object: t.object, startEt: t.existence!.start!, startUtc: t.startUtc, observedEt: host.getTime(), secondsBeforeStart: t.secondsBeforeStart }]);
+        const timingNote = timingFacts.map(t => t.kind === 'scene-existence' ? `${t.object} is before its configured scene existence start at ${t.startUtc ?? `ET ${t.startEt}`} (${t.secondsBeforeStart.toFixed(3)} seconds after the requested moment); it is not independently drawn yet. This rendering boundary does not certify physical release.` : '').join(' ');
+        return { note: `${clock} Seeking alone neither frames objects nor selects a computed event. For this numerical follow-up, report the requested versus observed epoch and actual view for the referenced bodies. ${composition ? compositionSentence(composition) : 'Object visibility has not been assessed.'} ${timingNote} ${composition?.fresh === false || !composition ? 'Read getViewComposition for the referenced bodies once after native placement catches up, before answering. Do not infer visual completion from clock success.' : 'Report in-frame/draw-enabled and analytical occlusion limits separately.'}`,
+          data: { requestedTime: args.when, observedEt: host.getTime(), playing: host.isPlaying(),
+            ...(composition ? { numericalSubjects, composition: compositionData(composition),
+              sceneTiming } : {}) }, facts: timingFacts };
+      }
+      return { note: clock };
     }
     return null;
   }
@@ -870,21 +973,57 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   function judged(def: AgentDefinition, text: string, args: Input, base: { summary: string; data?: unknown; completion?: { kind: 'flight'; id: number; outcome: 'arrived' } }): AgentToolResult {
     const outcome = outcomeOf(def, args, base.data);
     const failing = outcome.report?.checks.filter(c => c.ok === false && !c.soft) ?? [];
-    if (failing.length) return { ok: false, code: 'failed', error: `${text}: the viewer does not show the expected result: ${failing.map(c => c.detail).join('; ')}`, outcome };
+    if (failing.length) return { ok: false, code: 'failed', error: `${text}: the viewer does not show the expected result: ${failing.map(c => c.detail).join('; ')}`, outcome, data: base.data ?? note(def.name, args)?.data };
     const back = attempt(() => note(def.name, args)) ?? null;
     const status = outcome.report ? outcome.report.status === 'met' ? '' : ` Viewer check ${outcome.report.status}: ${outcome.report.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}.` : ` Not observable: ${outcome.unobservable}.`;
-    return { ok: true, summary: `${base.summary}${back ? ` ${back.note}` : ''}${status}`, ...(base.completion ? { completion: base.completion } : {}),
+    return { ok: true, summary: `${base.summary}${back ? ` ${back.note}` : ''}${status}`, ...(base.completion ? { completion: base.completion } : {}), ...(back?.facts?.length ? { facts: back.facts } : {}),
       ...(base.data !== undefined ? { data: base.data } : back?.data !== undefined ? { data: back.data } : {}), outcome };
   }
 
+  function profileRead(data: ScriptProfileData): AgentToolResult {
+      if (data.quantity === 'range' && data.minimum?.value != null && data.bodies?.observer && data.bodies.target) numericalSubjects = [data.bodies.observer, data.bodies.target];
+      const first = data.samples[0], last = data.samples.at(-1);
+      const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
+      const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
+      const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
+        ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false, samples: data.samples.flatMap(s => s.value === null ? [] : [{ km: s.value, utc: s.utc, et: s.et }]) }] : [];
+      return { ok: true, facts, summary: `${minimum} In the final answer, name BOTH interval endpoints above (UTC dates or ET numbers), report count or spacing, and say minimum among the returned samples. Do not replace the endpoints with full timeline or mission window. This is only a minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+
+  }
+
   const reads: Record<string, (input: Input) => AgentToolResult> = {
+    getTrajectoryAnalysisOptions: input => ({ ok: true, summary: 'Configured height analysis and native activity scope; execution establishes actual coverage.', data: extremaOptions(host.getTrajectoryAnalysisOptions!(input.objects as string[] | undefined, input.body as string | undefined)) }),
+    getViewpointInfo: input => { const view=host.getViewpointInfo!(input.name as string);return { ok: true, summary: 'Authored scene view and current navigation, not a computed event.', data: view ?? null, facts:viewpointFacts(view) }; },
+    getObjectContext: input => {
+      const context = host.getObjectContext!(input.object as string);
+      const window = (w: { start: number | null; end: number | null }) => ({ ...w,
+        ...(opts.formatTime ? { startUtc: w.start === null ? null : opts.formatTime(w.start), endUtc: w.end === null ? null : opts.formatTime(w.end) } : {}) });
+      return { ok: true, summary: 'Configured scene timing, not measured event timing.', data: context ? { ...context, existence: window(context.existence), trajectoryArcs: context.trajectoryArcs.map(window), geometryWindows: context.geometryWindows.map(window) } : null };
+    },
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
     getSpatialContext: input => ({ ok: true, summary: 'Targeted body/state/Draw conventions; missing layers can be created after approval.', data: metadata.spatialContext(host.getSpatialContext!(input.object as string)) }),
-    getObjectState: input => ({ ok: true, summary: 'Targeted state and availability; unapproved provenance stays local.', data: metadata.objectState(host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined })) }),
+    getObjectState: input => {
+      const state = host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined });
+      if (state?.position && state.center) numericalSubjects = [input.object as string, state.center];
+      return { ok: true, summary: 'Actual entity state and source availability; position units are km.', data: metadata.objectState(state) };
+    },
     projectGroundPoint: input => ({ ok: true, summary: 'Shared radial ground projection; inspect status/source before placing a marker.', data: metadata.groundProjection(host.projectGroundPoint!(input.object as string, input.policy as import('./contracts.js').ScriptSurfacePolicy | undefined)) }),
     getProbePoint: () => ({ ok: true, summary: 'Actual native/UI Point Probe state; draw-enabled does not promise unoccluded pixels.', data: metadata.probePoint(host.getProbePoint!()) }),
+    getProfileOptions: () => ({ ok: true, summary: 'Continuous timeline profile quantities and limits.', data: host.getProfileOptions!() }),
+    listProfiles: () => ({ ok: true, summary: 'Shared configured timeline profiles.', data: host.listProfiles!() }),
+    getProfile: input => ({ ok: true, summary: 'Native profile readback; partial/unavailable is not visual acceptance.', data: host.getProfile!(input.id as string) }),
+    getProfileValue: input => ({ ok: true, summary: 'Exact profile value at the returned epoch; no interpolation or surface-clearance claim.', data: host.getProfileValue!(input.id as string, input.et as number) }),
+    sampleProfileData: input => {
+      return profileRead(host.sampleProfileData!(input.id as string, { start: input.start as number, end: input.end as number, ...(input.count === undefined ? {} : { count: input.count as number }) }));
+    },
     getTimelineWindow: () => { const w = host.getTimelineWindow!(); return { ok: true, summary: 'Timeline window.', data: { ...w, ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(w.start)), endUtc: attempt(() => opts.formatTime!(w.end)) } : {}) } }; },
-    getViewComposition: input => ({ ok: true, summary: 'Current view composition.', data: compositionData(host.getViewComposition!(input.objects as string[])) }),
+    getViewComposition: input => {
+      const names = input.objects as string[], known = host.listObjects();
+      const unknown = names.filter(n => !known.includes(n));
+      if (unknown.length) return { ok: false, code: 'refused', error: 'Unresolved object names do not establish missing scene objects. Resolve exact names before assessing composition.',
+        data: { unknown, candidates: unknown.map(name => ({ name, matches: known.filter(n => n.toLowerCase().includes(name.toLowerCase())).slice(0, 5), suggestion: suggest(name, known) ?? null })) } };
+      return { ok: true, summary: 'Composition for the requested objects only. Unlisted objects have not been assessed; do not infer absence or visibility. In-frame, draw-enabled and occlusion are separate.', data: compositionData(host.getViewComposition!(names)) };
+    },
     checkGoal: input => {
       const predicates = ((input.require as unknown[] | undefined) ?? []).map(parsePredicate);
       if (!predicates.length) throw new Error('require lists at least one predicate');
@@ -897,7 +1036,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const coverage = options.coverage;
       // A named kind gets its own defaults only; an unknown one still lists every kind.
       const kind = options.kinds.filter(k => k.kind === input.kind);
-      return { ok: true, summary: 'Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
+      return { ok: true, summary: `Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.${input.kind === 'closest-approach' ? ' For a new closest-approach search, checkGoal require:[{p:"eventSelected",pick:"closest"}] without query can precede upsertEventQuery and runEventQuery in the same reply. Presentation checks framing later; do not name an unsaved query or demand a contact/encounter criterion for a center-distance question.' : ''}`, data: {
         ...options, kinds: kind.length ? kind : options.kinds, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
       } };
     },
@@ -1012,6 +1151,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     ownFlight: number | null = null;
     /** Outcome checks this request has made; bounded so a failing goal cannot loop. */
     goalChecks = 0;
+    /** A required worker frame cannot be repaired by changing a query in this task. */
+    eventFrameUnavailable = false;
+    private sampledApproachComplete = false;
+    private readonly closestPairs = new Set<string>();
+    private readonly closestPreflights = new Map<string, number>();
+    private readonly extremaSubjects = new Set<string>();
+    private readonly extremaFacts = new Map<string, HeightAnalysisFact>();
+    private extremaPreflights = 0;
+    private invalidExtremaInputs = 0;
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -1044,7 +1192,14 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         this.end('stale');
         return { ok: false, code: 'stale', error: 'the scene changed since this request began; nothing was done' };
       }
+      if (this.eventFrameUnavailable && ['runEventQuery', 'upsertEventQuery', 'findClosestApproach'].includes(def.name)) {
+        return { ok: false, code: 'missing-dependency', error: 'Not run: Event Finder already encountered a non-retryable SPICE frame dependency in this request. Do not create or run another query. Follow the original failure recovery guidance if it matches the requested quantity, or report the event as uncomputed.' };
+      }
+      if (this.sampledApproachComplete && (def.effect === 'camera' || available().find(d => d.name === def.name)?.contract.writes.includes('time'))) return { ok: false, code: 'refused', error: 'The bounded sampled alternative is complete. Preserve its returned epoch/presentation or exploratory trace; do not add granular camera/time changes in this request. Report its sampling limits and unmet computed-event goal. A new user request can choose another interval or view.' };
       if (def.effect !== 'read' && !hasScene()) return { ok: false, code: 'no-scene', error: 'no scene is loaded' };
+      if (available().find(d => d.name === def.name)?.contract.writes.includes('time') && this.clockTaken) {
+        return { ok: false, code: 'interrupted', error: 'the person moved the clock during this request; leaving the time to them' };
+      }
       if (def.effect === 'camera' && this.cameraTaken) {
         return { ok: false, code: 'interrupted', error: 'the person moved the camera during this request; leaving the view to them' };
       }
@@ -1064,37 +1219,139 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       }
       input = normalizeInput(def.inputSchema, input ?? {});
       const problem = violation(def.inputSchema, input, 'input');
-      if (problem) return { ok: false, code: 'invalid-input', error: problem };
+      if (problem) {
+        const facts: HeightAnalysisFact[] = ['analyzeTrajectoryExtrema','findTrajectoryExtrema'].includes(name) && ++this.invalidExtremaInputs>=2
+          ? [{kind:'height-analysis',status:'unavailable',metric:'unresolved',requested:0,completed:0,winner:null,message:'The requested height analysis did not execute: its inputs failed validation twice. No numerical result or viewer navigation is established.'}] : [];
+        return { ok: false, code: 'invalid-input', error: problem, ...(facts.length?{facts,terminal:true as const}:{}) };
+      }
       const refused = this.gate(def);
       if (refused) return refused;
       if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
 
-      if (name === 'findTrajectoryExtrema') {
-        measuredResults.clear();
+      if (name === 'findClosestApproach') {
+        const pair = JSON.stringify([args.observer, args.target].sort());
+        if (this.closestPairs.has(pair)) return { ok: false, code: 'refused', error: 'This pair already received its bounded closest-approach analysis in this request. Report its result or structured failure; do not change the window to evade it.' };
+        if ((this.closestPreflights.get(pair) ?? 0) >= 2) return { ok: false, code: 'refused', error: 'Two preflight rejections for this pair; stop and report the unresolved input or coverage requirement.' };
+        const blocked = ['upsertEventQuery','runEventQuery', ...(args.present === false ? [] : ['presentEventResult','setTime','setPlaying']), 'upsertProfile','sampleProfileData'].find(operation => opts.omittedTools?.[operation]);
+        if (blocked) return { ok: false, code: 'refused', error: `Closest-approach analysis requires ${blocked}: ${opts.omittedTools![blocked]}` };
+        // Reserve during the await; release only a confirmed no-search rejection.
+        this.closestPairs.add(pair);
+        this.writing = true;
         try {
-          const response = await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
+          const response = await host.findClosestApproach!(args as unknown as ScriptClosestApproachRequest, { signal: this.signal });
+          this.writing = false;
+          if (!response.searchStarted && ['invalid-window','missing-coverage','coverage-unassessed','work-budget'].includes(response.reason ?? '')) {
+            this.closestPairs.delete(pair);
+            this.closestPreflights.set(pair, (this.closestPreflights.get(pair) ?? 0) + 1);
+          }
           const late = this.gate(def);
           if (late) return late;
+          if (response.status === 'interrupted') { this.clockTaken = true; this.cameraTaken = true; return { ok: false, code: 'interrupted', error: 'Analysis interrupted; leaving clock and camera to the person.' }; }
+          if (response.reason === 'missing-dependency') this.eventFrameUnavailable = true;
+          if (response.status === 'sampled') this.sampledApproachComplete = true;
+          const facts: ResultFact[] = response.status === 'computed' ? [] : [{ kind: 'event-search-failure', reason: response.reason ?? response.status }];
+          if (response.samples) facts.push(...(profileRead(response.samples).facts ?? []));
+          if (response.result) facts.push(...(reads.getEventResultPage({ query: response.result.items[0].reference.query, order: 'range-ascending' }).facts ?? []));
+          const data = { ...response, sampledView: response.sampledView ? compositionData(response.sampledView) : null, samples: response.samples ? { ...response.samples, samples: undefined, count: response.samples.samples.length } : null, result: response.result ? eventPageMetadata(response.result, metadata.text) : null,
+            presentation: response.presentation ? { status: response.presentation.status, reference: response.presentation.reference, observation: eventVisualizationMetadata(response.presentation.observation) } : null };
+          const sampleRead = response.samples ? profileRead(response.samples) : null;
+          const base = { summary: `Closest-approach analysis ${response.status}${response.reason ? ` (${response.reason})` : ''}. Computed-event presentation verified: ${response.computedEventVerified}.${response.reason === 'missing-dependency' ? ' A required SPICE reference-frame dependency is unavailable; this does not establish absent trajectory data. Changing the time window, body IDs or frames will not repair it.' : ''} ${sampleRead?.ok ? sampleRead.summary : 'Report the actual searched windows, candidates and step limits. An executed search is final; at most one correction of a rejected preflight is allowed.'}`, data };
+          return response.status === 'computed' ? { ...judged(def, name, args, base), facts } : { ok: true, ...base, outcome: outcomeOf(def, args, data), facts };
+        } catch { return { ok: false, code: 'failed', error: 'Closest-approach analysis failed; no verified result.' }; }
+        finally { this.writing = false; }
+      }
+
+      if (name === 'analyzeTrajectoryExtrema' || name === 'findTrajectoryExtrema') {
+        const key = JSON.stringify([...(args.objects as string[])].sort());
+        if (this.extremaSubjects.has(key) || this.extremaPreflights >= 2) return { ok: false, code: 'refused', terminal:true, error: 'Height analysis for these subjects is terminal in this request. Report the previous structured reason/result or ask the one datum question. Changing frames, metric, windows or solver cannot repair missing data or establish full coverage.', facts: this.extremaFacts.has(key) ? [this.extremaFacts.get(key)!] : [] };
+        if (name === 'analyzeTrajectoryExtrema' && opts.omittedTools?.findTrajectoryExtrema) return { ok: false, code: 'refused', error: `Height analysis requires findTrajectoryExtrema: ${opts.omittedTools.findTrajectoryExtrema}` };
+        this.extremaSubjects.add(key);
+        measuredResults.clear();
+        try {
+          const options: TrajectoryAnalysisOptions = { signal: this.signal, onProgress: (fraction, work) => {
+            if (this.gate(def)) return;
+            // A UI observer cannot change execution or turn a valid search into a failure.
+            try { opts.onProgress?.(this.id, name, fraction, work); } catch { /* Local observer only. */ }
+          } };
+          const taskResult = name === 'analyzeTrajectoryExtrema' ? await host.analyzeTrajectoryExtrema!(args as unknown as ScriptExtremaRequest, options) : null;
+          const response = taskResult ? taskResult.response : await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, options);
+          const late = this.gate(def);
+          if (late) return late;
+          // One correction only for a rejected scope; a changed datum requires a new user turn.
+          if (taskResult && !taskResult.started && taskResult.reason === 'invalid-scope') { this.extremaSubjects.delete(key); this.extremaPreflights++; }
           measuredResults.clear();
-          for (const result of response.results.slice(0,128)) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          for (const result of response?.results.slice(0,128) ?? []) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          if (taskResult) {
+            const messages = {
+              'ambiguous-metric': 'Elevation has no unique datum. Ask one precise question choosing an available reference-surface height or physical terrain clearance (AGL). No analysis ran.',
+              'invalid-scope': 'The complete requested activity/window scope is invalid or unmatched; no partial subset was selected. Correct the scope once or explain the limitation.',
+              'missing-subject': 'One or more requested subjects are absent or invalid; no analysis ran.',
+              'ambiguous-body': 'The requested subjects/activities do not identify one reference body. Ask which body.',
+              'unsupported-metric': 'This measurement lacks a compatible declared reference or versioned CPU terrain datum/frame/source. Do not infer that no physical geometry is loaded or substitute a different metric.',
+              'data-unavailable': 'The analysis is supported, but relative-state or physical-terrain data did not cover the requested scope. Partial candidates do not establish a collection winner.',
+              'work-budget': 'The requested scope exceeds the bounded numerical work available; no complete collection winner is established.',
+            };
+            const choices=taskResult.options.bodies.filter(b=>b.body===taskResult.body).flatMap(b=>b.metrics.filter(m=>m.available).map(m=>m.metric==='terrain-clearance'?`physical terrain clearance (AGL) on ${b.body}`:m.metric==='reference-ellipsoid-height'?`height above the ${b.body} reference ellipsoid`:`radial height above the ${b.body} reference sphere`));
+            const budgetLimitedIntervals=response?.faults.filter(f=>f.code==='budget').length??0;
+            const message = taskResult.reason==='ambiguous-metric' ? `Which measurement do you mean: ${choices.join(' or ')}? These are compatible scene configurations; full interval coverage is not established, and no analysis or navigation has run.`
+              : response?.results.length
+              ? `${response.results.length}/${taskResult.scope.requested} intervals produced sampled candidates; ${taskResult.coverage.completeIntervals ?? taskResult.scope.completed} have complete temporal coverage${taskResult.coverage.endpointReconciledIntervals ? ` at source epoch encoding precision (${taskResult.coverage.endpointReconciledIntervals} intervals have disclosed Julian-date endpoint equivalences)` : ''}. ${taskResult.coverage.incompleteIntervals} have meaningful declared trajectory gaps, largest ${taskResult.coverage.maximumGapSeconds} seconds. ${taskResult.coverage.unavailableSampleIntervals??0} intervals have unavailable evaluated samples. ${taskResult.numerical?.completeIntervals??taskResult.scope.completed} completed numerical search. ${budgetLimitedIntervals} ${budgetLimitedIntervals===1?'interval exhausted its':'intervals exhausted their'} numerical allowance. The candidate compares ALL returned candidates, including partial intervals.${budgetLimitedIntervals ? ' A numerically limited interval could contain a higher value.' : ''} ${taskResult.winnerId ? 'Every requested interval has a sampled-complete result.' : 'No full-scope winner is established.'} No certified global error bound is established.`
+              : taskResult.reason ? messages[taskResult.reason] : 'Every requested interval compared using sampled and locally refined extrema, with unknown global height error and source accuracy.';
+            const winner = response?.results.find(r => r.id === taskResult.winnerId);
+            const candidate = response?.results.find(r => r.id === taskResult.candidateId);
+            const data = { status: taskResult.status, reason: taskResult.reason, message, started: taskResult.started,
+              scope: { ...taskResult.scope, activityIds:taskResult.scope.activityIds.slice(0,4), activityIdsTotal:taskResult.scope.activityIds.length, activityIdsTruncated:taskResult.scope.activityIds.length>4 },
+              options: extremaOptions(taskResult.options), winnerId: taskResult.winnerId, winner: winner ? metadata.trajectoryExtremum(winner) : null,
+              candidate: candidate && !winner ? metadata.trajectoryExtremum(candidate) : null, coverage:taskResult.coverage, numerical:taskResult.numerical,
+              candidateUse: candidate && !winner ? 'Best available candidate only. For a requested view you may show it with navigateToAnalysisResult, explicitly stating incomplete intervals/gaps and that no full-scope/global winner is established.' : null,
+              // Bounded comparison inventory keeps all interval identities without returning 128 full reports.
+              comparedCount: response?.results.length ?? 0,
+              compared: response?.results.slice(0,1).map(r => ({ id:r.id, object:r.object, activityId:r.activityId, window:r.window, value:r.value, coverage:r.coverage })) ?? [],
+              budgetLimitedIntervals,budgetExhausted:budgetLimitedIntervals>0,
+              faultsTotal: response?.faults.length ?? 0,
+              faults: response?.faults.slice(0,3).map(f => ({ code:f.code, object:f.object, activityId:f.activityId, window:f.window })) ?? [],
+              parameters: taskResult.query ? { metric:taskResult.query.metric, body:taskResult.query.body, frame:metadata.text(taskResult.query.frame), reference:taskResult.query.reference, sampling:taskResult.query.sampling, stepSeconds:taskResult.query.stepSeconds, timeToleranceSeconds:taskResult.query.timeToleranceSeconds, maxEvaluations:taskResult.query.maxEvaluations, collectionMaxEvaluations:1000000, maxIntervals:128 } : null };
+            const fact: HeightAnalysisFact = { kind:'height-analysis', status:taskResult.status, message, requested:taskResult.scope.requested, completed:taskResult.scope.completed, metric:taskResult.query?.metric ?? args.metric as string,
+              budgetLimitedIntervals,budgetExhausted:budgetLimitedIntervals>0,terrainSourceKnown:!!((winner??candidate)?.terrain?.id && (winner??candidate)?.terrain?.revision),
+              numericalComplete:taskResult.numerical?.completeIntervals,temporalComplete:taskResult.coverage.completeIntervals,endpointReconciledIntervals:taskResult.coverage.endpointReconciledIntervals,unavailableSampleIntervals:taskResult.coverage.unavailableSampleIntervals,
+              evaluated:response?.results.length??0,gapIntervals:taskResult.coverage.incompleteIntervals,maximumGapSeconds:taskResult.coverage.maximumGapSeconds,primaryId:taskResult.winnerId??taskResult.candidateId,
+              sourceKind:candidate ? /estimated|reconstruct/i.test(candidate.source.description??'') ? 'estimated-reconstruction' : candidate.source.classification : undefined,
+              candidate:candidate?{value:candidate.value,utc:candidate.utc,object:candidate.object,activityId:candidate.activityId}:null,
+              winner: winner ? { value:winner.value, utc:winner.utc, object:winner.object, activityId:winner.activityId } : null };
+            this.extremaFacts.set(key, fact);
+            for (const entry of measuredResults.values()) entry.fact=fact;
+            return { ok: true, summary: `Height task ${taskResult.status}. ${message} Do not repeat equivalent analysis.`, data, facts:[fact] };
+          }
+          if (!response) return { ok:false, code:'failed', error:'Height analysis returned no result.' };
           // Closed projection: provenance may contain private source paths.
           const data = { status: response.status, results: response.results.slice(0,128).map(metadata.trajectoryExtremum), faults: response.faults.slice(0,128).map(f => ({ code: f.code, object: f.object, activityId: f.activityId, window: f.window ? {start:f.window.start,end:f.window.end} : undefined, message: 'Analysis unavailable, incomplete or interrupted; inspect the local result for details.' })) };
-          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data };
-        } catch { return { ok: false, code: 'failed', error: 'Height analysis failed; inspect the local source and coverage.' }; }
+          const fact: HeightAnalysisFact = { kind:'height-analysis', status:response.status, metric:args.metric as string, requested:0, completed:response.results.filter(r=>r.coverage==='sampled-complete').length, winner:null,
+            message: `Explicit height analysis ${response.status}; ${response.results.length} candidates. ${response.faults.some(f=>f.code==='invalid-query') ? 'The supplied metric/datum/frame/sampling query is invalid. Use the native task-level operation in a new request rather than guessing solver settings.' : 'Coverage and global height error are not certified. Report the returned faults or candidates; do not rerun an equivalent search.'}` };
+          this.extremaFacts.set(key,fact);
+          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data, facts:[fact] };
+        } catch {
+          const fact:HeightAnalysisFact={kind:'height-analysis',status:'unavailable',metric:args.metric as string,requested:0,completed:0,winner:null,message:'The height analysis failed before returning numerical evidence. No result or navigation is established; source availability must be checked in the viewer.'};
+          this.extremaFacts.set(key,fact);
+          return { ok: false, code: 'failed', terminal:true, error: fact.message, facts:[fact] };
+        }
       }
       if (name === 'navigateToAnalysisResult') {
         const expected = measuredResults.get(args.resultId as string);
         if (!expected) return { ok:false,code:'refused',error:'Unknown or superseded analysis result. Run the analysis in this session before navigating.' };
-        const done = host.navigateToAnalysisResult!(args.resultId as string);
+        let done: boolean;
+        this.writing=true;
+        try { done = host.navigateToAnalysisResult!(args.resultId as string); }
+        finally { this.writing=false; }
         if (!done) return { ok:false,code:'refused',error:'The result is unavailable or stale.' };
         const late = this.gate(def);
         if (late) return late;
         const observed = {et:host.getTime(),object:host.getSelected(),tracked:host.getTracked(),playing:host.isPlaying(),activityId:host.getSelectedActivity?.()?.id ?? null};
         const verified = !!expected && Math.abs(observed.et-expected.et)<1e-5 && observed.object===expected.object && observed.tracked===expected.object && !observed.playing && (!expected.activityId || observed.activityId===expected.activityId);
         if (!verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
-        return judged(def, name, args, { summary:'Selected and framed the measured vehicle at the observed result epoch.', data:{verified,observed:{...observed, et: expected.et}} });
+        return { ...judged(def, name, args, { summary:'Selected and framed the measured vehicle at the observed result epoch.', data:{verified,observed:{...observed, et: expected.et}} }),
+          ...(expected.fact?.primaryId===args.resultId ? {facts:[{...expected.fact!,shown:true}]} : {}) };
       }
 
       if (name === 'checkGoal' && ++this.goalChecks > 3) return { ok: false, code: 'refused', error: 'Three outcome checks already ran for this request. Report the observed state and the unmet part plainly.' };
@@ -1138,8 +1395,17 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
           await running;
         } catch (err) {
           this.writing = false;
+          const late = this.gate(def);
+          if (late) return late;
           if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
           const p = err.problems[0];
+          if (name === 'runEventQuery' && missingFrameDependency(p.message)) {
+            this.eventFrameUnavailable = true;
+            const query = attempt(() => host.getEventQueryInfo?.(args.id as string));
+            const definition = query ? eventQueryMetadata(query, metadata.text).definition : null;
+            return { ok: false, code: 'missing-dependency', data: { query: definition, alternative: definition?.kind === 'closest-approach' ? 'sampled-center-distance' : null },
+              error: `Event Finder lacks a required SPICE frame dependency. non-retryable in this request; do not change IDs, frames or coverage. The event is uncomputed. ${definition?.kind === 'closest-approach' ? 'Center-distance profile samples may be an explicitly approximate alternative; they cannot establish surface clearance or touchdown.' : 'No numerical profile substitution is established for this event kind.'}` };
+          }
           const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended ?? 'cancelled')
             : p.kind === 'unknown-target' ? 'refused'
               : 'failed';

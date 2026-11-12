@@ -773,15 +773,16 @@
         {/each}
       </div>
       {#if kind.engine === 'trajectory-analysis'}
-        {#if incomplete}<p class="height-caution ui-helper mt-2" role="status">Partial search — {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'lowest' : 'highest'} measured candidate, not a confirmed {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'minimum' : 'maximum'}.</p>{/if}
+        {#if incomplete}<p class="height-caution ui-helper mt-2" role="status">Numerically or temporally limited search — {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'lowest' : 'highest'} measured candidate, not a confirmed {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'minimum' : 'maximum'}.</p>{/if}
         <details class="ui-helper mt-1 event-coverage-details">
           <summary class="cursor-pointer">Coverage details</summary>
+          <p class="mt-1">{ef.events.length} intervals produced candidates; {ef.events.filter(e=>e.trajectoryAnalysis?.completeness?.temporal==='complete').length} have complete temporal coverage at source epoch encoding precision; {ef.events.filter(e=>e.trajectoryAnalysis?.completeness?.numerical==='budget-limited').length} reached local numerical limits. Source accuracy and global height error remain uncertified.</p>
           <p class="mt-1">{ef.hint ?? 'One sampled and locally refined candidate per object and matching interval; not certified global extrema.'}</p>
           {#each shownEvents.filter(event => event.trajectoryAnalysis?.coverage === 'partial') as event}
             {@const result = event.trajectoryAnalysis!}
             <p class="mt-1">Candidate scope: {result.object} · {compactRange(result.window.start, result.window.end)} UTC. Trajectory: {result.source.id ?? 'identity unknown'}{result.terrain ? `; terrain: ${result.terrain.id}` : ''}.</p>
           {/each}
-          {#if incomplete}<p class="mt-1">Narrow During to an interval with known trajectory and terrain coverage, or use mission activity restrictions in More options. Missing terrain never falls back to a reference surface.</p>{/if}
+          {#if incomplete}<p class="mt-1">Temporal gaps, unavailable samples and numerical limits are separate. A numerically limited interval could contain a higher value. Missing terrain never falls back to a reference surface.</p>{/if}
         </details>
       {/if}
     </div>

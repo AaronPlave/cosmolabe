@@ -103,6 +103,18 @@ describe('cube-sphere CPU grid source', () => {
     expect(source.coverage(-90, 0)).toMatchObject({ state: 'parent-fallback', residentLevel: 1 });
   });
 
+  it('keeps failed finest analytical grids unavailable instead of using a coarse physical height', async () => {
+    const data=manifest();data.geometry={kind:'radial-lattice',referenceRadiusKm:R};
+    const source=new CubeSphereGridSource(data,async uri=>{
+      if(uri.includes('/2/'))throw Error('finest unavailable');
+      return new Float32Array(W*W).fill(100).buffer;
+    },{residentLevel:0});
+    await source.ready;
+    expect(source.sampleResident(-90,0)?.elevationKm).toBeCloseTo(.1,8);
+    expect(await source.sampleAnalysis(-90,0)).toBeNull();
+    expect(source.coverage(-90,0).state).toBe('parent-fallback');
+  });
+
   it('rejects malformed grids and unsupported datums', async () => {
     const bad = new CubeSphereGridSource(manifest(), async () => new ArrayBuffer(12), { residentLevel: 0 });
     await expect(bad.ready).rejects.toThrow(/resident levels failed/);

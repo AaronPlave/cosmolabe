@@ -3,6 +3,8 @@ import { createAgentTools } from './agent.js';
 import { createCapabilityTools } from './capabilities.js';
 import { FakeViewer } from './__tests__/fake-host.js';
 import type { TrajectoryExtremaQuery,TrajectoryExtremaResponse } from '@cosmolabe/interop';
+import { runAgent, compactHistory } from './agent-loop.js';
+import { checkAnswer, factSummary } from './answer-check.js';
 
 const query: TrajectoryExtremaQuery={objects:['Titan'],body:'Saturn',frame:'IAU_SATURN',metric:'radialHeightAboveReferenceSphere',extremum:'maximum',reference:{kind:'sphere',radiusKm:10},scope:{kind:'windows',windows:[{start:0,end:10}]},stepSeconds:1,timeToleranceSeconds:.01};
 const response=(): TrajectoryExtremaResponse=>({status:'complete',faults:[],results:[{
@@ -12,7 +14,7 @@ const response=(): TrajectoryExtremaResponse=>({status:'complete',faults:[],resu
 }]});
 function host() {
   return Object.assign(new FakeViewer(),{
-    findTrajectoryExtrema:vi.fn(async (_q: TrajectoryExtremaQuery)=>response()),
+    findTrajectoryExtrema:vi.fn(async (_q: TrajectoryExtremaQuery,_options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>response()),
     navigateToAnalysisResult:vi.fn((_id:string)=>true),
   });
 }
@@ -33,7 +35,7 @@ describe('shared height analysis agent boundary',()=>{
     const h=host(),tools=createAgentTools(h);
     await tools.call('findTrajectoryExtrema',query);
     expect(await tools.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:false,code:'failed'});
-    h.navigateToAnalysisResult.mockImplementation(()=>{h.time=5;h.select('Titan');h.track('Titan');return true;});
+    h.navigateToAnalysisResult.mockImplementation(()=>{h.time=5;h.emit('time',{et:5,cause:'host'});h.emit('playback',{playing:false,rate:1});h.select('Titan');h.track('Titan');return true;});
     expect(await tools.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:true,data:{verified:true,observed:{et:5,object:'Titan',tracked:'Titan'}}});
     tools.dispose();
   });
@@ -91,4 +93,179 @@ it('keeps scientific height results in the modern Event Finder transport without
   const transport=eventPageMetadata(page,()=>null);
   expect(transport).toMatchObject({query:{provenance:{source:'authoritative-trajectories'}},items:[{metrics:[{key:r.metric,value:2,unit:'km'}],trajectoryAnalysis:{object:'Titan',source:{id:null,revision:null}}}]});
   expect(JSON.stringify(transport)).not.toContain('/private');expect(JSON.stringify(transport)).not.toContain('token=');
+});
+
+describe('routine extrema task boundary',()=>{
+  const options={available:true,truncated:false,subjects:[{object:'Titan',bodies:['Saturn'],activities:72,activityKinds:['flight']}],bodies:[{body:'Saturn',frame:'IAU_SATURN',metrics:[{metric:'reference-sphere-height' as const,available:true,reason:null}]}]};
+  const intent={objects:['Titan'],metric:'reference-sphere-height',extremum:'maximum',scope:{kind:'activities',activityKind:'flight'}};
+  function taskHost() {
+    return Object.assign(host(),{getTrajectoryAnalysisOptions:()=>options,analyzeTrajectoryExtrema:vi.fn(async(_request?:import('./contracts.js').ScriptExtremaRequest,_options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>({status:'complete' as const,body:'Saturn',reason:null,message:'/private/secret',started:true,query,scope:{requested:1,completed:1,activityIds:['flight:1']},options,response:response(),winnerId:'peak',candidateId:'peak',coverage:{assessed:true,incompleteIntervals:0,maximumGapSeconds:0}}))});
+  }
+  it('passes routine work to the local observer without letting observer failures alter the result',async()=>{
+    const h=taskHost(),value=await h.analyzeTrajectoryExtrema();
+    h.analyzeTrajectoryExtrema.mockImplementation(async(_request,options)=>{
+      options!.onProgress!(1,{completedIntervals:1,totalIntervals:1,evaluations:20});
+      return value;
+    });
+    const onProgress=vi.fn(()=>{throw new Error('UI disposed');}),tools=createAgentTools(h,{onProgress});
+    expect(await tools.call('analyzeTrajectoryExtrema',intent)).toMatchObject({ok:true});
+    expect(onProgress).toHaveBeenCalledWith(expect.any(Number),'analyzeTrajectoryExtrema',1,{completedIntervals:1,totalIntervals:1,evaluations:20});
+    tools.dispose();
+  });
+  it('delivers bounded full-scope comparison and winner provenance without source/frame leakage',async()=>{
+    const h=taskHost();const r=response();
+    r.results=Array.from({length:72},(_,i)=>({...r.results[0],id:i===0?'peak':`p${i}`,activityId:`flight:${i}`}));
+    h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),response:r,scope:{requested:72,completed:72,activityIds:r.results.map(r=>r.activityId!)}});
+    const tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    expect(result).toMatchObject({ok:true,data:{status:'complete',scope:{requested:72,completed:72},comparedCount:72,winnerId:'peak',winner:{method:{heightErrorBoundKm:null},source:{id:null}}}});
+    expect(JSON.stringify(result)).not.toContain('/private');expect(JSON.stringify(result)).not.toContain('token=');
+    expect(JSON.stringify(result).length).toBeLessThan(6000);
+    expect((result as {data:{compared:unknown[]}}).data.compared.length).toBeLessThanOrEqual(3);
+    tools.dispose();
+  });
+  it('keeps native terrain identity and budget facts when private source identifiers are withheld',async()=>{
+    const h=taskHost(),r=response();r.results[0].terrain={id:'/private/source.tif',revision:'https://private/revision',sourceUncertaintyKm:null};
+    h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),response:r});
+    const tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    expect(result).toMatchObject({data:{budgetExhausted:false,winner:{terrain:{identified:true,id:null,revision:null}}},facts:[{terrainSourceKnown:true,budgetExhausted:false}]});
+    expect(JSON.stringify(result)).not.toContain('/private');tools.dispose();
+  });
+  it('reports all candidates even when a local interval exhausts its numerical allowance',async()=>{
+    const h=taskHost(),r=response();r.status='partial';r.faults=[{code:'budget',message:'local allowance',object:'Titan',activityId:'flight:1'}];
+    r.results=Array.from({length:72},(_,i)=>({...r.results[0],id:i===0?'peak':`p${i}`,activityId:`flight:${i}`,coverage:i<17?'sampled-complete':'partial'}));
+    h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),status:'partial',reason:'work-budget',winnerId:null,response:r,scope:{requested:72,completed:17,activityIds:r.results.map(r=>r.activityId!)},coverage:{assessed:true,incompleteIntervals:55,maximumGapSeconds:.00002}} as never);
+    const tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    expect(result).toMatchObject({data:{message:expect.stringContaining('72/72 intervals produced sampled candidates'),budgetLimitedIntervals:1},facts:[{evaluated:72,completed:17,budgetLimitedIntervals:1}]});
+    expect(result.ok&&result.summary).toContain('1 interval exhausted its numerical allowance');tools.dispose();
+  });
+  it('blocks equivalent expert/task retries within one request, retaining the actual reason',async()=>{
+    const h=taskHost();h.analyzeTrajectoryExtrema.mockResolvedValue({...await h.analyzeTrajectoryExtrema(),status:'unavailable',reason:'data-unavailable',response:null,winnerId:null} as never);
+    const tools=createAgentTools(h),task=tools.begin();
+    expect(await task.call('analyzeTrajectoryExtrema',intent)).toMatchObject({ok:true,data:{reason:'data-unavailable'}});
+    expect(await task.call('findTrajectoryExtrema',{...query,frame:'IAU_MOON'})).toMatchObject({ok:false,facts:[{kind:'height-analysis',message:expect.stringContaining('data did not cover')}]});
+    expect(h.findTrajectoryExtrema).not.toHaveBeenCalled();expect(h.analyzeTrajectoryExtrema).toHaveBeenCalledTimes(2); // one fixture read, one execution
+    tools.dispose();
+  });
+  it('makes capability families scene-specific and respects underlying host omissions',async()=>{
+    const h=taskHost(),tools=createAgentTools(h);
+    expect(await tools.call('describeScene',{})).toMatchObject({data:{analysis:{subjects:[{activities:72}]}}});
+    tools.dispose();
+    const restricted=createCapabilityTools(h,{omitted:{'analysis.findTrajectoryExtrema':'Host disables numerical work'}});
+    expect(restricted.listCapabilities({domain:'analysis'}).items.find(c=>c.id==='analysis.analyzeTrajectoryExtrema')).toMatchObject({available:false});
+    restricted.dispose();
+  });
+  it('retains measured IDs across user turns but refuses late scene replacement and manual navigation takeover',async()=>{
+    const h=taskHost(),tools=createAgentTools(h);
+    await tools.call('analyzeTrajectoryExtrema',intent);
+    h.navigateToAnalysisResult.mockImplementation(()=>{h.time=5;h.select('Titan');h.track('Titan');return true;});
+    expect(await tools.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:true});
+    const task=tools.begin();h.emit('cameraInput',{});
+    expect(await task.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({code:'interrupted'});
+    tools.dispose();
+  });
+  it('ends an equivalent retry after two model rounds with the actual scientific limitation',async()=>{
+    const h=taskHost(),data={...await h.analyzeTrajectoryExtrema(),status:'unavailable',reason:'data-unavailable',response:null,winnerId:null};
+    h.analyzeTrajectoryExtrema.mockResolvedValue(data as never);h.analyzeTrajectoryExtrema.mockClear();
+    const tools=createCapabilityTools(h,{surface:'fixed'});let rounds=0;
+    const run=await runAgent({tools,prompt:'show the highest flight',transport:{send:async()=>({stop:'tool_use',content:[{type:'tool_use',id:`call-${++rounds}`,name:'analyzeTrajectoryExtrema',input:intent}]})}});
+    expect(rounds).toBe(2);expect(h.analyzeTrajectoryExtrema).toHaveBeenCalledTimes(1);
+    expect(run.outcome.kind).toBe('done');expect(run.answer).toContain('relative-state or physical-terrain data did not cover');
+    expect(run.answer).toContain('no collection winner');expect(h.navigateToAnalysisResult).not.toHaveBeenCalled();tools.dispose();
+  });
+  it('keeps exact native result ID and scientific context through follow-up compaction',async()=>{
+    const h=taskHost(),tools=createAgentTools(h),result=await tools.call('analyzeTrajectoryExtrema',intent);
+    const history=compactHistory([{role:'user',content:[{type:'text',text:'highest flight'}]},{role:'assistant',content:[{type:'tool_use',id:'h',name:'analyzeTrajectoryExtrema',input:intent}]},{role:'user',content:[{type:'tool_result',toolUseId:'h',content:JSON.stringify(result),isError:false}]},{role:'assistant',content:[{type:'text',text:'A sampled result is available.'}]}]);
+    expect(history[1].content).toEqual(expect.arrayContaining([expect.objectContaining({text:expect.stringContaining('"winnerId"')})]));expect(JSON.stringify(history)).toContain('peak');
+    expect(checkAnswer('This is the certified global maximum.',result.facts!)).not.toEqual([]);
+    tools.dispose();
+  });
+});
+
+it('bounds invalid numerical inputs through the public capability bridge and skips later batch work',async()=>{
+  const h=Object.assign(host(),{analyzeTrajectoryExtrema:vi.fn()});
+  const tools=createCapabilityTools(h,{surface:'fixed'});let rounds=0;
+  const run=await runAgent({tools,prompt:'highest height',transport:{send:async()=>{rounds++;return {stop:'tool_use',content:[
+    {type:'tool_use',id:'bad-1',name:'analyzeTrajectoryExtrema',input:{objects:[]}},
+    {type:'tool_use',id:'bad-2',name:'analyzeTrajectoryExtrema',input:{metric:'bad'}},
+    {type:'tool_use',id:'late',name:'findTrajectoryExtrema',input:query},
+  ]};}}});
+  expect(rounds).toBe(1);expect(h.analyzeTrajectoryExtrema).not.toHaveBeenCalled();expect(h.findTrajectoryExtrema).not.toHaveBeenCalled();
+  expect(run.outcome.kind).toBe('done');expect(run.answer).toContain('failed validation twice');tools.dispose();
+});
+
+it('distinguishes all available interval candidates from only the gap-free subset in answers',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAboveReferenceEllipsoid',winner:null};
+  expect(checkAnswer('This is the highest of the 17 flights analyzed without gaps, not a verified winner across all 72.',[fact])).toContainEqual(expect.stringContaining('all 72 returned interval candidates'));
+  expect(checkAnswer('This is the highest available sampled candidate across 72 flights; 17 have no gaps, and 55 have endpoint gaps. No full-scope winner is established.',[fact])).toEqual([]);
+  expect(checkAnswer('The authored view is at 2014-11-08, more precisely 2014-11-12.',[{kind:'authored-viewpoint',name:'fixture',utc:'2014-11-12T08:35:40Z'}])).toContainEqual(expect.stringContaining('no authored viewpoint date'));
+});
+
+it('does not treat a preflight datum question as a claim to a computed collection maximum',()=>{
+  const fact={kind:'height-analysis' as const,status:'clarification',message:'Which height basis?',requested:72,completed:0,evaluated:0,metric:'elevation',winner:null};
+  expect(checkAnswer('Should I measure the maximum across all 72 flights above the reference ellipsoid or above physical terrain?',[fact])).toEqual([]);
+});
+
+it('requires declared estimated or synthetic source provenance with a numerical height answer',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAboveReferenceEllipsoid',winner:null,sourceKind:'estimated-reconstruction' as const};
+  expect(checkAnswer('The sampled candidate is -2.04 km; no full-scope winner is established.',[fact])).toContainEqual(expect.stringContaining('estimated reconstruction'));
+  expect(checkAnswer('The sampled candidate is -2.04 km from an estimated reconstruction; no full-scope winner is established.',[fact])).toEqual([]);
+});
+
+it('does not turn a bounded entity-resolution activity sample into the full collection count',async()=>{
+  const h=host();Object.assign(h,{listActivities:()=>Array.from({length:72},(_,i)=>({id:`titan:flight:${i}`,name:`Flight ${i}`,kind:'flight',vehicle:'Titan',enabled:true}))});
+  const tools=createAgentTools(h),r=await tools.call('resolve',{query:'Titan'});
+  expect(r).toMatchObject({data:{activityMatches:{total:72,returned:8,complete:false}}});
+  expect(checkAnswer('I will compare all 8 Titan flights.',r.facts!)).toContainEqual(expect.stringContaining('72 requested intervals'));
+  expect(checkAnswer('I will compare all 72 Titan flights.',r.facts!)).toEqual([]);tools.dispose();
+});
+
+
+it('rejects the observed coverage/budget/source misstatement and keeps a truthful fallback',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAbovePhysicalTerrain',winner:null,
+    budgetExhausted:false,terrainSourceKnown:true,gapIntervals:55,maximumGapSeconds:.00002,sourceKind:'estimated-reconstruction' as const,
+    candidate:{value:.024018,utc:'2023-10-05T08:11:34Z',object:'vehicle',activityId:'flight:61'}};
+  const observed='The trajectory is an estimated reconstruction. The terrain source is not identified. The analysis covered only 17 of 72 flights before its work budget ran out, so this is the best completed result and not a confirmed maximum.';
+  const issues=checkAnswer(observed,[fact]);
+  expect(issues).toContainEqual(expect.stringContaining('not how many were analyzed'));
+  expect(issues).toContainEqual(expect.stringContaining('No numerical work-budget exhaustion'));
+  expect(issues).toContainEqual(expect.stringContaining('identified versioned physical terrain source'));
+  expect(checkAnswer('All 72 flights were evaluated; 17 have no detected gaps. The estimated reconstruction provides a sampled candidate, not a confirmed maximum. A versioned physical terrain source was used; its accuracy is unknown. The budget was not exhausted.',[fact])).toEqual([]);
+  expect(checkAnswer('The analysis fully covered 17 flights without gaps; 72 flights produced candidates from an estimated reconstruction.',[fact])).toEqual([]);
+  expect(checkAnswer(factSummary([fact]),[fact])).toEqual([]);
+});
+
+
+it('distinguishes local refinement limits from a collection stopping after the gap-free count',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:17,evaluated:72,metric:'heightAbovePhysicalTerrain',winner:null,budgetExhausted:true,budgetLimitedIntervals:1};
+  expect(checkAnswer('The search ran out of budget after 17 of 72 flights, so this is not a confirmed maximum.',[fact])).toContainEqual(expect.stringContaining('Local numerical limits did not stop'));
+  expect(checkAnswer('All 72 flights produced candidates. One interval reached its refinement allowance; 17 intervals have no detected gaps. No full-scope winner is established.',[fact])).toEqual([]);
+});
+
+it('keeps numerical completion distinct from reconciled temporal coverage in answers',()=>{
+  const fact={kind:'height-analysis' as const,status:'partial',message:'partial',requested:72,completed:71,evaluated:72,numericalComplete:71,temporalComplete:72,endpointReconciledIntervals:55,gapIntervals:0,maximumGapSeconds:0,metric:'heightAbovePhysicalTerrain',winner:null,budgetLimitedIntervals:1,budgetExhausted:true,candidate:{value:.024,utc:'2023-10-05T08:11:34.040Z',object:'Ingenuity',activityId:'flight:61'}};
+  expect(checkAnswer('Only 71 of 72 flights were fully covered.',[fact])).not.toEqual([]);
+  expect(checkAnswer('Flight 61 is the best candidate; 71 of 72 flights completed and Flight 1 hit its numerical limit.',[fact])).toContainEqual(expect.stringContaining('all 72 intervals were compared'));
+  const reply=factSummary([fact]);
+  expect(reply).toContain('72 have complete temporal coverage');expect(reply).toContain('71 completed numerical search');
+  expect(reply).toContain('could contain a higher value');expect(checkAnswer(reply,[fact])).toEqual([]);
+});
+
+
+it('forwards native progress through both capability surfaces and suppresses late task updates',async()=>{
+  for(const surface of ['fixed','discovery'] as const){
+    const h=host(),onProgress=vi.fn();let report!:NonNullable<import('@cosmolabe/interop').TrajectoryAnalysisOptions['onProgress']>;
+    let finish!:(value:TrajectoryExtremaResponse)=>void;
+    h.findTrajectoryExtrema.mockImplementation((_q,options?:import('@cosmolabe/interop').TrajectoryAnalysisOptions)=>{
+      report=options!.onProgress!;
+      return new Promise(resolve=>{finish=resolve;});
+    });
+    const tools=createCapabilityTools(h,{surface,onProgress}),task=tools.begin();
+    const pending=task.call('invokeCapability',{id:'analysis.findTrajectoryExtrema',input:query});
+    await vi.waitFor(()=>expect(report).toBeTypeOf('function'));
+    const work={completedIntervals:2,totalIntervals:72,evaluations:12345};
+    report(.04,work);
+    expect(onProgress).toHaveBeenLastCalledWith(task.id,'findTrajectoryExtrema',.04,work);
+    task.cancel();report(.5,{...work,completedIntervals:36});finish(response());
+    await pending;expect(onProgress).toHaveBeenCalledTimes(1);tools.dispose();
+  }
 });

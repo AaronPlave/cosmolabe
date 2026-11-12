@@ -1,4 +1,4 @@
-import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, ContinuousProfileConfiguration, EventQuery, GeometryEvent } from '@cosmolabe/core';
 import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
@@ -22,6 +22,51 @@ import type { GridSettings } from './grid.js';
  * `Universe.getBody`. The host does not raise: it does not know the line number.
  * The interpreter, which does, turns that `false` into a located error.
  */
+
+/** Existing timeline profile definition; IDs belong to the current scene. */
+export interface ScriptProfileDefinition {
+  id: string;
+  label?: string;
+  profile: ContinuousProfileConfiguration;
+  enabled?: boolean;
+  visible?: boolean;
+}
+export interface ScriptProfileInfo {
+  scene: number | null;
+  status: 'available' | 'partial' | 'unavailable' | 'missing-profile' | 'scene-reloaded';
+  definition: ScriptProfileDefinition | null;
+  resolved: ContinuousProfileConfiguration | null;
+  timeline: { present: boolean; traceVisible: boolean; window: { start: number; end: number }; samples: number; missing: number };
+  limitations: string[];
+}
+/** Exact evaluations of the existing display quantity; never interpolated. */
+export interface ScriptProfileSample { et: number; utc: string; value: number | null }
+export interface ScriptProfileSampleRequest { start: number; end: number; count?: number }
+export interface ScriptProfileData {
+  scene: number | null;
+  id: string;
+  status: ScriptProfileInfo['status'];
+  quantity: string | null;
+  unit: string | null;
+  bodies: ContinuousProfileConfiguration['bodies'] | null;
+  requestedWindow: { start: number; end: number };
+  /** Intersection with the configured profile window; null when disjoint. */
+  window: { start: number; end: number } | null;
+  samples: ScriptProfileSample[];
+  missing: number;
+  /** Runs of missing sampled epochs, not certified continuous coverage intervals. */
+  gaps: { start: number; end: number; samples: number }[];
+  /** Earliest on ties; extrema of these samples only, never refined/certified. */
+  minimum: ScriptProfileSample | null;
+  maximum: ScriptProfileSample | null;
+  sampling: { method: 'exact-point' | 'uniform'; requestedCount: number; maxCount: number; stepSeconds: number | null; coverage: 'not-certified'; interpolation: 'none' };
+  limitations: string[];
+}
+export interface ScriptProfileOptions {
+  quantities: { id: string; label: string; unit: string }[];
+  window: { start: number; end: number };
+  limitations: string[];
+}
 
 /** A three-component vector, in the units the method documents. */
 export type ScriptVec3 = readonly [number, number, number];
@@ -448,7 +493,75 @@ export interface ScriptReadiness {
   readonly limitations: readonly string[];
 }
 
+/** Bounded composition of the existing Event Finder primitives, not another solver. */
+export interface ScriptClosestApproachRequest {
+  observer: string;
+  target: string;
+  /** Choose the user's temporal scope explicitly; a phase never defaults to the whole mission. */
+  windowMode: 'coverage' | 'interval';
+  /** Both UTC calendar/ET endpoints for interval mode; omitted for coverage mode. */
+  start?: number | string;
+  end?: number | string;
+  present?: boolean;
+}
+export interface ScriptClosestApproachResult {
+  /** Identity allocated for this attempt, even if preflight cannot save/run it. */
+  query: string;
+  status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
+  reason: 'invalid-window' | 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
+  computedEventVerified: boolean;
+  /** True once native solver execution has begun; preflight rejections remain correctable. */
+  searchStarted: boolean;
+  /** A localized sample alternative was actually selected; exploratory traces never imply navigation. */
+  sampledEpochSelected: boolean;
+  windows: { start: number; end: number }[];
+  stepSeconds: number | null;
+  candidates: number;
+  result: ScriptEventResultPage | null;
+  presentation: ScriptEventFocusReceipt | null;
+  samples: ScriptProfileData | null;
+  /** Actual camera read after optional sampled-epoch framing; never an event reference. */
+  sampledView: ScriptViewComposition | null;
+  limitations: readonly string[];
+}
+
+/** Task intent; native metadata supplies datum, frame and numerical defaults. */
+export interface ScriptExtremaRequest {
+  objects: string[];
+  body?: string;
+  metric: 'elevation' | 'reference-sphere-height' | 'reference-ellipsoid-height' | 'terrain-clearance';
+  extremum: 'maximum' | 'minimum';
+  scope: { kind: 'activities'; activityKind?: string; ids?: string[]; window?: { start: number; end: number } }
+    | { kind: 'windows'; windows: { start: number; end: number }[] };
+}
+export interface ScriptExtremaOptions {
+  available: boolean;
+  subjects: { object: string; bodies: string[]; activities: number; activityKinds: string[] }[];
+  bodies: { body: string; frame: string; metrics: { metric: Exclude<ScriptExtremaRequest['metric'], 'elevation'>; available: boolean; reason: string | null }[] }[];
+  truncated: boolean;
+}
+export interface ScriptExtremaResult {
+  status: 'complete' | 'partial' | 'unavailable' | 'clarification' | 'cancelled' | 'stale';
+  reason: 'ambiguous-metric' | 'invalid-scope' | 'missing-subject' | 'ambiguous-body' | 'unsupported-metric' | 'data-unavailable' | 'work-budget' | null;
+  message: string;
+  started: boolean;
+  body: string | null;
+  query: TrajectoryExtremaQuery | null;
+  /** completed counts sampled-complete searches, not temporal coverage or compared candidates. */
+  scope: { requested: number; completed: number; evaluated?: number; activityIds: string[] };
+  options: ScriptExtremaOptions;
+  response: TrajectoryExtremaResponse | null;
+  /** Only when every requested interval has a sampled-complete result. Still not a certified global extremum. */
+  winnerId: string | null;
+  /** Best available numerical candidate; partial scope remains explicitly unranked. */
+  candidateId: string | null;
+  coverage: { assessed: boolean; incompleteIntervals: number; maximumGapSeconds: number; completeIntervals?: number; endpointReconciledIntervals?: number; unavailableSampleIntervals?: number };
+  numerical?: { completeIntervals: number; budgetLimitedIntervals: number };
+}
+
 export interface ViewerControl {
+  getTrajectoryAnalysisOptions?(objects?: string[], body?: string): ScriptExtremaOptions;
+  analyzeTrajectoryExtrema?(request: ScriptExtremaRequest, options?: TrajectoryAnalysisOptions): Promise<ScriptExtremaResult>;
   findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
   /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
   navigateToAnalysisResult?(resultId: string): boolean;
@@ -724,6 +837,9 @@ export interface ViewerControl {
   listObjects(): readonly string[];
   /** Every named viewpoint the catalog defines. */
   listViewpoints(): readonly string[];
+  /** Authored scene annotations and current navigation are separate evidence. */
+  getViewpointInfo?(name: string): ScriptViewpointInfo | undefined;
+  getObjectContext?(name: string): ScriptObjectContext | undefined;
   /**
    * The script that reproduces the current view.
    *
@@ -747,6 +863,14 @@ export interface ViewerControl {
     suggestedWindow: { start: number; end: number } | null;
     error: { code: string } | null;
   };
+  findClosestApproach?(request: ScriptClosestApproachRequest, opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptClosestApproachResult>;
+  getProfileOptions?(): ScriptProfileOptions;
+  listProfiles?(): { scene: number | null; total: number; items: ScriptProfileDefinition[] };
+  getProfile?(id: string, opts?: ScriptSceneOptions): ScriptProfileInfo;
+  getProfileValue?(id: string, et: number, opts?: ScriptSceneOptions): ScriptProfileData;
+  sampleProfileData?(id: string, request: ScriptProfileSampleRequest, opts?: ScriptSceneOptions): ScriptProfileData;
+  upsertProfile?(definition: ScriptProfileDefinition, opts?: ScriptSceneOptions): boolean;
+  removeProfile?(id: string, opts?: ScriptSceneOptions): boolean;
   listEventQueries?(): readonly ConfiguredEventQuery[];
   upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
   openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;
@@ -831,9 +955,12 @@ export interface ScriptComposedObject {
   /** Centre is in front of the camera and inside the viewport. */
   readonly inView: boolean;
   /** Nearest measured sphere covering the centre's line of sight: full = disc entirely behind it. */
-  readonly occlusion: { readonly by: string; readonly kind: 'partial' | 'full' } | null;
+  readonly occlusion: { readonly by: string; readonly kind: 'partial' | 'full'; readonly basis?: 'reference-sphere' | 'model-bounds' } | null;
 }
 export interface ScriptViewComposition {
+  /** False after a seek/origin change until native body placement catches up. */
+  readonly fresh?: boolean;
+  readonly observedEt?: number | null;
   readonly scene: number | null;
   readonly et: number;
   readonly playing: boolean;
@@ -928,6 +1055,24 @@ export interface ScriptInstrument {
   /** Exact clock freshness is separate from physical pointing of the last frame. */
   fresh?: boolean;
   renderError?: string | null;
+}
+export interface ScriptViewpointInfo {
+  name: string;
+  source: 'catalog-viewpoint' | 'session-viewpoint';
+  epoch: number | null;
+  authoredTime: string | number | null;
+  origin: string | null; tracked: string | null; lookAt: string | null;
+  camera: ScriptCamera | null;
+  navigation: { poseMatches: boolean; epochMatches: boolean | null; observedEt: number; playing: boolean;
+    positionErrorKm: number | null; targetErrorKm: number | null };
+  limitations: string[];
+}
+export interface ScriptObjectContext {
+  object: string; source: 'scene-configuration';
+  existence: { start: number | null; end: number | null };
+  trajectoryArcs: { start: number | null; end: number | null; center: string | null }[];
+  geometryWindows: { start: number | null; end: number | null }[];
+  truncated: boolean; limitations: string[];
 }
 export interface ScriptBookmark {
   name: string; camera: ScriptCamera; origin: string | null; tracked: string | null;
