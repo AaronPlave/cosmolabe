@@ -41,7 +41,7 @@ try {
   await cdp.send('Profiler.enable');await cdp.send('Profiler.start');
   await page.evaluate(()=>{
     const gl=document.querySelector('canvas').getContext('webgl2'),ext=gl.getExtension('WEBGL_debug_renderer_info');
-    const p=window.__terrainPerf={renderer:gl.getParameter(ext.UNMASKED_RENDERER_WEBGL),started:performance.now(),calls:0,tasks:[],beats:[],frames:[],progress:[],sampleMs:[],interactions:[],done:false};
+    const p=window.__terrainPerf={renderer:gl.getParameter(ext.UNMASKED_RENDERER_WEBGL),started:performance.now(),calls:0,tasks:[],beats:[],frames:[],progress:[],statusSamples:[],sampleMs:[],interactions:[],done:false};
     const body=window.__terrainState.getRenderer().getBodyMesh('Mars'),original=body.requestTerrainAnalysisSample;
     body.requestTerrainAnalysisSample=async function(...args){
       if(!p.calls)p.analysisStart=performance.now();p.calls++;const start=performance.now();
@@ -49,7 +49,7 @@ try {
     };
     window.__terrainObserver=new PerformanceObserver(l=>p.tasks.push(...l.getEntries().map(e=>({start:e.startTime,duration:e.duration}))));
     window.__terrainObserver.observe({type:'longtask'});
-    let last=performance.now();window.__terrainTimer=setInterval(()=>{const now=performance.now();p.beats.push({time:now,ms:now-last});last=now},20);
+    let last=performance.now();window.__terrainTimer=setInterval(()=>{const now=performance.now();p.beats.push({time:now,ms:now-last});last=now;const progress=window.__terrainAsk.ask.turns.at(-1)?.progress;if(progress && p.statusSamples.at(-1)?.completedIntervals!==progress.completedIntervals)p.statusSamples.push({...progress,text:document.querySelector('.ask-status')?.textContent?.trim()})},20);
     let frame=performance.now();const raf=now=>{p.frames.push({time:now,ms:now-frame});frame=now;if(!p.done)requestAnimationFrame(raf)};requestAnimationFrame(raf);
   });
   if(live){
@@ -71,6 +71,7 @@ try {
     console.log(JSON.stringify({calls:failure.perf.calls,turn:failure.turn}));throw error;
   }
   console.log('terrain computation active');
+  if(live){await page.waitForFunction(()=>window.__terrainAsk.ask.turns.at(-1)?.progress?.totalIntervals===72);assert.match(await page.locator('.ask-status').last().innerText(),/\d+\/72 intervals searched.*evaluations/);}
   let stopMs=null;
   if(!complete){
     await new Promise(resolve=>setTimeout(resolve,10000));
@@ -97,7 +98,7 @@ try {
   } else await page.waitForFunction(live=>live?!window.__terrainAsk.ask.running:window.__terrainPerf.done,live,{timeout:900000});
   const report=await page.evaluate(live=>{
     const p=window.__terrainPerf;p.done=true;p.finished??=performance.now();clearInterval(window.__terrainTimer);window.__terrainObserver.disconnect();
-    if(live){const t=window.__terrainAsk.ask.turns.at(-1);p.turn={status:t.status,reply:t.reply,error:t.error,stats:t.stats,steps:t.steps,result:t.result};}
+    if(live){const t=window.__terrainAsk.ask.turns.at(-1);p.turn={status:t.status,progress:t.progress,reply:t.reply,error:t.error,stats:t.stats,steps:t.steps,result:t.result};}
     p.results=Object.values(window.__terrainAnalysis.analysis.eventResults).flat().filter(e=>e.trajectoryAnalysis).map(e=>e.trajectoryAnalysis);
     p.activities=window.cosmo.listActivities().filter(a=>a.vehicle==='Ingenuity'&&a.kind==='flight'&&a.enabled!==false).map(a=>a.id);
     p.state={et:window.cosmo.getTime(),selected:window.cosmo.getSelected(),tracked:window.cosmo.getTracked(),playing:window.cosmo.isPlaying(),camera:window.cosmo.getCamera()};return p;
@@ -128,6 +129,9 @@ try {
     },best);
     assert.ok(Math.abs(report.control.value-best.value)<1e-7);
     if(live){
+      assert.ok(report.statusSamples.some(p=>p.completedIntervals>0 && p.completedIntervals<72 && /intervals searched/.test(p.text)));
+      assert.equal(report.turn.progress?.completedIntervals,72);
+      assert.equal(report.turn.progress?.evaluations,report.calls);
       assert.deepEqual(checkAnswer(report.turn.reply,report.turn.result.facts),[]);
       assert.match(report.turn.reply,/72/);assert.match(report.turn.reply,/numerical|allowance|budget/i);
       assert.equal(report.results.filter(r=>r.completeness?.temporal==='complete').length,72);

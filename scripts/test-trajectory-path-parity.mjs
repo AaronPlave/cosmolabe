@@ -13,6 +13,19 @@ try {
     console.log('starting',metric,path);
     const context=await browser.newContext({viewport:{width:1400,height:900}}),page=await context.newPage();
     await page.bringToFront();
+    // Optional benchmark-only counters in Vite's served module. They do not
+    // change source, grid construction, query budgets or the solver's results.
+    if(process.env.TRAJECTORY_PARITY_PROFILE==='1')await page.route(/\/packages\/core\/src\/geometry\/trajectory-extrema\.(?:js|ts)(?:\?|$)/,async route=>{
+      const response=await route.fetch();let body=await response.text();
+      const edits=[
+        ['const evaluate = async (et) => {',"let profilePhase='sampling'; const evaluate = async (et) => {"],
+        ['evaluations++;',"evaluations++; const w=globalThis.__trajectoryWork??={}; const c=w[activity?.id??object]??={sampling:0,refinement:0}; c[profilePhase]++; globalThis.__trajectoryPhase=profilePhase;"],
+        ['const times = new Set(knots);',"profilePhase='sampling'; const times = new Set(knots);"],
+        ['for (let k = 1; k < sampled.length - 1',"profilePhase='refinement'; (globalThis.__trajectoryWork[activity?.id??object].gridCandidates??=[]).push({value:best?.value,et:best?.et}); for (let k = 1; k < sampled.length - 1"],
+      ];
+      for(const [from,to]of edits){assert.equal(body.split(from).length,2,`profiling marker: ${from}`);body=body.replace(from,to);}
+      await route.fulfill({response,body});
+    });
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(new URL('?catalog=test-catalogs/ingenuity-jezero',base).href);
     await page.waitForFunction(()=>window.cosmo?.getScene()?.ready,null,{timeout:600000});
@@ -44,13 +57,13 @@ try {
       const gl=document.querySelector('canvas').getContext('webgl2'),ext=gl.getExtension('WEBGL_debug_renderer_info');
       p.renderer=gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
       const rect=document.querySelector('canvas').getBoundingClientRect();p.canvas={width:rect.width,height:rect.height};
-      p.calls=0;p.locations=new Set();p.progress=[];p.tasks=[];p.beats=[];
+      p.terrainWaitMs={sampling:0,refinement:0};p.calls=0;p.locations=new Set();p.progress=[];p.tasks=[];p.beats=[];
       const original=mesh.requestTerrainAnalysisSample;
-      mesh.requestTerrainAnalysisSample=async function(...args){p.firstTerrain??=performance.now();p.calls++;p.locations.add(`${args[0]},${args[1]}`);try{return await original.apply(this,args)}finally{p.lastTerrain=performance.now()}};
+      mesh.requestTerrainAnalysisSample=async function(...args){const start=performance.now(),phase=globalThis.__trajectoryPhase??'sampling';p.firstTerrain??=start;p.calls++;p.locations.add(`${args[0]},${args[1]}`);try{return await original.apply(this,args)}finally{p.lastTerrain=performance.now();p.terrainWaitMs[phase]+=p.lastTerrain-start}};
       p.observer=new PerformanceObserver(l=>p.tasks.push(...l.getEntries().map(e=>e.duration)));p.observer.observe({type:'longtask'});
       let last=performance.now();p.timer=setInterval(()=>{const now=performance.now();p.beats.push(now-last);last=now},20);
       p.start=performance.now();
-      if(path==='ask-operation')p.work=p.task.analyzeTrajectoryExtrema(p.request,{onProgress:f=>p.progress.push(f)}).then(r=>{p.result=r;p.done=true;p.end=performance.now()});
+      if(path==='ask-operation')p.work=p.task.analyzeTrajectoryExtrema(p.request,{onProgress:(fraction,work)=>p.progress.push({fraction,...work})}).then(r=>{p.result=r;p.done=true;p.end=performance.now()});
     },{metric,path});
     if(path!=='ask-operation'){
       await page.getByRole('button',{name:'Find maximum',exact:true}).click();
@@ -60,9 +73,14 @@ try {
     const report=await page.evaluate(({metric,path})=>{
       const p=window.__parity;clearInterval(p.timer);p.observer.disconnect();
       const results=Object.values(p.analysis.analysis.eventResults).flat().filter(e=>e.trajectoryAnalysis).map(e=>e.trajectoryAnalysis);
-      return{metric,path,renderer:p.renderer,canvas:p.canvas,query:p.query,activities:p.activities,wallMs:p.end-p.start,terrainMs:p.lastTerrain-p.firstTerrain,terrainCalls:p.calls,uniqueLocations:p.locations.size,maxTaskMs:Math.max(0,...p.tasks),maxHeartbeatMs:Math.max(0,...p.beats),progress:p.progress,result:p.result,fault:p.finder.ef.fault,hint:p.finder.ef.hint,storedDefinition:p.analysis.analysis.items.find(i=>i.type==='event-query')?.query,results};
+      return{metric,path,renderer:p.renderer,canvas:p.canvas,query:p.query,activities:p.activities,wallMs:p.end-p.start,terrainMs:p.lastTerrain-p.firstTerrain,terrainCalls:p.calls,uniqueLocations:p.locations.size,work:globalThis.__trajectoryWork,terrainWaitMs:p.terrainWaitMs,maxTaskMs:Math.max(0,...p.tasks),maxHeartbeatMs:Math.max(0,...p.beats),progress:p.progress,result:p.result,fault:p.finder.ef.fault,hint:p.finder.ef.hint,storedDefinition:p.analysis.analysis.items.find(i=>i.type==='event-query')?.query,results};
     },{metric,path});
     assert.deepEqual(errors,[]);assert.equal(report.fault,null);
+    for(const result of report.results)assert.deepEqual(Object.keys(result.window).sort(),['end','start']);
+    if(process.env.TRAJECTORY_PARITY_PROFILE==='1'){
+      assert.ok(report.work,'Loaded solver profiling counters required');
+      assert.equal(Object.values(report.work).reduce((n,w)=>n+w.sampling+w.refinement,0),report.results.reduce((n,r)=>n+r.method.evaluations,0));
+    }
     if(path==='stored-rerun'&&process.env.TRAJECTORY_PARITY_ASSERT==='1')assert.deepEqual(report.storedDefinition.trajectoryAnalysis,report.query);
     assert.equal(report.activities.length,72);
     if(process.env.TRAJECTORY_PARITY_ASSERT==='1'){
