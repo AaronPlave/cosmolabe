@@ -1405,7 +1405,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
         source: { id: expect.stringContaining('moon-lola-118m'), revision: null },
         datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
         resolutionMeters: null, runtime: { ready: true, loaded: null, coversView: null } },
-      cubeImagery: { endpoint: 'data/moon-imagery-cube-wac-nac/imagery.json', source: { revision: null }, runtime: { ready: null, loaded: null, coversView: null } },
+      cubeImagery: { endpoint: 'data/moon-imagery-cube-wac/imagery.json', source: { revision: null }, runtime: { ready: null, loaded: null, coversView: null } },
     });
     expect(data.textures.map(t => t.kind)).toEqual(['baseMap', 'normalMap', 'displacementMap']);
     expect(data.textures.every(t => t.runtime.loaded === null && t.source.id === null)).toBe(true);

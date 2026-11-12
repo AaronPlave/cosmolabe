@@ -258,8 +258,14 @@ def raster_open(path):
         eqc_zero = srs.GetAttrValue('PROJECTION') == 'Equirectangular' and srs.GetLinearUnits() == 1 and all(
             abs(srs.GetProjParm(key, 0)) < 1e-14 for key in
             ['central_meridian', 'latitude_of_origin', 'standard_parallel_1', 'false_easting', 'false_northing'])
+        south_stereo = srs.GetAttrValue('PROJECTION') == 'Polar_Stereographic' and srs.GetLinearUnits() == 1 and (
+            abs(srs.GetProjParm('latitude_of_origin', 0) + 90) < 1e-14 and
+            abs(srs.GetProjParm('scale_factor', 1) - 1) < 1e-14 and all(
+                abs(srs.GetProjParm(key, 0)) < 1e-14 for key in
+                ['central_meridian', 'false_easting', 'false_northing']))
         _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period,
-                          eqc_zero=eqc_zero, radius_m=a, premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
+                          eqc_zero=eqc_zero, south_stereo=south_stereo, radius_m=a,
+                          premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
     return _SRC[path]
 
 
@@ -275,6 +281,17 @@ def read_window(band, c0, r0, w, h, tries=6):
             time.sleep(2 ** k)
 
 
+def south_stereographic(lon, lat, radius_m):
+    """Zero-origin, unit-scale spherical south-polar stereographic, in metres.
+
+    The raster CRS gate above is essential: this is a projection conversion in
+    the source frame, not an orientation transform or an arbitrary stereo CRS.
+    """
+    rho = 2 * radius_m * np.tan(np.radians(90 + lat) / 2)
+    angle = np.radians(lon)
+    return rho * np.sin(angle), rho * np.cos(angle)
+
+
 def raster_tile(path, face, L, x, y, T, g, ss):
     """(value, alpha) per output pixel, each (n, n) float: bilinear from the source overview
     finer than ~0.4 sample spacing, box-averaged over the SS×SS samples; nodata → alpha 0."""
@@ -288,6 +305,8 @@ def raster_tile(path, face, L, x, y, T, g, ss):
         # and native-window registration tests. Avoid constructing tens of
         # millions of Python point lists for each full-resolution mission tile.
         px, py = np.radians(lon.ravel())*src['radius_m'], np.radians(lat.ravel())*src['radius_m']
+    elif src['south_stereo']:
+        px, py = south_stereographic(lon.ravel(), lat.ravel(), src['radius_m'])
     else:
         pts = np.array(src['tr'].TransformPoints(np.column_stack([lon.ravel(), lat.ravel()]).tolist()))[:, :2]
         px, py = pts[:, 0], pts[:, 1]
@@ -421,6 +440,9 @@ def tile_job(key):
         img = tile(J['source'], face, L, x, y, T, g, ss)
     elif J['kind'] == 'composite':
         img = composite_tile(J['base'], J['detail'], face, L, x, y, T, g, ss)
+    elif J['kind'] == 'base':
+        value, _ = raster_tile(J['source'], face, L, x, y, T, g, ss)
+        img = np.clip(np.round(value), 0, 255).astype(np.uint8)[..., None]
     else:
         img = nac_tile(J['source'], face, L, x, y, T, g, ss)
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
@@ -463,7 +485,7 @@ def marker_table(tiles, T, g):
 def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     t0 = time.time()
     os.makedirs(args.out, exist_ok=True)
-    ext = 'jpg' if kind == 'composite' else 'png'  # opaque grey: JPEG is a third of the bytes
+    ext = 'jpg' if kind in ('composite', 'base') else 'png'  # opaque grey
     _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext, radius_km=R_KM,
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)

@@ -163,7 +163,7 @@ describe('development managed datasets', () => {
     expect(f.logs.join('\n')).toContain('Local URLs retained');
   });
 
-  it('resolves the real MoonFall catalog against its two pinned products in an empty checkout', async () => {
+  it('resolves the real MoonFall catalog against its independent pinned products in an empty checkout', async () => {
     const f = fixture();
     const datasets = loadDatasets().datasets;
     const catalog = JSON.parse(readFileSync(join(ROOT, 'apps/viewer/test-catalogs/moonfall-shackleton.json'), 'utf8'));
@@ -172,7 +172,9 @@ describe('development managed datasets', () => {
     for (const [id, file] of [
       ['cube-terrain/moon-terrain-cube', 'tileset.json'],
       ['cube-terrain/moon-terrain-cube', 'cpu-grids.json'],
-      ['cube-imagery/moon-imagery-cube-wac-nac', 'imagery.json'],
+      ['cube-imagery/moon-imagery-cube-wac', 'imagery.json'],
+      ['cube-imagery/moon-imagery-cube-nac-independent', 'imagery.json'],
+      ['cube-imagery/moon-imagery-cube-psr-nac-stretch', 'imagery.json'],
     ]) expect(body).toContain(hosted(datasets[id], file));
     expect(body).not.toContain('/test-catalogs/data/moon-terrain-cube/');
   });

@@ -47,6 +47,7 @@ import { parseArgs } from 'node:util';
 import { bakeFlight, validateFlight, terrainSource, terrainDigest, sha256 } from './lib/moonfall-clearance.mjs';
 import { hoppers } from './moonfall-schedule.mjs';
 import { moonfallActivities } from './mission-activities.mjs';
+import { lunarOpticalImagery } from './lib/lunar-optical-imagery.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-shackleton.json');
@@ -55,7 +56,6 @@ const CACHE_FILE = join(CACHE_DIR, 'moon-elevations-cube.json');
 const ROOT = join(__dirname, '..');
 const DATASETS = JSON.parse(readFileSync(join(__dirname, 'data-hosting', 'datasets.json'), 'utf8')).datasets;
 const TERRAIN = DATASETS['cube-terrain/moon-terrain-cube'];
-const IMAGERY = DATASETS['cube-imagery/moon-imagery-cube-wac-nac'];
 const { values: opt } = parseArgs({ options: { grids: { type: 'string' } } });
 
 const MISSION = {
@@ -324,11 +324,12 @@ const catalog = {
             id: 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)',
             kind: 'height-grid',
           },
+          imagery: lunarOpticalImagery(),
           cubeSphere: {
             cpuGrids: `${TERRAIN.catalogPrefix}cpu-grids.json`,
             // Measured Retina tilt/zoom history needs more than the generic
             // 160 MiB single-source target, including usable parent pages.
-            imagery: { url: `${IMAGERY.catalogPrefix}imagery.json`, maxTextureBytes: 512 * 1024 * 1024 },
+            imagery: { maxTextureBytes: 512 * 1024 * 1024 },
           },
         },
       },

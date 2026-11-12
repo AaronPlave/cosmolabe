@@ -332,6 +332,27 @@
       "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/imagery-65a14eef13d9c08962ea5879",
       "catalogPrefix": "data/curiosity-cube/imagery-65a14eef13d9c08962ea5879/",
       "build": "65a14eef13d9c08962ea5879f795274b"
+    },
+    "cube-imagery/moon-imagery-cube-wac": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-wac",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-wac",
+      "catalogPrefix": "data/moon-imagery-cube-wac/",
+      "build": "cube-imagery-base-8382ea2b8d3b8ff4"
+    },
+    "cube-imagery/moon-imagery-cube-nac-independent": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-nac-independent",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-nac-independent",
+      "catalogPrefix": "data/moon-imagery-cube-nac-independent/",
+      "build": "cube-imagery-nac-48f50054db064666"
+    },
+    "cube-imagery/moon-imagery-cube-psr-nac-stretch": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-psr-nac-stretch",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-psr-nac-stretch",
+      "catalogPrefix": "data/moon-imagery-cube-psr-nac-stretch/",
+      "build": "cube-imagery-raster-997ebce1d5066c40"
     }
   }
 }
