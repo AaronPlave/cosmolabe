@@ -115,9 +115,12 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
       if (existence.length && !existence.some(f => Math.abs(f.secondsBeforeStart - seconds) <= tolerance)) issues.push('The relative scene-existence time contradicts the returned ET difference. Quote the configured start UTC or the provided seconds-before-start; this is a rendering boundary, not a physical release time.');
     }
   }
+  const profiles = facts.filter(f => f.kind === 'sampled-profile');
   const samples = facts.filter(f => f.kind === 'sampled-range');
   const sampled = samples.filter(f => f.eventSearchUnavailable || f.missing > 0).at(-1);
-  const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(text);
+  const countWords = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+  const countText = text.replace(/\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi, word => String(countWords.indexOf(word.toLowerCase())));
+  const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(countText) || sampled && new RegExp(`\\b${sampled.missing}/${sampled.count}\\s+(?:missing|gaps?)\\b`, 'i').test(countText);
   if (sampled && !disclosedMissing) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
   if (samples.length && !events.length) {
     const unsupported = sentences(text).find(s => /\b(?:true|exact|verified|confirmed|actual)\s+(?:physical\s+)?(?:separation|release|detachment|contact|touchdown)\b/i.test(s) && !NEGATED.test(s) && !/\b(?:not|cannot|can't|doesn't|does not|unresolved|unknown|uncertain|unconfirmed)\b/i.test(s));
@@ -131,19 +134,19 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
     // Rounded speech ("about 1 AU", "3.5 billion km") is fine; an unsupported number is not.
     if (!known.some(k => Math.abs(d.km - k) <= (events.length ? 0.05 * k + 0.5 : Math.max(1e-6, 0.05 * k)))) issues.push(`"${d.text}" matches no distance the viewer reported (${[...new Set([...events.flatMap(f => [f.rangeKm, f.altitudeKm]), ...samples.map(s => s.minimumKm)].filter((v): v is number => typeof v === 'number'))].slice(0, 6).map(v => `${v.toPrecision(4)} km`).join(', ')})`);
   }
-  const days = [...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
+  const days = [...profiles.flatMap(p => p.samples.map(s => dayOf(s.utc))), ...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
   for (const d of statedDates(text)) if (days.length && !days.some(k => dayDiff(k, d.day) <= 1)) issues.push(`"${d.text}" matches no date the viewer reported`);
   // Calendar timestamps are compared at the precision the answer actually states.
   // Dates alone keep the existing one-day tolerance; a stated clock time must
   // match a published epoch/window bound within a second or displayed minute.
-  const epochs = [...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
+  const epochs = [...profiles.flatMap(p => p.samples.map(s => s.utc)), ...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
   const timestamps = /\b(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(?:Z|\s*UTC)?\b/g;
   for (const m of text.matchAll(timestamps)) {
     const epoch = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4] ?? '00'}.${m[5] ?? '000'}Z`);
     const tolerance = m[4] ? 1000 : 60000;
     if (epochs.length && !epochs.some(e => Math.abs(e - epoch) < tolerance)) issues.push(`"${m[0]}" matches no epoch the viewer reported`);
   }
-  const ets = samples.flatMap(s => [s.minimumEt, ...(s.samples ?? []).map(v => v.et)]);
+  const ets = [...profiles.flatMap(p => p.samples.map(s => s.et)), ...samples.flatMap(s => [s.minimumEt, ...(s.samples ?? []).map(v => v.et)])];
   for (const m of text.matchAll(/\bET\s*([+-]?\d+(?:\.\d+)?)/g)) {
     if (ets.length && !ets.some(e => Math.abs(e - Number(m[1])) <= 1)) issues.push(`"${m[0]}" matches no sampled epoch the viewer reported`);
   }
@@ -179,6 +182,18 @@ export function factSummary(facts: readonly ResultFact[]): string {
     : `${height.message} ${height.completed}/${height.requested} requested intervals completed; no collection winner was established.`;
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
   const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
+  // A paired range/range-rate history is already computed by the native
+  // sampler. Preserve that evidence when replacing a contradictory answer;
+  // a universal minimum-only fallback discards the comparison the person sees.
+  const rate = facts.filter(f => f.kind === 'sampled-profile').filter(f => f.quantity === 'range-rate' && f.unit === 'km/s').at(-1);
+  const history = rate && facts.filter(f => f.kind === 'sampled-range').filter(f => f.startUtc === rate.startUtc && f.endUtc === rate.endUtc
+    && [f.observer,f.target].every(n => [rate.observer,rate.target].includes(n))).at(-1);
+  const rates = rate?.samples.filter((s): s is typeof s & { value: number } => s.value !== null) ?? [];
+  if (!events.length && history && rate && rates.length > 1 && history.samples?.length) {
+    const first = history.samples[0], last = history.samples.at(-1)!;
+    const value = (v: number) => Number(v.toPrecision(6));
+    return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.`;
+  }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
   }

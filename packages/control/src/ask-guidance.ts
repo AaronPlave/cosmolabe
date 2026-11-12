@@ -15,18 +15,18 @@ export function guidanceExamples({ capabilities, scene, pair = null }: {
   if (available.has('camera.viewpoint')) {
     for (const v of (scene.viewpoints?.items ?? []).filter(v => v.source === 'catalog-viewpoint').slice(0, 2)) {
       result.push({ kind: 'show', label: `Show ${v.name}`, prompt: `Show the authored viewpoint ${JSON.stringify(v.name)} and explain what is actually visible.`,
-        evidence: 'Authored view · resulting visibility unverified' });
+        evidence: 'Preset camera view; no event calculated. Objects may be small or hidden.' });
     }
   }
   const imagery = scene.focusImagery;
   if (available.has('surface.getImagery') && imagery && imagery.total > 0) {
     result.push({ kind: 'inspect', label: `Inspect imagery on ${imagery.body}`, prompt: `What imagery is configured on ${JSON.stringify(imagery.body)}, and what is its current loading status? Distinguish configuration from verified coverage.`,
-      evidence: `${imagery.total} configured layers · current-view coverage not established` });
+      evidence: `${imagery.total} imagery layers listed in this scene. Check whether they are loaded and visible here.` });
   }
   if (pair?.explicitlySelected && pair.positionAvailable === true && pair.observer !== pair.target && available.has('profiles.upsertProfile') && available.has('profiles.sampleProfileData')) {
     result.push({ kind: 'explore', label: `Explore ${pair.observer}–${pair.target} distance`,
       prompt: `Show how the center distance between ${JSON.stringify(pair.observer)} and ${JSON.stringify(pair.target)} changes over the visible timeline. Report sampling limits and gaps.`,
-      evidence: 'Calculation available · positions available now; interval coverage not certified. Center distance is not clearance.' });
+      evidence: 'Ask to plot distance between object centers. Some dates may have no data; this does not measure distance to a surface.' });
   }
   return result.slice(0, 5);
 }

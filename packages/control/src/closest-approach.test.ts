@@ -271,3 +271,29 @@ it('requires actual sampled gaps to be disclosed even without a prior Event Find
   expect(checkAnswer('The native profile shows closing then opening.', facts)).toEqual([expect.stringMatching(/6 missing samples/)]);
   expect(checkAnswer('The native profile shows closing then opening; 6 missing samples out of 32.', facts)).toEqual([]);
 });
+
+it('accepts truthful gap wording and times of missing samples, while rejecting invented gap times', () => {
+  const range: Extract<ResultFact, { kind: 'sampled-range' }> = { kind: 'sampled-range', observer: 'Probe', target: 'Body', startUtc: '2004-06-30T07:12:12Z', endUtc: '2004-07-02T16:45:48Z', count: 32, missing: 6,
+    minimumKm: 104291, minimumUtc: '2004-07-01T01:46:16Z', minimumEt: 1, eventSearchUnavailable: false };
+  const facts: ResultFact[] = [range, { kind: 'sampled-profile', observer: 'Probe', target: 'Body', quantity: 'range', unit: 'km',
+    startUtc: range.startUtc, endUtc: range.endUtc, count: 32, missing: 6, samples: [{ value: null, utc: '2004-07-02T13:02:59Z', et: 2 }] }];
+  expect(checkAnswer('Six missing samples, including a gap at 2004-07-02 13:03 UTC.', facts)).toEqual([]);
+  expect(checkAnswer('6/32 missing samples, including a gap at 2004-07-02 13:03 UTC.', facts)).toEqual([]);
+  expect(checkAnswer('Six missing samples, including a gap at 2004-07-02 13:10 UTC.', facts)).toEqual([expect.stringMatching(/matches no epoch/)]);
+});
+
+it('retains a paired history comparison in the safe fallback rather than replacing it with only a minimum', async () => {
+  const { factSummary } = await import('./answer-check.js');
+  const facts: ResultFact[] = [
+    { kind: 'sampled-range', observer: 'Probe', target: 'Body', startUtc: '2004-06-30T00:00:00Z', endUtc: '2004-07-02T00:00:00Z', count: 3, missing: 0,
+      minimumKm: 100, minimumUtc: '2004-07-01T00:00:00Z', minimumEt: 1, eventSearchUnavailable: false,
+      samples: [{ km: 700, utc: '2004-06-30T00:00:00Z', et: 0 }, { km: 100, utc: '2004-07-01T00:00:00Z', et: 1 }, { km: 1200, utc: '2004-07-02T00:00:00Z', et: 2 }] },
+    { kind: 'sampled-profile', observer: 'Probe', target: 'Body', quantity: 'range-rate', unit: 'km/s', startUtc: '2004-06-30T00:00:00Z', endUtc: '2004-07-02T00:00:00Z', count: 3, missing: 0,
+      samples: [{ value: -11, utc: '2004-06-30T00:00:00Z', et: 0 }, { value: 0, utc: '2004-07-01T00:00:00Z', et: 1 }, { value: 7, utc: '2004-07-02T00:00:00Z', et: 2 }] },
+  ];
+  const answer = factSummary(facts);
+  expect(answer).toContain('-11 and 7 km/s');
+  expect(answer).toContain('negative means closing, positive means opening');
+  expect(answer).toContain('700 km through a sampled minimum of 100 km to 1200 km');
+  expect(answer).toContain('do not certify a physical event or surface clearance');
+});
