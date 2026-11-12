@@ -3,12 +3,13 @@
  * never provider messages, signed reasoning, request headers or raw catalogs.
  */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
 import { reliabilityCases, promptsOf, turnPredicates, judge, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
+import { explorationCases, explorationRubric } from './ask-benchmark/exploration.mjs';
 import { etToDate, SPHERE_OF_INFLUENCE_KM } from '@cosmolabe/core';
 
 const list = (name, all) => (process.env[name] ? process.env[name].split(',').filter(v => all.includes(v)) : all);
@@ -19,7 +20,9 @@ const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
 const suite = process.env.ASK_BENCHMARK_SUITE ?? 'reliability';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
-const pool = [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
+assert.ok(['reliability', 'legacy', 'exploration', 'all'].includes(suite), 'Unknown benchmark suite');
+const pool = suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
+  : [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
 const wanted = process.env.ASK_BENCHMARK_CASES?.split(',');
 const selected = pool.filter(c => !wanted || wanted.includes(c.id) || (wanted.includes('critical') && c.critical));
 assert.ok(selected.length && models.length && modes.length);
@@ -31,6 +34,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
   limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
+if (suite === 'exploration') report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
 if (process.env.ASK_BENCHMARK_LIVE !== '1') {
   console.log(JSON.stringify({ ...report, plan: selected }, null, 2));
   process.exit(0);
@@ -45,6 +49,8 @@ report.availability = { checked: new Date().toISOString(), models: listing.data.
 assert.ok(models.every(id => report.availability.models.includes(id)), 'Every reviewed model ID must be available');
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/';
 const output = process.env.ASK_BENCHMARK_REPORT ?? '/tmp/ask-benchmark.json';
+const captures = process.env.ASK_BENCHMARK_CAPTURES;
+if (captures) mkdirSync(captures, { recursive: true });
 const allUsage = [];
 function cellProxy(model, cellUsage) {
   let upstreamLatencyMs = null, outputCalls = [];
@@ -104,7 +110,7 @@ try {
         // The page always calls its configured :8799 endpoint; each harness forwards to its own proxy port, so runs can go in parallel.
         await route.continue({ url: `http://127.0.0.1:${proxyPort}/` });
       });
-      const run = { task: test.id, repeat, model, mode, arm, ...(test.reliability ? { reliability: true } : {}), order: report.runs.length, rounds, result: null };
+      const run = { task: test.id, repeat, model, mode, arm, ...(test.reliability && !test.assessment ? { reliability: true } : {}), ...(test.assessment ? { assessment: true } : {}), order: report.runs.length, rounds, result: null };
       report.runs.push(run);
       try {
         console.log(`Running ${test.id} ${model} ${mode}`);
@@ -266,10 +272,29 @@ try {
               approvals++;
               await page.evaluate(ok => window.__askBench.answerAskApproval(ok), policy === 'approve');
             }
-            const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
+            const turn = await page.evaluate(assessment => { const t = window.__askBench.ask.turns.at(-1);
               return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, report: t.result.report, facts: t.result.facts } : null,
-                steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
-                  ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; });
+                steps: t.steps.map(s => ({ ...(assessment ? { id: s.id, input: s.input, observation: s.result?.data } : {}), name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
+                  ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; }, !!test.assessment);
+            if (test.assessment) {
+              for (const step of turn.steps) { step.modelVisible = visibleResults.get(step.id) ?? null; delete step.id; }
+              turn.state = await page.evaluate(() => window.__benchSnapshot());
+              turn.native = await page.evaluate(() => {
+                const c = window.cosmo;
+                const profiles = c.listProfiles();
+                return { events: window.__benchEvent(), profiles: profiles.items.map(p => {
+                  const profile = c.getProfile(p.id);
+                  return { profile, samples: c.sampleProfileData(p.id, { ...profile.timeline.window, count: 16 }) };
+                }) };
+              });
+              // Projection comes from the render camera, independently of Ask's own view verdict.
+              const objects = await page.evaluate(() => window.cosmo.listObjects());
+              turn.projection = await page.evaluate(names => window.__probeComposition(names), objects);
+              if (captures) {
+                turn.capture = `${test.id}-${repeat}-${i}.png`;
+                await page.screenshot({ path: `${captures}/${turn.capture}` });
+              }
+            }
             turn.approvals = approvals;
             turn.latencyMs = Math.round(performance.now() - turnStarted);
             if (test.composition?.epochTurn === i) context.epoch = await page.evaluate(() => window.cosmo.getTime());
@@ -308,9 +333,9 @@ try {
             if (turn.status !== 'done') break; // a stopped conversation is the observation; do not keep spending
           }
           run.latencyMs = Math.round(performance.now() - started);
-          run.score = scoreReliability(test, run.result.turns);
-          run.classification = classify(test, run);
-          run.suspectedFalseSuccess = suspectedFalseSuccess(run);
+          run.score = test.assessment ? { verdict: 'pending-review', rubric: test.rubric } : scoreReliability(test, run.result.turns);
+          run.classification = test.assessment ? 'unreviewed' : classify(test, run);
+          run.suspectedFalseSuccess = test.assessment ? null : suspectedFalseSuccess(run);
           run.usage = summarizeUsage(cellUsage);
           run.requestUsage = cellUsage.map(({ inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, upstreamLatencyMs, outputCalls }) => ({ inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, upstreamLatencyMs, outputCalls }));
           console.log(JSON.stringify({ task: test.id, arm, model, mode, classification: run.classification, rounds: rounds.length, rawTokens: run.usage.rawProcessed, estimatedUsd: run.usage.estimatedUsd }));

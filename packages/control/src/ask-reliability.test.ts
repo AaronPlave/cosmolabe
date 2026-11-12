@@ -254,9 +254,9 @@ describe('fixed Ask vocabulary parity', () => {
     expect(VERBS.has('circleCenter')).toBe(false);
     const tools = createCapabilityTools(new PsycheScene(), { surface: 'fixed' });
     const index = tools.list().find(t => t.name === 'invokeCapability')!.description;
-    for (const d of ['Right', 'Left', 'Up', 'Down']) expect(index).toMatch(new RegExp(`camera\\.circleCenter${d}\\*?\\(`));
-    expect(index).not.toMatch(/camera\.circleCenter\*?\(/);
-    expect(index).toContain('camera.composeView*(');
+    for (const d of ['Right', 'Left', 'Up', 'Down']) expect(index).toContain(`"camera.circleCenter${d}"(`);
+    expect(index).not.toContain('"camera.circleCenter"(');
+    expect(index).toContain('"camera.composeView"(anchor:string,target:string,also?:string) [notes]');
   });
 });
 

@@ -218,7 +218,11 @@ describe('operations come and go without an Ask change', () => {
       const tools = createCapabilityTools(host, { surface: 'fixed' });
       const now = offered(tools);
       // Indexed and marked as having notes; the notes stay out of the prompt and come from the registry.
-      expect(now.index).toContain('display.setWidgetColor*(color:string=grey|teal)');
+      expect(now.index).toContain('"display.setWidgetColor"(color:string=grey|teal) [notes]');
+      // #379: copying the quoted ID must never include signature/notes syntax.
+      const copiedIds = [...now.index.matchAll(/"([^"]+)"\(/g)].map(m => m[1]);
+      expect(copiedIds).toContain('display.setWidgetColor');
+      for (const id of copiedIds) expect(tools.describeCapabilities([id])[0].id).toBe(id);
       expect(now.prompt).not.toContain('Teal means');
       expect(tools.describeCapabilities(['display.setWidgetColor'])[0]).toMatchObject({ available: true, guide: 'Teal means the widget is armed.', behaviour: { writes: ['display'], unobservable: null, idempotent: true } });
       const invoke = (id: string) => use(id, 'invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } });

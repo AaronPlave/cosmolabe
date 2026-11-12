@@ -1,5 +1,9 @@
 # Ask quality, latency and cost benchmark (#332)
 
+[#379 findings and decision](379-findings.md) assess 12 frozen tasks across four
+catalogs. The [protocol](379-exploration.md) and `ASK_BENCHMARK_SUITE=exploration`
+record evidence for independent review without assigning automatic success.
+
 [2026-11-01 findings and measured limitations](2026-11-01-findings.md) ·
 [2026-11-04 final gate (#345)](2026-11-04-final.md) ·
 [2026-11-05 final pass (#345)](2026-11-05-final-pass.md).
