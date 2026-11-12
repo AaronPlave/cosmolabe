@@ -285,6 +285,8 @@ const catalog = {
       class: 'planet',
       center: 'Sun',
       trajectory: { type: 'Builtin', name: 'Earth' },
+      bodyFrame: 'EquatorJ2000',
+      rotationModel: { type: 'Builtin' },
       trajectoryPlot: { visible: false },
       geometry: {
         type: 'Globe',
