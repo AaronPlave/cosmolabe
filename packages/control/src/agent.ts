@@ -26,7 +26,7 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  * Optional `ViewerControl` methods remain the capability declaration: a tool
  * whose method the host lacks is not listed.
  */
-import type {
+import type { ScriptImagery,
   ScriptActivity,
   ScriptProfileData,
   ScriptClosestApproachRequest,
@@ -143,7 +143,9 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export interface ImageryEvidenceFact { readonly kind: 'imagery-state'; readonly body: string; readonly et: number; readonly surface: string | null; readonly layers: readonly { readonly id: string; readonly name: string; readonly visible: boolean; readonly drawn: boolean; readonly date: string | null; readonly pending: boolean; readonly illumination: string | null }[] }
+
+export type ResultFact = ImageryEvidenceFact | { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface HeightAnalysisFact {
   readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
   readonly requested: number; readonly completed: number; readonly metric: string;
@@ -802,7 +804,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const summary = scene === null && has(host, 'getScene')
       ? 'No scene is loaded.'
       : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected object ${selected ?? 'none'}; selected activity ${activity?.name ?? 'none'}; selected place ${place?.name ?? 'none'}; tracking ${tracked ?? 'nothing'}.`;
-    return { ok: true, summary, data };
+    return { ok: true, summary, data, ...(imagery?.layers.length ? { facts: [imageryFact(imagery)] } : {}) };
   }
 
   function resolve(input: Input): AgentToolResult {
@@ -891,6 +893,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null. Physical-surface/DSK/irregular mesh availability is not assessed by this inventory; null terrain does not establish absent geometry.`, data: metadata.surface(data) };
   }
 
+  function imageryFact(imagery: ScriptImagery): ImageryEvidenceFact {
+    const safe = metadata.imagery(imagery);
+    return { kind: 'imagery-state', body: safe.body, et: host.getTime(), surface: safe.surface,
+      layers: safe.layers.map(l => ({ id: l.id, name: l.name, visible: l.visible, drawn: l.evidence.drawnInView,
+        date: l.time?.date ?? null, pending: l.time?.pending ?? false, illumination: l.time?.illumination ?? null })) };
+  }
+
   function getImagery(input: Input): AgentToolResult {
     const name = input.object as string;
     const imagery = host.getImagery!(name);
@@ -901,7 +910,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const summary = imagery.layers.length === 0
       ? `${imagery.body} has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.`
       : `${imagery.body}: ${imagery.layers.length} imagery layer${imagery.layers.length === 1 ? '' : 's'}${imagery.imageryOnly ? ' (imagery only, no terrain elevation)' : ''}.`;
-    return { ok: true, summary, data: metadata.imagery(imagery) };
+    return { ok: true, summary, data: metadata.imagery(imagery), facts: [imageryFact(imagery)] };
   }
 
   /**

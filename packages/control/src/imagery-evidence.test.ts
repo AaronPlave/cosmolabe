@@ -18,3 +18,22 @@ it('preserves safe temporal imagery facts without claiming configuration is draw
   expect(JSON.stringify(project(layer))).not.toContain('PRIVATE_SOURCE');
   expect(project(layer)).not.toHaveProperty('source');
 });
+
+it('rejects an unobserved imagery/appearance claim while retaining configuration and selected-date statements', async () => {
+  const { checkAnswer, factSummary } = await import('./answer-check.js');
+  const facts: import('./agent.js').ImageryEvidenceFact[] = [{ kind: 'imagery-state', body: 'Earth', et: 1, surface: 'waiting', layers: [
+    { id: 'daily', name: 'Daily image', visible: true, drawn: false, date: '2026-11-05', pending: false, illumination: 'baked' },
+  ] }];
+  for (const text of ['The imagery is loaded.', 'Both layers are drawn.', "The only thing that changed in Earth's appearance is the daily overlay."]) {
+    expect(checkAnswer(text, facts)).toEqual([expect.stringMatching(/drawing observation/)]);
+  }
+  for (const text of ['The selected imagery date switched to November 5.', 'No imagery is drawn yet.',
+    'The loaded scene contains configured imagery; current-view drawing is unknown.',
+    'Imagery may be loaded; drawing is unverified.', 'I have not inspected the pixels, so appearance differences are unknown.']) {
+    expect(checkAnswer(text, facts)).toEqual([]);
+  }
+  expect(factSummary(facts)).toContain('selected acquisition date 2026-11-05');
+  expect(factSummary(facts)).toContain('No current-view drawing');
+  const observed = [{ ...facts[0], layers: [{ ...facts[0].layers[0], drawn: true }] }];
+  expect(checkAnswer('The imagery is drawn.', observed)).toEqual([]);
+});

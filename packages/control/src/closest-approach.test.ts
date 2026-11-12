@@ -264,3 +264,10 @@ it('checks a compute-only approach against its saved native search, without a fa
   expect({ et: host.getTime(), playing: host.isPlaying() }).toEqual(before);
   tools.dispose();
 });
+
+it('requires actual sampled gaps to be disclosed even without a prior Event Finder failure', () => {
+  const facts: ResultFact[] = [{ kind: 'sampled-range', observer: 'Probe', target: 'Body', startUtc: '2004-06-30T07:12:12Z', endUtc: '2004-07-02T16:45:48Z', count: 32, missing: 6,
+    minimumKm: 104291, minimumUtc: '2004-07-01T01:46:16Z', minimumEt: 1, eventSearchUnavailable: false }];
+  expect(checkAnswer('The native profile shows closing then opening.', facts)).toEqual([expect.stringMatching(/6 missing samples/)]);
+  expect(checkAnswer('The native profile shows closing then opening; 6 missing samples out of 32.', facts)).toEqual([]);
+});
