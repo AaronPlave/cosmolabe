@@ -222,7 +222,7 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
     const first = history.samples[0], last = history.samples.at(-1)!;
     const value = (v: number) => Number(v.toPrecision(6));
     const plot = rate.plot;
-    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing of ${plot.count} display samples; ${plot.missing ? 'plot gaps remain separate from this bounded read' : 'no missing points were observed inside this plotted interval; this is not a continuous-coverage certificate'}.` : '';
+    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing points on a ${plot.count}-point display grid (intentional clipping excluded); ${plot.missing ? 'plot gaps remain separate from this bounded read' : 'no missing points were observed inside this plotted interval; this is not a continuous-coverage certificate'}.` : '';
     return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.${plotText}`;
   }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
