@@ -12,7 +12,7 @@
    * Offered only where a model is configured (`askAvailable`).
    */
   import { tick } from 'svelte';
-  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
+  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, ArrowUpRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
     ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
@@ -33,10 +33,19 @@
   let help = $state<AskHelp | null>(null);
   let composer = $state<HTMLTextAreaElement | null>(null);
   $effect(() => { void vs.selectedBodyName; void vs.trackedBodyName; void vs.sceneLoaded; help = null; });
-  async function chooseExample(example: AskExample) {
-    prompt = example.prompt; help = null; await tick(); composer?.focus();
+  function chooseExample(example: AskExample) {
+    if (ask.running) return;
+    help = null;
+    void submitAsk(example.prompt);
   }
   let transcript = $state<HTMLElement | null>(null);
+  function fitComposer() {
+    if (!composer) return;
+    composer.style.height = 'auto';
+    composer.style.height = `${Math.min(192, composer.scrollHeight)}px`;
+    composer.style.overflowY = composer.scrollHeight > 192 ? 'auto' : 'hidden';
+  }
+  $effect(() => { void prompt; void tick().then(fitComposer); });
 
   // Follow the newest step as it lands.
   $effect(() => {
@@ -177,6 +186,7 @@
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="ask flex min-h-0 flex-1 flex-col" onkeydown={containKeys}>
+    {#if ask.turns.length > 0}
     <ol bind:this={transcript} class="ask-log flex flex-col gap-3 px-3 pb-2 pt-3" aria-live="polite">
       {#each ask.turns as turn (turn.id)}
         {#if turn.fresh}
@@ -244,12 +254,8 @@
           {/if}
         </li>
       {/each}
-      {#if ask.turns.length === 0 && help === null}
-        <li class="ui-helper whitespace-normal">
-          Ask for a place, an object, a mission activity, a time or a layer, e.g. “fly to Jezero and show the available imagery”.
-        </li>
-      {/if}
     </ol>
+    {/if}
 
     {#if ask.serviceBlocked && ask.turns.at(-1)?.status !== 'error'}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
     {#if askApproval.pending}
@@ -265,30 +271,27 @@
       </div>
     {/if}
 
-    <div class="shrink-0 border-t border-border px-3 py-1.5">
-      <button class="ui-helper text-text-secondary hover:text-text-primary" aria-expanded={help !== null}
-        disabled={ask.running} onclick={() => { help = help === null ? askHelp() : null; }}>What can I do here?</button>
+    <div class="shrink-0 px-3 pt-2">
+      <button class="inline-flex items-center gap-1.5 rounded bg-surface-3 px-2 py-1.5 text-xs text-text-primary hover:bg-hover"
+        title={help?.categories.join(' · ') ?? 'Explore this scene, inspect data, plot or compare'} aria-expanded={help !== null} disabled={ask.running}
+        onclick={() => { help = help === null ? askHelp() : null; }}>
+        Try a question <ChevronDown size={12} class={help !== null ? 'rotate-180' : ''} />
+      </button>
       {#if help !== null}
-        <div class="mt-1 flex max-h-80 flex-col gap-1 overflow-y-auto" aria-label="Scene examples">
-          <p class="ui-helper text-text-secondary">Ask can help you</p>
-          <p class="ui-helper whitespace-normal text-text-faint">{help.categories.join(' · ')}</p>
-
-          <p class="ui-helper mt-1 text-text-secondary">Try in this scene</p>
-          <p class="ui-helper text-text-faint">Choose an example to edit. Send when ready.</p>
+        <div class="mt-2 flex max-h-64 flex-col gap-1.5 overflow-y-auto" aria-label="Scene examples">
           {#each help.examples as example}
-            <button class="rounded border border-border px-2 py-1 text-left hover:bg-hover" onclick={() => chooseExample(example)}>
-              <span class="ui-body block text-text-primary">{example.label}</span>
-              <span class="ui-helper block whitespace-normal text-text-faint">{example.evidence}</span>
+            <button class="ask-starter flex items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs text-text-primary"
+              title={example.evidence} aria-label={`Ask: ${example.label}`} disabled={ask.running} onclick={() => chooseExample(example)}>
+              <span>{example.label}</span><ArrowUpRight size={14} class="shrink-0 text-accent" />
             </button>
           {:else}
-            <p class="ui-helper text-text-faint">No grounded examples for this selection. Select an object or ask what data is available.</p>
+            <p class="ui-helper">Select an object for suggestions.</p>
           {/each}
-          <p class="ui-helper whitespace-normal text-text-faint">{help.authority}</p>
         </div>
       {/if}
     </div>
 
-    <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
+    <div class="flex shrink-0 items-end gap-2 px-3 pb-3 pt-2">
       <textarea
         bind:this={composer}
         bind:value={prompt}
@@ -297,7 +300,7 @@
         placeholder="Ask Cosmolabe…"
         aria-label="Request"
         title="A model interprets the request; the viewer's catalog and data remain the source of truth."
-        class="ui-control min-w-0 flex-1 resize-none rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
+        class="ui-control min-w-0 flex-1 resize-y rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
       ></textarea>
       {#if ask.running}
         <button class="ask-btn" onclick={stopAsk} aria-label="Stop request" title="Stop: a flight in progress stops where it is">
@@ -320,6 +323,9 @@
     min-height: 0;
     overflow-y: auto;
   }
+  .ask-starter { background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-3)); }
+  .ask-starter:hover { background: color-mix(in srgb, var(--color-accent) 28%, var(--color-surface-3)); }
+  .ask-starter:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
   .ask-btn {
     display: flex;
     align-items: center;

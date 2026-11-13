@@ -7,7 +7,7 @@ it('does not infer data or calculations from an available operation alone', () =
   expect(guidanceExamples({ capabilities, scene, pair: { observer: 'A', target: 'B', explicitlySelected: true, positionAvailable: null } })).toEqual([]);
   const examples = guidanceExamples({ capabilities, scene, pair: { observer: 'A', target: 'B', explicitlySelected: true, positionAvailable: true } });
   expect(examples).toHaveLength(1);
-  expect(examples[0].prompt).toBe('How does A’s distance from B change? Show me.');
+  expect(examples[0].prompt).toBe('Plot A–B distance over time.');
   expect(examples[0].prompt).not.toMatch(/ET|profile|range-rate|native|clearance/);
 });
 
@@ -15,8 +15,8 @@ it('keeps authored examples distinct from computed evidence and withholds unavai
   const scene = { viewpoints: { items: [{ name: 'A', source: 'session-viewpoint' }, { name: 'B', source: 'catalog-viewpoint' }] } };
   expect(guidanceExamples({ capabilities: [{ id: 'camera.viewpoint', available: false }], scene })).toEqual([]);
   const [example] = guidanceExamples({ capabilities: [{ id: 'camera.viewpoint', available: true }], scene });
-  expect(example.label).toBe('Show B');
-  expect(example.prompt).toBe('Take me to B and explain what I can see.');
+  expect(example.label).toBe('View B');
+  expect(example.prompt).toBe('Show B.');
   expect(example.evidence).toMatch(/not a calculated event/);
 });
 
@@ -39,7 +39,7 @@ it('ranks selected, active and computed evidence before preset views independent
     activitiesHere:[{id:'a',name:'Pass',vehicle:'Probe',start:40,end:60,selected:false}],
     sourcePairs:[{observer:'Probe',target:'Body',positionAvailable:true,explicitlySelected:true,coverage:[{start:0,end:100}]}] };
   const examples = guidanceExamples({capabilities,scene});
-  expect(examples.map(e=>e.label)).toEqual(['Understand Approach','Explore Pass','Probe near Body','Show Now','Show Later']);
+  expect(examples.map(e=>e.label)).toEqual(['Results: Approach','Visit Pass','Probe–Body distance','View Now','View Later']);
   expect(examples[2].prompt).not.toMatch(/ET|profile|native/);
   const reversed = {...scene,viewpoints:{items:[...scene.viewpoints.items].reverse()}};
   expect(guidanceExamples({capabilities,scene:reversed})).toEqual(examples);
@@ -48,6 +48,6 @@ it('ranks selected, active and computed evidence before preset views independent
 it('offers source-grounded exploration without selection but never treats a configured search as computed', () => {
   const capabilities = ['profiles.upsertProfile','profiles.sampleProfileData','events.getEventResultPage'].map(id=>({id,available:true}));
   const examples = guidanceExamples({capabilities,scene:{sourcePairs:[{observer:'Probe',target:'Body',positionAvailable:true,explicitlySelected:false,coverage:[{start:0,end:100}]}], searchesHere:[{id:'q',label:'Approach',computed:false}]}});
-  expect(examples[0].label).toBe('Probe near Body');
+  expect(examples[0].label).toBe('Probe–Body distance');
   expect(examples[1].evidence).toContain('not produced a result');
 });

@@ -21,8 +21,8 @@ export function guidanceOverview(capabilities: readonly Capability[]): string[] 
   return [
     has(['camera.viewpoint', 'camera.frameObject', 'camera.composeView']) ? 'Show views' : null,
     has(['spatial.getObjectState', 'surface.getImagery', 'surface.getSurfaceData', 'activities.listActivities']) ? 'Explain data' : null,
-    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Plot measurements' : null,
-    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Compare changes' : null,
+    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Plot' : null,
+    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Compare' : null,
   ].filter((s): s is string => s !== null);
 }
 export const ASK_AUTHORITY = 'Ask uses the data loaded here. Missing measurements stay unknown; mission background cannot fill them in.';
@@ -35,35 +35,35 @@ export function guidanceExamples({ capabilities, scene, pair = null }: {
   const selected = scene.selectedObject;
   const now = scene.time?.et;
   for (const q of scene.searchesHere ?? []) if (available.has('events.getEventResultPage')) add(q.computed ? 1000 : 500, `query:${q.id}`, {
-    kind: 'explore', label: `${q.computed ? 'Understand' : 'Explore'} ${q.label}`,
+    kind: 'explore', label: `${q.computed ? 'Results:' : 'Search:'} ${q.label}`,
     prompt: q.computed ? `Show me what ${q.label} found and help me understand it.` : `Investigate ${q.label} and show me what the data supports.`,
     evidence: q.computed ? 'Results are ready to explore.' : 'A saved search; it has not produced a result yet.',
 
   });
   for (const p of scene.profilesHere ?? []) if (available.has('profiles.sampleProfileData')) add(p.plotted ? 850 : 550, `profile:${p.id}`, {
-    kind: 'explore', label: `Understand ${p.label}`, prompt: `Show me ${p.label} and explain how it changes.`,
+    kind: 'explore', label: `Plot: ${p.label}`, prompt: `Explain ${p.label}.`,
     evidence: p.plotted ? 'A plot is already visible.' : 'A saved plot to explore.',
 
   });
   for (const a of scene.activitiesHere ?? []) if (available.has('activities.getActivity') && available.has('activities.seekActivity')) {
     const active = now !== undefined && a.start <= now && now <= a.end;
     add(a.selected ? 950 : a.vehicle === selected ? 820 : active ? 700 : 400, `activity:${a.id}`, {
-      kind: 'show', label: `Explore ${a.name}`, prompt: `Show me ${a.name} and explain what is happening.`,
+      kind: 'show', label: `Visit ${a.name}`, prompt: `Show ${a.name}.`,
       evidence: `${a.selected ? 'Selected activity' : active ? 'Happening at this scene time' : 'An activity in this scene'} for ${a.vehicle}; timing comes from the catalog.`,
 
     });
   }
   const imagery = scene.focusImagery;
   if (available.has('surface.getImagery') && imagery && imagery.total > 0) add(imagery.body === selected ? 810 : 620, `imagery:${imagery.body}`, {
-    kind: 'inspect', label: `Images of ${imagery.body}`, prompt: `Show me the imagery on ${imagery.body} and explain where it comes from.`,
+    kind: 'inspect', label: `Images of ${imagery.body}`, prompt: `Show ${imagery.body} imagery and its sources.`,
     evidence: `${imagery.total} image layers listed; loading may be incomplete.`,
 
   });
   for (const p of [pair, ...(scene.sourcePairs ?? [])]) {
     if (!p || (!p.explicitlySelected && !p.coverage?.length) || p.positionAvailable !== true || p.observer === p.target || !available.has('profiles.upsertProfile') || !available.has('profiles.sampleProfileData')) continue;
     add(p.explicitlySelected ? 800 : 650, `pair:${p.observer}:${p.target}`, {
-      kind: 'explore', label: `${p.observer} near ${p.target}`,
-      prompt: `How does ${p.observer}’s distance from ${p.target} change? Show me.`,
+      kind: 'explore', label: `${p.observer}–${p.target} distance`,
+      prompt: `Plot ${p.observer}–${p.target} distance over time.`,
       evidence: 'Explore their changing distance using the loaded trajectory.',
 
     });
@@ -72,7 +72,7 @@ export function guidanceExamples({ capabilities, scene, pair = null }: {
     const views = (scene.viewpoints?.items ?? []).filter(v => v.source === 'catalog-viewpoint').map(v => ({ v,
       score: (selected && v.center === selected ? 300 : 100) + (now !== undefined && v.epoch != null ? 50 / (1 + Math.abs(v.epoch - now) / 86400) : 0),
     })).sort((a,b) => b.score-a.score || a.v.name.localeCompare(b.v.name)).slice(0,2);
-    for (const {v,score} of views) add(score, `view:${v.name}`, { kind: 'show', label: `Show ${v.name}`, prompt: `Take me to ${v.name} and explain what I can see.`, evidence: 'A saved camera view, not a calculated event.' });
+    for (const {v,score} of views) add(score, `view:${v.name}`, { kind: 'show', label: `View ${v.name}`, prompt: `Show ${v.name}.`, evidence: 'A saved camera view, not a calculated event.' });
   }
   const seen = new Set<string>();
   return ranked.sort((a,b) => b.score-a.score || a.key.localeCompare(b.key)).filter(r => !seen.has(r.key) && !!seen.add(r.key)).slice(0,5).map(r => r.example);

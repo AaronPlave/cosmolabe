@@ -10,6 +10,7 @@ import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs
 import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
 import { reliabilityCases, promptsOf, turnPredicates, judge, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
 import { comparisonEvidence } from './ask-benchmark/visual-comparison.mjs';
+import { directStarterCases } from './ask-benchmark/direct-starters.mjs';
 import { productExplorationCases } from './ask-benchmark/product-exploration.mjs';
 import { explorationCases, explorationRubric } from './ask-benchmark/exploration.mjs';
 import { etToDate, SPHERE_OF_INFLUENCE_KM } from '@cosmolabe/core';
@@ -22,8 +23,8 @@ const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
 const suite = process.env.ASK_BENCHMARK_SUITE ?? 'reliability';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
-assert.ok(['reliability', 'legacy', 'exploration', 'product', 'all'].includes(suite), 'Unknown benchmark suite');
-const pool = suite === 'product' ? productExplorationCases.map(c => ({...c,reliability:true})) : suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
+assert.ok(['reliability', 'legacy', 'exploration', 'product', 'starter', 'all'].includes(suite), 'Unknown benchmark suite');
+const pool = suite === 'starter' ? directStarterCases.map(c => ({...c,reliability:true})) : suite === 'product' ? productExplorationCases.map(c => ({...c,reliability:true})) : suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
   : [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
 const wanted = process.env.ASK_BENCHMARK_CASES?.split(',');
 const selected = pool.filter(c => !wanted || wanted.includes(c.id) || (wanted.includes('critical') && c.critical));
@@ -36,7 +37,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
   limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
-if (['exploration','product'].includes(suite)) report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
+if (['exploration','product','starter'].includes(suite)) report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
 if (process.env.ASK_BENCHMARK_LIVE !== '1') {
   console.log(JSON.stringify({ ...report, plan: selected }, null, 2));
   process.exit(0);
@@ -264,8 +265,13 @@ try {
           const policy = test.approvals ?? 'approve';
           for (const [i, prompt] of promptsOf(test).entries()) {
             const turnStarted = performance.now();
-            await page.getByRole('textbox', { name: 'Request', exact: true }).fill(prompt);
-            await page.getByRole('button', { name: 'Send request', exact: true }).click();
+            if (test.starter) {
+              await page.getByRole('button',{name:'Try a question',exact:true}).click();
+              await page.getByRole('button',{name:`Ask: ${test.starter}`,exact:true}).click();
+            } else {
+              await page.getByRole('textbox', { name: 'Request', exact: true }).fill(prompt);
+              await page.getByRole('button', { name: 'Send request', exact: true }).click();
+            }
             // The person answers approval prompts per the task's policy, through the panel's own approval path.
             let approvals = 0;
             for (;;) {
@@ -278,6 +284,7 @@ try {
               return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, answerSource:t.result.answerSource, report: t.result.report, facts: t.result.facts } : null,
                 steps: t.steps.map(s => ({ ...(assessment ? { id: s.id, input: s.input, observation: s.result?.data } : {}), name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
                   ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; }, !!test.assessment);
+            if (test.starter) assert.equal(turn.prompt,prompt,'the actual starter sent the frozen short prompt');
             if (test.assessment) {
               for (const step of turn.steps) { step.modelVisible = visibleResults.get(step.id) ?? null; delete step.id; }
               turn.state = await page.evaluate(() => window.__benchSnapshot());

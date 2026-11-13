@@ -1,4 +1,4 @@
-/** Loaded composer/coverage/Stop regressions for #379. No external model calls.
+/** Loaded explicit-starter/coverage/Stop regressions for #379. No external model calls.
  * CL_VIEWER_URL must point to this checkout's viewer. Optional captures stay local. */
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -21,11 +21,14 @@ try {
       window.__state = await import(loaded('/src/lib/viewer-state.svelte.ts'));
       window.__ask = await import(loaded('/src/lib/ask/ask.svelte.ts'));
       const shell = await import(loaded('/src/lib/shell.svelte.ts'));
+      window.__starterRequests = 0;
+      window.__ask.setHostAskTransport({send: async () => {window.__starterRequests++;return {content:[{type:'text',text:'Local starter check.'}],stop:'end'};}});
       window.cosmo.setTimeRate(0); window.cosmo.setPlaying(false); window.cosmo.deselect(); shell.openTool('ask');
     });
     const snapshot = () => page.evaluate(() => { const c = window.cosmo; return { et: c.getTime(), selected: c.getSelected(), tracked: c.getTracked(), camera: c.getCamera(), turns: window.__ask.ask.turns.length }; });
     const initial = await snapshot();
-    await page.getByRole('button', { name: 'What can I do here?' }).click();
+    assert.equal(await page.locator('.ask-log').count(),0,'no empty transcript padding above the composer');
+    await page.getByRole('button', { name: 'Try a question' }).click();
     const baseline = await page.evaluate(() => window.__ask.askExamples());
     const help = await page.evaluate(() => window.__ask.askHelp());
     assert.ok(help.categories.length > 0);
@@ -35,17 +38,24 @@ try {
     assert.deepEqual(await snapshot(), initial);
     await page.evaluate(name => window.cosmo.select(name), subject);
     await page.waitForFunction(() => document.querySelector('[aria-label="Scene examples"]') === null);
-    await page.getByRole('button', { name: 'What can I do here?' }).click();
+    await page.getByRole('button', { name: 'Try a question' }).click();
     const examples = await page.evaluate(() => window.__ask.askExamples());
     const before = await snapshot();
-    assert.ok(await page.getByText('Ask can help you', {exact:true}).isVisible());
-    assert.ok(await page.getByText('Try in this scene', {exact:true}).isVisible());
+    assert.equal(await page.evaluate(() => window.__starterRequests),0,'opening help makes no model call');
+    const textbox=page.getByRole('textbox',{name:'Request',exact:true});
+    const smallHeight=await textbox.evaluate(el=>el.clientHeight);
+    await textbox.fill('A longer question about this scene. '.repeat(30));
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Request"]').clientHeight > 100);
+    assert.ok(await textbox.evaluate(el=>el.clientHeight)>smallHeight,'composer grows with the prompt');
+    await textbox.fill('Keep this draft');
     assert.ok(examples.length > 0 && examples.length <= 5);
     if (output) await page.screenshot({ path: `${output}/${catalog}-examples.png` });
-    await page.getByRole('button', { name: examples[0].label, exact: false }).click();
-    assert.equal(await page.getByRole('textbox', { name: 'Request', exact: true }).inputValue(), examples[0].prompt);
-    assert.equal(await page.getByRole('textbox', { name: 'Request', exact: true }).evaluate(el => document.activeElement === el), true);
-    assert.deepEqual(await snapshot(), before, 'choosing fills only; it must not execute, navigate or add a turn');
+    await page.getByRole('button', { name: `Ask: ${examples[0].label}`, exact: true }).click();
+    await page.waitForFunction(() => window.__ask.ask.turns.at(-1)?.status === 'done');
+    assert.equal(await page.evaluate(() => window.__ask.ask.turns.at(-1).prompt),examples[0].prompt);
+    assert.equal(await page.evaluate(() => window.__starterRequests),1,'explicit starter click submits exactly once');
+    assert.equal(await page.getByRole('textbox',{name:'Request',exact:true}).inputValue(),'Keep this draft');
+    assert.deepEqual(await snapshot(),{...before,turns:before.turns+1},'the scripted starter response makes no scene mutation');
     assert.equal(externalCalls, 0);
     if (catalog === 'oem-ingest') {
       const coverage = await page.evaluate(() => {
@@ -90,5 +100,5 @@ try {
     await context.close();
   }
   if (output) writeFileSync(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
-  console.log(JSON.stringify({ catalogs: evidence.length, externalModelCalls: 0, guidanceFillOnly: true, sourceBoundaries: true, stop: true }));
+  console.log(JSON.stringify({ catalogs: evidence.length, externalModelCalls: 0, explicitStarterSubmitsOnce: true, openingHelpCalls: 0, sourceBoundaries: true, stop: true }));
 } finally { await browser.close(); }
