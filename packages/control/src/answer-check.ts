@@ -141,6 +141,9 @@ export function checkAnswer(text: string, facts: readonly ResultFact[], report?:
   const sampled = samples.filter(f => f.eventSearchUnavailable || f.missing > 0).at(-1);
   const countWords = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
   const countText = text.replace(/\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi, word => String(countWords.indexOf(word.toLowerCase())));
+  for (const p of profiles.filter(p => p.missing > 0)) {
+    if (!new RegExp(`\\b${p.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${p.missing}\\b|\\b${p.missing}/${p.count}\\s+(?:missing|gaps?)\\b`, 'i').test(countText)) issues.push(`The ${p.quantity} series has ${p.missing} missing samples out of ${p.count}; disclose its own missing count, not only the range series coverage.`);
+  }
   const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(countText) || sampled && new RegExp(`\\b${sampled.missing}/${sampled.count}\\s+(?:missing|gaps?)\\b`, 'i').test(countText);
   if (sampled && !disclosedMissing) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
   if (samples.length && !events.length) {
@@ -214,7 +217,7 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
     const first = history.samples[0], last = history.samples.at(-1)!;
     const value = (v: number) => Number(v.toPrecision(6));
     const plot = rate.plot;
-    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing of ${plot.count} display samples; plot gaps remain separate from this bounded read.` : '';
+    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing of ${plot.count} display samples; ${plot.missing ? 'plot gaps remain separate from this bounded read' : 'no missing points were observed inside this plotted interval; this is not a continuous-coverage certificate'}.` : '';
     return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.${plotText}`;
   }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {

@@ -793,6 +793,9 @@ it('keeps a qualified native-history fallback with both plotted and sampled inte
   const summary=factSummary(facts);
   for (const phrase of ['2004-06-30 12:00:00 UTC','2004-07-02 11:58:00 UTC','32 range samples (0 missing)','negative means closing, positive means opening','Native plotted interval 2004-06-30 07:00:00 UTC to 2004-07-02 17:00:00 UTC','128 missing of 763','do not certify']) expect(summary).toContain(phrase);
   expect(checkAnswer(summary,facts)).toEqual([]);
+  const missingRate:ResultFact[]=[facts[0],{...facts[1],kind:'sampled-profile',missing:2} as ResultFact];
+  expect(checkAnswer('The timeline plot has gaps; 32 samples describe closing and opening.',missingRate)).toContainEqual(expect.stringMatching(/range-rate series has 2 missing/));
+  expect(checkAnswer(factSummary(missingRate),missingRate)).toEqual([]);
 });
 
 it('publishes aspect-correct camera evidence instead of inviting vertical-FOV comparisons', async () => {
