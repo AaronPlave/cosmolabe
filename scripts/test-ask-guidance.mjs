@@ -32,6 +32,8 @@ try {
     const baseline = await page.evaluate(() => window.__ask.askExamples());
     const help = await page.evaluate(() => window.__ask.askHelp());
     assert.ok(help.categories.length > 0);
+    assert.equal(await page.getByLabel('Ask capabilities', { exact: true }).innerText(), help.categories.join(' · '));
+    assert.ok(await page.getByLabel('Ask capabilities', { exact: true }).isVisible());
     assert.ok(help.authority.includes('Missing measurements'));
     const observed = await page.evaluate(() => window.__ask.askHelp());
     assert.deepEqual(observed.examples, baseline);

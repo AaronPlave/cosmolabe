@@ -804,6 +804,23 @@ it('publishes aspect-correct camera evidence instead of inviting vertical-FOV co
   expect(data).toMatchObject({fovDeg:60,aspect:1.5,horizontalFovDeg:81.787});
 });
 
+it('describes the Clipper investigation projection without claiming a resolved spacecraft model', async () => {
+  const { compositionData, compositionSentence } = await import('./agent.js');
+  const view: import('./contracts.js').ScriptViewComposition = {
+    scene: 1, et: 1003830456.8034713, playing: false, tracked: 'Europa', orbitDistanceKm: 9453.134713493175, fovDeg: 60, aspect: 1280 / 900,
+    objects: [{ object: 'Europa Clipper', available: true, inView: true, drawEnabled: true, ndc: [-0.09138889638205093, 0.06582710631635379], bearingDeg: null, rangeKm: 9453.13471349319, radiusKm: 0.005, angularRadiusDeg: 0.00003030517455299897, occlusion: null }],
+  };
+  const data = compositionData(view);
+  expect(data.objects[0]).toMatchObject({ inView: true, drawEnabled: true, physicalAppearance: 'unassessed', angularRadiusDeg: 0.0000303052, angularDiameterDeg: 0.0000606103 });
+  expect(data).toHaveProperty('projectionMeaning', expect.stringContaining('Markers/event indicators may locate an unresolved object'));
+  expect(compositionSentence(view)).toContain('Europa Clipper location in frame (physical appearance unassessed)');
+  const { evaluate } = await import('./outcome.js');
+  const host = { getViewComposition: () => view } as unknown as import('./contracts.js').ViewerControl;
+  const goal = evaluate(host, [{ p: 'inView', object: 'Europa Clipper' }]);
+  expect(goal.status).toBe('met');
+  expect(goal.checks[0].detail).toBe('Europa Clipper location in frame; physical appearance unassessed');
+});
+
 it('checks current framing claims against final viewer evidence, not an intermediate failed move', async () => {
   const {factSummary}=await import('./answer-check.js');
   const report={status:'met' as const,checks:[{slot:'view:Body',ok:true,detail:'Body in frame',soft:false}]};

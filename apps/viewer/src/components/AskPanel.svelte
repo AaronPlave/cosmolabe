@@ -284,6 +284,7 @@
       </button>
       {#if help !== null}
         <div class="mt-2 flex max-h-64 flex-col gap-1.5 overflow-y-auto" aria-label="Scene examples">
+          <p class="text-xs text-text-secondary" aria-label="Ask capabilities">{help.categories.join(' · ')}</p>
           {#each help.examples as example}
             <button class="ask-starter flex items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs text-text-primary"
               title={example.evidence} aria-label={`Ask: ${example.label}`} disabled={ask.running} onclick={() => chooseExample(example)}>

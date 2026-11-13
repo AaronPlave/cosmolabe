@@ -10,7 +10,8 @@ PR #380; no Research mode, second solver, planner or successor PR was added.
 The existing composer now has a **“Try a question”** disclosure and a few
 filled action buttons. Each button has one short label and a send icon; there
 are no subtitle paragraphs, extra headers or “click to ask” instructions.
-The capability-dependent general scope remains in the control’s tooltip;
+A single low-emphasis line inside the disclosure shows the capability-dependent
+general scope (Show views · Explain data · Plot · Compare);
 scientific source/availability detail stays in the shared scene read and
 contextual tool guidance. Results and visible profiles rank above presets;
 selection, current activities, source intervals, time and imagery determine
@@ -32,6 +33,16 @@ The separate composer remains available for writing and editing a custom
 question. This is an iteration in response to an observed developer walkthrough;
 no independent novice study or final visual approval is claimed.
 
+The final review adds visible general categories without restoring the rejected
+paragraphs. Composition summaries and goal receipts now say “location in frame;
+physical appearance unassessed,” and the model-facing evidence retains tiny
+angular sizes rather than rounding them to zero. In-frame projection and drawing
+flags do not establish resolved physical geometry; markers may locate an
+unresolved object. This applies to all objects without a new size cutoff.
+A focused regression uses the recorded Clipper angular radius; the loaded
+four-catalog check verifies visible categories and the existing direct-submit
+interaction without external model calls.
+
 The same shared scene read supplies ranked evidence to normal Ask requests.
 The two unfamiliar-scene tasks use an identical open question, not a button or
 mission-specific tool script: “I'm unfamiliar with this scene. Choose a question
@@ -49,7 +60,7 @@ are not a statistical success rate.
 | --- | --- |
 | Direct Cassini starter | Clicked the actual button without pressing Send. One short question produced a visible native distance plot; its answer distinguishes 32 covered numerical samples from 128 missing points on the wider 763-point display grid, and center distance from clearance. |
 | OEM unfamiliar investigation | Chose Cassini–Saturn motion from loaded coverage, drew the native distance history, paused at its 12-sample minimum and showed Saturn/Cassini. The visible plot shows the approach/recession. Cassini is a point; the 4.4-hour sampled minimum is explicitly approximate, not a computed encounter or clearance. |
-| Clipper unfamiliar investigation | Used the native search over loaded coverage, selected the 2031-10-23 Europa minimum (1,584.734 km center range), opened the native event lane and framed Europa/Clipper. The answer distinguishes range minimum from encounter classification and surface contact. The earlier independent point-state check agrees; kernel accuracy/classification remains unproven. |
+| Clipper unfamiliar investigation | Used the native search over loaded coverage, selected the 2031-10-23 Europa minimum (1,584.734 km center range), opened the native event lane and framed the locations of Europa/Clipper. Clipper’s recorded angular radius (~0.00003°) establishes a projected location, not a discernible spacecraft model; the event indicator and timeline provide the useful locator. The answer distinguishes range minimum from encounter classification and surface contact. The earlier independent point-state check agrees; kernel accuracy/classification remains unproven. |
 | Earth–Moon continuity | Captured full before/after pose shows a real swing; ET and 5,211 km Moon range hold. The final screenshot shows a lit Moon limb and a separate Earth at upper left, outside Ask. Apparent diameters are 38.942° and 1.790°; the explanation separates apparent from physical size. The generic relative-action account still says unverified; independent pose/projection plus visual inspection establish this particular composition, rather than promoting that receipt to success. |
 | OEM inbound/outbound | Both native range and signed-range-rate traces remain visible. The final answer distinguishes 32 covered range samples, two missing rate endpoints and 128 gaps on the wider 763-point display grid, with the actual intervals. Earlier cells needed a labeled host replacement in both models; the final model explanation improved, which does not establish that model composition is generally solved. |
 | Clipper Europa/Ganymede | Both March queries are retained; Europa's smaller range is presented with matching clock/event/camera. Ganymede's roughly 442,173 km minimum is not renamed a flyby. |

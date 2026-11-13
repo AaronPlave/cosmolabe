@@ -365,7 +365,7 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         if (p.p === 'inView') {
           const shown = o.inView && o.drawEnabled && o.occlusion?.kind !== 'full';
           return check(p, shown, !o.drawEnabled ? `${p.object} is hidden` : !o.inView ? `${p.object} out of frame`
-            : o.occlusion ? `${p.object} in frame, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : `${p.object} in frame`);
+            : o.occlusion ? `${p.object} location in frame, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}; physical appearance unassessed` : `${p.object} location in frame; physical appearance unassessed`);
         }
         if (p.p === 'legible') {
           // Legible means seen at a usable size: out of frame, hidden or fully occluded is a plain failure, never a soft one.

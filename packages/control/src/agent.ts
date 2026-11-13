@@ -63,16 +63,16 @@ export function compositionData(v: ScriptViewComposition) {
     objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
     limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
   return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg), aspect: r3(v.aspect), horizontalFovDeg: r3(2 * Math.atan(Math.tan(v.fovDeg * Math.PI / 360) * v.aspect) * 180 / Math.PI),
-    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV. Angular radius is half the apparent diameter; neither establishes physical size.',
+    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV. Angular radius is half the apparent diameter; neither establishes physical size. In-frame projection and drawEnabled establish scene location, not a discernible physical model. Markers/event indicators may locate an unresolved object; physical appearance has not been observed.',
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg), angularDiameterDeg: o.angularRadiusDeg === null ? null : r3(2 * o.angularRadiusDeg),
+      object: o.object, inView: o.inView, physicalAppearance: 'unassessed', ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : Number(o.angularRadiusDeg.toPrecision(6)), angularDiameterDeg: o.angularRadiusDeg === null ? null : Number((2 * o.angularRadiusDeg).toPrecision(6)),
       bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */
 export function compositionSentence(v: ScriptViewComposition): string {
   if (v.fresh === false) return `Native body placements are still at ET ${v.observedEt ?? 'unknown'}; current clock ET ${v.et}. Object visibility at the requested time is unassessed.`;
   return v.objects.map(o => !o.available ? `${o.object} is not in this scene`
-    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
+    : `${o.object} ${o.inView ? 'location in frame (physical appearance unassessed)' : 'out of frame'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
 }
 
 /** The JSON Schema subset the tools are described in. */
