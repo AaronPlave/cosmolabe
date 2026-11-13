@@ -5,6 +5,7 @@
  * for contradiction, not a judge of style. A sampled recovery must also
  * disclose its missing-data limit.
  */
+import type { GoalReport } from './outcome.js';
 import type { EventResultFact, ResultFact } from './agent.js';
 
 const AU_KM = 1.495978707e8;
@@ -18,7 +19,7 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 
 /** Distances an answer states, in km. */
 export function statedDistancesKm(text: string): { text: string; km: number }[] {
-  return [...text.matchAll(DISTANCE)].map(m => {
+  return [...text.matchAll(DISTANCE)].filter(m => !/^\s*(?:\/\s*s(?:ec(?:ond)?s?)?\b|per\s+seconds?\b|s[−-]1\b)/i.test(text.slice(m.index! + m[0].length))).map(m => {
     const base = Number(m[1].replace(/,/g, '')) * (m[2] ? 10 ** Number(m[2]) : 1) * (m[3] ? SCALE[m[3].toLowerCase()] : 1);
     return { text: m[0], km: /^a/i.test(m[4]) ? base * AU_KM : /^m/i.test(m[4]) ? base / 1000 : base };
   }).filter(d => Number.isFinite(d.km));
@@ -43,9 +44,50 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
  * within a day of a published result or searched-window bound; a flyby claim
  * needs a result classified as an encounter.
  */
-export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
+export function checkAnswer(text: string, facts: readonly ResultFact[], report?: GoalReport | null): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  for (const c of report?.checks ?? []) {
+    if (!c.slot.startsWith('view:') || c.ok === null) continue;
+    const name=c.slot.slice(5);
+    for (const sentence of sentences(text)) {
+      const at=sentence.indexOf(name); if(at<0) continue;
+      const claim=sentence.slice(at+name.length);
+      const hidden=/^\s+(?:(?:is|remains)\s+)?(?:currently\s+)?(?:out of (?:frame|view)|not (?:visible|in (?:frame|view)))/i.test(claim);
+      const shown=/^\s+(?:(?:is|remains)\s+)?(?:currently\s+)?(?:visible|in (?:frame|view))/i.test(claim);
+      if (c.ok && hidden || c.ok === false && shown) issues.push(`${name}: the current viewer check says ${c.detail}; do not substitute an earlier/intermediate camera state.`);
+    }
+  }
+  // Keep every epoch. A drawing observation supports drawing at that epoch,
+  // never a comparison of image content. No pixel-comparison fact is currently
+  // published by the host, so a positive content/weather claim is unsupported.
+  const imagery = facts.filter(f => f.kind === 'imagery-state');
+  for (const sentence of sentences(text).flatMap(s => s.split(/[,;]?\s+but\s+/i))) {
+    if (!imagery.length || !/imagery|images?|overlays?|textures?|layers?|appearance|clouds?|pixels?|weather/i.test(sentence)) continue;
+    const exclusive = /\bonly (?:thing|layer)\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.exec(sentence);
+    if (exclusive && !/\b(?:not|cannot|can't|unknown|unverified)\b/i.test(sentence.slice(0,exclusive.index))) {
+      issues.push('No independent visual comparison establishes that imagery was the only thing that changed. Report selected dates separately from observed appearance.');
+      continue;
+    }
+    const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
+    if (qualified) continue;
+    const contentChange = /\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b[^.!?]*\b(?:changed|changes|switched|differs?|different|evolved|moved)\b|\b(?:changed|changes|switched|differs?|different|evolved|moved)\b[^.!?]*\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b/i.test(sentence);
+    if (contentChange || /\bonly (?:thing|layer)\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.test(sentence)) {
+      issues.push('Imagery drawing observations and acquisition dates do not establish changed image content or weather. No independent visual comparison was observed; explain that content change cannot be established.');
+      continue;
+    }
+    const drawing = /\b(?:imagery|images?|overlays?|textures?|layers?|base)\b(?:\s+(?:is|are|was|were|now|both|fully|already|successfully|being|have|has|been|configured|and))*\s+(?:loaded|drawn|rendered|displayed)\b|\b(?:loaded|drawn|rendered|displayed)\s+(?:imagery|images?|overlays?|textures?|layers?)\b/i.test(sentence);
+    if (!drawing) continue;
+    for (const image of imagery) {
+      const namedBodies = [...new Set(imagery.map(i => i.body))];
+      if (namedBodies.length > 1 && !sentence.includes(image.body) && !image.layers.some(l => sentence.includes(l.name))) continue;
+      const named = image.layers.filter(l => sentence.includes(l.name));
+      if ((named.length ? named : image.layers.filter(l => l.visible)).some(l => !l.drawn)) {
+        issues.push(`${image.body} imagery has no supporting current-view drawing observation for that claim at ET ${image.et}. Report configured layers and effective acquisition dates; loaded/drawn imagery is not established at every inspected epoch.`);
+        break;
+      }
+    }
+  }
   const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
   for (const m of text.matchAll(/\b(?:all|across|over)\s+(?:the\s+)?(\d+)\s+(?:[a-z][a-z'-]*\s+){0,3}?(flights?|hops?|activities|intervals?)\b/gi)) {
     const kind=/^activit/i.test(m[2])?'activity':m[2].toLowerCase().replace(/s$/,'');
@@ -97,9 +139,17 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
       if (existence.length && !existence.some(f => Math.abs(f.secondsBeforeStart - seconds) <= tolerance)) issues.push('The relative scene-existence time contradicts the returned ET difference. Quote the configured start UTC or the provided seconds-before-start; this is a rendering boundary, not a physical release time.');
     }
   }
+  const profiles = facts.filter(f => f.kind === 'sampled-profile');
+  const plottedGaps = profiles.filter(p => p.plot?.visible && p.plot.missing > 0);
+  if (plottedGaps.length && !/\b(?:plot|trace|timeline)[^.!?]*(?:gap|missing)|\b(?:gap|missing)[^.!?]*(?:plot|trace|timeline)/i.test(text)) issues.push('The visible native plots contain missing-data gaps, separate from the bounded numerical sample interval. Disclose those plot gaps.');
   const samples = facts.filter(f => f.kind === 'sampled-range');
-  const sampled = samples.filter(f => f.eventSearchUnavailable).at(-1);
-  const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(text);
+  const sampled = samples.filter(f => f.eventSearchUnavailable || f.missing > 0).at(-1);
+  const countWords = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+  const countText = text.replace(/\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi, word => String(countWords.indexOf(word.toLowerCase())));
+  for (const p of profiles.filter(p => p.missing > 0)) {
+    if (!new RegExp(`\\b${p.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${p.missing}\\b|\\b${p.missing}/${p.count}\\s+(?:missing|gaps?)\\b`, 'i').test(countText)) issues.push(`The ${p.quantity} series has ${p.missing} missing samples out of ${p.count}; disclose its own missing count, not only the range series coverage.`);
+  }
+  const disclosedMissing = sampled && new RegExp(`\\b${sampled.missing}\\s+(?:missing|(?:sample|position)s? missing)\\b|\\bmissing (?:samples?|positions?)\\s*[:=]?\\s*${sampled.missing}\\b${sampled.missing === 0 ? '|\\b(?:no|zero|none)\\s+(?:missing|gaps?)\\b|\\bgaps?\\s*[:=]?\\s*(?:0|none)\\b' : ''}`, 'i').test(countText) || sampled && new RegExp(`\\b${sampled.missing}/${sampled.count}\\s+(?:missing|gaps?)\\b`, 'i').test(countText);
   if (sampled && !disclosedMissing) issues.push(`The sampled alternative omits its missing-data limit: report ${sampled.missing} missing samples out of ${sampled.count}; do not infer continuous coverage.`);
   if (samples.length && !events.length) {
     const unsupported = sentences(text).find(s => /\b(?:true|exact|verified|confirmed|actual)\s+(?:physical\s+)?(?:separation|release|detachment|contact|touchdown)\b/i.test(s) && !NEGATED.test(s) && !/\b(?:not|cannot|can't|doesn't|does not|unresolved|unknown|uncertain|unconfirmed)\b/i.test(s));
@@ -113,19 +163,19 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
     // Rounded speech ("about 1 AU", "3.5 billion km") is fine; an unsupported number is not.
     if (!known.some(k => Math.abs(d.km - k) <= (events.length ? 0.05 * k + 0.5 : Math.max(1e-6, 0.05 * k)))) issues.push(`"${d.text}" matches no distance the viewer reported (${[...new Set([...events.flatMap(f => [f.rangeKm, f.altitudeKm]), ...samples.map(s => s.minimumKm)].filter((v): v is number => typeof v === 'number'))].slice(0, 6).map(v => `${v.toPrecision(4)} km`).join(', ')})`);
   }
-  const days = [...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
+  const days = [...profiles.flatMap(p => [...p.samples.map(s => dayOf(s.utc)), dayOf(p.plot?.startUtc ?? null), dayOf(p.plot?.endUtc ?? null)]), ...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
   for (const d of statedDates(text)) if (days.length && !days.some(k => dayDiff(k, d.day) <= 1)) issues.push(`"${d.text}" matches no date the viewer reported`);
   // Calendar timestamps are compared at the precision the answer actually states.
   // Dates alone keep the existing one-day tolerance; a stated clock time must
   // match a published epoch/window bound within a second or displayed minute.
-  const epochs = [...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
+  const epochs = [...profiles.flatMap(p => [...p.samples.map(s => s.utc), p.plot?.startUtc, p.plot?.endUtc]), ...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
   const timestamps = /\b(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(?:Z|\s*UTC)?\b/g;
   for (const m of text.matchAll(timestamps)) {
     const epoch = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4] ?? '00'}.${m[5] ?? '000'}Z`);
     const tolerance = m[4] ? 1000 : 60000;
     if (epochs.length && !epochs.some(e => Math.abs(e - epoch) < tolerance)) issues.push(`"${m[0]}" matches no epoch the viewer reported`);
   }
-  const ets = samples.flatMap(s => [s.minimumEt, ...(s.samples ?? []).map(v => v.et)]);
+  const ets = [...profiles.flatMap(p => p.samples.map(s => s.et)), ...samples.flatMap(s => [s.minimumEt, ...(s.samples ?? []).map(v => v.et)])];
   for (const m of text.matchAll(/\bET\s*([+-]?\d+(?:\.\d+)?)/g)) {
     if (ets.length && !ets.some(e => Math.abs(e - Number(m[1])) <= 1)) issues.push(`"${m[0]}" matches no sampled epoch the viewer reported`);
   }
@@ -149,7 +199,7 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
 }
 
 /** A plain account of published event or sampled-range facts: what the host shows when the model's answer contradicts them. */
-export function factSummary(facts: readonly ResultFact[]): string {
+export function factSummary(facts: readonly ResultFact[], report?: GoalReport | null): string {
   const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
   if (height?.status==='clarification') return height.message;
   const metric=height?.metric==='heightAbovePhysicalTerrain'?'geodetic-normal physical terrain clearance':height?.metric==='heightAboveReferenceEllipsoid'?'reference-ellipsoid height':height?.metric==='radialHeightAboveReferenceSphere'?'radial reference-sphere height':height?.metric;
@@ -161,14 +211,30 @@ export function factSummary(facts: readonly ResultFact[]): string {
     : `${height.message} ${height.completed}/${height.requested} requested intervals completed; no collection winner was established.`;
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
   const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
+  // A paired range/range-rate history is already computed by the native
+  // sampler. Preserve that evidence when replacing a contradictory answer;
+  // a universal minimum-only fallback discards the comparison the person sees.
+  const rate = facts.filter(f => f.kind === 'sampled-profile').filter(f => f.quantity === 'range-rate' && f.unit === 'km/s').at(-1);
+  const history = rate && facts.filter(f => f.kind === 'sampled-range').filter(f => f.startUtc === rate.startUtc && f.endUtc === rate.endUtc
+    && [f.observer,f.target].every(n => [rate.observer,rate.target].includes(n))).at(-1);
+  const rates = rate?.samples.filter((s): s is typeof s & { value: number } => s.value !== null) ?? [];
+  if (!events.length && history && rate && rates.length > 1 && history.samples?.length) {
+    const first = history.samples[0], last = history.samples.at(-1)!;
+    const value = (v: number) => Number(v.toPrecision(6));
+    const plot = rate.plot;
+    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing points on a ${plot.count}-point display grid (intentional clipping excluded); ${plot.missing ? 'plot gaps remain separate from this bounded read' : 'no missing points were observed inside this plotted interval; this is not a continuous-coverage certificate'}.` : '';
+    return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.${plotText}`;
+  }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
   }
   if (!events.length) {
+    const images = facts.filter(f => f.kind === 'imagery-state');
+    if (images.some(i => i.layers.length) && !facts.some(f => ['scene-existence','authored-viewpoint','activity-inventory'].includes(f.kind))) return images.map(image => `${image.body} at ET ${image.et}: ${image.layers.length} configured imagery layers. ${image.layers.filter(l => l.date).map(l => `${l.name} has selected acquisition date ${l.date}${l.pending ? ' (pending)' : ''}${l.illumination === 'baked' ? '; acquisition lighting is baked into the image' : ''}.`).join(' ')} ${image.layers.some(l => l.drawn) ? 'Drawing was observed for some layers; this does not establish that every configured layer contributes here.' : 'No current-view drawing of those layers was observed.'}`).join(' ') + ' Selected dates and drawing at both times do not establish changed pixels or weather; no independent visual comparison was observed.';
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
     const authored=facts.filter(f=>f.kind==='authored-viewpoint').at(-1);
     const inventory=facts.filter(f=>f.kind==='activity-inventory').at(-1);
-    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : '';
+    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : (report?.checks.filter(c => c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ') ? `Current viewer check: ${report!.checks.filter(c=>c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ')}. This establishes the final framing, not whether the requested camera improvement was achieved.` : '');
   }
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;

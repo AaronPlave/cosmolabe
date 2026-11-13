@@ -15,6 +15,7 @@ const PUBLIC_TERMS = new Set(['estimated', 'reconstructed', 'observed', 'planned
   'ellipsoid', 'areoid', 'reference-sphere', 'height-grid', 'radial', 'geodetic-normal', 'planetocentric', 'ECLIPJ2000', 'J2000', 'IAU_MARS', 'IAU_MOON', 'MOON_ME_DE421', 'MOON_PA_DE421', 'IAU_SATURN', 'IAU_JUPITER', 'IAU_SUN', 'IAU_EARTH', 'IAU_VENUS', 'IAU_MERCURY', 'IAU_URANUS', 'IAU_NEPTUNE', 'IAU_TITAN', 'IAU_MIMAS', 'IAU_ENCELADUS']);
 
 export function agentMetadata(policy: AgentMetadataPolicy = {}) {
+  const day = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
   const text = (value: string | null | undefined) => value != null && (PUBLIC_TERMS.has(value) || policy.publicValue?.(value) === true) ? value : null;
   const shape = (value: import('@cosmolabe/interop').TrajectoryExtremaQuery['reference'] | null | undefined) => {
     if (value?.kind === 'sphere' && Number.isFinite(value.radiusKm) && value.radiusKm > 0) return {kind:'sphere',radiusKm:value.radiusKm};
@@ -36,6 +37,14 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     id: l.id, name: l.name, role: l.role, optional: l.optional, visible: l.visible, opacity: l.opacity,
     bounds: l.bounds, resolutionMeters: l.resolutionMeters, status: l.status,
     attribution: text(l.attribution), description: text(l.description),
+    // Closed typed fields only: no endpoints, arbitrary catalog text or paths.
+    time: l.time ? { policy: l.time.policy, cadence: l.time.cadence, date: day(l.time.date),
+      requestedDate: day(l.time.requestedDate), state: l.time.state, offsetDays: l.time.offsetDays,
+      pending: l.time.pending, rangeStart: day(l.time.rangeStart), rangeEnd: day(l.time.rangeEnd),
+      illumination: l.time.illumination } : null,
+    evidence: { configured: true, requests: l.status, drawnInView: l.view !== null,
+      coversView: l.view?.inCoverage ?? null,
+      completeTiles: l.view ? l.view.missingTiles === 0 && l.view.degradedTiles === 0 : null },
     // Endpoints and service resource identifiers are never sent, even if approved.
     view: l.view ? { inCoverage: l.view.inCoverage, zoomLevel: l.view.zoomLevel, minZoom: l.view.minZoom,
       missingTiles: l.view.missingTiles, degradedTiles: l.view.degradedTiles, cacheFull: l.view.cacheFull } : null,
@@ -101,6 +110,7 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     source: endpoint(m.source), target: endpoint(m.target), vertex: endpoint(m.vertex),
     frame: text(m.frame), first: vector(m.first), second: vector(m.second), showDistance: m.showDistance, fullLength: m.fullLength });
   const availability = (a: ScriptObjectState['positionAvailability']) => ({ available: a.available,
+    coverage: a.coverage ? a.coverage.slice(0,32).filter(c => Number.isFinite(c.start) && Number.isFinite(c.end) && c.end >= c.start).map(c => ({ start: c.start, end: c.end })) : null,
     reason: ['pending','before-coverage','after-coverage','gap','disconnected','stale','unbound','error','dependency'].includes(a.reason ?? '') ? a.reason : null,
     sourceId: text(a.sourceId), classification: text(a.classification) });
   const objectState = (s: ScriptObjectState | null | undefined) => !s ? null : ({ et: s.et, frame: text(s.frame), center: s.center, positionUnit: 'km',
@@ -124,5 +134,5 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     status: p.status, reason: p.reason === null || ['scene-changed','scene-changing','invalid-surface-policy','no-scene','missing-entity','missing-parent','unsupported-reference-shape','invalid-body-fixed-position','no-surface-renderer','body-fixed-frame-unavailable','surface-unavailable','physical-terrain-unavailable-use-explicit-reference-alternative','position-or-frame-unavailable','position-pending','position-before-coverage','position-after-coverage','position-gap','position-disconnected','position-stale','position-unbound','position-error','position-dependency'].includes(p.reason) ? p.reason : 'unavailable', referenceOnly: p.referenceOnly, point: p.point ? surfacePoint(p.point) : null, annotation: annotation(p.annotation),
     limitations: 'Body-fixed radial projection from current entity state, not a camera pixel or a flight-site guess. Reference, rendered and physical terrain are distinct. Snapshot pin, not a tracker.' });
   const probePoint = (p: ScriptProbePoint | null) => !p ? null : ({ scene: p.scene, observedEt: p.observedEt, placedEt: p.placedEt, drawn: p.drawn, point: surfacePoint(p.point), annotation: annotation(p.annotation) });
-  return { text, place, measurement, objectState, spatialContext, groundProjection, probePoint, imagery, surface, trajectoryExtremum, geographicLayer, geographicFeature };
+  return { text, place, measurement, objectState, spatialContext, groundProjection, probePoint, imageryLayer: layer, imagery, surface, trajectoryExtremum, geographicLayer, geographicFeature };
 }

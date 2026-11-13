@@ -18,7 +18,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, runAgent, type AskExample, type AskHelp, type CapabilityTools, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -128,7 +128,8 @@ const plainList = (items: readonly string[]) => items.join('; ').replace(/\.$/, 
  */
 export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
   const r = turn.result;
-  if (turn.status !== 'done' || !r) return null;
+  if (!r) return null;
+  if (turn.status !== 'done') return r.answerSource === 'host-facts' ? {tone:'warning',text:'The model stopped before finishing its answer. The viewer’s own measured account is shown; the requested view may still be incomplete.'} : null;
   const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
   const replaced = `${r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : ''}${r.escalated ? ` Answered by the escalation model: ${r.escalated}.` : ''}`;
   switch (r.status) {
@@ -202,7 +203,7 @@ function currentTransport(): AgentTransport | null {
 
 // ── The conversation ──
 
-let tools: AgentTools | null = null;
+let tools: CapabilityTools | null = null;
 const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
   ...(embedded ? hostCapabilities : {
     allowAuthoring: true, allowExternal: true,
@@ -216,6 +217,14 @@ const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
   },
   surface: ask.toolMode, formatTime: etToUtcString, metadata: builtInAgentMetadata,
 }));
+
+/** Opening examples performs local reads only. Selection, rather than default
+ * camera tracking, supplies the subject of a possible distance investigation. */
+export function askHelp(): AskHelp {
+  const observed = agentTools().inspect?.();
+  return observed?.ok ? (observed.data as { askHelp: AskHelp }).askHelp : { categories:[], examples:[], authority:'Scene data is unavailable.' };
+}
+export function askExamples(): AskExample[] { return askHelp().examples; }
 
 /** Exact-call approval owned by the visible Ask UI, never by model/catalog text. */
 export const askApproval = $state({ pending: null as null | { kind: 'authoring' | 'external'; operation: string; input: string } });

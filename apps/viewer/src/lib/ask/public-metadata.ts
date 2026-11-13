@@ -5,6 +5,10 @@
 import type { AgentMetadataPolicy } from '@cosmolabe/control';
 
 const PUBLIC_METADATA = new Set<string>([
+  "NASA GIBS",
+  "NASA GIBS · VIIRS NOAA-20",
+  "Blue Marble Shaded Relief and Bathymetry: a static composite with no acquisition date, not daily satellite imagery",
+  "NOAA-20 VIIRS corrected reflectance, true colour: one composite per UTC day of what the sensor saw that day, clouds included. Polar-night areas are black. Not captured by the ISS",
   "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395",
   "Caltech Murray Lab / Esri",
   "Mars 2020 Jezero CTX orthomosaic",

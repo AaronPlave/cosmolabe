@@ -12,13 +12,14 @@
    * Offered only where a model is configured (`askAvailable`).
    */
   import { tick } from 'svelte';
-  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
+  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, Send } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
+    ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
-  import { etToUtcString } from '../lib/viewer-state.svelte';
+  import type { AskExample, AskHelp } from '@cosmolabe/control';
+  import { etToUtcString, vs } from '../lib/viewer-state.svelte';
   import { parseAnswer, type AnswerBlock, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -29,7 +30,27 @@
   let { onClose }: Props = $props();
 
   let prompt = $state('');
+  let help = $state<AskHelp | null>(null);
+  let composer = $state<HTMLTextAreaElement | null>(null);
+  $effect(() => { void vs.selectedBodyName; void vs.trackedBodyName; void vs.sceneLoaded; help = null; });
+  function chooseExample(example: AskExample) {
+    if (ask.running) return;
+    help = null;
+    void submitAsk(example.prompt);
+  }
   let transcript = $state<HTMLElement | null>(null);
+  let fittedHeight = 0;
+  let resizedHeight = 0;
+  function fitComposer() {
+    if (!composer) return;
+    const current = Number.parseFloat(composer.style.height);
+    if (fittedHeight && Number.isFinite(current) && Math.abs(current - fittedHeight) > 2) resizedHeight = current;
+    composer.style.height = 'auto';
+    fittedHeight = Math.max(resizedHeight, Math.min(192, composer.scrollHeight));
+    composer.style.height = `${fittedHeight}px`;
+    composer.style.overflowY = composer.scrollHeight > fittedHeight ? 'auto' : 'hidden';
+  }
+  $effect(() => { void prompt; void tick().then(fitComposer); });
 
   // Follow the newest step as it lands.
   $effect(() => {
@@ -170,6 +191,7 @@
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="ask flex min-h-0 flex-1 flex-col" onkeydown={containKeys}>
+    {#if ask.turns.length > 0}
     <ol bind:this={transcript} class="ask-log flex flex-col gap-3 px-3 pb-2 pt-3" aria-live="polite">
       {#each ask.turns as turn (turn.id)}
         {#if turn.fresh}
@@ -237,12 +259,8 @@
           {/if}
         </li>
       {/each}
-      {#if ask.turns.length === 0}
-        <li class="ui-helper whitespace-normal">
-          Ask for a place, an object, a mission activity, a time or a layer, e.g. “fly to Jezero and show the available imagery”.
-        </li>
-      {/if}
     </ol>
+    {/if}
 
     {#if ask.serviceBlocked && ask.turns.at(-1)?.status !== 'error'}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
     {#if askApproval.pending}
@@ -258,15 +276,37 @@
       </div>
     {/if}
 
-    <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
+    <div class="shrink-0 px-3 pt-2">
+      <button class="inline-flex items-center gap-1.5 rounded bg-surface-3 px-2 py-1.5 text-xs text-text-primary hover:bg-hover"
+        title={help ? `${help.categories.join(' · ')}. ${help.authority}` : 'Questions for this scene'} aria-expanded={help !== null} disabled={ask.running}
+        onclick={() => { help = help === null ? askHelp() : null; }}>
+        Try a question <ChevronDown size={12} class={help !== null ? 'rotate-180' : ''} />
+      </button>
+      {#if help !== null}
+        <div class="mt-2 flex max-h-64 flex-col gap-1.5 overflow-y-auto" aria-label="Scene examples">
+          <p class="text-xs text-text-secondary" aria-label="Ask capabilities">{help.categories.join(' · ')}</p>
+          {#each help.examples as example}
+            <button class="ask-starter flex items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs text-text-primary"
+              title={example.evidence} aria-label={`Ask: ${example.label}`} disabled={ask.running} onclick={() => chooseExample(example)}>
+              <span>{example.label}</span><Send size={14} class="shrink-0 text-accent" />
+            </button>
+          {:else}
+            <p class="ui-helper">Select an object for suggestions.</p>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <div class="flex shrink-0 items-end gap-2 px-3 pb-3 pt-2">
       <textarea
+        bind:this={composer}
         bind:value={prompt}
         onkeydown={onKeydown}
         rows="2"
         placeholder="Ask Cosmolabe…"
         aria-label="Request"
         title="A model interprets the request; the viewer's catalog and data remain the source of truth."
-        class="ui-control min-w-0 flex-1 resize-none rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
+        class="ui-control min-w-0 flex-1 resize-y rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
       ></textarea>
       {#if ask.running}
         <button class="ask-btn" onclick={stopAsk} aria-label="Stop request" title="Stop: a flight in progress stops where it is">
@@ -289,6 +329,9 @@
     min-height: 0;
     overflow-y: auto;
   }
+  .ask-starter { background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-3)); }
+  .ask-starter:hover { background: color-mix(in srgb, var(--color-accent) 28%, var(--color-surface-3)); }
+  .ask-starter:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
   .ask-btn {
     display: flex;
     align-items: center;

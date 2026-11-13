@@ -419,7 +419,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     return wrapped;
   };
   const direct = () => opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!];
-  const signature = (def: AgentDefinition) => `${idOf(def)}${def.contract.guide ? '*' : ''}(${Object.entries(def.inputSchema.properties ?? {}).map(([key, prop]) => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(prop.type) ? prop.type.join('|') : prop.type ?? 'json'}${prop.enum ? '=' + prop.enum.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${prop.maximum !== undefined ? '<=' + prop.maximum : ''}`).join(',')})`;
+  const signature = (def: AgentDefinition) => `${JSON.stringify(idOf(def))}(${Object.entries(def.inputSchema.properties ?? {}).map(([key, prop]) => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(prop.type) ? prop.type.join('|') : prop.type ?? 'json'}${prop.enum ? '=' + prop.enum.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${prop.maximum !== undefined ? '<=' + prop.maximum : ''}`).join(',')})${def.contract.guide ? ' [notes]' : ''}`;
   /**
    * The registry index the model sees, within a fixed budget however many
    * operations are registered: entries in registration order (built-ins
@@ -436,7 +436,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       entries.push(entry); used += entry.length + 2;
     }
     const rest = all.length - entries.length;
-    return `Compact registry IDs (* has usage notes: describe it before first use): ${entries.join(', ')}${rest ? `, and ${rest} more: find them with listCapabilities` : ''}.`;
+    return `Compact registry signatures (use only the quoted ID; [notes] means describe it before first use): ${entries.join(', ')}${rest ? `, and ${rest} more: find them with listCapabilities` : ''}.`;
   };
   const api: CapabilityTools = {
     list: () => { versionCheck(); return [...direct(), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} ${index()}` } : d)]; },

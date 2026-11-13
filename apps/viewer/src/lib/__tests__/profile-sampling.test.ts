@@ -123,3 +123,16 @@ describe('timeline event snapping', () => {
     expect(snapFraction(0.5, candidates, 0)).toBeNull();
   });
 });
+
+it('native timeline samples mark sampled-source endpoints and interior gaps missing', async () => {
+  const { Universe, Body, InterpolatedStatesTrajectory, FixedPointTrajectory } = await import('@cosmolabe/core');
+  const u = new Universe();
+  u.addBody(new Body({ name: 'Origin', trajectory: new FixedPointTrajectory([0, 0, 0]) }));
+  u.addBody(new Body({ name: 'Sampled', trajectory: new InterpolatedStatesTrajectory(
+    [0, 10, 20, 30].map(et => ({ et, position: [100 + et, 0, 0], velocity: [1, 0, 0] })),
+    { coverage: [{ start: 0, end: 10 }, { start: 20, end: 30 }] }), parentName: 'Origin' }));
+  const result = sampleProfile(spec('range'), { observer: 'Origin', target: 'Sampled' }, { start: -5, end: 35 }, 9,
+    (name, et) => u.absolutePositionOf(name, et));
+  expect(result.values).toEqual([null, 100, 105, 110, null, 120, 125, 130, null]);
+  expect(quantityAt('range-rate', { observer: 'Origin', target: 'Sampled' }, 0, (name, et) => u.absolutePositionOf(name, et))).toBeNull();
+});

@@ -94,3 +94,6 @@ export type {
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from '@cosmolabe/interop';
 
 export { findClosestApproach } from './closest-approach.js';
+
+export { guidanceExamples, guidanceOverview, ASK_AUTHORITY } from './ask-guidance.js';
+export type { AskExample, AskHelp, GuidanceScene, GuidancePair } from './ask-guidance.js';

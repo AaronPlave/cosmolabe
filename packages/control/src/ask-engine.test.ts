@@ -218,7 +218,11 @@ describe('operations come and go without an Ask change', () => {
       const tools = createCapabilityTools(host, { surface: 'fixed' });
       const now = offered(tools);
       // Indexed and marked as having notes; the notes stay out of the prompt and come from the registry.
-      expect(now.index).toContain('display.setWidgetColor*(color:string=grey|teal)');
+      expect(now.index).toContain('"display.setWidgetColor"(color:string=grey|teal) [notes]');
+      // #379: copying the quoted ID must never include signature/notes syntax.
+      const copiedIds = [...now.index.matchAll(/"([^"]+)"\(/g)].map(m => m[1]);
+      expect(copiedIds).toContain('display.setWidgetColor');
+      for (const id of copiedIds) expect(tools.describeCapabilities([id])[0].id).toBe(id);
       expect(now.prompt).not.toContain('Teal means');
       expect(tools.describeCapabilities(['display.setWidgetColor'])[0]).toMatchObject({ available: true, guide: 'Teal means the widget is armed.', behaviour: { writes: ['display'], unobservable: null, idempotent: true } });
       const invoke = (id: string) => use(id, 'invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } });
@@ -660,6 +664,18 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     tools.dispose();
   });
 
+  it('an output-limit stop retains a labeled host account of completed measurements', async () => {
+    const {host}=failingScene();
+    const tools=createCapabilityTools(host,{surface:'fixed'});
+    const model=scripted([call(readSamples('samples')),{content:[],stop:'max_tokens'}]);
+    const run=await runAgent({transport:model.transport,tools,prompt:'Explain this history'});
+    expect(run.outcome.kind).toBe('max-tokens');
+    expect(run.answer).toContain('minimum among 2 returned');
+    expect(run.result.answerSource).toBe('host-facts');
+    expect(run.result.answerIssues).toEqual([]);
+    tools.dispose();
+  });
+
   it('a budget stop reports the published sampled alternative without certifying the unmet event goal', async () => {
     const { host } = failingScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
@@ -759,4 +775,57 @@ describe('the model-facing context stays bounded as operations are added', () =>
       expect(await after.tools.call('invokeCapability', { id: 'display.synthetic299', input: { level: 1 } })).toMatchObject({ ok: true });
     } finally { unregister.forEach(u => u()); }
   });
+});
+
+it('does not treat speeds in a native history comparison as contradictory distances', () => {
+  expect(statedDistancesKm('Incoming at -10.96 kilometers per second, outgoing at +13.43 km/s; the center distance is 104,291 km.'))
+    .toEqual([{ text: '104,291 km', km: 104291 }]);
+  expect(statedDistancesKm('0.5 m/s and 10 km per second versus 50 m.')).toEqual([{ text: '50 m', km: 0.05 }]);
+});
+
+it('keeps a qualified native-history fallback with both plotted and sampled intervals and gaps', async () => {
+  const { factSummary } = await import('./answer-check.js');
+  const facts: ResultFact[] = [
+    {kind:'sampled-range',observer:'Probe',target:'Body',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,minimumKm:100,minimumUtc:'2004-07-01 00:00:00 UTC',minimumEt:2,eventSearchUnavailable:false,samples:[{km:700,et:1,utc:'2004-06-30 12:00:00 UTC'},{km:1200,et:3,utc:'2004-07-02 11:58:00 UTC'}]},
+    {kind:'sampled-profile',observer:'Probe',target:'Body',quantity:'range-rate',unit:'km/s',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,samples:[{value:-10,et:1,utc:'2004-06-30 12:00:00 UTC'},{value:7,et:3,utc:'2004-07-02 11:58:00 UTC'}],plot:{startUtc:'2004-06-30 07:00:00 UTC',endUtc:'2004-07-02 17:00:00 UTC',count:763,missing:128,visible:true}},
+  ];
+  expect(checkAnswer('Distance falls and then rises over 32 samples.',facts)).toContainEqual(expect.stringMatching(/visible native plots/));
+  const summary=factSummary(facts);
+  for (const phrase of ['2004-06-30 12:00:00 UTC','2004-07-02 11:58:00 UTC','32 range samples (0 missing)','negative means closing, positive means opening','Native plotted interval 2004-06-30 07:00:00 UTC to 2004-07-02 17:00:00 UTC','128 missing points on a 763-point display grid','do not certify']) expect(summary).toContain(phrase);
+  expect(checkAnswer(summary,facts)).toEqual([]);
+  const missingRate:ResultFact[]=[facts[0],{...facts[1],kind:'sampled-profile',missing:2} as ResultFact];
+  expect(checkAnswer('The timeline plot has gaps; 32 samples describe closing and opening.',missingRate)).toContainEqual(expect.stringMatching(/range-rate series has 2 missing/));
+  expect(checkAnswer(factSummary(missingRate),missingRate)).toEqual([]);
+});
+
+it('publishes aspect-correct camera evidence instead of inviting vertical-FOV comparisons', async () => {
+  const { compositionData } = await import('./agent.js');
+  const data=compositionData({scene:1,et:1,playing:false,tracked:'A',orbitDistanceKm:10,fovDeg:60,aspect:1.5,objects:[]});
+  expect(data).toMatchObject({fovDeg:60,aspect:1.5,horizontalFovDeg:81.787});
+});
+
+it('describes the Clipper investigation projection without claiming a resolved spacecraft model', async () => {
+  const { compositionData, compositionSentence } = await import('./agent.js');
+  const view: import('./contracts.js').ScriptViewComposition = {
+    scene: 1, et: 1003830456.8034713, playing: false, tracked: 'Europa', orbitDistanceKm: 9453.134713493175, fovDeg: 60, aspect: 1280 / 900,
+    objects: [{ object: 'Europa Clipper', available: true, inView: true, drawEnabled: true, ndc: [-0.09138889638205093, 0.06582710631635379], bearingDeg: null, rangeKm: 9453.13471349319, radiusKm: 0.005, angularRadiusDeg: 0.00003030517455299897, occlusion: null }],
+  };
+  const data = compositionData(view);
+  expect(data.objects[0]).toMatchObject({ inView: true, drawEnabled: true, physicalAppearance: 'unassessed', angularRadiusDeg: 0.0000303052, angularDiameterDeg: 0.0000606103 });
+  expect(data).toHaveProperty('projectionMeaning', expect.stringContaining('Markers/event indicators may locate an unresolved object'));
+  expect(compositionSentence(view)).toContain('Europa Clipper location in frame (physical appearance unassessed)');
+  const { evaluate } = await import('./outcome.js');
+  const host = { getViewComposition: () => view } as unknown as import('./contracts.js').ViewerControl;
+  const goal = evaluate(host, [{ p: 'inView', object: 'Europa Clipper' }]);
+  expect(goal.status).toBe('met');
+  expect(goal.checks[0].detail).toBe('Europa Clipper location in frame; physical appearance unassessed');
+});
+
+it('checks current framing claims against final viewer evidence, not an intermediate failed move', async () => {
+  const {factSummary}=await import('./answer-check.js');
+  const report={status:'met' as const,checks:[{slot:'view:Body',ok:true,detail:'Body in frame',soft:false}]};
+  expect(checkAnswer('Body is currently out of frame.',[],report)).toEqual([expect.stringMatching(/current viewer check/)]);
+  expect(checkAnswer('Body is visible.',[],report)).toEqual([]);
+  expect(factSummary([],report)).toContain('Body in frame');
+  expect(factSummary([],report)).toContain('not whether the requested camera improvement was achieved');
 });

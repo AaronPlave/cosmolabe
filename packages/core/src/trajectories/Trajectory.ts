@@ -11,6 +11,8 @@ export interface Trajectory {
    * evaluating between them still goes through authoritative stateAt. */
   samplingBreakpoints?(start: number, end: number): readonly number[];
   stateAt(et: number): CartesianState;
+  /** Optional intentional endpoint pose holding, for rendering only. */
+  displayStateAt?(et: number): CartesianState;
   readonly startTime?: number;
   readonly endTime?: number;
   /**

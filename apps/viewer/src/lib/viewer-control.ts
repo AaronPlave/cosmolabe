@@ -125,7 +125,7 @@ export interface ViewerControlDeps {
 const PLAYBACK_TIME_EVENT_MS = 250;
 
 const availabilityOf = (a: StateAvailability): ScriptAvailability => ({
-  available: a.available, reason: a.reason, message: a.message, sourceId: a.sourceId, classification: a.classification,
+  available: a.available, coverage: a.coverage, reason: a.reason, message: a.message, sourceId: a.sourceId, classification: a.classification,
 });
 
 /**

@@ -2004,3 +2004,29 @@ it('rounds displayed UTC seconds instead of truncating submillisecond SPICE offs
   expect(viewerState.etToUtcString(469078427.1826898)).toBe('2014-11-12 15:32:40 UTC');
   expect(viewerState.etToUtcString(469053407.18268466)).toBe('2014-11-12 08:35:40 UTC');
 });
+
+it('presenting a computed result exposes the existing timeline lanes at the searched interval', async () => {
+  const model = await import('../analysis.svelte');
+  const { shell, setTimelineDepth } = await import('../shell.svelte');
+  const host = createViewerControl();
+  const make = (id: string, target: string, et: number) => {
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target }, window: { start: 100, end: 200 }, step: 10 }, id, 'explicit');
+    model.setEventResults(item.id, [{ id, queryId: item.id, kind: 'closest-approach', temporality: 'instant', et, label: id,
+      bodies: { observer: 'Cassini', target }, metrics: [{ key: 'range', label: 'Range', value: et, unit: 'km' }] }]);
+    return item.id;
+  };
+  const a = make('first-comparison', 'Saturn', 120), b = make('second-comparison', 'Titan', 150);
+  setTimelineDepth('transport');
+  const ref = host.getEventResultPage!(b).items[0].reference;
+  vi.useFakeTimers();
+  try {
+    const pending = host.presentEventResult!(ref, 'target');
+    await vi.advanceTimersByTimeAsync(1510);
+    await pending;
+    expect(shell.timelineDepth).toBe('expanded');
+    expect(host.getTimelineWindow!()).toEqual({ start: 100, end: 200 });
+    expect(host.getEventResultPage!(a).items[0].event.id).toBe('first-comparison');
+    expect(host.getEventVisualization!().selected?.query).toBe(b);
+    expect(host.getTracked()).toBe('Titan');
+  } finally { vi.useRealTimers(); }
+});

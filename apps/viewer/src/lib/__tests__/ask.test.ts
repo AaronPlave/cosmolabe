@@ -277,6 +277,7 @@ describe('the Ask session', () => {
     expect(checkNote(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } })))
       .toEqual({ tone: 'muted', text: 'Holds; not yet observed: terrain on Mars partial.' });
     expect(checkNote(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }))).toEqual({ tone: 'muted', text: 'Not checked against the viewer: trajectory visibility has no read.' });
+    expect(checkNote({...turn({status:'partial',answerSource:'host-facts'}),status:'max-tokens'})?.text).toContain('viewer’s own measured account');
     expect(checkNote(turn({ status: 'no-change' }))).toBeNull();
     expect(checkNote(turn({ status: 'no-change', answerIssues: ['flyby'] }))).toEqual({ tone: 'warning', text: 'The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' });
   });

@@ -1,3 +1,4 @@
+import type { CoverageInterval, StateAvailability } from '../availability.js';
 import type { Vec3 } from '../spice-injection.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 
@@ -14,11 +15,15 @@ export class InterpolatedStatesTrajectory implements Trajectory {
   /** The frame the records are in, when the source declared one (an OEM's
    *  `REF_FRAME`). Undefined for sources that don't (`.xyzv`, inline samples). */
   readonly frame?: string;
+  readonly coverage: readonly CoverageInterval[];
 
-  constructor(records: StateRecord[], options: { frame?: string } = {}) {
+  constructor(records: StateRecord[], options: { frame?: string; coverage?: readonly CoverageInterval[] } = {}) {
     this.frame = options.frame;
     this.records = [...records].sort((a, b) => a.et - b.et);
     if (this.records.length < 2) throw new Error('InterpolatedStates requires at least 2 records');
+    if (this.records.some((r, i) => !Number.isFinite(r.et) || i > 0 && r.et <= this.records[i - 1].et)) throw new Error('State epochs must be finite and unique');
+    this.coverage = (options.coverage ?? [{ start: this.startTime, end: this.endTime }]).map(c => ({ start: Math.max(c.start, this.startTime), end: Math.min(c.end, this.endTime) })).sort((a, b) => a.start - b.start);
+    if (!this.coverage.length || this.coverage.some(c => !Number.isFinite(c.start) || !Number.isFinite(c.end) || c.end < c.start)) throw new Error('Invalid state coverage');
   }
 
   get startJulianDate(): number | undefined { return this.records[0].julianDate; }
@@ -31,10 +36,23 @@ export class InterpolatedStatesTrajectory implements Trajectory {
     return this.records.filter(record => record.et >= start && record.et <= end).map(record => record.et);
   }
 
+  availabilityAt(et: number): StateAvailability {
+    const coverage = this.coverage;
+    if (Number.isFinite(et) && coverage.some(c => et >= c.start && et <= c.end)) return { available: true, coverage };
+    return { available: false, coverage, reason: et < coverage[0].start ? 'before-coverage' : et > coverage[coverage.length - 1].end ? 'after-coverage' : 'gap' };
+  }
+
   stateAt(et: number): CartesianState {
+    return this.availabilityAt(et).available ? this.displayStateAt(et) : { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] };
+  }
+
+  /** Endpoint holding for display only; never use this for scientific reads.
+   * Interior gaps remain unavailable rather than drawing invented interpolation. */
+  displayStateAt(et: number): CartesianState {
+    if (et >= this.startTime && et <= this.endTime && !this.availabilityAt(et).available) return { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] };
     const { records } = this;
 
-    // Clamp to range
+    // Deliberate display-only endpoint holding
     if (et <= records[0].et) return { position: [...records[0].position] as Vec3, velocity: [...records[0].velocity] as Vec3 };
     if (et >= records[records.length - 1].et) {
       const last = records[records.length - 1];

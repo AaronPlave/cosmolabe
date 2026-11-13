@@ -1,3 +1,4 @@
+import { guidanceExamples, guidanceOverview, ASK_AUTHORITY, type GuidancePair } from './ask-guidance.js';
 import { EVENT_ROLES } from '@cosmolabe/core';
 /**
  * Agent tools — the `ViewerControl` port as typed tools a language model can
@@ -26,7 +27,7 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  * Optional `ViewerControl` methods remain the capability declaration: a tool
  * whose method the host lacks is not listed.
  */
-import type {
+import type { ScriptImagery,
   ScriptActivity,
   ScriptProfileData,
   ScriptClosestApproachRequest,
@@ -61,16 +62,17 @@ export function compositionData(v: ScriptViewComposition) {
   if (v.fresh === false) return { et: v.et, fresh: false, observedEt: v.observedEt,
     objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
     limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
-  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
+  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg), aspect: r3(v.aspect), horizontalFovDeg: r3(2 * Math.atan(Math.tan(v.fovDeg * Math.PI / 360) * v.aspect) * 180 / Math.PI),
+    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV. Angular radius is half the apparent diameter; neither establishes physical size. In-frame projection and drawEnabled establish scene location, not a discernible physical model. Markers/event indicators may locate an unresolved object; physical appearance has not been observed.',
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      object: o.object, inView: o.inView, physicalAppearance: 'unassessed', ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : Number(o.angularRadiusDeg.toPrecision(6)), angularDiameterDeg: o.angularRadiusDeg === null ? null : Number((2 * o.angularRadiusDeg).toPrecision(6)),
       bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */
 export function compositionSentence(v: ScriptViewComposition): string {
   if (v.fresh === false) return `Native body placements are still at ET ${v.observedEt ?? 'unknown'}; current clock ET ${v.et}. Object visibility at the requested time is unassessed.`;
   return v.objects.map(o => !o.available ? `${o.object} is not in this scene`
-    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
+    : `${o.object} ${o.inView ? 'location in frame (physical appearance unassessed)' : 'out of frame'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion?.basis === 'model-bounds' ? `, bounding volume overlaps ${o.occlusion.by}; actual mesh occlusion unassessed` : o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
 }
 
 /** The JSON Schema subset the tools are described in. */
@@ -143,7 +145,11 @@ export interface OperationOutcome {
  * checked against it: a measured range, an epoch, whether a range minimum is
  * an encounter and by which criterion.
  */
-export type ResultFact = { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export interface ImageryEvidenceFact { readonly kind: 'imagery-state'; readonly body: string; readonly et: number; readonly surface: string | null; readonly layers: readonly { readonly id: string; readonly name: string; readonly visible: boolean; readonly drawn: boolean; readonly date: string | null; readonly pending: boolean; readonly illumination: string | null }[] }
+
+export interface ProfileSeriesFact { readonly kind: 'sampled-profile'; readonly plot?: { readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly visible: boolean }; readonly observer: string; readonly target: string; readonly quantity: string; readonly unit: string | null; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly samples: readonly { value: number | null; utc: string; et: number }[] }
+
+export type ResultFact = ProfileSeriesFact | ImageryEvidenceFact | { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface HeightAnalysisFact {
   readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
   readonly requested: number; readonly completed: number; readonly metric: string;
@@ -340,7 +346,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   { name: 'listProfiles', effect: 'read', method: 'listProfiles', contract: { namespace: 'profiles', writes: [] }, description: 'List existing continuous timeline profile IDs/configurations and enabled/visible flags in this scene. Native UI, scripts, embedding and Ask share these profiles.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getProfile', effect: 'read', method: 'getProfile', contract: { namespace: 'profiles', writes: [] }, description: 'Read an existing continuous timeline profile: quantity, body pair, time window, enabled/visible, native timeline presence, sampled trace visibility and gaps. Partial/unavailable never proves success. Does not seek or move the scene.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
   { name: 'getProfileValue', effect: 'read', method: 'getProfileValue', contract: { namespace: 'profiles', writes: [], guide: 'Evaluate the existing profile at the exact ET; null is missing position data or outside its configured window, never zero. No interpolation. For a sampled minimum/maximum use sampleProfileData, then navigate with existing setTime at the returned ET only when asked. Center minimum is not clearance/contact/first touchdown.' }, description: 'Numerical value of an existing timeline profile at one ET, with quantity/unit, exact epoch/UTC, missing positions and sampling limits. Read only; independent of visibility. Not surface clearance.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, et: { type: 'number' } }, required: ['id', 'et'], additionalProperties: false } },
-  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. For a transition investigation, first read relevant getObjectContext timing boundaries and inspect how the quantity changes across a localized interval. A brief event needs seconds/minutes cadence, not mission-wide samples; after a coarse first pass, at most one tighter bounded read of the change bracket can improve the estimate. A minimum does not identify onset/release/contact. In the final answer give both effective interval endpoints as UTC dates or ET numbers, the actual sample count or spacing, and explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
+  { name: 'sampleProfileData', effect: 'read', method: 'sampleProfileData', contract: { namespace: 'profiles', writes: [], guide: 'To inspect a timeline trace or find its sampled smallest/largest value, read sampleProfileData for its existing ID and an explicit requested start/end ET (use the visible window unless asked otherwise). Returns at most 32 exact evaluations from the existing sampler, including null gaps, and minimum/maximum of those samples only. For a transition investigation, first read relevant getObjectContext timing boundaries and inspect how the quantity changes across a localized interval. A brief event needs seconds/minutes cadence, not mission-wide samples; after a coarse first pass, at most one tighter bounded read of the change bracket can improve the estimate. A minimum does not identify onset/release/contact. When reporting numerical history, give both effective interval endpoints as UTC dates or ET numbers and the actual sample count or spacing. Answer the requested change/comparison; a minimum is relevant only when the person asked for one, and then explicitly say minimum among the returned samples. Saying only full timeline or mission window is insufficient. State the numeric value/unit, sampled epoch, gaps and approximate nature; equal rounded values do not establish exact ties or a plateau; In the final answer explicitly distinguish sampled center distance from surface clearance/contact or authored first touchdown; never claim a global optimum. Do not run a different solver for a sampled profile request. To take the user there, use existing setTime with minimum.et or maximum.et exactly; do not navigate to an authored touchdown viewpoint. Reads never move time or camera.' }, description: 'Read numerical data from an existing continuous timeline profile over requested ET start/end. Uniform exact samples (count integer 2..32, default 32), actual epochs/UTC, quantity/unit, clipped window, missing positions/gap runs and sampled approximate minimum/maximum. No interpolation/refinement, global-extremum certificate or physical clearance. Reuses the native sampler, independent of pixel density. Read only.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, count: { type: 'number', minimum: 2, maximum: 32 } }, required: ['id', 'start', 'end'], additionalProperties: false } },
   { name: 'getTimelineWindow', effect: 'read', method: 'getTimelineWindow', contract: { namespace: 'time', writes: [] }, description: 'The timeline\'s visible window, ET and UTC. Moves nothing.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getViewComposition', contract: { namespace: 'camera', writes: [], guide: 'Read all referenced objects using exact resolved names. In-frame, draw-enabled and analytical sphere occlusion are separate; sphere bounds are not resolved mesh silhouettes or proof of invisible pixels. Unlisted or unresolved names do not establish absence. Fresh false means native body placements have not caught up after a seek/origin change; read again once before claiming a view. If an object is hidden, getObjectContext distinguishes configured existence limits from camera geometry.' }, effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
   { name: 'checkGoal', effect: 'read', description: 'State what the person asked for, as an AND of typed predicates read from the viewer, before your first change in a request (require: [] when the actions say it all); afterwards it checks the whole held goal. Examples: keep Psyche close AND Mars in view is [{p:"range",object:"Psyche",maxKm:1},{p:"inView",object:"Mars"},{p:"legible",object:"Mars"}]; a flyby is {p:"eventSelected",pick:"closest",encounter:true}; "the closest" is {p:"eventSelected",pick:"closest"}; "all"/"every" over the data is {p:"eventRun",whole:true} (leave query out to mean the search this request runs or presents; otherwise the exact search ID, never its label); "on the ground" is {p:"probeUnder",object,policy:"rendered"}. What you state holds across the conversation until restated or released (slot names, e.g. "range:Psyche"), and a change that contradicts it is refused before it runs. Every change also holds itself to its own result (select → selected); those never override what the person stated. After a change it returns met, partial (drawing, data or legible size not yet observed), unmet or inconclusive. Predicates: viewpoint {id:exactName}; selected/tracked {object|null}; inView/legible {object}; range {object,maxKm?,minKm?}; epoch {et|utc}; paused {value}; rate {value}; activity/place {id}; eventQuery/eventEpoch/eventFramed/eventDrawn {query}; eventRun {query?,whole?}; eventSelected {query?,id?,pick?,encounter?}; probeUnder/featureUnder {object}; featureSelected {layer?,feature?}; ready {kind,body?,layer?}; state {read,args,path,equals} over a registered read. Before creating a search, use eventSelected/eventRun without query; eventFramed/eventEpoch/eventDrawn require an already-saved exact query ID. Presenting a result checks epoch/framing/drawing automatically. Sampled history or extrema use epoch/paused and requested view goals, never a computed-event requirement. If you mistakenly required an outcome the person did not request, release/restate it in this request rather than carrying it forward or narrating an internal check failure. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, properties: {
@@ -491,7 +497,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
   },
   {
     name: 'getImagery',
-    contract: { namespace: 'surface', writes: [], guide: 'Say how many managed layers there are, which is the base and which are visible and in view; leave resolutions and technical names unless asked. Provenance is each layer\'s attribution and source; imageryOnly means no terrain elevation.' },
+    contract: { namespace: 'surface', writes: [], guide: 'Say how many managed layers there are, which is the base and which are visible and in view; leave resolutions and technical names unless asked. Provenance is each layer\'s approved attribution; null means withheld. Configuration/visibility and status ok do not establish loaded or drawn imagery. Say drawn only when evidence.drawnInView is true; null view means no current layer drawing observation. Report the effective acquisition date separately from the simulation clock, pending/fallback day and baked illumination (double lighting) when relevant. Do not infer changing clouds or weather from selected dates. imageryOnly means no terrain elevation.' },
     effect: 'read',
     method: 'getImagery',
     description:
@@ -775,7 +781,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const selected = host.getSelected();
     const objects = bounded(attempt(() => host.listObjects()) ?? [], MAX_NAMES);
     const viewpoints = bounded(attempt(() => host.listViewpoints()) ?? [], 20);
-    const focus = tracked ?? selected;
+    const focus = selected ?? tracked;
     const imagery = focus && has(host, 'getImagery') ? attempt(() => host.getImagery!(focus)) : undefined;
     const activity = has(host, 'getSelectedActivity') ? attempt(() => host.getSelectedActivity!()) : undefined;
     const place = has(host, 'getSelectedPlace') ? attempt(() => host.getSelectedPlace!()) : undefined;
@@ -783,6 +789,29 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const lacks = [
       ['places', 'searchPlaces'], ['mission activities', 'listActivities'], ['imagery', 'getImagery'], ['surface datasets', 'getSurfaceData'], ['scene identity', 'getScene'],
     ].filter(([, m]) => !has(host, m as keyof ViewerControl)).map(([label]) => label);
+    const capabilities = available().filter(d => !opts.omittedTools?.[d.name]).map(d => ({ id: `${d.contract.namespace}.${d.name}`, available: true }));
+    const activitiesHere = (attempt(() => host.listActivities?.()) ?? []).filter(a => a.enabled !== false)
+      .sort((a,b) => Number(b.id === activity?.id)-Number(a.id === activity?.id) || Number(b.vehicle === selected)-Number(a.vehicle === selected)
+        || Math.min(Math.abs(a.start-et),Math.abs(a.end-et))-Math.min(Math.abs(b.start-et),Math.abs(b.end-et)))
+      .slice(0,4).map(a => ({ id:a.id,name:a.name,vehicle:a.vehicle,start:a.start,end:a.end,selected:a.id===activity?.id }));
+    const profilesHere = (attempt(() => host.listProfiles?.().items) ?? []).filter(p => p.enabled !== false).slice(0,4).map(p => ({
+      id:p.id,label:p.label ?? p.id,plotted:attempt(() => host.getProfile?.(p.id).timeline.traceVisible) === true,
+    }));
+    const searchesHere = (attempt(() => host.listEventQueries?.()) ?? []).filter(q => q.enabled !== false).slice(0,4).map(q => ({
+      id:q.id,label:q.label,computed:attempt(() => host.getEventResultPage?.(q.id, {limit:1}).status) === 'ready',
+    }));
+    const sourcePairs: GuidancePair[] = [];
+    // Inspect declared finite source windows, not a default tracking pair.
+    // No sampling/search runs merely to open help; availability is at this ET.
+    for (const object of [selected, ...objects.items].filter((n): n is string => !!n).filter((n,i,a) => a.indexOf(n)===i).slice(0,32)) {
+      const c = attempt(() => host.getSpatialContext?.(object));
+      if (!c?.parent || !c.state) continue;
+      const coverage = metadata.objectState(c.state)?.positionAvailability.coverage ?? [];
+      if (object !== selected && !coverage.length) continue;
+      sourcePairs.push({observer:object,target:c.parent,explicitlySelected:object===selected,
+        positionAvailable:c.state.positionAvailability.available && attempt(() => host.getObjectState?.(c.parent!)?.positionAvailability.available) === true, coverage });
+      if (sourcePairs.length >= 4) break;
+    }
     const data = {
       scene,
       time: { et, ...(opts.formatTime ? { utc: attempt(() => opts.formatTime!(et)) } : {}), playing: host.isPlaying(), rate: host.getRate() },
@@ -796,13 +825,14 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
       analysis: attempt(()=>host.getTrajectoryAnalysisOptions ? extremaOptions(host.getTrajectoryAnalysisOptions()) : { available: false }) ?? { available:false },
       focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); if (!data) return null; const s=metadata.surface(data); return {body:s.body,bodyFrame:s.bodyFrame,referenceShape:s.referenceShape,surface:s.surface,terrain:s.terrain,cubeImagery:s.cubeImagery,details:'getSurfaceData'}; }) ?? null : null,
-      focusImagery: imagery ? {body:imagery.body,surface:imagery.surface,imageryOnly:imagery.imageryOnly,layers:imagery.layers.slice(0,8).map(l=>({id:l.id,role:l.role,visible:l.visible,status:l.status})),total:imagery.layers.length,details:'getImagery'} : null,
+      focusImagery: imagery ? {body:imagery.body,surface:imagery.surface,imageryOnly:imagery.imageryOnly,layers:imagery.layers.slice(0,8).map(metadata.imageryLayer),total:imagery.layers.length,details:'getImagery'} : null,
+      activitiesHere, profilesHere, searchesHere, sourcePairs,
       unsupported: lacks,
     };
     const summary = scene === null && has(host, 'getScene')
       ? 'No scene is loaded.'
       : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected object ${selected ?? 'none'}; selected activity ${activity?.name ?? 'none'}; selected place ${place?.name ?? 'none'}; tracking ${tracked ?? 'nothing'}.`;
-    return { ok: true, summary, data };
+    return { ok: true, summary, data: { ...data, askHelp: { categories:guidanceOverview(capabilities), examples:guidanceExamples({capabilities,scene:data}), authority:ASK_AUTHORITY } }, ...(imagery?.layers.length ? { facts: [imageryFact(imagery)] } : {}) };
   }
 
   function resolve(input: Input): AgentToolResult {
@@ -891,6 +921,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null. Physical-surface/DSK/irregular mesh availability is not assessed by this inventory; null terrain does not establish absent geometry.`, data: metadata.surface(data) };
   }
 
+  function imageryFact(imagery: ScriptImagery): ImageryEvidenceFact {
+    const safe = metadata.imagery(imagery);
+    return { kind: 'imagery-state', body: safe.body, et: host.getTime(), surface: safe.surface,
+      layers: safe.layers.map(l => ({ id: l.id, name: l.name, visible: l.visible, drawn: l.evidence.drawnInView,
+        date: l.time?.date ?? null, pending: l.time?.pending ?? false, illumination: l.time?.illumination ?? null })) };
+  }
+
   function getImagery(input: Input): AgentToolResult {
     const name = input.object as string;
     const imagery = host.getImagery!(name);
@@ -901,7 +938,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const summary = imagery.layers.length === 0
       ? `${imagery.body} has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.`
       : `${imagery.body}: ${imagery.layers.length} imagery layer${imagery.layers.length === 1 ? '' : 's'}${imagery.imageryOnly ? ' (imagery only, no terrain elevation)' : ''}.`;
-    return { ok: true, summary, data: metadata.imagery(imagery) };
+    return { ok: true, summary, data: metadata.imagery(imagery), facts: [imageryFact(imagery)] };
   }
 
   /**
@@ -981,13 +1018,17 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   function profileRead(data: ScriptProfileData): AgentToolResult {
+      const info = attempt(() => host.getProfile?.(data.id));
+      const timeline = info?.timeline, clip = info?.definition?.profile.window;
+      const plot = timeline?.present && opts.formatTime ? {startUtc:opts.formatTime(Math.max(timeline.window.start,clip?.start ?? -Infinity)),endUtc:opts.formatTime(Math.min(timeline.window.end,clip?.end ?? Infinity)),count:timeline.samples,missing:timeline.missing,visible:timeline.traceVisible} : undefined;
       if (data.quantity === 'range' && data.minimum?.value != null && data.bodies?.observer && data.bodies.target) numericalSubjects = [data.bodies.observer, data.bodies.target];
       const first = data.samples[0], last = data.samples.at(-1);
       const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
       const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
       const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
         ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false, samples: data.samples.flatMap(s => s.value === null ? [] : [{ km: s.value, utc: s.utc, et: s.et }]) }] : [];
-      return { ok: true, facts, summary: `${minimum} In the final answer, name BOTH interval endpoints above (UTC dates or ET numbers), report count or spacing, and say minimum among the returned samples. Do not replace the endpoints with full timeline or mission window. This is only a minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+      if (data.bodies?.observer && data.bodies.target && first && last) facts.push({ kind: 'sampled-profile', ...(plot ? {plot} : {}), observer: data.bodies.observer, target: data.bodies.target, quantity: data.quantity!, unit: data.unit, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, samples: data.samples.map(s => ({ value: s.value, utc: s.utc, et: s.et })) });
+      return { ok: true, facts, summary: `${minimum}${plot ? ` Native plotted interval: ${plot.startUtc} to ${plot.endUtc}, ${plot.count}-point display grid, ${plot.missing} missing inside the plotted interval (intentional clipping excluded). This can differ from the bounded numerical read; disclose plot gaps separately.` : ''} Answer the requested history or comparison using the returned samples and native plot, not just its minimum. Name BOTH interval endpoints above (UTC dates or ET numbers) and report count or spacing and gaps. If reporting a minimum, say minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data: {...data, ...(plot ? {plot} : {})} };
 
   }
 
