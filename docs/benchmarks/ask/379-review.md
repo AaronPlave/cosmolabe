@@ -1,5 +1,7 @@
 # #379 implementation after review
 
+**Historical review checkpoint:** [the product-completion review](380-product.md) supersedes this report’s guidance wording and final-case status.
+
 PR #380 implements the shared gaps found by the original assessment. The
 [baseline](379-findings.md) remains diagnostic history. This pass keeps the same
 12 requests, four catalogs, fixed tool surface and production model routing.
