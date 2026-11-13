@@ -64,6 +64,11 @@ export function checkAnswer(text: string, facts: readonly ResultFact[], report?:
   const imagery = facts.filter(f => f.kind === 'imagery-state');
   for (const sentence of sentences(text).flatMap(s => s.split(/[,;]?\s+but\s+/i))) {
     if (!imagery.length || !/imagery|images?|overlays?|textures?|layers?|appearance|clouds?|pixels?|weather/i.test(sentence)) continue;
+    const exclusive = /\bonly (?:thing|layer)\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.exec(sentence);
+    if (exclusive && !/\b(?:not|cannot|can't|unknown|unverified)\b/i.test(sentence.slice(0,exclusive.index))) {
+      issues.push('No independent visual comparison establishes that imagery was the only thing that changed. Report selected dates separately from observed appearance.');
+      continue;
+    }
     const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
     if (qualified) continue;
     const contentChange = /\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b[^.!?]*\b(?:changed|changes|switched|differs?|different|evolved|moved)\b|\b(?:changed|changes|switched|differs?|different|evolved|moved)\b[^.!?]*\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b/i.test(sentence);

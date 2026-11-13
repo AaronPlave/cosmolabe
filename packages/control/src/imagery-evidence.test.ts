@@ -63,3 +63,9 @@ it('does not let a later caveat erase an unsupported positive content claim', as
   const facts: import('./agent.js').ImageryEvidenceFact[]=[{kind:'imagery-state',body:'Earth',et:2,surface:'streamed',layers:[{id:'daily',name:'Daily',visible:true,drawn:true,date:'2026-11-05',pending:false,illumination:'baked'}]}];
   expect(checkAnswer('Its cloud cover would differ between the composites, but I cannot describe specific changes.',facts)).toContainEqual(expect.stringMatching(/independent visual comparison/));
 });
+
+it('rejects an exclusive appearance claim even when a later clause says clouds may differ', async () => {
+  const {checkAnswer}=await import('./answer-check.js');
+  const facts: import('./agent.js').ImageryEvidenceFact[]=[{kind:'imagery-state',body:'Earth',et:2,surface:'streamed',layers:[{id:'daily',name:'Daily',visible:true,drawn:true,date:'2026-11-05',pending:false,illumination:'baked'}]}];
+  expect(checkAnswer('The only thing that changed between the two times is the VIIRS overlay, which switched date, so cloud cover may differ.',facts)).toContainEqual(expect.stringMatching(/independent visual comparison/));
+});
