@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "runtimeRevision": "4cec1f978391ac2ddd88252c96eb2a993e639087",
+  "runtimeRevision": "1fb63e0412753adba4c7dccf3a3a9a33e4b25444",
   "runtimeFingerprint": {
-    "sha256": "db780bdc16b69a1672e22172eafe708773cd9dbd328778a5ee04573dac1c573d",
+    "sha256": "61c2c171f91eeaca7bb1a6d1e74392a426518581b51b70bd9a5b2d028a897bae",
     "files": [
       "apps/viewer/src/components/AskPanel.svelte",
       "apps/viewer/src/lib/ask/ask.svelte.ts",
@@ -29,7 +29,7 @@
       "packages/three/src/UniverseRenderer.ts"
     ]
   },
-  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision.",
+  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; only its send icon/tooltip changed afterward. Earlier goal cases remain pinned to their actual scientific-runtime revisions.",
   "frozenCases": {
     "originalSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
     "productSha256": "adc54a6d14e396f598f4a06997c050569a07343bde99c9f57a90eadef3a2f442"
@@ -133,12 +133,21 @@
       "estimatedUsd": 0.0027031000000000004,
       "cells": 1,
       "review": "observed cases; imagery-final supersedes complete/iss-appearance"
+    },
+    {
+      "label": "direct-starter",
+      "kind": "starter",
+      "source": "6c2e9d0223bd643625923b6d1b11effe3c4a4a03",
+      "sha256": "df5b9f6920dc2bb2a4410a234451c27762e5b97bcce706fd37ad68c86b40134f",
+      "estimatedUsd": 0.004962095,
+      "cells": 1,
+      "review": "Actual visible button click, without the Send button, through normal Ask/provider path."
     }
   ],
   "usage": {
     "priorAssessmentAndReviewEstimatedUsd": 0.6651302,
-    "thisPassEstimatedUsd": 0.11776174000000002,
-    "totalEstimatedUsd": 0.7828919400000001,
+    "thisPassEstimatedUsd": 0.12272383500000002,
+    "totalEstimatedUsd": 0.7878540350000001,
     "authorizedCapUsd": 2,
     "actualBilledUsd": null
   },
@@ -1069,6 +1078,48 @@
           "captureSha256": "37340eb4e133fe0bb0bd7929bbb1f82125bb061f24006e03e45a9845c25cb5af"
         }
       ]
+    },
+    {
+      "task": "oem-direct-starter",
+      "model": "claude-haiku-5-5",
+      "runtime": "6c2e9d0223bd643625923b6d1b11effe3c4a4a03",
+      "rounds": 7,
+      "estimatedUsd": 0.004962095,
+      "interaction": "Opened Try a question, then clicked Ask: Cassini–Saturn distance. No composer Send click.",
+      "prompt": "Plot Cassini–Saturn distance over time.",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "answerSource": "model",
+      "answer": "The chart covers 2004-06-30 07:12 UTC to 2004-07-02 16:45 UTC on a 763-point display grid, and 128 points inside that plotted span are missing. Those plot gaps are separate from the numerical sample window of 2004-06-30 12:00 to 2004-07-02 11:58 UTC, which had 32 samples about 5,570 seconds apart and no missing values. Within those samples, center distance falls to about 97,311 km at 2004-07-01 01:55:33 UTC, the minimum among the samples only, then rises to about 1,233,532 km. This is center-to-center distance, not surface clearance.",
+      "answerIssues": [],
+      "profiles": [
+        {
+          "definition": {
+            "id": "cassini-saturn-range",
+            "label": "Cassini–Saturn distance",
+            "profile": {
+              "quantity": "range",
+              "bodies": {
+                "observer": "Cassini",
+                "target": "Saturn"
+              }
+            },
+            "enabled": true,
+            "visible": true
+          },
+          "timeline": {
+            "present": true,
+            "traceVisible": true,
+            "window": {
+              "start": 141851596.184117,
+              "end": 142058812.18411705
+            },
+            "samples": 763,
+            "missing": 128
+          }
+        }
+      ],
+      "captureSha256": "85e2114dcf4963f5bfcfa159a7e218ee9ef68585c23c0ed4fd07be26c5965e09"
     }
   ],
   "walkthrough": {
@@ -1076,10 +1127,13 @@
     "observations": [
       "Choosing an example was correctly understood as prompt prefill.",
       "The original authored-view label was vague.",
-      "Expanded help and technical generated prompts were hard to parse and not words the user would write."
+      "Expanded help and technical generated prompts were hard to parse and not words the user would write.",
+      "The user requested direct submission and less text, rejected Ideas, and identified unclear button hierarchy, illegible borders, empty space/dividers and a nonexpanding input."
     ],
-    "response": "Reduced capability overview to four short actions and scene prompts to normal questions; Cassini starter is How does Cassini’s distance from Saturn change? Show me. Scientific instructions and ET bounds remain internal scene evidence.",
-    "finalCopyReconfirmedByUser": false
+    "response": "Try a question disclosure; filled one-line buttons with send icons and no subtitles; explicit click submits once; opening makes no model call; custom draft stays editable/preserved; textarea grows and can be resized.",
+    "finalCopyReconfirmedByUser": false,
+    "userRequestedDirectSubmission": true,
+    "priorFillOnlyRequirementSupersededByUser": true
   },
   "localControls": {
     "catalogs": [
@@ -1088,10 +1142,14 @@
       "oem-ingest",
       "europa-clipper"
     ],
-    "fillOnly": true,
     "externalCallsOnHelp": 0,
     "stopLateMutationRejected": true,
-    "realOemBoundariesAndDisplayHolding": true
+    "realOemBoundariesAndDisplayHolding": true,
+    "explicitStarterSubmitsOnce": true,
+    "preservesUnsentDraft": true,
+    "composerGrows": true,
+    "noEmptyTranscriptGap": true,
+    "guidanceScreenshotSha256": "f06be3e49d3e5cf7ed3031ae0abf1c0fd2280f9acffddd4e5b36c1c72ad71a9d"
   },
   "externalResearch": {
     "decision": "not yet warranted",

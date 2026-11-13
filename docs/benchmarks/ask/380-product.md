@@ -7,24 +7,30 @@ PR #380; no Research mode, second solver, planner or successor PR was added.
 
 ## What changed for the person using Ask
 
-Opening “What can I do here?” now answers two questions in the compact panel.
-Four short, capability-dependent actions explain the general scope: show views,
-explain data, plot measurements and compare changes. A few scene-specific
-choices follow. Existing results and visible profiles rank above presets;
-selected/current activities, explicitly selected objects, finite source
-coverage, current time and focus imagery determine relevance. Camera tracking
-alone does not become an investigation. Choices are examples, not a complete
-inventory of commands. Opening help makes local reads only; choosing fills the
-editable composer and focuses it, without sending or moving the viewer.
+The existing composer now has a **“Try a question”** disclosure and a few
+filled action buttons. Each button has one short label and a send icon; there
+are no subtitle paragraphs, extra headers or “click to ask” instructions.
+The capability-dependent general scope remains in the control’s tooltip;
+scientific source/availability detail stays in the shared scene read and
+contextual tool guidance. Results and visible profiles rank above presets;
+selection, current activities, source intervals, time and imagery determine
+relevance. Camera tracking alone does not become an investigation.
 
-The first expanded copy failed a developer comprehension walkthrough: the
-person found too much robotic text, and would never write its generated
-technical prompt. The revised Cassini choice is **“Cassini near Saturn”** and
-fills **“How does Cassini’s distance from Saturn change? Show me.”** Other
-starters use similarly short questions. ET bounds, native operation names and
-scientific instructions remain internal evidence/guidance. This is a response
-to observed comprehension friction, not a claim that an independent novice
-study or a second approval of the final wording occurred.
+The developer walkthrough rejected the expanded copy as robotic and the
+technical generated prompt as something a person would not write. Further
+feedback rejected “Ideas,” illegible gray outlines, empty space above the
+composer and the fixed-size input. The resulting UI uses a clear disclosure,
+filled buttons, no empty transcript/divider, and an input that grows with its
+contents and supports manual vertical resizing.
+
+**The latest explicit user direction supersedes the earlier fill-only review
+requirement:** choosing a starter now sends its short question immediately.
+For example, **“Cassini–Saturn distance”** sends **“Plot Cassini–Saturn distance
+over time.”** Opening the list still performs local reads only. A starter
+submits once, preserves an unsent draft and uses normal Ask progress/Stop.
+The separate composer remains available for writing and editing a custom
+question. This is an iteration in response to an observed developer walkthrough;
+no independent novice study or final visual approval is claimed.
 
 The same shared scene read supplies ranked evidence to normal Ask requests.
 The two unfamiliar-scene tasks use an identical open question, not a button or
@@ -41,6 +47,7 @@ are not a statistical success rate.
 
 | Case | Actual result and limit |
 | --- | --- |
+| Direct Cassini starter | Clicked the actual button without pressing Send. One short question produced a visible native distance plot; its answer distinguishes 32 covered numerical samples from 128 missing points on the wider 763-point display grid, and center distance from clearance. |
 | OEM unfamiliar investigation | Chose Cassini–Saturn motion from loaded coverage, drew the native distance history, paused at its 12-sample minimum and showed Saturn/Cassini. The visible plot shows the approach/recession. Cassini is a point; the 4.4-hour sampled minimum is explicitly approximate, not a computed encounter or clearance. |
 | Clipper unfamiliar investigation | Used the native search over loaded coverage, selected the 2031-10-23 Europa minimum (1,584.734 km center range), opened the native event lane and framed Europa/Clipper. The answer distinguishes range minimum from encounter classification and surface contact. The earlier independent point-state check agrees; kernel accuracy/classification remains unproven. |
 | Earth–Moon continuity | Captured full before/after pose shows a real swing; ET and 5,211 km Moon range hold. The final screenshot shows a lit Moon limb and a separate Earth at upper left, outside Ask. Apparent diameters are 38.942° and 1.790°; the explanation separates apparent from physical size. The generic relative-action account still says unverified; independent pose/projection plus visual inspection establish this particular composition, rather than promoting that receipt to success. |
@@ -98,11 +105,12 @@ background separate from authoritative scene facts without exposing a new mode.
 
 ## Validation and reproduction
 
-Focused package/benchmark/Ask-session checks passed (429 tests before the final
-imagery-only clause regression; its focused suite passes 53). The earlier full
+Focused package/benchmark/Ask-session checks passed (430 tests); the affected
+source/answer focused suite passes 53. The earlier full
 viewer run passed 857 tests. Package build, test/viewer/Svelte typechecks,
-lint, purity and diff checks pass. Four loaded catalogs verify short-prompt
-prefill/focus, no provider calls or viewer mutation on help, actual OEM source
+lint, purity and diff checks pass. Four loaded catalogs verify one explicit submission per click, preserved draft,
+a growing composer, no empty transcript gap, no provider call or viewer mutation
+merely on opening help, actual OEM source
 endpoints and display-only holding, and Stop rejecting a late mutation. CI at
 the final remote head is reported on the PR.
 
@@ -111,7 +119,9 @@ Five original regression cases and two unfamiliar-scene cases ran at
 that affected frozen case was rerun at `9fe937bc`. A final correction limits
 plot observations to mounted rows and clarifies display-grid counts and
 intentional clipping; the focused regression suite passes at that source.
-The evidence records per-case revisions and the final production fingerprint.
+The final UI interaction is additionally exercised by a frozen direct-starter
+case at `6c2e9d02`; only the send icon/tooltip changed afterward. The evidence
+records per-case revisions and the final production fingerprint.
 All new provider cells use fixed Haiku with no model fallback; the earlier
 matched Haiku/Sonnet comparison remains evidence of fallback limitations.
 Cumulative estimated cost, including the original assessment and every
@@ -120,6 +130,7 @@ Actual billing is unavailable. Browser rendering uses software WebGL.
 
 ```sh
 ASK_GUIDANCE_EVIDENCE=/tmp/ask-help node scripts/test-ask-guidance.mjs
+ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=starter ASK_BENCHMARK_MODELS=claude-haiku-5-5 ASK_BENCHMARK_MAX_USD=0.05 node scripts/benchmark-ask.mjs
 ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=product ASK_BENCHMARK_MODELS=claude-haiku-5-5 ASK_BENCHMARK_MAX_USD=0.30 node scripts/benchmark-ask.mjs
 ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=exploration ASK_BENCHMARK_CASES=em-context,iss-appearance,oem-compare,clipper-compare,clipper-science ASK_BENCHMARK_MODELS=claude-haiku-5-5 ASK_BENCHMARK_MAX_USD=0.30 node scripts/benchmark-ask.mjs
 ```
