@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "runtimeRevision": "9fe937bca67a894ecbbcdc9dc6a6d4d058bf4b85",
+  "runtimeRevision": "4cec1f978391ac2ddd88252c96eb2a993e639087",
   "runtimeFingerprint": {
-    "sha256": "32b689f5ad689786cd0e49660e5e392b0882a61dc1bed9b5c524ec6e32107066",
+    "sha256": "db780bdc16b69a1672e22172eafe708773cd9dbd328778a5ee04573dac1c573d",
     "files": [
       "apps/viewer/src/components/AskPanel.svelte",
       "apps/viewer/src/lib/ask/ask.svelte.ts",
@@ -29,7 +29,7 @@
       "packages/three/src/UniverseRenderer.ts"
     ]
   },
-  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. The only subsequent production change tightened the imagery-only exclusive-claim check; the affected imagery case was rerun at 9fe937bc. Each case records its actual runtime revision.",
+  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision.",
   "frozenCases": {
     "originalSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
     "productSha256": "adc54a6d14e396f598f4a06997c050569a07343bde99c9f57a90eadef3a2f442"
