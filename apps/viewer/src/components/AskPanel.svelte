@@ -12,7 +12,7 @@
    * Offered only where a model is configured (`askAvailable`).
    */
   import { tick } from 'svelte';
-  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, ArrowUpRight } from 'lucide-svelte';
+  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, Send } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
     ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
@@ -273,7 +273,7 @@
 
     <div class="shrink-0 px-3 pt-2">
       <button class="inline-flex items-center gap-1.5 rounded bg-surface-3 px-2 py-1.5 text-xs text-text-primary hover:bg-hover"
-        title={help?.categories.join(' · ') ?? 'Explore this scene, inspect data, plot or compare'} aria-expanded={help !== null} disabled={ask.running}
+        title={help?.categories.join(' · ') ?? 'Questions for this scene'} aria-expanded={help !== null} disabled={ask.running}
         onclick={() => { help = help === null ? askHelp() : null; }}>
         Try a question <ChevronDown size={12} class={help !== null ? 'rotate-180' : ''} />
       </button>
@@ -282,7 +282,7 @@
           {#each help.examples as example}
             <button class="ask-starter flex items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs text-text-primary"
               title={example.evidence} aria-label={`Ask: ${example.label}`} disabled={ask.running} onclick={() => chooseExample(example)}>
-              <span>{example.label}</span><ArrowUpRight size={14} class="shrink-0 text-accent" />
+              <span>{example.label}</span><Send size={14} class="shrink-0 text-accent" />
             </button>
           {:else}
             <p class="ui-helper">Select an object for suggestions.</p>
