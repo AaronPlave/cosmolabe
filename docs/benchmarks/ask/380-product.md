@@ -107,8 +107,10 @@ endpoints and display-only holding, and Stop rejecting a late mutation. CI at
 the final remote head is reported on the PR.
 
 Five original regression cases and two unfamiliar-scene cases ran at
-`dba5081b`; the only subsequent production change tightened the imagery-only
-exclusive-claim guard. That affected frozen case was rerun at `9fe937bc`.
+`dba5081b`. The imagery-only exclusive-claim guard was tightened afterward;
+that affected frozen case was rerun at `9fe937bc`. A final correction limits
+plot observations to mounted rows and clarifies display-grid counts and
+intentional clipping; the focused regression suite passes at that source.
 The evidence records per-case revisions and the final production fingerprint.
 All new provider cells use fixed Haiku with no model fallback; the earlier
 matched Haiku/Sonnet comparison remains evidence of fallback limitations.
