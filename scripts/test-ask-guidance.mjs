@@ -47,7 +47,9 @@ try {
     await textbox.fill('A longer question about this scene. '.repeat(30));
     await page.waitForFunction(() => document.querySelector('textarea[aria-label="Request"]').clientHeight > 100);
     assert.ok(await textbox.evaluate(el=>el.clientHeight)>smallHeight,'composer grows with the prompt');
+    await textbox.evaluate(el=>{el.style.height='140px';});
     await textbox.fill('Keep this draft');
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Request"]').clientHeight >= 138);
     assert.ok(examples.length > 0 && examples.length <= 5);
     if (output) await page.screenshot({ path: `${output}/${catalog}-examples.png` });
     await page.getByRole('button', { name: `Ask: ${examples[0].label}`, exact: true }).click();

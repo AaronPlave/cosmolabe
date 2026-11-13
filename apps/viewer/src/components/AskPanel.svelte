@@ -39,11 +39,16 @@
     void submitAsk(example.prompt);
   }
   let transcript = $state<HTMLElement | null>(null);
+  let fittedHeight = 0;
+  let resizedHeight = 0;
   function fitComposer() {
     if (!composer) return;
+    const current = Number.parseFloat(composer.style.height);
+    if (fittedHeight && Number.isFinite(current) && Math.abs(current - fittedHeight) > 2) resizedHeight = current;
     composer.style.height = 'auto';
-    composer.style.height = `${Math.min(192, composer.scrollHeight)}px`;
-    composer.style.overflowY = composer.scrollHeight > 192 ? 'auto' : 'hidden';
+    fittedHeight = Math.max(resizedHeight, Math.min(192, composer.scrollHeight));
+    composer.style.height = `${fittedHeight}px`;
+    composer.style.overflowY = composer.scrollHeight > fittedHeight ? 'auto' : 'hidden';
   }
   $effect(() => { void prompt; void tick().then(fitComposer); });
 
@@ -273,7 +278,7 @@
 
     <div class="shrink-0 px-3 pt-2">
       <button class="inline-flex items-center gap-1.5 rounded bg-surface-3 px-2 py-1.5 text-xs text-text-primary hover:bg-hover"
-        title={help?.categories.join(' · ') ?? 'Questions for this scene'} aria-expanded={help !== null} disabled={ask.running}
+        title={help ? `${help.categories.join(' · ')}. ${help.authority}` : 'Questions for this scene'} aria-expanded={help !== null} disabled={ask.running}
         onclick={() => { help = help === null ? askHelp() : null; }}>
         Try a question <ChevronDown size={12} class={help !== null ? 'rotate-180' : ''} />
       </button>
