@@ -46,7 +46,7 @@ it('keeps two drawn dates distinct and refuses inferred content change', async (
       { id: 'daily', name: 'Daily image', visible: true, drawn: true, date, pending: false, illumination: 'baked' },
     ],
   }));
-  for (const text of ['The cloud patterns changed.', 'Earth imagery shows different clouds.', 'The weather changed.', 'The image content differs between the dates.']) {
+  for (const text of ['The cloud patterns changed.', 'Earth imagery shows different clouds.', 'The weather changed.', 'The image content differs between the dates.', 'The only thing that changes is the daily overlay.']) {
     expect(checkAnswer(text, facts)).toEqual([expect.stringMatching(/independent visual comparison/)]);
   }
   expect(checkAnswer('Imagery was drawn at both dates. The selected acquisition date changed; cloud changes cannot be established.', facts)).toEqual([]);

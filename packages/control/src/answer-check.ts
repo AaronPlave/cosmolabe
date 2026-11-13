@@ -55,7 +55,7 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
     const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
     if (qualified) continue;
     const contentChange = /\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b[^.!?]*\b(?:changed|changes|switched|differs?|different|evolved|moved)\b|\b(?:changed|changes|switched|differs?|different|evolved|moved)\b[^.!?]*\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b/i.test(sentence);
-    if (contentChange) {
+    if (contentChange || /\bonly thing\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.test(sentence)) {
       issues.push('Imagery drawing observations and acquisition dates do not establish changed image content or weather. No independent visual comparison was observed; explain that content change cannot be established.');
       continue;
     }
@@ -123,6 +123,8 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
     }
   }
   const profiles = facts.filter(f => f.kind === 'sampled-profile');
+  const plottedGaps = profiles.filter(p => p.plot?.visible && p.plot.missing > 0);
+  if (plottedGaps.length && !/\b(?:plot|trace|timeline)[^.!?]*(?:gap|missing)|\b(?:gap|missing)[^.!?]*(?:plot|trace|timeline)/i.test(text)) issues.push('The visible native plots contain missing-data gaps, separate from the bounded numerical sample interval. Disclose those plot gaps.');
   const samples = facts.filter(f => f.kind === 'sampled-range');
   const sampled = samples.filter(f => f.eventSearchUnavailable || f.missing > 0).at(-1);
   const countWords = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
@@ -199,7 +201,9 @@ export function factSummary(facts: readonly ResultFact[]): string {
   if (!events.length && history && rate && rates.length > 1 && history.samples?.length) {
     const first = history.samples[0], last = history.samples.at(-1)!;
     const value = (v: number) => Number(v.toPrecision(6));
-    return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.`;
+    const plot = rate.plot;
+    const plotText = plot ? ` Native plotted interval ${plot.startUtc} to ${plot.endUtc}: ${plot.missing} missing of ${plot.count} display samples; plot gaps remain separate from this bounded read.` : '';
+    return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.${plotText}`;
   }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;

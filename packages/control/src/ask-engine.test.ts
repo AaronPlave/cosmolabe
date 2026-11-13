@@ -770,3 +770,21 @@ it('does not treat speeds in a native history comparison as contradictory distan
     .toEqual([{ text: '104,291 km', km: 104291 }]);
   expect(statedDistancesKm('0.5 m/s and 10 km per second versus 50 m.')).toEqual([{ text: '50 m', km: 0.05 }]);
 });
+
+it('keeps a qualified native-history fallback with both plotted and sampled intervals and gaps', async () => {
+  const { factSummary } = await import('./answer-check.js');
+  const facts: ResultFact[] = [
+    {kind:'sampled-range',observer:'Probe',target:'Body',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,minimumKm:100,minimumUtc:'2004-07-01 00:00:00 UTC',minimumEt:2,eventSearchUnavailable:false,samples:[{km:700,et:1,utc:'2004-06-30 12:00:00 UTC'},{km:1200,et:3,utc:'2004-07-02 11:58:00 UTC'}]},
+    {kind:'sampled-profile',observer:'Probe',target:'Body',quantity:'range-rate',unit:'km/s',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,samples:[{value:-10,et:1,utc:'2004-06-30 12:00:00 UTC'},{value:7,et:3,utc:'2004-07-02 11:58:00 UTC'}],plot:{startUtc:'2004-06-30 07:00:00 UTC',endUtc:'2004-07-02 17:00:00 UTC',count:763,missing:128,visible:true}},
+  ];
+  expect(checkAnswer('Distance falls and then rises over 32 samples.',facts)).toContainEqual(expect.stringMatching(/visible native plots/));
+  const summary=factSummary(facts);
+  for (const phrase of ['2004-06-30 12:00:00 UTC','2004-07-02 11:58:00 UTC','32 range samples (0 missing)','negative means closing, positive means opening','Native plotted interval 2004-06-30 07:00:00 UTC to 2004-07-02 17:00:00 UTC','128 missing of 763','do not certify']) expect(summary).toContain(phrase);
+  expect(checkAnswer(summary,facts)).toEqual([]);
+});
+
+it('publishes aspect-correct camera evidence instead of inviting vertical-FOV comparisons', async () => {
+  const { compositionData } = await import('./agent.js');
+  const data=compositionData({scene:1,et:1,playing:false,tracked:'A',orbitDistanceKm:10,fovDeg:60,aspect:1.5,objects:[]});
+  expect(data).toMatchObject({fovDeg:60,aspect:1.5,horizontalFovDeg:81.787});
+});

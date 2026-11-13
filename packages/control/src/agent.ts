@@ -62,9 +62,10 @@ export function compositionData(v: ScriptViewComposition) {
   if (v.fresh === false) return { et: v.et, fresh: false, observedEt: v.observedEt,
     objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
     limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
-  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
+  return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg), aspect: r3(v.aspect), horizontalFovDeg: r3(2 * Math.atan(Math.tan(v.fovDeg * Math.PI / 360) * v.aspect) * 180 / Math.PI),
+    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV.',
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      object: o.object, inView: o.inView, ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
       bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */
@@ -146,7 +147,7 @@ export interface OperationOutcome {
  */
 export interface ImageryEvidenceFact { readonly kind: 'imagery-state'; readonly body: string; readonly et: number; readonly surface: string | null; readonly layers: readonly { readonly id: string; readonly name: string; readonly visible: boolean; readonly drawn: boolean; readonly date: string | null; readonly pending: boolean; readonly illumination: string | null }[] }
 
-export interface ProfileSeriesFact { readonly kind: 'sampled-profile'; readonly observer: string; readonly target: string; readonly quantity: string; readonly unit: string | null; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly samples: readonly { value: number | null; utc: string; et: number }[] }
+export interface ProfileSeriesFact { readonly kind: 'sampled-profile'; readonly plot?: { readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly visible: boolean }; readonly observer: string; readonly target: string; readonly quantity: string; readonly unit: string | null; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly samples: readonly { value: number | null; utc: string; et: number }[] }
 
 export type ResultFact = ProfileSeriesFact | ImageryEvidenceFact | { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface HeightAnalysisFact {
@@ -1017,14 +1018,16 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   function profileRead(data: ScriptProfileData): AgentToolResult {
+      const timeline = attempt(() => host.getProfile?.(data.id).timeline);
+      const plot = timeline && opts.formatTime ? {startUtc:opts.formatTime(timeline.window.start),endUtc:opts.formatTime(timeline.window.end),count:timeline.samples,missing:timeline.missing,visible:timeline.traceVisible} : undefined;
       if (data.quantity === 'range' && data.minimum?.value != null && data.bodies?.observer && data.bodies.target) numericalSubjects = [data.bodies.observer, data.bodies.target];
       const first = data.samples[0], last = data.samples.at(-1);
       const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';
       const minimum = data.minimum ? `Among the returned samples ${scope}, the sampled minimum is ${data.minimum.value} ${data.unit} at ${data.minimum.utc} (ET ${data.minimum.et}).` : `No finite sampled minimum; ${scope}.`;
       const facts: ResultFact[] = data.quantity === 'range' && data.bodies?.observer && data.bodies.target && data.minimum?.value != null && first && last
         ? [{ kind: 'sampled-range', observer: data.bodies.observer, target: data.bodies.target, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, minimumKm: data.minimum.value, minimumUtc: data.minimum.utc, minimumEt: data.minimum.et, eventSearchUnavailable: current?.eventFrameUnavailable ?? false, samples: data.samples.flatMap(s => s.value === null ? [] : [{ km: s.value, utc: s.utc, et: s.et }]) }] : [];
-      if (data.bodies?.observer && data.bodies.target && first && last) facts.push({ kind: 'sampled-profile', observer: data.bodies.observer, target: data.bodies.target, quantity: data.quantity!, unit: data.unit, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, samples: data.samples.map(s => ({ value: s.value, utc: s.utc, et: s.et })) });
-      return { ok: true, facts, summary: `${minimum} Answer the requested history or comparison using the returned samples and native plot, not just its minimum. Name BOTH interval endpoints above (UTC dates or ET numbers) and report count or spacing and gaps. If reporting a minimum, say minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data };
+      if (data.bodies?.observer && data.bodies.target && first && last) facts.push({ kind: 'sampled-profile', ...(plot ? {plot} : {}), observer: data.bodies.observer, target: data.bodies.target, quantity: data.quantity!, unit: data.unit, startUtc: first.utc, endUtc: last.utc, count: data.samples.length, missing: data.missing, samples: data.samples.map(s => ({ value: s.value, utc: s.utc, et: s.et })) });
+      return { ok: true, facts, summary: `${minimum}${plot ? ` Native plotted interval: ${plot.startUtc} to ${plot.endUtc}, ${plot.count} display samples, ${plot.missing} missing. This can differ from the bounded numerical read; disclose plot gaps separately.` : ''} Answer the requested history or comparison using the returned samples and native plot, not just its minimum. Name BOTH interval endpoints above (UTC dates or ET numbers) and report count or spacing and gaps. If reporting a minimum, say minimum among returned samples, not a certified minimum, physical clearance or touchdown. Equal rounded values do not establish exact ties or a plateau.`, data: {...data, ...(plot ? {plot} : {})} };
 
   }
 
