@@ -77,6 +77,7 @@ export type { Quaternion, RotationModel, InertialFrameName } from './rotations/R
 export { DEFAULT_INERTIAL_FRAME } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
 export { IauMoonRotation } from './rotations/IauMoonRotation.js';
+export { EarthOrientationRotation } from './rotations/EarthOrientationRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
 export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
 export { FixedRotation } from './rotations/FixedRotation.js';
