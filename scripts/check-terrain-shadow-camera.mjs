@@ -1,0 +1,384 @@
+#!/usr/bin/env node
+/**
+ * Terrain shadows under camera navigation at a fixed epoch (#205 review): is the shadow at a fixed ground point the same
+ * whatever the camera does?
+ *
+ *   node scripts/check-terrain-shadow-camera.mjs --viewer http://127.0.0.1:5290/ --out work/terrain-shadow-camera
+ *   node scripts/check-terrain-shadow-camera.mjs --path drag --view-url '<shared viewer link>' --epoch 2028-12-27T18:15:07Z
+ *
+ * `--path drag` restores a shared view and orbits it with real mouse drags (the viewer's own controls), then, with that
+ * view held, moves only the clipmap focus (10–150 km) and records the points again; `--path user` orbits low around
+ * Shackleton's rim; the default path is described below. Every frame also logs the clipmap site and the hoppers'
+ * terrain Sun visibility. `--path site`: 2.5 km from the ground, the view moves 15 km in steps with holds between
+ * (past the site-move threshold; see PATH). `--path boundary`: 40 km up at lon 115°, the view moves from 0.85 km to 1.7 km source spacing (lat −84.5° to
+ * −80.5°) with the Sun ~1.5° up and the clock running 5 min per frame. Both record frame-to-frame image changes per
+ * pass; `--no-fade` swaps a moved site in at once (the A/B for the site-move cross-fade). `--path site-time`: the same
+ * height, a continuous 12 km pan over 8 s across two site moves while the clock runs 1 day/s, 60 render frames per second
+ * (24 min each), one in four captured; each captured frame is then rendered again at the same pose and time once the
+ * clipmap has settled (no fade, maps for the drawn Sun), and the live frame is compared with it. `--cost` (with
+ * site-time): instead, the frame time of the whole sequence, vsync off, shadows off and on.
+ *
+ * MoonFall Shackleton, time frozen at 2029-02-05 16:08:55 UTC, terrain shadows High. One camera path (zoom out past the
+ * 320 km cut-off and back, a full orbit, a 120 km pan and back, low grazing views, the same with the orbit target left
+ * 300 km away on coarse terrain), driven frame by frame without
+ * waiting for anything, four times: shadows Off, On, Sun fraction (debug 1) and unknown/too coarse (debug 2). Every frame
+ * is saved; the pinned ground points are read from the Sun-fraction pass and the Off pass, with the clipmap level that
+ * holds each point, the camera altitude and the clipmap state. Writes camera.json and camera.mp4 (off | on / fraction |
+ * unknown).
+ */
+import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => {
+  if (a.startsWith('--')) acc.push([a.slice(2), all[i + 1]?.startsWith('--') || all[i + 1] == null ? true : all[i + 1]]);
+  return acc;
+}, []));
+const BASE = args.viewer ?? 'http://127.0.0.1:5290/';
+const OUT = resolve(args.out ?? join(ROOT, 'work/terrain-shadow-camera'));
+const STEPS = Number(args.steps ?? 12);
+const EPOCH = args.epoch ?? '2029-02-05T16:08:55Z';
+// --path user: the review's screen recording (2028-12-27 18:15:07 UTC): orbiting low around Shackleton's rim.
+const USER_PATH = args.path === 'user';
+// --path drag --view-url '<viewer link>': start from that shared view and orbit with real mouse drags (the viewer's own
+// orbit controls, whatever their pivot), 15 px per frame: right, back left past the start, right to the start, up, down.
+const DRAG = args.path === 'drag';
+const SITE = args.path === 'site', BOUNDARY = args.path === 'boundary', SITE_TIME = args.path === 'site-time', COST = SITE_TIME && !!args.cost;
+// site-time: SECONDS of 60 Hz frames, 1 day/s, one captured frame per SUB.
+const SECONDS = 8, SUB = 4, MIN_PER_FRAME = 86400 / 60 / 60;
+const DRAGS = [...Array(16).fill([15, 0]), ...Array(32).fill([-15, 0]), ...Array(16).fill([15, 0]), ...Array(8).fill([0, -10]), ...Array(8).fill([0, 10])];
+mkdirSync(OUT, { recursive: true });
+
+// Camera keyposes: target (lat, lon), range from it (km), tilt from vertical, heading the camera looks along.
+const SHACK = [-89.67, 129.2];
+const key = (target, range, tilt, heading, far = false, min = 0) => ({ lat: target[0], lon: target[1], range, tilt, heading, far, min });
+// The point `km` from `from` along azimuth `az` (great circle).
+const along = (from, km, az) => { const d = km / 1737.4, la = from[0] * Math.PI / 180, a = az * Math.PI / 180;
+  const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(a));
+  return [la2 * 180 / Math.PI, from[1] + Math.atan2(Math.sin(a) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2)) * 180 / Math.PI]; };
+const RIM = (az) => along(SHACK, 10.5, az);
+// 2.5 km from the ground, from Shackleton's sunward rim 15 km toward the Sun (azimuth 274° at the review's epoch) in ten
+// 1.5 km jumps, each held for 15 frames, looking back across the rim: any change while the camera holds still is the
+// shadow's own (a site move's pop, or its fade).
+const PATH = SITE ? Array.from({ length: 11 }, (_, i) => key(along(RIM(274), 1.5 * i, 274), 2.5, 65, 94))
+  : SITE_TIME ? [key(RIM(274), 2.5, 65, 94), key(along(RIM(274), 12, 274), 2.5, 65, 94, false, SECONDS * 60 * MIN_PER_FRAME)]
+  : BOUNDARY ? [key([-84.5, 115], 40, 60, 0), key([-80.5, 115], 40, 60, 0, false, 5 * STEPS)]
+  : USER_PATH ? [
+  // Orbit the crater at 30 km, 65° tilt; dip to 12 km and back; walk the target round the rim; back to the start.
+  ...[0, 45, 90, 135, 180, 225, 270, 315, 360].map(h => key(SHACK, 30, 65, h)),
+  ...[12, 30].map(r => key(SHACK, r, 65, 360)),
+  ...[0, 60, 120, 180, 240, 300, 360].map(az => key(RIM(az), 20, 70, az + 90)),
+  key(SHACK, 30, 65, 360),
+] : [
+  ...[20, 40, 80, 160, 300, 500, 300, 160, 80, 40, 20].map(r => key(SHACK, r, 50, 0)),
+  ...[45, 90, 135, 180, 225, 270, 315, 360].map(h => key(SHACK, 40, 50, h)),
+  // Pan toward Malapert (and back) at 60 km.
+  ...[0, 0.25, 0.5, 0.75, 1, 0.5, 0].map(f => key([SHACK[0] + f * 3.4, SHACK[1] + f * (0 - SHACK[1])], 60, 40, 0)),
+  ...[0, 90, 180, 270].map(h => key(SHACK, 15, 78, h)),
+  // Same grazing views with the orbit target left on the far horizon (300 km beyond; coarse terrain), as after free look.
+  ...[270, 180, 90, 0].map(h => key(SHACK, 15, 78, h, true)),
+];
+// Interpolated per-frame poses (heading unwrapped).
+const FRAMES = DRAG ? [{ key: 0, drag: null }, ...DRAGS.map((d, i) => ({ key: i === 63 || i === 79 ? i + 1 : null, drag: d }))] : [];
+if (SITE) PATH.forEach((p, k) => { for (let s = 0; s < 16; s++) FRAMES.push({ ...p, key: s === 0 ? k : null }); });
+const panAt = (j) => { const f = j / (SECONDS * 60), [lat, lon] = along(RIM(274), 12 * f, 274); return { lat, lon, range: 2.5, tilt: 65, heading: 94, min: j * MIN_PER_FRAME }; };
+if (SITE_TIME) for (let i = 0; i < SECONDS * 60 / SUB; i++) FRAMES.push({ ...panAt((i + 1) * SUB), key: i === 0 ? 0 : null, sub: Array.from({ length: SUB }, (_, s) => panAt(i * SUB + s + 1)) });
+for (let k = 0; !DRAG && !SITE && !SITE_TIME && k < PATH.length - 1; k++) {
+  const a = PATH[k], b = PATH[k + 1];
+  for (let s = 0; s < STEPS; s++) {
+    const f = s / STEPS, lerp = (x, y) => x + (y - x) * f;
+    FRAMES.push({ key: s === 0 ? k : null, far: a.far && b.far, lat: lerp(a.lat, b.lat), lon: lerp(a.lon, b.lon), range: Math.exp(lerp(Math.log(a.range), Math.log(b.range))),
+      tilt: lerp(a.tilt, b.tilt), heading: lerp(a.heading, b.heading), min: lerp(a.min, b.min) });
+  }
+}
+if (!DRAG && !SITE && !SITE_TIME) FRAMES.push({ ...PATH[PATH.length - 1], key: PATH.length - 1 });
+
+// Pinned ground points: rings around Shackleton (3–140 km, inside the polar detail) and two at 220 km (too coarse).
+const POINTS = [];
+for (const [dist, n] of SITE || BOUNDARY || SITE_TIME ? [] : USER_PATH || DRAG ? [[3, 8], [6, 12], [9, 12], [12, 12], [16, 12], [22, 12], [30, 12]] : [[3, 4], [10, 6], [25, 8], [50, 8], [90, 8], [140, 8], [220, 2]]) {
+  for (let i = 0; i < n; i++) POINTS.push({ id: `${dist}km-${i}`, distKm: dist, azDeg: (360 * i) / n });
+}
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', ...(COST ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : [])] });
+const VIEWPORT = { width: 1280, height: 720 };
+const passes = {};
+let pinned = null, epochInfo = null, ab = null;
+const changed = (A, B) => {
+  let n = 0, N = 0;
+  for (let y = 20; y < A.height - 80; y++) for (let x = 50; x < A.width - 20; x++) {
+    const o = (y * A.width + x) * 4; N++;
+    if (Math.max(Math.abs(A.data[o] - B.data[o]), Math.abs(A.data[o + 1] - B.data[o + 1]), Math.abs(A.data[o + 2] - B.data[o + 2])) > 24) n++;
+  }
+  return +(100 * n / N).toFixed(2);
+};
+// Median gray (0–1) of the 3×3 pixels at a point.
+const pixel = (png, p) => {
+  const g = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = Math.min(png.width - 1, Math.max(0, p.px + dx)), y = Math.min(png.height - 1, Math.max(0, p.py + dy)), o = (y * png.width + x) * 4;
+    g.push((png.data[o] + png.data[o + 1] + png.data[o + 2]) / 3 / 255);
+  }
+  return +g.sort((a, b) => a - b)[4].toFixed(3);
+};
+const errors = [];
+try {
+  const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+  page.on('pageerror', e => errors.push(e.message));
+  const start = args['view-url'] ? new URL(String(args['view-url'])) : null;
+  if (start) start.searchParams.set('test', '1');
+  await page.goto(start ? new URL(start.search, BASE).href : new URL('?catalog=test-catalogs/moonfall-shackleton&test=1', BASE).href, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
+  const et = (Date.parse(EPOCH) - Date.parse('2000-01-01T12:00:00Z')) / 1000 + 69.184;
+  epochInfo = await page.evaluate(async ({ et, SHACK, POINTS, noFade }) => {
+    const source = await (await fetch('/src/lib/commands.ts')).text();
+    const stateURL = source.match(/from ["']([^"']*viewer-state\.svelte[^"']*)["']/)?.[1];
+    window.cap = await import(stateURL ?? '/src/lib/viewer-state.svelte.ts');
+    const r = window.cap.getRenderer();
+    window.cap.setPlaying(false); if (!new URLSearchParams(location.search).has('view')) window.cosmo.untrack();
+    r.setLightingMode('natural'); r.setTerrainShadowMode('high');
+    r.timeController.setTime(et);
+    if (noFade) r.getBodyMesh('Moon').terrainManager.solarShadow.siteFadeMs = 0;
+    const DEG = Math.PI / 180, R = 1737.4;
+    const moon = r.getBodyMesh('Moon'), THREE = r.camera.position.constructor;
+    const centre = () => moon.getWorldPosition(new THREE());
+    const toWorld = ([x, y, z]) => new THREE(x, z, -y).applyQuaternion(moon.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre());
+    const bf = (lat, lon, h) => [Math.cos(lat * DEG) * Math.cos(lon * DEG), Math.cos(lat * DEG) * Math.sin(lon * DEG), Math.sin(lat * DEG)].map(v => v * (R + h));
+    const frameAt = (lat, lon) => {
+      const up = bf(lat, lon, 1 - R), east = [-Math.sin(lon * DEG), Math.cos(lon * DEG), 0];
+      const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
+      return { up, east, north };
+    };
+    // Point `distKm` from (lat, lon) along azimuth `azDeg` (great circle).
+    const offset = (lat, lon, distKm, azDeg) => {
+      const d = distKm / R, la = lat * DEG, az = azDeg * DEG;
+      const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(az));
+      const lo2 = lon * DEG + Math.atan2(Math.sin(az) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
+      return [la2 / DEG, lo2 / DEG];
+    };
+    const frames = (n = 2) => new Promise(res => { const f = () => (--n <= 0 ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+    const pts = POINTS.map(p => { const [lat, lon] = offset(SHACK[0], SHACK[1], p.distKm, p.azDeg); return { ...p, lat, lon }; });
+    const clip = () => moon.terrainManager?.solarShadow;
+    const home = { position: r.camera.position.clone(), up: r.camera.up.clone(), target: r.cameraController.controls.target.clone(), fov: r.camera.fov };
+    window.probe = {
+      frames, pts,
+      pose(f) {
+        r.timeController.setTime(et + (f.min ?? 0) * 60);
+        if (f.drag !== undefined) {
+          const controls = r.cameraController.controls;
+          controls.enableDamping = false;
+          if (f.drag === null) { r.camera.position.copy(home.position); r.camera.up.copy(home.up); r.camera.fov = home.fov; r.camera.updateProjectionMatrix(); controls.target.copy(home.target); r.camera.lookAt(home.target); controls.update(); }
+          return;
+        }
+        const ground = moon.sampleTerrain(f.lat, f.lon)?.elevationKm ?? 0;
+        const t = bf(f.lat, f.lon, ground), { up, east, north } = frameAt(f.lat, f.lon);
+        const h = f.heading * DEG, s = Math.sin(f.tilt * DEG), c = Math.cos(f.tilt * DEG);
+        const eye = t.map((v, i) => v + f.range * (c * up[i] - s * (Math.sin(h) * east[i] + Math.cos(h) * north[i])));
+        const cam = r.camera, controls = r.cameraController.controls;
+        controls.enableDamping = false;
+        cam.fov = 55; cam.updateProjectionMatrix();
+        cam.position.copy(toWorld(eye)); cam.up.copy(toWorld(eye).sub(centre()).normalize());
+        controls.target.copy(toWorld(t)); cam.lookAt(controls.target);
+        if (f.far) { const [la, lo] = offset(f.lat, f.lon, 300, f.heading); controls.target.copy(toWorld(bf(la, lo, 0))); }
+        cam.updateMatrixWorld(true);
+      },
+      /** Per point: pixel, whether that pixel shows the point, the clipmap level holding it, its source spacing. */
+      state() {
+        const cl = clip(), st = moon.solarShadowStatus, a = cl?.anchor, m = cl?.sceneToBody;
+        const camBf = (() => { const v = r.camera.position.clone().sub(centre()).multiplyScalar(1 / r.scaleFactor).applyQuaternion(moon.mesh.quaternion.clone().invert()); return [v.x, -v.z, v.y]; })();
+        const W = r.renderer?.domElement?.clientWidth ?? innerWidth, H = r.renderer?.domElement?.clientHeight ?? innerHeight;
+        const points = pts.map(p => {
+          const ground = moon.sampleTerrain(p.lat, p.lon)?.elevationKm ?? 0;
+          const w = toWorld(bf(p.lat, p.lon, ground));
+          const ndc = w.clone().project(r.camera);
+          let visible = false, level = null;
+          const px = Math.round((ndc.x + 1) / 2 * W), py = Math.round((1 - ndc.y) / 2 * H);
+          // Clear of the viewer's chrome (side bar, time bar).
+          if (px > 50 && px < W - 20 && py > 20 && py < H - 80 && ndc.z < 1) {
+            const hit = r.pickSurface(ndc.x, ndc.y);
+            if (hit) {
+              const q = hit.bodyFixedHitKm, pb = bf(p.lat, p.lon, ground), range = Math.hypot(...camBf.map((v, i) => v - pb[i]));
+              const u = pb.map(v => v / Math.hypot(...pb)), d = q.map((v, i) => v - pb[i]), along = d.reduce((s, v, i) => s + v * u[i], 0);
+              visible = Math.hypot(...d.map((v, i) => v - along * u[i])) < Math.max(0.3, 0.004 * range);
+            }
+          }
+          if (a && m) {
+            const v = w.clone().sub(m.origin).multiplyScalar(1 / m.scale).applyQuaternion(m.q), f = a.frame, dot = (x, y) => x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+            const pv = [v.x, v.y, v.z], upv = dot(pv, f.up);
+            level = upv > 0 ? (cl.find([dot(pv, f.east) * a.rcKm / upv, dot(pv, f.north) * a.rcKm / upv])?.level ?? -1) : -1;
+          }
+          return { px, py, visible, level, tile: moon.sampleTerrain(p.lat, p.lon)?.tileId ?? null,
+            cpu: cl ? +cl.sunFractionAt(toWorld(bf(p.lat, p.lon, ground - 5))).toFixed(3) : null };
+        });
+        const hoppers = Object.fromEntries(['Polaris-A', 'Polaris-B', 'Polaris-C'].map(n => [n, r.getBodyMesh(n)?.shadowUniforms?.uTerrainSunVisibility?.value ?? null]));
+        return { altKm: +(Math.hypot(...camBf) - R).toFixed(2), state: st?.state ?? null, anchorResets: st?.anchorResets ?? null,
+          siteKm: st?.siteKm?.map(v => +v.toFixed(2)) ?? null, siteMoves: st?.siteMoves ?? null, siteFade: st?.siteFade ?? null, hoppers,
+          sourceRevision: cl?.source?.revision ?? null, horizonRenders: st?.horizonRenders ?? null, offsetsKm: st?.levels.map(l => l.offsetKm),
+          builds: st?.levels.map(l => l.builds), reasons: st?.levels.map(l => l.lastReason), lagDeg: st?.levels.map(l => l.horizonSunLagDeg && +l.horizonSunLagDeg.toFixed(3)), points };
+      },
+      /** Render until tiles are idle, no site fade, every level built and its map drawn for the drawn Sun. */
+      async settled() {
+        let last = '', stable = 0;
+        for (let i = 0; i < 100 && stable < 3; i++) {
+          await frames(5);
+          const m = moon.terrainMetrics, s = moon.solarShadowStatus, key = JSON.stringify(s?.levels.map(l => l.builds));
+          const busy = m.network.queued + m.network.downloading + m.network.parsing + (moon.terrainCubeStats?.inFlight ?? 0);
+          stable = busy === 0 && s.siteFade >= 1 && s.levels.every(l => (l.horizonSunLagDeg ?? 0) < 0.02) && key === last ? stable + 1 : 0;
+          last = key;
+        }
+      },
+      /** Frame intervals (ms), one pose per animation frame. */
+      timed: (poses) => new Promise(res => {
+        const t = []; let i = 0, prev = performance.now();
+        const tick = (now) => { t.push(now - prev); prev = now; if (i < poses.length) { window.probe.pose(poses[i++]); requestAnimationFrame(tick); } else res(t.slice(2)); };
+        window.probe.pose(poses[i++]); requestAnimationFrame(tick);
+      }),
+      cellKm: () => pts.map(p => clip()?.source?.cellKm?.(p.lat, p.lon) ?? null),
+      /** Same camera, clipmap focus moved `dist` km from Shackleton along `az` (null: the viewer's own focus). */
+      setFocus(dist, az) {
+        window.probe.ownFocus ??= r.terrainShadowFocus.bind(r);
+        r.terrainShadowFocus = dist === null ? window.probe.ownFocus : () => toWorld(bf(...offset(SHACK[0], SHACK[1], dist, az), 0));
+      },
+    };
+    await frames(2);
+    return r.solarGeometryAt('Moon', SHACK[0], SHACK[1]);
+  }, { et, SHACK, POINTS, noFade: !!args['no-fade'] });
+  console.log(`epoch ${EPOCH}: Sun at Shackleton elevation ${epochInfo.elevationDeg.toFixed(2)} deg, azimuth ${epochInfo.azimuthDeg.toFixed(1)}`);
+
+  const DEBUG = { off: 0, on: 0, fraction: 1, unknown: 2, 'on-ref': 0, 'fraction-ref': 1 };
+  const applyMode = (mode) => page.evaluate(({ mode, debug }) => {
+    const r = window.cap.getRenderer();
+    r.setTerrainShadowMode(mode === 'off' ? 'off' : 'high'); r.setTerrainShadowDebug(debug);
+  }, { mode, debug: DEBUG[mode] });
+  // Settle at the first pose: tiles idle and every level built (so each pass starts the same).
+  const settle = async () => {
+    let stable = 0, last = '';
+    for (let i = 0; i < 240 && stable < 6; i++) {
+      await page.evaluate(async (f) => { window.probe.pose(f); await window.probe.frames(10); }, FRAMES[0]);
+      const k = await page.evaluate(() => {
+        const bm = window.cap.getRenderer().getBodyMesh('Moon'), m = bm.terrainMetrics, s = bm.solarShadowStatus;
+        return { busy: m.network.queued + m.network.downloading + m.network.parsing + (bm.terrainCubeStats?.inFlight ?? 0) + ((s?.siteFade ?? 1) < 1), key: JSON.stringify([m.tiles.visible, s?.levels.map(l => [l.builds, l.valid])]) };
+      });
+      stable = k.busy === 0 && k.key === last ? stable + 1 : 0; last = k.key;
+    }
+  };
+
+  if (COST) for (const mode of ['off', 'on']) {
+    await applyMode(mode); await settle();
+    const t = await page.evaluate((poses) => window.probe.timed(poses), FRAMES.flatMap(f => f.sub));
+    const sorted = [...t].sort((a, b) => a - b), q = (x) => +sorted[Math.floor(sorted.length * x)].toFixed(2);
+    passes[mode] = { frames: t.length, meanMs: +(t.reduce((a, b) => a + b, 0) / t.length).toFixed(2), p50Ms: q(0.5), p95Ms: q(0.95), maxMs: +sorted[sorted.length - 1].toFixed(1) };
+    console.log(`cost ${mode}: ${JSON.stringify(passes[mode])}`);
+  }
+  for (const mode of COST ? [] : SITE_TIME ? ['on', 'fraction', 'on-ref', 'fraction-ref'] : ['fraction', 'off', 'on', 'unknown']) {
+    await applyMode(mode === 'off' ? 'on' : mode);
+    await settle();
+    await applyMode(mode);
+    const dir = join(OUT, `frames-${mode}`);
+    rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
+    const rows = [];
+    let prevPng = null;
+    for (let i = 0; i < FRAMES.length; i++) {
+      if (FRAMES[i].drag) {
+        const [dx, dy] = FRAMES[i].drag, x = VIEWPORT.width / 2, y = VIEWPORT.height / 2;
+        await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 3 }); await page.mouse.up();
+      }
+      const s = await page.evaluate(async ({ f, ref }) => {
+        for (const p of f.sub ?? [f]) { window.probe.pose(p); await window.probe.frames(f.sub ? 1 : 2); }
+        if (ref) await window.probe.settled();
+        return window.probe.state();
+      }, { f: FRAMES[i], ref: mode.endsWith('-ref') });
+      const buf = await page.screenshot({ type: 'png' });
+      writeFileSync(join(dir, `${String(i).padStart(4, '0')}.png`), buf);
+      const png = PNG.sync.read(buf);
+      if (mode !== 'unknown') for (const p of s.points) p.gray = p.visible ? pixel(png, p) : null;
+      // Share of pixels that changed by more than 24 / 255 since the previous frame (clear of the viewer's chrome).
+      const changedPct = prevPng ? changed(prevPng, png) : null;
+      prevPng = png;
+      rows.push({ frame: i, key: FRAMES[i].key, rangeKm: FRAMES[i].range === undefined ? null : +FRAMES[i].range.toFixed(1), changedPct, ...s });
+    }
+    passes[mode] = rows;
+    console.log(`${mode}: ${rows.length} frames`);
+  }
+  // Same camera (the drag's start), only the clipmap focus moved: 10–50 km stay within 4 camera altitudes of the site
+  // (no level moves), 150 km does not (the site and every level move there).
+  if (DRAG) {
+    const shot = async (name) => { const buf = await page.screenshot({ type: 'png' }); writeFileSync(join(OUT, `ab-${name}.png`), buf); return PNG.sync.read(buf); };
+    const diff = (A, B) => { let n = 0, big = 0; for (let k = 0; k < A.data.length; k += 4) { const d = Math.max(...[0, 1, 2].map(c => Math.abs(A.data[k + c] - B.data[k + c]))); if (d > 8) n++; if (d > 64) big++; } const N = A.data.length / 4; return { gt8: +(100 * n / N).toFixed(2), gt64: +(100 * big / N).toFixed(2) }; };
+    const base = {};
+    ab = [];
+    for (const [dist, az, name] of [[null, 0, 'default'], [10, 0, 'n10'], [25, 90, 'e25'], [50, 180, 's50'], [150, 180, 's150'], [null, 0, 'default-again']]) {
+      await page.evaluate(({ dist, az }) => window.probe.setFocus(dist, az), { dist, az });
+      const row = { name, focusKm: dist, focusAzDeg: az };
+      for (const mode of ['fraction', 'on']) {
+        await applyMode(mode); await settle();
+        const s = await page.evaluate(() => window.probe.state());
+        const img = await shot(`${name}-${mode}`);
+        base[mode] ??= img;
+        row[mode] = diff(base[mode], img);
+        if (mode === 'fraction') {
+          Object.assign(row, { siteKm: s.siteKm, siteMoves: s.siteMoves, state: s.state, offsetsKm: s.offsetsKm, hoppers: s.hoppers,
+            points: s.points.map(p => [p.level, p.cpu, p.visible ? pixel(img, p) : null, p.tile]) });
+        }
+      }
+      ab.push(row);
+      console.log(`A/B ${name.padEnd(14)} site ${JSON.stringify(row.siteKm)} moves ${row.siteMoves}  fraction vs default ${JSON.stringify(row.fraction)}  on ${JSON.stringify(row.on)}`);
+    }
+  }
+  pinned = await page.evaluate(() => window.probe.pts);
+  const cells = await page.evaluate(() => window.probe.cellKm());
+  pinned.forEach((p, i) => { p.sourceCellKm = cells[i]; });
+} finally {
+  await browser.close();
+}
+
+if (COST) {
+  writeFileSync(join(OUT, 'cost.json'), JSON.stringify({ generator: 'scripts/check-terrain-shadow-camera.mjs --path site-time --cost', created: new Date().toISOString(), epoch: EPOCH, viewport: VIEWPORT, errors, cost: passes }, null, 1) + '\n');
+  process.exit(0);
+}
+// site-time: each live frame against the settled render of the same pose and time.
+if (SITE_TIME) for (const m of ['on', 'fraction']) {
+  const read = (d, i) => PNG.sync.read(readFileSync(join(OUT, `frames-${d}`, `${String(i).padStart(4, '0')}.png`)));
+  passes[m].forEach((row, i) => { row.vsSettledPct = changed(read(m, i), read(`${m}-ref`, i)); });
+}
+// Per point: the Sun-fraction pixel across the frames that show it; jumps between consecutive showing frames, with what
+// changed (level holding the point, clipmap state, anchor resets, camera altitude), and the Off pixel's change there.
+const JUMP = 0.25;
+const report = pinned.map((p, j) => {
+  // Frames that draw shadows (above 320 km they are off by design: counted apart).
+  const all = passes.fraction.map((row, i) => ({ i, row, pt: row.points[j], off: passes.off[i]?.points[j], on: passes.on[i]?.points[j] })).filter(x => x.pt.visible && x.pt.gray !== null);
+  const seen = all.filter(x => x.row.state === 'ready' || x.row.state === 'partial');
+  const jumps = [];
+  for (let k = 1; k < seen.length; k++) {
+    const a = seen[k - 1], b = seen[k];
+    if (Math.abs(b.pt.gray - a.pt.gray) < JUMP) continue;
+    jumps.push({ from: a.i, to: b.i, gray: [a.pt.gray, b.pt.gray], cpu: [a.pt.cpu, b.pt.cpu], level: [a.pt.level, b.pt.level], state: [a.row.state, b.row.state],
+      altKm: [a.row.altKm, b.row.altKm], anchorReset: a.row.anchorResets !== b.row.anchorResets, siteMoved: a.row.siteMoves !== b.row.siteMoves,
+      offGray: [a.off?.gray ?? null, b.off?.gray ?? null], onGray: [a.on?.gray ?? null, b.on?.gray ?? null] });
+  }
+  const g = seen.map(x => x.pt.gray), c = seen.map(x => x.pt.cpu).filter(v => v !== null);
+  return { ...p, framesShown: seen.length, gray: g.length ? [Math.min(...g), Math.max(...g)] : null, cpu: c.length ? [Math.min(...c), Math.max(...c)] : null,
+    levels: [...new Set(seen.map(x => x.pt.level))], framesOutOfRange: all.length - seen.length, jumps };
+});
+writeFileSync(join(OUT, 'camera.json'), JSON.stringify({ generator: 'scripts/check-terrain-shadow-camera.mjs', created: new Date().toISOString(), epoch: EPOCH,
+  sunAtShackleton: epochInfo, path: PATH, framesPerSegment: STEPS, jumpThreshold: JUMP, points: report, ab, errors, passes }, null, 1) + '\n');
+for (const p of report) {
+  console.log(`${p.id.padEnd(9)} cell ${p.sourceCellKm?.toFixed(2)} km  shown ${String(p.framesShown).padStart(3)}  fraction px ${p.gray?.join('..') ?? '-'}  cpu ${p.cpu?.join('..') ?? '-'}  levels ${p.levels.join(',')}  jumps ${p.jumps.length}`);
+  for (const jmp of p.jumps) console.log(`    ${JSON.stringify(jmp)}`);
+}
+// Video: off | on over fraction | unknown.
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '12',
+  ...(SITE_TIME ? ['on', 'fraction', 'on-ref', 'fraction-ref'] : ['off', 'on', 'fraction', 'unknown']).flatMap(m => ['-i', join(OUT, `frames-${m}`, '%04d.png')]),
+  '-filter_complex', '[0][1][2][3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0,scale=1920:-2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '26', join(OUT, 'camera.mp4')]);
+for (const [mode, rows] of Object.entries(passes)) {
+  const c = rows.map(r => r.changedPct).filter(v => v !== null), sorted = [...c].sort((x, y) => x - y), max = Math.max(...c);
+  console.log(`${mode.padEnd(8)} changed per frame: median ${sorted[c.length >> 1]} %, max ${max} % (frame ${rows.findIndex(r => r.changedPct === max)}); site moves ${rows[0].siteMoves}..${rows[rows.length - 1].siteMoves}`);
+}
+if (SITE_TIME) for (const m of ['on', 'fraction']) {
+  const rows = passes[m], v = rows.map(r => r.vsSettledPct), fading = rows.filter(r => r.siteFade < 1).map(r => r.vsSettledPct), lag = rows.map(r => Math.max(...r.lagDeg.map(x => x ?? 0)));
+  console.log(`${m.padEnd(8)} vs settled: median ${[...v].sort((a, b) => a - b)[v.length >> 1]} %, max ${Math.max(...v)} % (frame ${v.indexOf(Math.max(...v))}); while fading (${fading.length} frames) max ${fading.length ? Math.max(...fading) : '-'} %; max map Sun lag ${Math.max(...lag).toFixed(3)} deg; site moves ${rows[0].siteMoves}..${rows[rows.length - 1].siteMoves}`);
+}
+console.log(`errors: ${errors.length}`);

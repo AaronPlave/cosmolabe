@@ -152,6 +152,7 @@ export const vs = $state({
   showSensorLabels: true,
   showStats: false,
   lightingMode: 'natural' as 'natural' | 'shadow' | 'flood',
+  terrainShadowMode: null as 'off' | 'low' | 'medium' | 'high' | null,
 
   // Scrubber
   scrubMin: 0,
@@ -613,6 +614,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.showSensors = prefs.showSensors;
   vs.showSensorLabels = prefs.showSensorLabels;
   vs.lightingMode = prefs.lightingMode;
+  vs.terrainShadowMode = prefs.terrainShadowMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
   renderer.setLabelsVisible(prefs.showLabels);
   renderer.setGridSettings(prefs.grid);
@@ -621,6 +623,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   renderer.setSensorLabelsVisible(prefs.showSensorLabels);
   renderer.setSensorsVisible(prefs.showSensors);
   renderer.setLightingMode(prefs.lightingMode);
+  renderer.setTerrainShadowMode(prefs.terrainShadowMode);
   // Not re-saved: this is restoring what was saved, not a new choice.
   if (prefs.fov !== 60) setFov(prefs.fov, { persist: false });
 
@@ -1904,6 +1907,13 @@ export function setDisplayOption(
       throw new Error(`unhandled display option ${String(unreachable)}`);
     }
   }
+}
+
+/** Terrain-cast solar shadows (#205): off, or a quality that turns them on for any terrain with CPU heights, catalog or not. Remembered. */
+export function setTerrainShadowMode(mode: 'off' | 'low' | 'medium' | 'high') {
+  vs.terrainShadowMode = mode;
+  _renderer?.setTerrainShadowMode(mode);
+  savePrefs({ terrainShadowMode: mode });
 }
 
 export function setLighting(mode: 'natural' | 'shadow' | 'flood') {

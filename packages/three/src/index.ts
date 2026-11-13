@@ -107,6 +107,11 @@ export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
 export { LIGHTING_MODES, DEFAULT_IMAGERY_ILLUMINATION, combineImageryIllumination, imageryAsIsWeight, isImageryIllumination, isPhysicallyRelit, sunDirectionAt, incidenceCosine, directTerm, solarGeometryAt } from './SurfaceIllumination.js';
 // `ImageryIllumination` is already the time-indexed imagery label (ImageryTime.ts, #214); the relighting provenance is exported under its own name.
+export { clipmapSourceFromSurface } from './SolarShadowSurfaceSource.js';
+export type { ClipmapSource } from './SolarShadowClipmap.js';
+export { horizonAlong, solarVisibility, sunFraction, occluderRangeKm } from './TerrainSunVisibility.js';
+export type { HeightKm, HorizonResult, SolarVisibility } from './TerrainSunVisibility.js';
+export type { SolarShadowConfig, SolarShadowQuality, SolarShadowStatus, SolarShadowLevelStatus, SolarShadowDebugMode, SolarShadowBuildReason, ClipmapLevelConfig } from './SolarShadowClipmap.js';
 export type { ImageryIllumination as ImageryRelightProvenance, SurfaceIlluminationSummary, LightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
 export { resolveImageryTime, parseTimeExtent, ImageryTimeFollower, DEFAULT_IMAGERY_THROTTLE, dayNumber, utcDay } from './ImageryTime.js';

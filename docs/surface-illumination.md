@@ -12,6 +12,8 @@ self-shadowing (#205), camera-visible Sun occlusion (#242) or regolith
 photometry (#206). The lunar imagery investigation is recorded under
 [Source provenance](#source-provenance); #147 owns any broader imagery work.
 
+Terrain-cast shadows (#205): see [terrain-solar-visibility.md](terrain-solar-visibility.md).
+
 Code: `packages/three/src/SurfaceIllumination.ts`. Tests: `SurfaceIllumination`,
 `TerrainIllumination`, `UniverseRenderer.illumination` (vitest) and
 `scripts/test-surface-illumination-webgl.mjs` (real WebGL, `npm run test:illumination:webgl`).

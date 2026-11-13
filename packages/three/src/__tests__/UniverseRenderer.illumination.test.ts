@@ -197,3 +197,43 @@ describe('UniverseRenderer physical Sun illumination (#204)', () => {
     expect(ambient.color.getHex()).toBe(0x080808);
   });
 });
+
+describe('UniverseRenderer terrain-shadow summary for the viewer (#205)', () => {
+  const status = (state: string, unknown: number[], coarse = 0) => ({ state, levels: unknown.map(u => ({ unknownFraction: u, coarseFraction: coarse })) });
+  const shadowBody = (support: { supported: boolean; mode: string; bakedOnly?: boolean } | null, s: ReturnType<typeof status> | null = null) =>
+    ({ ...body(0, 0, 0, 1737.4), solarShadowSupport: support && { bakedOnly: false, ...support }, solarShadowStatus: s });
+  const summarize = (bodies: Record<string, ReturnType<typeof shadowBody>>) => {
+    const state = Object.assign(Object.create(UniverseRenderer.prototype), { bodyMeshes: new Map(Object.entries(bodies)) }) as unknown as {
+      terrainShadowSummary(): { mode: string; state: string | null; unknownFraction: number; coarseFraction: number; bakedOnly: boolean } | null;
+    };
+    return state.terrainShadowSummary();
+  };
+
+  it('is null (no viewer control) when no body has terrain a shadow can be built from', () => {
+    expect(summarize({ Moon: shadowBody(null), Earth: shadowBody({ supported: false, mode: 'off' }) })).toBeNull();
+  });
+
+  it('offers the control on supported terrain even when the catalog configured nothing (mode off, no clipmap)', () => {
+    expect(summarize({ Moon: shadowBody({ supported: true, mode: 'off' }) })).toEqual({ mode: 'off', state: null, unknownFraction: 0, coarseFraction: 0, bakedOnly: false });
+  });
+
+  it('reports the highest mode, the least-finished clipmap state and the largest unknown fraction', () => {
+    expect(summarize({
+      Moon: shadowBody({ supported: true, mode: 'medium' }, status('ready', [0, 0, 0])),
+      Mars: shadowBody({ supported: true, mode: 'high' }, status('partial', [0, 0.1, 0.25], 0.4)),
+    })).toEqual({ mode: 'high', state: 'partial', unknownFraction: 0.25, coarseFraction: 0.4, bakedOnly: false });
+    expect(summarize({
+      Moon: shadowBody({ supported: true, mode: 'low' }, status('building', [1, 1, 1])),
+      Mars: shadowBody({ supported: true, mode: 'low' }, status('ready', [0, 0, 0])),
+    })?.state).toBe('building');
+  });
+
+  it('says when every supported surface is drawn from baked imagery', () => {
+    expect(summarize({ Moon: shadowBody({ supported: true, mode: 'high', bakedOnly: true }), Mars: shadowBody({ supported: true, mode: 'high', bakedOnly: true }) })?.bakedOnly).toBe(true);
+    expect(summarize({ Moon: shadowBody({ supported: true, mode: 'high', bakedOnly: true }), Mars: shadowBody({ supported: true, mode: 'high', bakedOnly: false }) })?.bakedOnly).toBe(false);
+  });
+
+  it('ignores the clipmap of a body whose shadows the viewer turned off', () => {
+    expect(summarize({ Moon: shadowBody({ supported: true, mode: 'off' }, status('ready', [0.5])) })).toEqual({ mode: 'off', state: null, unknownFraction: 0, coarseFraction: 0, bakedOnly: false });
+  });
+});

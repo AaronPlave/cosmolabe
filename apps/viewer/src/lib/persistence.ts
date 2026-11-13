@@ -14,6 +14,8 @@ export interface ViewerPrefs {
   showSensors: boolean;
   showSensorLabels: boolean;
   lightingMode: 'natural' | 'shadow' | 'flood';
+  /** Terrain-cast solar shadows (#205): the viewer's choice. `null` follows each catalog (off unless it sets `solarShadows`). */
+  terrainShadowMode: 'off' | 'low' | 'medium' | 'high' | null;
   fov: number;
 }
 
@@ -26,6 +28,7 @@ const DEFAULTS: ViewerPrefs = {
   showSensors: true,
   showSensorLabels: true,
   lightingMode: 'natural',
+  terrainShadowMode: null,
   fov: 60,
 };
 

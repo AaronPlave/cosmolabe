@@ -214,6 +214,40 @@ export class CubeSphereGridSource {
     return this.requestCoordinate(this.sampler.faceCoordinate(latDeg, lonDeg));
   }
 
+  /**
+   * Geocentric radius, km, of the terrain at a point from the tile at exactly `level` (or the product's own deepest
+   * level there when that is shallower), never from a finer or coarser resident tile: a consumer that needs one
+   * consistent resolution across an area (the solar-shadow clipmap, #205) must not see the seams between tiles of
+   * different LOD, which are walls a low Sun shadows from. Requests that one tile when it is not resident and
+   * returns null until it is; only that tile, no ancestors. Interpolates the lattice triangle under the point,
+   * as `CubeSphereSampler.sample`.
+   */
+  radiusAtLevel(latDeg: number, lonDeg: number, level: number): number | null {
+    const coordinate = this.sampler.faceCoordinate(latDeg, lonDeg);
+    const address = addressAt(coordinate, Math.min(level, this.availableAt(coordinate).level));
+    const id = cubeTileId(address);
+    const tile = this.sampler.getTile(address);
+    if (!tile) {
+      if (!this.inFlight.has(id) && (this.failed.get(id)?.retryAt ?? 0) <= performance.now()) void this.load(id);
+      return null;
+    }
+    if (this.detail.has(id)) { this.detail.delete(id); this.detail.set(id, true); }
+    const count = 2 ** address.level;
+    const localU = (coordinate.u + 1) * 0.5 * count - address.x, localV = (coordinate.v + 1) * 0.5 * count - address.y;
+    const px = localU * (tile.width - 1), py = localV * (tile.height - 1);
+    const x0 = Math.max(0, Math.min(tile.width - 2, Math.floor(px))), y0 = Math.max(0, Math.min(tile.height - 2, Math.floor(py)));
+    const tx = Math.min(1, px - x0), ty = Math.min(1, py - y0), at = (x: number, y: number) => tile.elevationsKm[y * tile.width + x];
+    const h00 = at(x0, y0), h11 = at(x0 + 1, y0 + 1);
+    const offset = tx >= ty ? h00 + tx * (at(x0 + 1, y0) - h00) + ty * (h11 - at(x0 + 1, y0))
+      : h00 + ty * (at(x0, y0 + 1) - h00) + tx * (h11 - at(x0, y0 + 1));
+    const geometry = this.manifest.geometry;
+    if (geometry) return geometry.referenceRadiusKm + offset;
+    // Datum-height payload: a height above the datum surface along the point's own direction.
+    const datum = this.manifest.datum.referenceShape;
+    const base = datum.kind === 'sphere' ? datum.radiusKm : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg: wrapLon(lonDeg), heightKm: 0 }, this.manifest.datum)));
+    return base + offset;
+  }
+
   requestCoordinate(coordinate: CubeFaceCoordinate): Promise<void> {
     const deepest = this.availableAt(coordinate).level;
     const loads: Promise<void>[] = [];

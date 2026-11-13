@@ -43,6 +43,7 @@
     "test:ask-composition": "node scripts/test-ask-composition.mjs",
     "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
     "test:illumination:webgl": "node scripts/test-surface-illumination-webgl.mjs",
+    "test:terrain-shadow:webgl": "node scripts/test-terrain-solar-shadow-webgl.mjs",
     "demo:sun-direction:gpu": "node scripts/demo-surface-sun-direction-gpu.mjs",
     "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",

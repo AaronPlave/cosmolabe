@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { TERRAIN_DEBUG_MODES, type TerrainDebugMode, type TerrainPerformanceMetrics } from '@cosmolabe/three';
+  import { TERRAIN_DEBUG_MODES, type TerrainDebugMode, type TerrainPerformanceMetrics, type SolarShadowDebugMode } from '@cosmolabe/three';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -22,6 +22,18 @@
   let currentHeapMB = $state<number | null>(null);
   let terrainDebug = $state(false);
   let terrainDebugMode = $state<TerrainDebugMode>('none');
+  let shadowDebugMode = $state<SolarShadowDebugMode>(0);
+
+  /** Terrain-shadow debug views (#205); see SolarShadowDebugMode. */
+  const SHADOW_DEBUG_VIEWS: { mode: SolarShadowDebugMode; name: string; legend: string }[] = [
+    { mode: 0, name: 'none', legend: '' },
+    { mode: 1, name: 'sun fraction', legend: 'White: Sun fully visible · black: hidden by terrain' },
+    { mode: 2, name: 'unknown', legend: 'Sun fraction; magenta where height data is missing here or on the way to the Sun (drawn lit); orange where the heights are too far apart to decide it (approximate)' },
+    { mode: 3, name: 'alignment', legend: 'Green: drawn terrain within 10 m of the shadow data · red/blue: above/below' },
+    { mode: 4, name: 'neutral + shadows', legend: 'Grey albedo lit by the Sun, with terrain shadows (no imagery)' },
+    { mode: 5, name: 'neutral, no shadows', legend: 'Grey albedo lit by the Sun, without terrain shadows' },
+    { mode: 6, name: 'bypass (A/B off)', legend: 'Normal image, terrain shadows bypassed; shadow data keep updating' },
+  ];
 
   /** One legend line per debug surface mode; the encoding lives in TerrainManager. */
   const DEBUG_MODE_LEGEND: Record<TerrainDebugMode, string> = {
@@ -43,7 +55,7 @@
    * the planet's terrain diagnostics). Polled with FPS rather than derived
    * per frame: the memory estimate walks the loaded tiles.
    */
-  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; surface: string | null; }
+  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; surface: string | null; shadows: boolean; }
   let terrain = $state<TerrainSnapshot | null>(null);
 
   function pollTerrain(): void {
@@ -59,6 +71,7 @@
           state: bm.terrainDiagnostics?.state ?? 'unloaded',
           debugMode: bm.terrainDebugMode ?? 'none',
           surface: bm.surfaceTransitionState,
+          shadows: bm.hasSolarShadow,
         };
         // The renderer owns the mode; the panel only mirrors it, so reopening
         // the panel or reloading a catalog never shows a stale selection.
@@ -102,7 +115,8 @@
     };
     requestAnimationFrame(loop);
 
-    return () => { running = false; };
+    // The shadow view is panel-local: closing the panel returns to the normal image, so it can never be left on unseen.
+    return () => { running = false; getRenderer()?.setTerrainShadowDebug(0); };
   });
 
   // Renderer stats — re-derive each frame
@@ -304,6 +318,27 @@
       </label>
       {#if terrainDebugMode !== 'none'}
         <div class="label legend">{DEBUG_MODE_LEGEND[terrainDebugMode]}</div>
+      {/if}
+      {#if terrain?.shadows}
+        <label class="row" title="Terrain-cast Sun shadows (#205): debug views, shown while Display → Terrain shadows is on">
+          <span class="label">Shadow view</span>
+          <select
+            class="val m-0 bg-transparent"
+            data-testid="terrain-shadow-debug"
+            value={String(shadowDebugMode)}
+            onchange={(e) => {
+              shadowDebugMode = Number((e.target as HTMLSelectElement).value) as SolarShadowDebugMode;
+              getRenderer()?.setTerrainShadowDebug(shadowDebugMode);
+            }}
+          >
+            {#each SHADOW_DEBUG_VIEWS as v}
+              <option value={String(v.mode)}>{v.name}</option>
+            {/each}
+          </select>
+        </label>
+        {#if shadowDebugMode !== 0}
+          <div class="label legend">{SHADOW_DEBUG_VIEWS[shadowDebugMode].legend}</div>
+        {/if}
       {/if}
     </div>
     </div>

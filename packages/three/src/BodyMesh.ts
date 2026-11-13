@@ -11,6 +11,7 @@ import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
+import type { SolarShadowDebugMode, SolarShadowFrame, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
@@ -1179,6 +1180,25 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+  /** Terrain-cast solar shadows (#205): per-frame update, status, toggle and debug view. Inert unless `terrain.solarShadows` is set. */
+  updateSolarShadow(frame: SolarShadowFrame): void { this.terrainManager?.updateSolarShadow(frame); }
+  /** Sun fraction this body's terrain leaves a scene point (a vehicle), this frame; 1 without terrain shadows. */
+  solarSunFractionAt(scenePos: THREE.Vector3): number { return this.terrainManager?.solarSunFractionAt(scenePos) ?? 1; }
+  /** Dim this body's (model's) sunlight by the fraction of the Sun terrain leaves it (#205). */
+  setTerrainSunVisibility(fraction: number): void { this.shadowUniforms.uTerrainSunVisibility.value = fraction; }
+  get hasSolarShadow(): boolean { return this.terrainManager?.hasSolarShadow ?? false; }
+  get solarShadowStatus(): SolarShadowStatus | null { return this.terrainManager?.solarShadowStatus ?? null; }
+  // Kept here as well, so a choice made before the terrain exists (it is created lazily) applies when it does.
+  private solarShadowMode: 'off' | SolarShadowQuality | null = null;
+  /** The viewer's terrain-shadow choice: `null` follows the catalog; `off`, or a quality that also turns it on. */
+  setSolarShadowMode(mode: 'off' | SolarShadowQuality | null): void { this.solarShadowMode = mode; this.terrainManager?.applySolarShadowMode(mode); }
+  /** Whether this body's terrain has heights a shadow can be built from, and the effective mode. */
+  get solarShadowSupport(): { supported: boolean; mode: 'off' | SolarShadowQuality; bakedOnly: boolean } | null {
+    const t = this.terrainManager;
+    // Baked imagery carries its own lighting, so terrain shadows cannot show on it (#204): worth telling the user.
+    return t ? { supported: t.supportsSolarShadow, mode: t.solarShadowMode, bakedOnly: t.surfaceIllumination === 'baked' } : null;
+  }
+  setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.terrainManager?.setSolarShadowDebug(mode); }
   setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
@@ -1376,6 +1396,7 @@ export class BodyMesh extends THREE.Object3D {
     }
     this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
     this.terrainManager.setLightingMode(this.lightingMode);
+    this.terrainManager.applySolarShadowMode(this.solarShadowMode);
     this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
     this.terrainManager.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
     if (this.graticule) {

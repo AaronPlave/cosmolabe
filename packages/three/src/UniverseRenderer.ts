@@ -1,6 +1,7 @@
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
+import type { SolarShadowDebugMode, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
@@ -1263,9 +1264,16 @@ export class UniverseRenderer {
           if (bm.followsImageryTime) bm.updateImageryTime(etToDate(et).getTime());
           bm.updateTerrain(this.camera, this.renderer, screenPx, null);
           bm.observeSurfaceView(this.camera, this.renderer, et);
+          if (bm.hasSolarShadow) this.updateTerrainSolarShadow(bm);
         }
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
+    }
+    // #205: a vehicle near terrain with solar shadows gets only the Sun that terrain leaves it, landed or flying.
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.hasModel) continue;
+      const parent = bm.body.parentName ? this.bodyMeshes.get(bm.body.parentName) : undefined;
+      bm.setTerrainSunVisibility(parent?.hasSolarShadow ? parent.solarSunFractionAt(bm.position) : 1);
     }
     if (this.clampCameraAboveSurfaces({ cubeOnly: true, resetCorrection: false })) {
       const distance = this.camera.position.distanceTo(this.cameraController.controls.target);
@@ -3564,6 +3572,92 @@ export class UniverseRenderer {
     cam.updateProjectionMatrix();
   }
 
+  private readonly _shadowQuat = new THREE.Quaternion();
+
+  /** #205: refresh a body's terrain-shadow clipmap around what the camera is looking at. */
+  private updateTerrainSolarShadow(bm: BodyMesh): void {
+    const sun = this.bodyMeshes.get('Sun');
+    if (!sun || sun === bm) return;
+    this.camera.updateMatrixWorld();
+    bm.updateSolarShadow({
+      camera: this.camera, bodyPosition: bm.position, bodyToScene: bm.bodyToWorldQuaternion(this._shadowQuat),
+      sunPosition: sun.position, scaleFactor: this.scaleFactor, focus: this.terrainShadowFocus(bm),
+    });
+  }
+
+  /**
+   * Clipmap centre: the ground under the camera, moved toward what the camera looks at (the orbit target when it is a
+   * surface point, else where the view ray meets the body) by at most four camera altitudes: an orbit view tilted up to
+   * ~75° keeps its target at the centre, and a grazing view or a far target cannot pull the fine levels away from the
+   * terrain in front of the camera (a ground point's level texel stays within ~5/128 of its distance from the camera).
+   */
+  private terrainShadowFocus(bm: BodyMesh): THREE.Vector3 {
+    const centre = bm.position, cam = this.camera.position, R = bm.displayRadius * this.scaleFactor;
+    const up = cam.clone().sub(centre);
+    const altitude = up.length() - R;
+    up.normalize();
+    const nadir = centre.clone().addScaledVector(up, R);
+    if (!(altitude > 0)) return nadir;
+    const target = this.cameraController.controls.target;
+    const targetR = target.distanceTo(centre);
+    let look: THREE.Vector3 | null = targetR > 0.8 * R && targetR < 1.2 * R ? target.clone() : null;
+    if (!look) {
+      const ray = new THREE.Ray(cam.clone(), this.camera.getWorldDirection(new THREE.Vector3()));
+      look = ray.intersectSphere(new THREE.Sphere(centre, R), new THREE.Vector3());
+    }
+    if (!look) return nadir;
+    const shift = look.sub(nadir);
+    shift.addScaledVector(up, -shift.dot(up));
+    if (shift.length() > 4 * altitude) shift.setLength(4 * altitude);
+    return nadir.add(shift);
+  }
+
+  /**
+   * Terrain-cast solar shadows (#205) on terrain with CPU heights (cube-sphere grids, quantized mesh): `'off'`, or a
+   * quality (`low` | `medium` | `high`) that turns them on **even where the catalog does not configure them**; `null`
+   * (the default) follows the catalog. Applies to bodies whose terrain loads later too. Off in `flood` mode, which has no Sun.
+   */
+  setTerrainShadowMode(mode: 'off' | SolarShadowQuality | null): void {
+    this._terrainShadowMode = mode;
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowMode(mode);
+  }
+  private _terrainShadowMode: 'off' | SolarShadowQuality | null = null;
+
+  /**
+   * What the viewer's control shows: null when no body has terrain a shadow can be built from, else the effective mode
+   * (the choice made, or what the catalog configured: `off` when nothing is), and the least-finished clipmap state and
+   * largest unknown fraction across the bodies that have one, and whether all of them are drawn from baked imagery
+   * (which carries its own lighting, so shadows cannot show on it).
+   */
+  terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; coarseFraction: number; bakedOnly: boolean } | null {
+    const rank: Record<SolarShadowStatus['state'], number> = { off: 0, 'out-of-range': 1, building: 2, partial: 3, ready: 4 };
+    const order = ['off', 'low', 'medium', 'high'] as const;
+    let supported = false, bakedOnly = true, mode: 'off' | SolarShadowQuality = 'off', worst: SolarShadowStatus['state'] | null = null, unknown = 0, coarse = 0;
+    for (const bm of this.bodyMeshes.values()) {
+      const support = bm.solarShadowSupport;
+      if (!support?.supported) continue;
+      supported = true;
+      bakedOnly &&= support.bakedOnly;
+      if (order.indexOf(support.mode) > order.indexOf(mode)) mode = support.mode;
+      const s = bm.solarShadowStatus;
+      if (!s || support.mode === 'off') continue;
+      if (worst === null || rank[s.state] < rank[worst]) worst = s.state;
+      unknown = Math.max(unknown, ...s.levels.map(l => l.unknownFraction));
+      coarse = Math.max(coarse, s.levels[0]?.coarseFraction ?? 0);
+    }
+    return supported ? { mode, state: worst, unknownFraction: unknown, coarseFraction: coarse, bakedOnly } : null;
+  }
+
+  /** Residency and quality of a body's terrain-shadow clipmap, or null when it has none. */
+  terrainShadowStatus(bodyName: string): SolarShadowStatus | null {
+    return this.bodyMeshes.get(bodyName)?.solarShadowStatus ?? null;
+  }
+
+  /** Debug view of the terrain shadow: see `SolarShadowDebugMode`. */
+  setTerrainShadowDebug(mode: SolarShadowDebugMode): void {
+    for (const bm of this.bodyMeshes.values()) bm.setSolarShadowDebug(mode);
+  }
+
   private readonly _illumCandidates: { position: THREE.Vector3; radius: number }[] = [];
 
   /** Scene position of the streamed surface the Sun light should be aimed at, or null. */
@@ -4241,6 +4335,7 @@ export class UniverseRenderer {
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
       bm.setSurfaceLightingMode(this._lightingMode);
+      bm.setSolarShadowMode(this._terrainShadowMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);
       this.scene.add(bm);
