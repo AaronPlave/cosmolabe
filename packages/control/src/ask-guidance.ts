@@ -19,13 +19,13 @@ type Capability = { id: string; available: boolean };
 export function guidanceOverview(capabilities: readonly Capability[]): string[] {
   const has = (ids: string[]) => ids.some(id => capabilities.some(c => c.available && c.id === id));
   return [
-    has(['camera.viewpoint', 'camera.frameObject', 'camera.composeView']) ? 'Navigate and frame objects, places and times.' : null,
-    has(['spatial.getObjectState', 'surface.getImagery', 'surface.getSurfaceData', 'activities.listActivities']) ? 'Inspect scene data, sources and their limits.' : null,
-    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Measure motion and plot supported quantities.' : null,
-    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Investigate changes and compare native results.' : null,
+    has(['camera.viewpoint', 'camera.frameObject', 'camera.composeView']) ? 'Navigate and visualize.' : null,
+    has(['spatial.getObjectState', 'surface.getImagery', 'surface.getSurfaceData', 'activities.listActivities']) ? 'Inspect data and sources.' : null,
+    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Measure and analyze.' : null,
+    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Compare and investigate.' : null,
   ].filter((s): s is string => s !== null);
 }
-export const ASK_AUTHORITY = 'Answers use this scene’s loaded data. Public mission background cannot fill missing measurements or prove what this view shows.';
+export const ASK_AUTHORITY = 'Scene data is authoritative. Mission background cannot replace missing measurements or establish what is visible.';
 export function guidanceExamples({ capabilities, scene, pair = null }: {
   capabilities: readonly Capability[]; scene: GuidanceScene; pair?: GuidancePair | null;
 }): AskExample[] {

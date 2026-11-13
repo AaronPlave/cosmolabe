@@ -244,7 +244,7 @@
           {/if}
         </li>
       {/each}
-      {#if ask.turns.length === 0}
+      {#if ask.turns.length === 0 && help === null}
         <li class="ui-helper whitespace-normal">
           Ask for a place, an object, a mission activity, a time or a layer, e.g. “fly to Jezero and show the available imagery”.
         </li>
@@ -269,12 +269,12 @@
       <button class="ui-helper text-text-secondary hover:text-text-primary" aria-expanded={help !== null}
         disabled={ask.running} onclick={() => { help = help === null ? askHelp() : null; }}>What can I do here?</button>
       {#if help !== null}
-        <div class="mt-1 flex max-h-64 flex-col gap-1 overflow-y-auto" aria-label="Scene examples">
+        <div class="mt-1 flex max-h-80 flex-col gap-1 overflow-y-auto" aria-label="Scene examples">
           <p class="ui-helper text-text-secondary">What Ask can help with</p>
           <p class="ui-helper whitespace-normal text-text-faint">{help.categories.join(' ')}</p>
           <p class="ui-helper whitespace-normal text-text-faint">{help.authority}</p>
           <p class="ui-helper mt-1 text-text-secondary">Worth exploring here</p>
-          <p class="ui-helper text-text-faint">A few starting points, not every capability. Choose one to edit; nothing runs until you send.</p>
+          <p class="ui-helper text-text-faint">Examples, not every capability. Choose to edit; send to run.</p>
           {#each help.examples as example}
             <button class="rounded border border-border px-2 py-1 text-left hover:bg-hover" onclick={() => chooseExample(example)}>
               <span class="ui-body block text-text-primary">{example.label}</span>
