@@ -57,3 +57,9 @@ it('keeps two drawn dates distinct and refuses inferred content change', async (
   facts[0] = { ...facts[0], layers: [{ ...facts[0].layers[0], drawn: false }] };
   expect(checkAnswer('The imagery is drawn at both times.', facts)).toEqual([expect.stringMatching(/ET 0/)]);
 });
+
+it('does not let a later caveat erase an unsupported positive content claim', async () => {
+  const {checkAnswer}=await import('./answer-check.js');
+  const facts: import('./agent.js').ImageryEvidenceFact[]=[{kind:'imagery-state',body:'Earth',et:2,surface:'streamed',layers:[{id:'daily',name:'Daily',visible:true,drawn:true,date:'2026-11-05',pending:false,illumination:'baked'}]}];
+  expect(checkAnswer('Its cloud cover would differ between the composites, but I cannot describe specific changes.',facts)).toContainEqual(expect.stringMatching(/independent visual comparison/));
+});

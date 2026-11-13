@@ -270,11 +270,11 @@
         disabled={ask.running} onclick={() => { help = help === null ? askHelp() : null; }}>What can I do here?</button>
       {#if help !== null}
         <div class="mt-1 flex max-h-80 flex-col gap-1 overflow-y-auto" aria-label="Scene examples">
-          <p class="ui-helper text-text-secondary">What Ask can help with</p>
-          <p class="ui-helper whitespace-normal text-text-faint">{help.categories.join(' ')}</p>
-          <p class="ui-helper whitespace-normal text-text-faint">{help.authority}</p>
-          <p class="ui-helper mt-1 text-text-secondary">Worth exploring here</p>
-          <p class="ui-helper text-text-faint">Examples, not every capability. Choose to edit; send to run.</p>
+          <p class="ui-helper text-text-secondary">Ask can help you</p>
+          <p class="ui-helper whitespace-normal text-text-faint">{help.categories.join(' · ')}</p>
+
+          <p class="ui-helper mt-1 text-text-secondary">Try in this scene</p>
+          <p class="ui-helper text-text-faint">Choose an example to edit. Send when ready.</p>
           {#each help.examples as example}
             <button class="rounded border border-border px-2 py-1 text-left hover:bg-hover" onclick={() => chooseExample(example)}>
               <span class="ui-body block text-text-primary">{example.label}</span>
@@ -283,6 +283,7 @@
           {:else}
             <p class="ui-helper text-text-faint">No grounded examples for this selection. Select an object or ask what data is available.</p>
           {/each}
+          <p class="ui-helper whitespace-normal text-text-faint">{help.authority}</p>
         </div>
       {/if}
     </div>

@@ -517,7 +517,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'composeView',
-    contract: { namespace: 'camera', writes: ['camera'], expect: a => [{ p: 'tracked', object: s(a.anchor) }, ...[a.anchor, a.target, a.also].filter((o): o is string => typeof o === 'string').map(o => ({ p: 'inView' as const, object: o }))], guide: 'To bring another object into a close-up ("rotate around X so I can see Y", "keep X close but show Y"), composeView with X as anchor and Y as target keeps distance, time and selection. Frame X first only when it is not tracked. Do not alternate framing, dolly in and out, or guess circleCenter angles. If X fills the view or Y is hidden, give that tradeoff in one sentence and offer to move out.' },
+    contract: { namespace: 'camera', writes: ['camera'], expect: a => [{ p: 'tracked', object: s(a.anchor) }, ...[a.anchor, a.target, a.also].filter((o): o is string => typeof o === 'string').map(o => ({ p: 'inView' as const, object: o }))], guide: 'To bring another object into a close-up ("rotate around X so I can see Y", "keep X close but show Y"), composeView with X as anchor and Y as target keeps distance, time and selection. Frame X first only when it is not tracked. Do not alternate framing, dolly in and out, or guess circleCenter angles. If X fills the view or Y is hidden, give that tradeoff in one sentence and offer to move out. For a static composition, omit seconds on relative camera moves: animated circleCenter/dolly calls start motion, so immediate subsequent reads or composeView may see an intermediate pose. Do not mix an active animation with composition.' },
     params: [
       { name: 'anchor', type: 'object' },
       { name: 'target', type: 'object' },

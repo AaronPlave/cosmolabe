@@ -5,6 +5,7 @@
  * for contradiction, not a judge of style. A sampled recovery must also
  * disclose its missing-data limit.
  */
+import type { GoalReport } from './outcome.js';
 import type { EventResultFact, ResultFact } from './agent.js';
 
 const AU_KM = 1.495978707e8;
@@ -43,19 +44,30 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
  * within a day of a published result or searched-window bound; a flyby claim
  * needs a result classified as an encounter.
  */
-export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
+export function checkAnswer(text: string, facts: readonly ResultFact[], report?: GoalReport | null): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  for (const c of report?.checks ?? []) {
+    if (!c.slot.startsWith('view:') || c.ok === null) continue;
+    const name=c.slot.slice(5);
+    for (const sentence of sentences(text)) {
+      const at=sentence.indexOf(name); if(at<0) continue;
+      const claim=sentence.slice(at+name.length);
+      const hidden=/^\s+(?:(?:is|remains)\s+)?(?:currently\s+)?(?:out of (?:frame|view)|not (?:visible|in (?:frame|view)))/i.test(claim);
+      const shown=/^\s+(?:(?:is|remains)\s+)?(?:currently\s+)?(?:visible|in (?:frame|view))/i.test(claim);
+      if (c.ok && hidden || c.ok === false && shown) issues.push(`${name}: the current viewer check says ${c.detail}; do not substitute an earlier/intermediate camera state.`);
+    }
+  }
   // Keep every epoch. A drawing observation supports drawing at that epoch,
   // never a comparison of image content. No pixel-comparison fact is currently
   // published by the host, so a positive content/weather claim is unsupported.
   const imagery = facts.filter(f => f.kind === 'imagery-state');
-  for (const sentence of sentences(text)) {
+  for (const sentence of sentences(text).flatMap(s => s.split(/[,;]?\s+but\s+/i))) {
     if (!imagery.length || !/imagery|images?|overlays?|textures?|layers?|appearance|clouds?|pixels?|weather/i.test(sentence)) continue;
     const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
     if (qualified) continue;
     const contentChange = /\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b[^.!?]*\b(?:changed|changes|switched|differs?|different|evolved|moved)\b|\b(?:changed|changes|switched|differs?|different|evolved|moved)\b[^.!?]*\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b/i.test(sentence);
-    if (contentChange || /\bonly thing\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.test(sentence)) {
+    if (contentChange || /\bonly (?:thing|layer)\b[^.!?]*\bchang(?:e[ds]?|ing)\b/i.test(sentence)) {
       issues.push('Imagery drawing observations and acquisition dates do not establish changed image content or weather. No independent visual comparison was observed; explain that content change cannot be established.');
       continue;
     }
@@ -179,7 +191,7 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
 }
 
 /** A plain account of published event or sampled-range facts: what the host shows when the model's answer contradicts them. */
-export function factSummary(facts: readonly ResultFact[]): string {
+export function factSummary(facts: readonly ResultFact[], report?: GoalReport | null): string {
   const height = facts.filter(f => f.kind === 'height-analysis').at(-1);
   if (height?.status==='clarification') return height.message;
   const metric=height?.metric==='heightAbovePhysicalTerrain'?'geodetic-normal physical terrain clearance':height?.metric==='heightAboveReferenceEllipsoid'?'reference-ellipsoid height':height?.metric==='radialHeightAboveReferenceSphere'?'radial reference-sphere height':height?.metric;
@@ -214,7 +226,7 @@ export function factSummary(facts: readonly ResultFact[]): string {
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
     const authored=facts.filter(f=>f.kind==='authored-viewpoint').at(-1);
     const inventory=facts.filter(f=>f.kind==='activity-inventory').at(-1);
-    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : '';
+    return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : (report?.checks.filter(c => c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ') ? `Current viewer check: ${report!.checks.filter(c=>c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ')}. This establishes the final framing, not whether the requested camera improvement was achieved.` : '');
   }
   const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;

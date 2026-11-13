@@ -425,7 +425,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const finish = (outcome: AgentOutcome): AgentRun => {
     // A budget stop can still report facts already returned; it certifies no goal.
     if (!answer && ['step-limit','max-tokens'].includes(outcome.kind)) {
-      answer = factSummary(facts);
+      answer = factSummary(facts, report);
       if (answer) answerSource = 'host-facts';
       if (answer) messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
     }
@@ -539,7 +539,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         const unavailableEventSlots = new Set(missingEventDependency
           ? held.filter(p => ['eventSelected', 'eventRun', 'eventEpoch', 'eventFramed', 'eventDrawn'].includes(p.p)).map(slotOf) : []);
         const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot) && !unavailableEventSlots.has(c.slot)) ?? [];
-        const issues = outcome.kind === 'done' ? checkAnswer(text, facts) : [];
+        const issues = outcome.kind === 'done' ? checkAnswer(text, facts, report) : [];
         if (outcome.kind === 'done' && !repaired && step + 1 < maxSteps && (unseen.length || issues.length)) {
           repaired = true;
           for (const c of report?.checks ?? []) seen.add(c.slot);
@@ -550,7 +550,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         }
         answerIssues = issues;
         // An answer that still contradicts the facts is replaced by the host's own account of them.
-        const summary = issues.length || outcome.kind === 'max-tokens' ? factSummary(facts) : '';
+        const summary = issues.length || outcome.kind === 'max-tokens' ? factSummary(facts, report) : '';
         answer = summary || text;
         if (summary) answerSource = 'host-facts';
         return finish(outcome);

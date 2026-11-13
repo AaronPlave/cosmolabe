@@ -1018,8 +1018,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   }
 
   function profileRead(data: ScriptProfileData): AgentToolResult {
-      const timeline = attempt(() => host.getProfile?.(data.id).timeline);
-      const plot = timeline && opts.formatTime ? {startUtc:opts.formatTime(timeline.window.start),endUtc:opts.formatTime(timeline.window.end),count:timeline.samples,missing:timeline.missing,visible:timeline.traceVisible} : undefined;
+      const info = attempt(() => host.getProfile?.(data.id));
+      const timeline = info?.timeline, clip = info?.definition?.profile.window;
+      const plot = timeline && opts.formatTime ? {startUtc:opts.formatTime(Math.max(timeline.window.start,clip?.start ?? -Infinity)),endUtc:opts.formatTime(Math.min(timeline.window.end,clip?.end ?? Infinity)),count:timeline.samples,missing:timeline.missing,visible:timeline.traceVisible} : undefined;
       if (data.quantity === 'range' && data.minimum?.value != null && data.bodies?.observer && data.bodies.target) numericalSubjects = [data.bodies.observer, data.bodies.target];
       const first = data.samples[0], last = data.samples.at(-1);
       const scope = first && last ? `over ${first.utc} to ${last.utc} (ET ${data.window!.start} to ${data.window!.end}), ${data.samples.length} samples, spacing ${data.sampling.stepSeconds} seconds, ${data.missing} missing` : 'no available sampling interval';

@@ -19,13 +19,13 @@ type Capability = { id: string; available: boolean };
 export function guidanceOverview(capabilities: readonly Capability[]): string[] {
   const has = (ids: string[]) => ids.some(id => capabilities.some(c => c.available && c.id === id));
   return [
-    has(['camera.viewpoint', 'camera.frameObject', 'camera.composeView']) ? 'Navigate and visualize.' : null,
-    has(['spatial.getObjectState', 'surface.getImagery', 'surface.getSurfaceData', 'activities.listActivities']) ? 'Inspect data and sources.' : null,
-    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Measure and analyze.' : null,
-    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Compare and investigate.' : null,
+    has(['camera.viewpoint', 'camera.frameObject', 'camera.composeView']) ? 'Show views' : null,
+    has(['spatial.getObjectState', 'surface.getImagery', 'surface.getSurfaceData', 'activities.listActivities']) ? 'Explain data' : null,
+    has(['profiles.sampleProfileData', 'analysis.analyzeTrajectoryExtrema']) ? 'Plot measurements' : null,
+    has(['events.findClosestApproach', 'events.getEventResultPage', 'profiles.sampleProfileData']) ? 'Compare changes' : null,
   ].filter((s): s is string => s !== null);
 }
-export const ASK_AUTHORITY = 'Scene data is authoritative. Mission background cannot replace missing measurements or establish what is visible.';
+export const ASK_AUTHORITY = 'Ask uses the data loaded here. Missing measurements stay unknown; mission background cannot fill them in.';
 export function guidanceExamples({ capabilities, scene, pair = null }: {
   capabilities: readonly Capability[]; scene: GuidanceScene; pair?: GuidancePair | null;
 }): AskExample[] {
@@ -35,40 +35,44 @@ export function guidanceExamples({ capabilities, scene, pair = null }: {
   const selected = scene.selectedObject;
   const now = scene.time?.et;
   for (const q of scene.searchesHere ?? []) if (available.has('events.getEventResultPage')) add(q.computed ? 1000 : 500, `query:${q.id}`, {
-    kind: 'explore', label: `${q.computed ? 'Explain' : 'Investigate'} ${q.label}`,
-    prompt: `Inspect the native search ${JSON.stringify(q.id)}. ${q.computed ? 'Explain its existing results and show a useful result view' : 'Check its source coverage before running it, then show what it supports'}. State the searched interval and limits.`,
-    evidence: q.computed ? 'A native result is available; check its interval and frame a useful result.' : 'A search is configured; no calculated result is implied.',
+    kind: 'explore', label: `${q.computed ? 'Understand' : 'Explore'} ${q.label}`,
+    prompt: q.computed ? `Show me what ${q.label} found and help me understand it.` : `Investigate ${q.label} and show me what the data supports.`,
+    evidence: q.computed ? 'Results are ready to explore.' : 'A saved search; it has not produced a result yet.',
+
   });
   for (const p of scene.profilesHere ?? []) if (available.has('profiles.sampleProfileData')) add(p.plotted ? 850 : 550, `profile:${p.id}`, {
-    kind: 'explore', label: `Understand ${p.label}`, prompt: `Inspect native profile ${JSON.stringify(p.id)}, show its trace and explain its change over the visible timeline, including missing samples and source limits.`,
-    evidence: p.plotted ? 'A native trace is already visible; inspect what it measures and where data is missing.' : 'A profile is configured; inspect availability before interpreting it.',
+    kind: 'explore', label: `Understand ${p.label}`, prompt: `Show me ${p.label} and explain how it changes.`,
+    evidence: p.plotted ? 'A plot is already visible.' : 'A saved plot to explore.',
+
   });
   for (const a of scene.activitiesHere ?? []) if (available.has('activities.getActivity') && available.has('activities.seekActivity')) {
     const active = now !== undefined && a.start <= now && now <= a.end;
     add(a.selected ? 950 : a.vehicle === selected ? 820 : active ? 700 : 400, `activity:${a.id}`, {
-      kind: 'show', label: `Explore ${a.name}`, prompt: `Inspect catalog activity ${JSON.stringify(a.id)} and its timing/source limits, then use the native activity and scene controls to show what it describes. Distinguish catalog timing from a computed event.`,
-      evidence: `${a.selected ? 'Selected' : active ? 'At the current time' : 'Loaded'} catalog activity for ${a.vehicle}; timing is authored, not newly measured.`,
+      kind: 'show', label: `Explore ${a.name}`, prompt: `Show me ${a.name} and explain what is happening.`,
+      evidence: `${a.selected ? 'Selected activity' : active ? 'Happening at this scene time' : 'An activity in this scene'} for ${a.vehicle}; timing comes from the catalog.`,
+
     });
   }
   const imagery = scene.focusImagery;
   if (available.has('surface.getImagery') && imagery && imagery.total > 0) add(imagery.body === selected ? 810 : 620, `imagery:${imagery.body}`, {
-    kind: 'inspect', label: `Inspect imagery on ${imagery.body}`, prompt: `What imagery is configured on ${JSON.stringify(imagery.body)}, where does it come from, and what can the current view establish? Check acquisition dates, loading and drawing separately; do not infer changed content from dates.`,
-    evidence: `${imagery.total} imagery layers listed in this scene. Check whether they are loaded and visible here.`,
+    kind: 'inspect', label: `Images of ${imagery.body}`, prompt: `Show me the imagery on ${imagery.body} and explain where it comes from.`,
+    evidence: `${imagery.total} image layers listed; loading may be incomplete.`,
+
   });
   for (const p of [pair, ...(scene.sourcePairs ?? [])]) {
     if (!p || (!p.explicitlySelected && !p.coverage?.length) || p.positionAvailable !== true || p.observer === p.target || !available.has('profiles.upsertProfile') || !available.has('profiles.sampleProfileData')) continue;
-    const interval = p.coverage?.length ? ` Inspect declared source intervals ${p.coverage.map(w => `ET ${w.start} to ${w.end}`).join('; ')} and use the covered interval; do not bridge gaps.` : ' Use the visible timeline and check coverage.';
     add(p.explicitlySelected ? 800 : 650, `pair:${p.observer}:${p.target}`, {
-      kind: 'explore', label: `Explore ${p.observer}–${p.target} motion`,
-      prompt: `Investigate how ${JSON.stringify(p.observer)} moves relative to ${JSON.stringify(p.target)}. Show native center-distance and signed range-rate profiles to compare closing and opening.${interval} Explain what the plots show and frame a useful scene view. Report missing samples; this is not surface clearance.`,
-      evidence: 'Ask to plot distance between object centers. Some dates may have no data; this does not measure distance to a surface.',
+      kind: 'explore', label: `${p.observer} near ${p.target}`,
+      prompt: `How does ${p.observer}’s distance from ${p.target} change? Show me.`,
+      evidence: 'Explore their changing distance using the loaded trajectory.',
+
     });
   }
   if (available.has('camera.viewpoint')) {
     const views = (scene.viewpoints?.items ?? []).filter(v => v.source === 'catalog-viewpoint').map(v => ({ v,
       score: (selected && v.center === selected ? 300 : 100) + (now !== undefined && v.epoch != null ? 50 / (1 + Math.abs(v.epoch - now) / 86400) : 0),
     })).sort((a,b) => b.score-a.score || a.v.name.localeCompare(b.v.name)).slice(0,2);
-    for (const {v,score} of views) add(score, `view:${v.name}`, { kind: 'show', label: `Show ${v.name}`, prompt: `Show the authored viewpoint ${JSON.stringify(v.name)} and explain what is actually visible.`, evidence: 'Preset camera view; no event calculated. Objects may be small or hidden.' });
+    for (const {v,score} of views) add(score, `view:${v.name}`, { kind: 'show', label: `Show ${v.name}`, prompt: `Take me to ${v.name} and explain what I can see.`, evidence: 'A saved camera view, not a calculated event.' });
   }
   const seen = new Set<string>();
   return ranked.sort((a,b) => b.score-a.score || a.key.localeCompare(b.key)).filter(r => !seen.has(r.key) && !!seen.add(r.key)).slice(0,5).map(r => r.example);

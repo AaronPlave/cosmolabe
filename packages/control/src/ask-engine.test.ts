@@ -800,3 +800,12 @@ it('publishes aspect-correct camera evidence instead of inviting vertical-FOV co
   const data=compositionData({scene:1,et:1,playing:false,tracked:'A',orbitDistanceKm:10,fovDeg:60,aspect:1.5,objects:[]});
   expect(data).toMatchObject({fovDeg:60,aspect:1.5,horizontalFovDeg:81.787});
 });
+
+it('checks current framing claims against final viewer evidence, not an intermediate failed move', async () => {
+  const {factSummary}=await import('./answer-check.js');
+  const report={status:'met' as const,checks:[{slot:'view:Body',ok:true,detail:'Body in frame',soft:false}]};
+  expect(checkAnswer('Body is currently out of frame.',[],report)).toEqual([expect.stringMatching(/current viewer check/)]);
+  expect(checkAnswer('Body is visible.',[],report)).toEqual([]);
+  expect(factSummary([],report)).toContain('Body in frame');
+  expect(factSummary([],report)).toContain('not whether the requested camera improvement was achieved');
+});
