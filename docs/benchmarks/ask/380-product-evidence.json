@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "runtimeRevision": "1fb63e0412753adba4c7dccf3a3a9a33e4b25444",
+  "runtimeRevision": "6ef1715f3458c8139cba9a65028347b62f18f75f",
   "runtimeFingerprint": {
-    "sha256": "61c2c171f91eeaca7bb1a6d1e74392a426518581b51b70bd9a5b2d028a897bae",
+    "sha256": "9ede4fad280b99c8514bf3e7a41034f9414ceeab9d3f3abaf773ee4b9549af0b",
     "files": [
       "apps/viewer/src/components/AskPanel.svelte",
       "apps/viewer/src/lib/ask/ask.svelte.ts",
@@ -29,7 +29,7 @@
       "packages/three/src/UniverseRenderer.ts"
     ]
   },
-  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; only its send icon/tooltip changed afterward. Earlier goal cases remain pinned to their actual scientific-runtime revisions.",
+  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; later changes affect only the send icon, tooltip and input sizing. Earlier goal cases remain pinned to their actual scientific-runtime revisions.",
   "frozenCases": {
     "originalSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
     "productSha256": "adc54a6d14e396f598f4a06997c050569a07343bde99c9f57a90eadef3a2f442"
@@ -1149,7 +1149,8 @@
     "preservesUnsentDraft": true,
     "composerGrows": true,
     "noEmptyTranscriptGap": true,
-    "guidanceScreenshotSha256": "f06be3e49d3e5cf7ed3031ae0abf1c0fd2280f9acffddd4e5b36c1c72ad71a9d"
+    "guidanceScreenshotSha256": "fb27fe246d1f8253161bc90d5ec9587e065f92849ce17d0f5908f0d2ee92e252",
+    "manualInputResizePersistsWhileTyping": true
   },
   "externalResearch": {
     "decision": "not yet warranted",

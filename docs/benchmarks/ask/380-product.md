@@ -120,7 +120,8 @@ that affected frozen case was rerun at `9fe937bc`. A final correction limits
 plot observations to mounted rows and clarifies display-grid counts and
 intentional clipping; the focused regression suite passes at that source.
 The final UI interaction is additionally exercised by a frozen direct-starter
-case at `6c2e9d02`; only the send icon/tooltip changed afterward. The evidence
+case at `6c2e9d02`; later changes affect only the send icon, tooltip and input sizing, checked
+in the four-catalog local UI harness. The evidence
 records per-case revisions and the final production fingerprint.
 All new provider cells use fixed Haiku with no model fallback; the earlier
 matched Haiku/Sonnet comparison remains evidence of fallback limitations.
