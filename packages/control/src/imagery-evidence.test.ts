@@ -25,7 +25,7 @@ it('rejects an unobserved imagery/appearance claim while retaining configuration
     { id: 'daily', name: 'Daily image', visible: true, drawn: false, date: '2026-11-05', pending: false, illumination: 'baked' },
   ] }];
   for (const text of ['The imagery is loaded.', 'Both layers are drawn.', "The only thing that changed in Earth's appearance is the daily overlay."]) {
-    expect(checkAnswer(text, facts)).toEqual([expect.stringMatching(/drawing observation/)]);
+    expect(checkAnswer(text, facts)).toEqual([expect.stringMatching(/drawing observation|visual comparison/)]);
   }
   for (const text of ['The selected imagery date switched to November 5.', 'No imagery is drawn yet.',
     'The loaded scene contains configured imagery; current-view drawing is unknown.',
@@ -36,4 +36,24 @@ it('rejects an unobserved imagery/appearance claim while retaining configuration
   expect(factSummary(facts)).toContain('No current-view drawing');
   const observed = [{ ...facts[0], layers: [{ ...facts[0].layers[0], drawn: true }] }];
   expect(checkAnswer('The imagery is drawn.', observed)).toEqual([]);
+});
+
+
+it('keeps two drawn dates distinct and refuses inferred content change', async () => {
+  const { checkAnswer, factSummary } = await import('./answer-check.js');
+  const facts: import('./agent.js').ImageryEvidenceFact[] = ['2026-11-04', '2026-11-05'].map((date, et) => ({
+    kind: 'imagery-state', body: 'Earth', et, surface: 'streamed', layers: [
+      { id: 'daily', name: 'Daily image', visible: true, drawn: true, date, pending: false, illumination: 'baked' },
+    ],
+  }));
+  for (const text of ['The cloud patterns changed.', 'Earth imagery shows different clouds.', 'The weather changed.', 'The image content differs between the dates.']) {
+    expect(checkAnswer(text, facts)).toEqual([expect.stringMatching(/independent visual comparison/)]);
+  }
+  expect(checkAnswer('Imagery was drawn at both dates. The selected acquisition date changed; cloud changes cannot be established.', facts)).toEqual([]);
+  const summary = factSummary(facts);
+  expect(summary).toContain('2026-11-04'); expect(summary).toContain('2026-11-05');
+  expect(summary).toContain('no independent visual comparison');
+  // A later successful draw cannot erase the earlier missing observation.
+  facts[0] = { ...facts[0], layers: [{ ...facts[0].layers[0], drawn: false }] };
+  expect(checkAnswer('The imagery is drawn at both times.', facts)).toEqual([expect.stringMatching(/ET 0/)]);
 });

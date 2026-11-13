@@ -1,3 +1,4 @@
+import { guidanceExamples, guidanceOverview, ASK_AUTHORITY, type GuidancePair } from './ask-guidance.js';
 import { EVENT_ROLES } from '@cosmolabe/core';
 /**
  * Agent tools — the `ViewerControl` port as typed tools a language model can
@@ -787,6 +788,29 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const lacks = [
       ['places', 'searchPlaces'], ['mission activities', 'listActivities'], ['imagery', 'getImagery'], ['surface datasets', 'getSurfaceData'], ['scene identity', 'getScene'],
     ].filter(([, m]) => !has(host, m as keyof ViewerControl)).map(([label]) => label);
+    const capabilities = available().filter(d => !opts.omittedTools?.[d.name]).map(d => ({ id: `${d.contract.namespace}.${d.name}`, available: true }));
+    const activitiesHere = (attempt(() => host.listActivities?.()) ?? []).filter(a => a.enabled !== false)
+      .sort((a,b) => Number(b.id === activity?.id)-Number(a.id === activity?.id) || Number(b.vehicle === selected)-Number(a.vehicle === selected)
+        || Math.min(Math.abs(a.start-et),Math.abs(a.end-et))-Math.min(Math.abs(b.start-et),Math.abs(b.end-et)))
+      .slice(0,4).map(a => ({ id:a.id,name:a.name,vehicle:a.vehicle,start:a.start,end:a.end,selected:a.id===activity?.id }));
+    const profilesHere = (attempt(() => host.listProfiles?.().items) ?? []).filter(p => p.enabled !== false).slice(0,4).map(p => ({
+      id:p.id,label:p.label ?? p.id,plotted:attempt(() => host.getProfile?.(p.id).timeline.traceVisible) === true,
+    }));
+    const searchesHere = (attempt(() => host.listEventQueries?.()) ?? []).filter(q => q.enabled !== false).slice(0,4).map(q => ({
+      id:q.id,label:q.label,computed:attempt(() => host.getEventResultPage?.(q.id, {limit:1}).status) === 'ready',
+    }));
+    const sourcePairs: GuidancePair[] = [];
+    // Inspect declared finite source windows, not a default tracking pair.
+    // No sampling/search runs merely to open help; availability is at this ET.
+    for (const object of [selected, ...objects.items].filter((n): n is string => !!n).filter((n,i,a) => a.indexOf(n)===i).slice(0,32)) {
+      const c = attempt(() => host.getSpatialContext?.(object));
+      if (!c?.parent || !c.state) continue;
+      const coverage = metadata.objectState(c.state)?.positionAvailability.coverage ?? [];
+      if (object !== selected && !coverage.length) continue;
+      sourcePairs.push({observer:object,target:c.parent,explicitlySelected:object===selected,
+        positionAvailable:c.state.positionAvailability.available && attempt(() => host.getObjectState?.(c.parent!)?.positionAvailability.available) === true, coverage });
+      if (sourcePairs.length >= 4) break;
+    }
     const data = {
       scene,
       time: { et, ...(opts.formatTime ? { utc: attempt(() => opts.formatTime!(et)) } : {}), playing: host.isPlaying(), rate: host.getRate() },
@@ -801,12 +825,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       analysis: attempt(()=>host.getTrajectoryAnalysisOptions ? extremaOptions(host.getTrajectoryAnalysisOptions()) : { available: false }) ?? { available:false },
       focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); if (!data) return null; const s=metadata.surface(data); return {body:s.body,bodyFrame:s.bodyFrame,referenceShape:s.referenceShape,surface:s.surface,terrain:s.terrain,cubeImagery:s.cubeImagery,details:'getSurfaceData'}; }) ?? null : null,
       focusImagery: imagery ? {body:imagery.body,surface:imagery.surface,imageryOnly:imagery.imageryOnly,layers:imagery.layers.slice(0,8).map(metadata.imageryLayer),total:imagery.layers.length,details:'getImagery'} : null,
+      activitiesHere, profilesHere, searchesHere, sourcePairs,
       unsupported: lacks,
     };
     const summary = scene === null && has(host, 'getScene')
       ? 'No scene is loaded.'
       : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected object ${selected ?? 'none'}; selected activity ${activity?.name ?? 'none'}; selected place ${place?.name ?? 'none'}; tracking ${tracked ?? 'nothing'}.`;
-    return { ok: true, summary, data, ...(imagery?.layers.length ? { facts: [imageryFact(imagery)] } : {}) };
+    return { ok: true, summary, data: { ...data, askHelp: { categories:guidanceOverview(capabilities), examples:guidanceExamples({capabilities,scene:data}), authority:ASK_AUTHORITY } }, ...(imagery?.layers.length ? { facts: [imageryFact(imagery)] } : {}) };
   }
 
   function resolve(input: Input): AgentToolResult {

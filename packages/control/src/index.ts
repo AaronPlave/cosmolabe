@@ -95,5 +95,5 @@ export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum
 
 export { findClosestApproach } from './closest-approach.js';
 
-export { guidanceExamples } from './ask-guidance.js';
-export type { AskExample, GuidanceScene, GuidancePair } from './ask-guidance.js';
+export { guidanceExamples, guidanceOverview, ASK_AUTHORITY } from './ask-guidance.js';
+export type { AskExample, AskHelp, GuidanceScene, GuidancePair } from './ask-guidance.js';

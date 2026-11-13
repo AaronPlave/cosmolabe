@@ -9,6 +9,8 @@ import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
 import { reliabilityCases, promptsOf, turnPredicates, judge, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
+import { comparisonEvidence } from './ask-benchmark/visual-comparison.mjs';
+import { productExplorationCases } from './ask-benchmark/product-exploration.mjs';
 import { explorationCases, explorationRubric } from './ask-benchmark/exploration.mjs';
 import { etToDate, SPHERE_OF_INFLUENCE_KM } from '@cosmolabe/core';
 
@@ -20,8 +22,8 @@ const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
 const suite = process.env.ASK_BENCHMARK_SUITE ?? 'reliability';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
-assert.ok(['reliability', 'legacy', 'exploration', 'all'].includes(suite), 'Unknown benchmark suite');
-const pool = suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
+assert.ok(['reliability', 'legacy', 'exploration', 'product', 'all'].includes(suite), 'Unknown benchmark suite');
+const pool = suite === 'product' ? productExplorationCases.map(c => ({...c,reliability:true})) : suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
   : [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
 const wanted = process.env.ASK_BENCHMARK_CASES?.split(',');
 const selected = pool.filter(c => !wanted || wanted.includes(c.id) || (wanted.includes('critical') && c.critical));
@@ -34,7 +36,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
   limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
-if (suite === 'exploration') report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
+if (['exploration','product'].includes(suite)) report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
 if (process.env.ASK_BENCHMARK_LIVE !== '1') {
   console.log(JSON.stringify({ ...report, plan: selected }, null, 2));
   process.exit(0);
@@ -290,6 +292,7 @@ try {
               // Projection comes from the render camera, independently of Ask's own view verdict.
               const objects = await page.evaluate(() => window.cosmo.listObjects());
               turn.projection = await page.evaluate(names => window.__probeComposition(names), objects);
+              if (test.id === 'em-context' && i === 1) turn.comparisonEvidence = comparisonEvidence(run.result.turns[0], turn, 'Moon', 'Earth');
               if (captures) {
                 turn.capture = `${test.id}-${model}-${mode}-${repeat}-${i}.png`;
                 await page.screenshot({ path: `${captures}/${turn.capture}` });

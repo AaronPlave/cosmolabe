@@ -46,20 +46,27 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[]): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
-  const imagery = new Map(facts.filter(f => f.kind === 'imagery-state').map(f => [f.body, f]));
-  for (const image of imagery.values()) {
-    if (!image.layers.some(l => l.visible && !l.drawn)) continue;
-    for (const sentence of sentences(text)) {
-      if (imagery.size > 1 && !sentence.includes(image.body) && !image.layers.some(l => sentence.includes(l.name))) continue;
-      if (!/imagery|images?|overlays?|textures?|layers?|appearance|clouds?|pixels?/i.test(sentence)) continue;
-      // Date/configuration changes remain legitimate. Drawing/appearance needs
-      // a drawing observation, never just a selected day or successful request.
-      const claim = /\b(?:imagery|images?|overlays?|textures?|layers?|base)\b(?:\s+(?:is|are|was|were|now|both|fully|already|successfully|being|have|has|been|configured|and))*\s+(?:loaded|drawn|rendered|displayed)\b|\b(?:loaded|drawn|rendered|displayed)\s+(?:imagery|images?|overlays?|textures?|layers?)\b/i.test(sentence)
-        || /\b(?:appearance|clouds?|pixels?)\b[^.!?]*\b(?:changed|changes|switched|differs?|different)\b|\b(?:changed|changes|switched|differs?|different)\b[^.!?]*\b(?:appearance|clouds?|pixels?)\b/i.test(sentence) && /imagery|images?|overlays?|textures?|clouds?|pixels?/i.test(sentence);
-      const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
-      const mentionsUnseen = image.layers.some(l => !l.drawn && sentence.includes(l.name)) || !image.layers.some(l => l.drawn && sentence.includes(l.name));
-      if (claim && !qualified && mentionsUnseen) {
-        issues.push(`${image.body} imagery has no supporting current-view drawing observation for that claim. Report configured layers and effective acquisition dates; loaded/drawn imagery or changed appearance is not established.`);
+  // Keep every epoch. A drawing observation supports drawing at that epoch,
+  // never a comparison of image content. No pixel-comparison fact is currently
+  // published by the host, so a positive content/weather claim is unsupported.
+  const imagery = facts.filter(f => f.kind === 'imagery-state');
+  for (const sentence of sentences(text)) {
+    if (!imagery.length || !/imagery|images?|overlays?|textures?|layers?|appearance|clouds?|pixels?|weather/i.test(sentence)) continue;
+    const qualified = /\b(?:not|no|cannot|can\x27t|unknown|unverified|unobserved|unconfirmed|haven\x27t|didn\x27t|may|might|could|whether|without)\b|not established/i.test(sentence);
+    if (qualified) continue;
+    const contentChange = /\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b[^.!?]*\b(?:changed|changes|switched|differs?|different|evolved|moved)\b|\b(?:changed|changes|switched|differs?|different|evolved|moved)\b[^.!?]*\b(?:appearance|clouds?|cloud patterns?|pixels?|image content|imagery content|weather)\b/i.test(sentence);
+    if (contentChange) {
+      issues.push('Imagery drawing observations and acquisition dates do not establish changed image content or weather. No independent visual comparison was observed; explain that content change cannot be established.');
+      continue;
+    }
+    const drawing = /\b(?:imagery|images?|overlays?|textures?|layers?|base)\b(?:\s+(?:is|are|was|were|now|both|fully|already|successfully|being|have|has|been|configured|and))*\s+(?:loaded|drawn|rendered|displayed)\b|\b(?:loaded|drawn|rendered|displayed)\s+(?:imagery|images?|overlays?|textures?|layers?)\b/i.test(sentence);
+    if (!drawing) continue;
+    for (const image of imagery) {
+      const namedBodies = [...new Set(imagery.map(i => i.body))];
+      if (namedBodies.length > 1 && !sentence.includes(image.body) && !image.layers.some(l => sentence.includes(l.name))) continue;
+      const named = image.layers.filter(l => sentence.includes(l.name));
+      if ((named.length ? named : image.layers.filter(l => l.visible)).some(l => !l.drawn)) {
+        issues.push(`${image.body} imagery has no supporting current-view drawing observation for that claim at ET ${image.et}. Report configured layers and effective acquisition dates; loaded/drawn imagery is not established at every inspected epoch.`);
         break;
       }
     }
@@ -198,8 +205,8 @@ export function factSummary(facts: readonly ResultFact[]): string {
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
   }
   if (!events.length) {
-    const image = facts.filter(f => f.kind === 'imagery-state').at(-1);
-    if (image?.layers.length && !facts.some(f => ['scene-existence','authored-viewpoint','activity-inventory'].includes(f.kind))) return `${image.body} has ${image.layers.length} configured imagery layers. ${image.layers.filter(l => l.date).map(l => `${l.name} has selected acquisition date ${l.date}${l.pending ? ' (pending)' : ''}${l.illumination === 'baked' ? '; acquisition lighting is baked into the image' : ''}.`).join(' ')} ${image.layers.some(l => l.drawn) ? 'Drawing was observed for some layers; this does not establish that every configured layer contributes here.' : 'No current-view drawing of those layers was observed.'} Selected dates do not establish changed pixels or weather.`;
+    const images = facts.filter(f => f.kind === 'imagery-state');
+    if (images.some(i => i.layers.length) && !facts.some(f => ['scene-existence','authored-viewpoint','activity-inventory'].includes(f.kind))) return images.map(image => `${image.body} at ET ${image.et}: ${image.layers.length} configured imagery layers. ${image.layers.filter(l => l.date).map(l => `${l.name} has selected acquisition date ${l.date}${l.pending ? ' (pending)' : ''}${l.illumination === 'baked' ? '; acquisition lighting is baked into the image' : ''}.`).join(' ')} ${image.layers.some(l => l.drawn) ? 'Drawing was observed for some layers; this does not establish that every configured layer contributes here.' : 'No current-view drawing of those layers was observed.'}`).join(' ') + ' Selected dates and drawing at both times do not establish changed pixels or weather; no independent visual comparison was observed.';
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
     const authored=facts.filter(f=>f.kind==='authored-viewpoint').at(-1);
     const inventory=facts.filter(f=>f.kind==='activity-inventory').at(-1);
