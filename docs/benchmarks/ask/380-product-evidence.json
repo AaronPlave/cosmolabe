@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "runtimeRevision": "6ef1715f3458c8139cba9a65028347b62f18f75f",
+  "runtimeRevision": "e69e8f9febc9aa9e878c525393e91a21125842b3",
   "runtimeFingerprint": {
-    "sha256": "9ede4fad280b99c8514bf3e7a41034f9414ceeab9d3f3abaf773ee4b9549af0b",
+    "sha256": "e3af94bee6c3b20bc931e0ea21dcf54ad588bb0ee3ab3f49fe37bc188702f8da",
     "files": [
       "apps/viewer/src/components/AskPanel.svelte",
       "apps/viewer/src/lib/ask/ask.svelte.ts",
@@ -26,10 +26,11 @@
       "packages/core/src/trajectories/OemAdapter.ts",
       "packages/core/src/trajectories/Trajectory.ts",
       "packages/interop/src/oem.ts",
-      "packages/three/src/UniverseRenderer.ts"
+      "packages/three/src/UniverseRenderer.ts",
+      "packages/control/src/outcome.ts"
     ]
   },
-  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; later changes affect only the send icon, tooltip and input sizing. Earlier goal cases remain pinned to their actual scientific-runtime revisions.",
+  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; later changes affect only the send icon, tooltip and input sizing. Earlier goal cases remain pinned to their actual scientific-runtime revisions. Final review corrections at e69e8f9febc9aa9e878c525393e91a21125842b3 expose the existing categories in the expanded disclosure and qualify geometric framing versus unobserved physical appearance; focused tests and four-catalog loaded UI were rerun without paid model calls. Recorded model answers below remain historical, not rewritten.",
   "frozenCases": {
     "originalSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
     "productSha256": "adc54a6d14e396f598f4a06997c050569a07343bde99c9f57a90eadef3a2f442"
@@ -404,7 +405,7 @@
               "drawEnabled": true,
               "rangeKm": 817595.7854621081,
               "radiusKm": 0.0025,
-              "angularRadiusDeg": 1.751959236210426e-7,
+              "angularRadiusDeg": 1.751959236210426e-07,
               "ndc": [
                 0.09898649415899824,
                 0.1148104635914472
@@ -588,7 +589,7 @@
               "drawEnabled": true,
               "rangeKm": 9970.088637857069,
               "radiusKm": 0.005,
-              "angularRadiusDeg": 0.00002873383657569952,
+              "angularRadiusDeg": 2.873383657569952e-05,
               "ndc": [
                 -1.333737432004387e-17,
                 -1.5768107927728495e-19
@@ -795,7 +796,7 @@
               "drawEnabled": true,
               "rangeKm": 769472.1903122166,
               "radiusKm": 0.0025,
-              "angularRadiusDeg": 1.8615285982536394e-7,
+              "angularRadiusDeg": 1.8615285982536394e-07,
               "ndc": [
                 0.04158474037247414,
                 0.22401282443272183
@@ -954,7 +955,7 @@
               "drawEnabled": true,
               "rangeKm": 9453.13471349319,
               "radiusKm": 0.005,
-              "angularRadiusDeg": 0.00003030517455299897,
+              "angularRadiusDeg": 3.030517455299897e-05,
               "ndc": [
                 -0.09138889638205093,
                 0.06582710631635379
@@ -1149,8 +1150,9 @@
     "preservesUnsentDraft": true,
     "composerGrows": true,
     "noEmptyTranscriptGap": true,
-    "guidanceScreenshotSha256": "fb27fe246d1f8253161bc90d5ec9587e065f92849ce17d0f5908f0d2ee92e252",
-    "manualInputResizePersistsWhileTyping": true
+    "guidanceScreenshotSha256": "3b71c8c0c9b1093a74212498a38741e265893141e5d6a1053cf172369a3ba55f",
+    "manualInputResizePersistsWhileTyping": true,
+    "generalCapabilitiesVisible": true
   },
   "externalResearch": {
     "decision": "not yet warranted",
@@ -1168,5 +1170,24 @@
     "Software WebGL only; no physical GPU claim.",
     "Ask can cover a projected object; close/minimize the panel to inspect the underlying scene.",
     "Frozen scenarios allow truthful partial/unsupported outcomes; no certified global accuracy or physical source truth."
-  ]
+  ],
+  "reviewCorrections": {
+    "review": "https://github.com/AaronPlave/cosmolabe/pull/380#issuecomment-6859962585",
+    "generalCapabilities": "One visible low-emphasis line inside expanded disclosure, before ranked direct-submit starters.",
+    "physicalAppearance": "Scene location in frame and drawEnabled do not establish a resolved physical model. Composition summaries and inView goal receipts qualify physical appearance as unassessed; tiny angular values retain six significant figures.",
+    "clipperRecordedAnswerQualification": "The recorded unfamiliar-investigation answer below said both spacecraft and Europa were in view. This establishes only their projected locations. Clipper angular radius 0.00003030517455299897 degrees does not establish a discernible spacecraft model. Native event indicators and the event lane provide its useful location.",
+    "validation": {
+      "focusedTestsPassed": 70,
+      "build": true,
+      "testTypecheck": true,
+      "svelteTypecheck": true,
+      "lint": true,
+      "loadedCatalogs": 4,
+      "externalModelCalls": 0,
+      "stopLateMutationRejected": true,
+      "inputGrowthAndManualResize": true
+    },
+    "newLiveAssessment": false,
+    "limit": "No new independent pixel observation, physical-appearance verdict, paid goal rerun or novice usability study is claimed."
+  }
 }
