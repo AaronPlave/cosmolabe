@@ -164,6 +164,8 @@ export interface RequestResult {
   readonly facts: readonly ResultFact[];
   /** Where the model's final answer still contradicted those facts after its one correction; the shown answer is then the host's account. */
   readonly answerIssues: readonly string[];
+  /** Explicitly distinguishes bounded host summaries from model composition. */
+  readonly answerSource?: 'model' | 'host-facts';
   /**
    * Whether this request stated what the person asked for (a non-empty
    * checkGoal). False means a `verified` status covers the changes' own
@@ -388,6 +390,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const seen = new Set<string>();
   let report: GoalReport | null = null;
   let answer = '', answerIssues: string[] = [];
+  let answerSource: 'model' | 'host-facts' = 'model';
 
   /** Whether this request stated the person's goal; no change runs before it. */
   let goalStated = false;
@@ -421,14 +424,15 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     : report.status === 'inconclusive' || unobservable.length ? 'unverified' : report.status === 'partial' ? 'partial' : 'verified';
   const finish = (outcome: AgentOutcome): AgentRun => {
     // A budget stop can still report facts already returned; it certifies no goal.
-    if (!answer && outcome.kind === 'step-limit') {
+    if (!answer && ['step-limit','max-tokens'].includes(outcome.kind)) {
       answer = factSummary(facts);
+      if (answer) answerSource = 'host-facts';
       if (answer) messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
     }
     if (wrote && !report) report = verify();
     if (answer) opts.onEvent?.({ type: 'text', text: answer, final: true });
     return { messages, stats: stats(), outcome, goals: [...held], answer,
-      result: { status: status(), report, unobservable: [...unobservable], changes: [...changes], facts: [...facts], answerIssues, intentStated, escalated } };
+      result: { status: status(), report, unobservable: [...unobservable], changes: [...changes], facts: [...facts], answerIssues, answerSource, intentStated, escalated } };
   };
 
   /** checkGoal, wherever it sits: the loop holds what it states and answers it from the host's check of the whole goal. */
@@ -546,7 +550,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         }
         answerIssues = issues;
         // An answer that still contradicts the facts is replaced by the host's own account of them.
-        answer = issues.length ? factSummary(facts) || text : text;
+        const summary = issues.length || outcome.kind === 'max-tokens' ? factSummary(facts) : '';
+        answer = summary || text;
+        if (summary) answerSource = 'host-facts';
         return finish(outcome);
       }
 

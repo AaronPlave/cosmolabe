@@ -664,6 +664,18 @@ describe('missing SPICE worker dependency recovery (#363)', () => {
     tools.dispose();
   });
 
+  it('an output-limit stop retains a labeled host account of completed measurements', async () => {
+    const {host}=failingScene();
+    const tools=createCapabilityTools(host,{surface:'fixed'});
+    const model=scripted([call(readSamples('samples')),{content:[],stop:'max_tokens'}]);
+    const run=await runAgent({transport:model.transport,tools,prompt:'Explain this history'});
+    expect(run.outcome.kind).toBe('max-tokens');
+    expect(run.answer).toContain('minimum among 2 returned');
+    expect(run.result.answerSource).toBe('host-facts');
+    expect(run.result.answerIssues).toEqual([]);
+    tools.dispose();
+  });
+
   it('a budget stop reports the published sampled alternative without certifying the unmet event goal', async () => {
     const { host } = failingScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });

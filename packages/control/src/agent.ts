@@ -63,9 +63,9 @@ export function compositionData(v: ScriptViewComposition) {
     objects: v.objects.map(o => ({ object: o.object, assessment: 'pending-native-placement' })),
     limitation: 'Current object framing/visibility is unassessed until native placement catches up. Read composition once again before claiming a view.' };
   return { et: v.et, ...(v.fresh !== undefined ? { fresh: v.fresh, observedEt: v.observedEt } : {}), playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg), aspect: r3(v.aspect), horizontalFovDeg: r3(2 * Math.atan(Math.tan(v.fovDeg * Math.PI / 360) * v.aspect) * 180 / Math.PI),
-    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV.',
+    projectionMeaning: 'fovDeg is vertical; horizontalFovDeg includes viewport aspect. Use inView and ndc rather than comparing horizontal bearing to vertical half-FOV. Angular radius is half the apparent diameter; neither establishes physical size.',
     objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
-      object: o.object, inView: o.inView, ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      object: o.object, inView: o.inView, ndc: o.ndc?.map(r3) ?? null, drawEnabled: o.drawEnabled, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg), angularDiameterDeg: o.angularRadiusDeg === null ? null : r3(2 * o.angularRadiusDeg),
       bearingDeg: o.bearingDeg?.map(r3) ?? null, occlusionBasis: o.occlusion?.basis ?? (o.occlusion ? 'reference-sphere' : null), hiddenBy: o.occlusion ? o.occlusion.basis === 'model-bounds' ? `${o.occlusion.by}: bounding volume overlap only; actual mesh occlusion unassessed` : `${o.occlusion.by} (${o.occlusion.kind}, analytic sphere estimate)` : null }) };
 }
 /** One plain sentence about where the named objects are. */

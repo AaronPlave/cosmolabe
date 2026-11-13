@@ -143,12 +143,12 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
     // Rounded speech ("about 1 AU", "3.5 billion km") is fine; an unsupported number is not.
     if (!known.some(k => Math.abs(d.km - k) <= (events.length ? 0.05 * k + 0.5 : Math.max(1e-6, 0.05 * k)))) issues.push(`"${d.text}" matches no distance the viewer reported (${[...new Set([...events.flatMap(f => [f.rangeKm, f.altitudeKm]), ...samples.map(s => s.minimumKm)].filter((v): v is number => typeof v === 'number'))].slice(0, 6).map(v => `${v.toPrecision(4)} km`).join(', ')})`);
   }
-  const days = [...profiles.flatMap(p => p.samples.map(s => dayOf(s.utc))), ...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
+  const days = [...profiles.flatMap(p => [...p.samples.map(s => dayOf(s.utc)), dayOf(p.plot?.startUtc ?? null), dayOf(p.plot?.endUtc ?? null)]), ...events.map(f => dayOf(f.utc)), ...windows.flatMap(w => [dayOf(w.startUtc), dayOf(w.endUtc)]), ...samples.flatMap(s => [dayOf(s.minimumUtc), dayOf(s.startUtc), dayOf(s.endUtc), ...(s.samples ?? []).map(v => dayOf(v.utc))])].filter((v): v is string => !!v);
   for (const d of statedDates(text)) if (days.length && !days.some(k => dayDiff(k, d.day) <= 1)) issues.push(`"${d.text}" matches no date the viewer reported`);
   // Calendar timestamps are compared at the precision the answer actually states.
   // Dates alone keep the existing one-day tolerance; a stated clock time must
   // match a published epoch/window bound within a second or displayed minute.
-  const epochs = [...profiles.flatMap(p => p.samples.map(s => s.utc)), ...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
+  const epochs = [...profiles.flatMap(p => [...p.samples.map(s => s.utc), p.plot?.startUtc, p.plot?.endUtc]), ...events.map(e => e.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc]), ...samples.flatMap(s => [s.minimumUtc, s.startUtc, s.endUtc, ...(s.samples ?? []).map(v => v.utc)])].filter((v): v is string => !!v).map(Date.parse).filter(Number.isFinite);
   const timestamps = /\b(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(?:Z|\s*UTC)?\b/g;
   for (const m of text.matchAll(timestamps)) {
     const epoch = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4] ?? '00'}.${m[5] ?? '000'}Z`);

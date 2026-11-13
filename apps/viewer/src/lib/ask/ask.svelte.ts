@@ -128,7 +128,8 @@ const plainList = (items: readonly string[]) => items.join('; ').replace(/\.$/, 
  */
 export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
   const r = turn.result;
-  if (turn.status !== 'done' || !r) return null;
+  if (!r) return null;
+  if (turn.status !== 'done') return r.answerSource === 'host-facts' ? {tone:'warning',text:'The model stopped before finishing its answer. The viewer’s own measured account is shown; the requested view may still be incomplete.'} : null;
   const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
   const replaced = `${r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : ''}${r.escalated ? ` Answered by the escalation model: ${r.escalated}.` : ''}`;
   switch (r.status) {

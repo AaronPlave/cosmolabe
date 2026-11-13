@@ -275,7 +275,7 @@ try {
               await page.evaluate(ok => window.__askBench.answerAskApproval(ok), policy === 'approve');
             }
             const turn = await page.evaluate(assessment => { const t = window.__askBench.ask.turns.at(-1);
-              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, report: t.result.report, facts: t.result.facts } : null,
+              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, answerSource:t.result.answerSource, report: t.result.report, facts: t.result.facts } : null,
                 steps: t.steps.map(s => ({ ...(assessment ? { id: s.id, input: s.input, observation: s.result?.data } : {}), name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
                   ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; }, !!test.assessment);
             if (test.assessment) {
