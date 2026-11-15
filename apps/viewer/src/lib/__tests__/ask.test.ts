@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ViewerControl, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment, resolveDevAskToolMode } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askApproval, answerAskApproval, askAvailable, checkNote, clearAsk, disposeAsk, endNote, type AskTurn, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
+import { plainFailure, presentTurn } from '../ask/result';
+import { ask, askApproval, answerAskApproval, askAvailable, clearAsk, disposeAsk, endNote, type AskTurn, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import * as loader from '../loader';
@@ -265,21 +266,25 @@ describe('the Ask session', () => {
     expect(note.text).not.toMatch(/receipt|readback|unverified/i);
   });
 
-  it('puts the viewer\'s own verdict beside a finished answer (#345)', () => {
-    const turn = (result: Partial<NonNullable<AskTurn['result']>> & Pick<NonNullable<AskTurn['result']>, 'status'>): AskTurn => ({ id: 1, prompt: '', fresh: null, steps: [], reply: 'Mars is in view.', notes: [], status: 'done', error: null, errorCode: null, stats: null,
+  it('presents a finished request as what the viewer shows, one limitation and whether the account is the viewer\'s (#381)', () => {
+    const turn = (result: Partial<NonNullable<AskTurn['result']>> & Pick<NonNullable<AskTurn['result']>, 'status'>, status: AskTurn['status'] = 'done'): AskTurn => ({ id: 1, prompt: '', fresh: null, steps: [], reply: 'Mars is in view.', notes: [], status, error: null, errorCode: null, stats: null,
       result: { report: null, unobservable: [], changes: [], facts: [], answerIssues: [], intentStated: true, escalated: null, ...result } });
+    const fmt = (et: number) => `T${et}`;
     const unmet = { status: 'unmet' as const, checks: [{ slot: 'view:Mars', ok: false, detail: 'Mars out of frame', soft: false }] };
-    expect(checkNote(turn({ status: 'failed', report: unmet }))).toEqual({ tone: 'warning', text: 'Viewer check: Mars out of frame.' });
-    expect(checkNote(turn({ status: 'verified', report: { status: 'met', checks: [] } }))).toEqual({ tone: 'muted', text: 'Checked in the viewer.' });
-    // Without a stated goal, verified covers each change's own result, never the whole request.
-    expect(checkNote(turn({ status: 'verified', intentStated: false, report: { status: 'met', checks: [] } }))?.text).toBe('Each change checked in the viewer; the request as a whole was not stated, so not checked.');
-    expect(checkNote(turn({ status: 'verified', escalated: 'removeBookmark destroys saved state', report: { status: 'met', checks: [] } }))?.text).toBe('Checked in the viewer. Answered by the escalation model: removeBookmark destroys saved state.');
-    expect(checkNote(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } })))
-      .toEqual({ tone: 'muted', text: 'Holds; not yet observed: terrain on Mars partial.' });
-    expect(checkNote(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }))).toEqual({ tone: 'muted', text: 'Not checked against the viewer: trajectory visibility has no read.' });
-    expect(checkNote({...turn({status:'partial',answerSource:'host-facts'}),status:'max-tokens'})?.text).toContain('viewer’s own measured account');
-    expect(checkNote(turn({ status: 'no-change' }))).toBeNull();
-    expect(checkNote(turn({ status: 'no-change', answerIssues: ['flyby'] }))).toEqual({ tone: 'warning', text: 'The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' });
+    expect(presentTurn(turn({ status: 'failed', report: unmet }), fmt)).toMatchObject({ outcome: '0 viewer changes', limitation: { tone: 'warning', text: 'Mars is not in view (Mars out of frame)' }, hostAccount: null, diagnostics: ['view:Mars: unmet · Mars out of frame'] });
+    // A presented result is named from the viewer's own ranked fact, with its extremum and time.
+    const shown = { status: 'met' as const, checks: [{ slot: 'event', ok: true, detail: 'result far-0 selected', soft: false }, { slot: 'playing', ok: true, detail: 'paused', soft: false }, { slot: 'clock', ok: true, detail: 'clock at the event', soft: false }] };
+    const fact = { kind: 'event-result' as const, query: 'far', id: 'far-0', extremum: 'maximum' as const, observer: 'Cassini', target: 'Saturn', utc: '2004-08-27T02:07:43.000Z', rangeKm: 9.1e6, altitudeKm: null, encounter: null, criterion: null, criterionBody: null, thresholdKm: null };
+    expect(presentTurn(turn({ status: 'verified', report: shown, facts: [fact] }), fmt).outcome).toBe('Showing farthest point · Cassini → Saturn · 2004-08-27 02:07 UTC');
+    expect(presentTurn(turn({ status: 'verified', report: { status: 'met', checks: [{ slot: 'clock', ok: true, detail: 'ET 146844527.065', soft: false }, { slot: 'playing', ok: true, detail: 'paused', soft: false }] } }), fmt)).toMatchObject({ outcome: 'Paused at T146844527.065', limitation: null });
+    expect(presentTurn(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } }), fmt).limitation).toEqual({ tone: 'muted', text: 'Not yet observed: terrain on Mars partial' });
+    expect(presentTurn(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }), fmt).limitation).toEqual({ tone: 'muted', text: 'Not checked in the viewer: trajectory visibility has no read' });
+    expect(presentTurn(turn({ status: 'partial', answerSource: 'host-facts' }, 'max-tokens'), fmt).hostAccount).toContain('stopped before finishing');
+    expect(presentTurn(turn({ status: 'no-change' }), fmt)).toMatchObject({ outcome: 'No viewer changes', limitation: null, hostAccount: null });
+    expect(presentTurn(turn({ status: 'no-change', answerSource: 'host-facts', answerIssues: ['"flyby" needs an encounter'] }), fmt).hostAccount).toBe('The viewer\'s own account is shown: the model\'s answer contradicted its results ("flyby" needs an encounter).');
+    expect(presentTurn(turn({ status: 'verified' }, 'running'), fmt).outcome).toBeNull();
+    expect(plainFailure('clock', 'ET 5 (wanted 7)')).toBe('The clock is not at the requested time (ET 5 (wanted 7))');
+    expect(plainFailure('eventFramed:q', 'Titan out of view')).toBe('The result\'s objects are not both in view (Titan out of view)');
   });
 
   it('passes a proxy\'s per-round usage through, and ignores a malformed one', () => {

@@ -25,6 +25,10 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
   if (opts.scene !== undefined && opts.scene !== scene) return stop('cancelled', 'interrupted');
   if (!host.getEventSearchOptions || !host.upsertEventQuery || !host.runEventQuery || !host.getEventResultPage || !host.presentEventResult) return stop('search-failed');
   const bodies = { observer: request.observer, target: request.target };
+  const farthest = request.extremum === 'farthest';
+  if (request.extremum !== undefined && !['closest', 'farthest'].includes(request.extremum)) return stop('invalid-window');
+  const pick = farthest ? 'farthest' as const : 'closest' as const;
+  if (farthest) result.limitations = [result.limitations[0].replace('all-time minimum', 'all-time maximum')];
   const options = host.getEventSearchOptions({ kind: 'closest-approach', bodies });
   const kind = options.kinds.find(k => k.kind === 'closest-approach');
   const explicit = request.windowMode === 'interval';
@@ -39,9 +43,11 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
   if (!coverage || coverage.status === 'unknown') return stop('coverage-unassessed');
   if (coverage.status === 'none') return stop('missing-coverage');
   const windows = coverage.windows.map(w => ({ start: Math.max(w.start, scope.start), end: Math.min(w.end, scope.end) })).filter(w => w.end > w.start).sort((a,b) => a.start-b.start);
-  // An explicit interval is never silently clipped or bridged across a gap.
-  if (!windows.length || explicit && !windows.some(w => w.start === scope.start && w.end === scope.end)) return stop('missing-coverage');
-  result.windows = explicit ? [scope] : windows;
+  // An explicit interval is never silently clipped: its ends must be covered. Internal coverage gaps are searched
+  // around, piece by piece, and disclosed (#381: Cassini's kernels have a 6-second gap inside the post-insertion orbit).
+  if (!windows.length || explicit && (windows[0].start !== scope.start || windows.at(-1)!.end !== scope.end)) return stop('missing-coverage');
+  if (explicit && windows.length > 1) result.limitations = [...result.limitations, `The requested interval has ${windows.length - 1} coverage ${windows.length === 2 ? 'gap' : 'gaps'} (${windows.slice(1).map((w, i) => `${Math.round(w.start - windows[i].end)} s at ET ${windows[i].end}`).join('; ')}); each covered piece was searched and nothing inside a gap is known.`];
+  result.windows = windows;
   result.stepSeconds = kind.step;
   if (windows.length > 4 || result.windows.reduce((n,w) => n + (w.end-w.start)/kind.step, 0) > 1e6) return stop('work-budget');
   if (!coverage.exact) result.limitations = [...result.limitations, 'Coverage bounds are approximate; solver failures remain authoritative.'];
@@ -53,10 +59,10 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
   try {
     for (const [index, window] of result.windows.entries()) {
       if (cancelled()) return stop('cancelled', 'interrupted');
-      const item = analysisItem(host, scene, JSON.stringify({ bodies, window, step: kind.step, abcorr: kind.abcorr }), `${id}-${index}`, query => host.getEventQueryInfo?.(query, { scene }).definition);
+      const item = analysisItem(host, scene, JSON.stringify({ bodies, window, step: kind.step, abcorr: kind.abcorr, extremum: pick }), `${id}-${index}`, query => host.getEventQueryInfo?.(query, { scene }).definition);
       const query = item.id;
-      const definition = { id: query, kind: 'closest-approach', bodies, window, step: kind.step, abcorr: kind.abcorr, params: { scope: 'local' } };
-      if (!write(() => host.upsertEventQuery!({ id: query, label: 'Closest approach', enabled: true, visible: true, query: definition }, { scene }))) return stop('search-failed');
+      const definition = { id: query, kind: 'closest-approach', bodies, window, step: kind.step, abcorr: kind.abcorr, params: { scope: 'local', ...(farthest ? { extremum: 'maximum' } : {}) } };
+      if (!write(() => host.upsertEventQuery!({ id: query, label: farthest ? 'Farthest point' : 'Closest approach', enabled: true, visible: true, query: definition }, { scene }))) return stop('search-failed');
       item.save();
       const availability = host.getEventQueryInfo?.(query, { scene });
       if (availability?.error?.code === 'missing-coverage') return stop('missing-coverage');
@@ -74,7 +80,7 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
           if (!write(() => host.upsertProfile!({ id: profile, enabled: true, visible: true, profile: { quantity: 'range', bodies } }, { scene }))) return stop('missing-dependency');
           profileItem.save();
           result.samples = host.sampleProfileData(profile, { ...window, count: 32 }, { scene });
-          const minimum = result.samples.minimum;
+          const minimum = farthest ? result.samples.maximum : result.samples.minimum;
           if (cancelled()) return stop('cancelled', 'interrupted');
           if (minimum && Number.isFinite(minimum.value)) {
             // Presentation policy, not an accuracy certificate: only a requested
@@ -100,20 +106,32 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
         }
         return stop('missing-dependency');
       }
-      const page = host.getEventResultPage(query, { scene, order: 'range-ascending', limit: 1 });
+      const page = host.getEventResultPage(query, { scene, order: farthest ? 'range-descending' : 'range-ascending', limit: 1 });
       if (!['ready','no-results'].includes(page.status) || page.nextOffset !== null && !page.ranking) return stop('search-failed');
       result.candidates += page.total;
-      const range = (p: typeof page | null) => p?.items[0]?.event.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value ?? Infinity;
-      if (page.items.length && range(page) < range(result.result)) result.result = page;
+      const range = (p: typeof page | null) => p?.items[0]?.event.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value ?? (farthest ? -Infinity : Infinity);
+      if (page.items.length && (farthest ? range(page) > range(result.result) : range(page) < range(result.result))) result.result = page;
     }
     if (!result.result) return stop(null, 'no-results');
+    if (farthest) {
+      // A local-maximum search cannot see a window edge: a range still growing when coverage ends (or largest
+      // where it begins) is farther than every turning point. Say so instead of calling the turning point the farthest.
+      const best = result.result.items[0]?.event.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value ?? -Infinity;
+      const rangeAt = (et: number) => { try { const p = host.getObjectState?.(request.target, { time: { kind: 'et', et }, center: request.observer })?.position; return p ? Math.hypot(...p) : null; } catch { return null; } };
+      const edges = result.windows.flatMap(w => [w.start, w.end]).map(et => ({ et, km: rangeAt(et) })).filter((e): e is { et: number; km: number } => e.km !== null && e.km > best);
+      if (edges.length) {
+        const edge = edges.reduce((a, b) => (b.km > a.km ? b : a));
+        result.edgeMaximum = edge;
+        result.limitations = [...result.limitations, `The range is larger at a coverage edge (ET ${edge.et}, ${Math.round(edge.km)} km) than at any computed turning point, so the farthest point in loaded coverage is that edge, not the presented result. The data may continue beyond it.`];
+      }
+    }
     if (cancelled()) return stop('cancelled', 'interrupted');
     if (request.present !== false) {
       const ref = result.result.items[0].reference;
       result.presentation = await write(() => host.presentEventResult!(ref, 'pair', { scene, signal: opts.signal }));
       if (cancelled()) return stop('cancelled', 'interrupted');
       // The same predicates used by granular operations, including actual framing and drawing.
-      result.computedEventVerified = evaluate(host, [{ p: 'eventSelected', query: ref.query, id: ref.id, pick: 'closest' }, { p: 'paused', value: true }, { p: 'eventEpoch', query: ref.query }, { p: 'eventFramed', query: ref.query, framing: 'pair' }, { p: 'eventDrawn', query: ref.query }]).status === 'met';
+      result.computedEventVerified = evaluate(host, [{ p: 'eventSelected', query: ref.query, id: ref.id, pick }, { p: 'paused', value: true }, { p: 'eventEpoch', query: ref.query }, { p: 'eventFramed', query: ref.query, framing: 'pair' }, { p: 'eventDrawn', query: ref.query }]).status === 'met';
       if (!result.computedEventVerified) return stop('presentation-incomplete');
     }
     return { ...result, status: 'computed', reason: null };

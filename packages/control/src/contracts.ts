@@ -505,12 +505,16 @@ export interface ScriptClosestApproachRequest {
   start?: number | string;
   end?: number | string;
   present?: boolean;
+  /** The range extremum to find: the closest approach (default) or the farthest point (apoapsis-like). Center-to-center distance either way. */
+  extremum?: 'closest' | 'farthest';
 }
 export interface ScriptClosestApproachResult {
   /** Identity allocated for this attempt, even if preflight cannot save/run it. */
   query: string;
   status: 'computed' | 'sampled' | 'unavailable' | 'no-results' | 'interrupted';
   reason: 'invalid-window' | 'missing-dependency' | 'missing-coverage' | 'coverage-unassessed' | 'work-budget' | 'search-failed' | 'presentation-incomplete' | 'cancelled' | null;
+/** Farthest searches: a coverage edge where the range exceeds every computed turning point. */
+  edgeMaximum?: { et: number; km: number };
   computedEventVerified: boolean;
   /** True once native solver execution has begun; preflight rejections remain correctable. */
   searchStarted: boolean;
@@ -882,7 +886,7 @@ export interface ViewerControl {
   cancelEventQuery?(opts?: ScriptSceneOptions): boolean;
   listEventResults?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): { total: number; items: GeometryEvent[] };
   getEventQueryInfo?(query: string, opts?: ScriptSceneOptions): ScriptEventQueryInfo;
-  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number; order?: 'chronological' | 'range-ascending' }): ScriptEventResultPage;
+  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number; order?: 'chronological' | 'range-ascending' | 'range-descending' }): ScriptEventResultPage;
   getEventVisualization?(): ScriptEventVisualization;
   presentEventResult?(reference: ScriptEventReference, framing?: 'pair' | 'target', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptEventFocusReceipt>;
   focusEventResult?(reference: ScriptEventReference, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): ScriptEventFocusReceipt;
@@ -1018,7 +1022,7 @@ export interface ScriptEventQueryInfo {
   provenance: ScriptEventProvenance | null;
 }
 export interface ScriptEventResultPage {
-  ranking?: { order: 'range-ascending'; compared: number };
+  ranking?: { order: 'range-ascending' | 'range-descending'; compared: number };
   status: 'ready' | 'no-results' | 'not-searched' | 'searching' | 'failed' | 'stale-result' | 'missing-query' | 'scene-reloaded';
   total: number; offset: number; nextOffset: number | null;
   items: { reference: ScriptEventReference; event: GeometryEvent }[];

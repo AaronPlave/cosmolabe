@@ -17,6 +17,11 @@ export interface ClosestApproachParams {
    * than silently returning unfiltered results.
    */
   maxRangeKm?: number;
+  /**
+   * `minimum` (default) finds closest approaches; `maximum` finds the farthest
+   * points (apoapsis-like range maxima) with the same GF search and metrics.
+   */
+  extremum?: 'minimum' | 'maximum';
 }
 
 /**
@@ -59,6 +64,17 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       help: 'Local minima give one result per encounter; the deepest gives one result overall.',
     },
     {
+      kind: 'choice',
+      key: 'extremum',
+      label: 'Extremum',
+      default: 'minimum',
+      options: [
+        { value: 'minimum', label: 'Closest (range minimum)' },
+        { value: 'maximum', label: 'Farthest (range maximum)' },
+      ],
+      help: 'Closest approaches are range minima; the farthest points of an orbit are range maxima. Center to center either way.',
+    },
+    {
       kind: 'number',
       key: 'maxRangeKm',
       label: 'Max range',
@@ -79,6 +95,11 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
     const scope = query.params?.scope;
     if (scope !== undefined && scope !== 'local' && scope !== 'global') {
       return { code: 'invalid-params', message: 'Scope must be "local" or "global"' };
+    }
+
+    const extremum = query.params?.extremum;
+    if (extremum !== undefined && extremum !== 'minimum' && extremum !== 'maximum') {
+      return { code: 'invalid-params', message: 'Extremum must be "minimum" or "maximum"' };
     }
 
     const max = query.params?.maxRangeKm;
@@ -104,7 +125,8 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       );
     }
 
-    const relate = query.params?.scope === 'global' ? 'ABSMIN' : 'LOCMIN';
+    const farthest = query.params?.extremum === 'maximum';
+    const relate = query.params?.scope === 'global' ? (farthest ? 'ABSMAX' : 'ABSMIN') : (farthest ? 'LOCMAX' : 'LOCMIN');
     const found = await ctx.provider.gfdist(
       target,
       query.abcorr,
@@ -154,7 +176,7 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
         temporality: 'instant',
         et,
         bodies: { observer, target },
-        label: query.label ?? `${target} closest approach from ${observer}`,
+        label: query.label ?? (farthest ? `${target} farthest from ${observer}` : `${target} closest approach from ${observer}`),
         ...(metrics.length ? { metrics } : {}),
       });
     }

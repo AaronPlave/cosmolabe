@@ -11,7 +11,7 @@ import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } f
 import { reliabilityCases, promptsOf, turnPredicates, judge, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
 import { comparisonEvidence } from './ask-benchmark/visual-comparison.mjs';
 import { directStarterCases } from './ask-benchmark/direct-starters.mjs';
-import { productExplorationCases } from './ask-benchmark/product-exploration.mjs';
+import { productExplorationCases, followupCases } from './ask-benchmark/product-exploration.mjs';
 import { explorationCases, explorationRubric } from './ask-benchmark/exploration.mjs';
 import { etToDate, SPHERE_OF_INFLUENCE_KM } from '@cosmolabe/core';
 
@@ -23,8 +23,12 @@ const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
 const suite = process.env.ASK_BENCHMARK_SUITE ?? 'reliability';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
-assert.ok(['reliability', 'legacy', 'exploration', 'product', 'starter', 'all'].includes(suite), 'Unknown benchmark suite');
-const pool = suite === 'starter' ? directStarterCases.map(c => ({...c,reliability:true})) : suite === 'product' ? productExplorationCases.map(c => ({...c,reliability:true})) : suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
+assert.ok(['reliability', 'legacy', 'exploration', 'product', 'starter', 'followup', 'efficiency', 'all'].includes(suite), 'Unknown benchmark suite');
+// #381 pinned efficiency set: routine, two-turn, exploration, missing-data negative, interruption, plus both follow-up sequences.
+const EFFICIENCY = { legacy: ['pause-select', 'cancel-after-write'], reliability: ['earth-moon-switch', 'voyager-neptune-none'], product: ['clipper-discover'] };
+const pool = suite === 'efficiency' ? [...cases.filter(c => EFFICIENCY.legacy.includes(c.id)), ...reliabilityCases.filter(c => EFFICIENCY.reliability.includes(c.id)).map(c => ({ ...c, reliability: true })),
+  ...productExplorationCases.filter(c => EFFICIENCY.product.includes(c.id)).map(c => ({ ...c, reliability: true })), ...followupCases.map(c => ({ ...c, reliability: true }))]
+  : suite === 'followup' ? followupCases.map(c => ({...c,reliability:true})) : suite === 'starter' ? directStarterCases.map(c => ({...c,reliability:true})) : suite === 'product' ? productExplorationCases.map(c => ({...c,reliability:true})) : suite === 'exploration' ? explorationCases.map(c => ({ ...c, reliability: true }))
   : [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
 const wanted = process.env.ASK_BENCHMARK_CASES?.split(',');
 const selected = pool.filter(c => !wanted || wanted.includes(c.id) || (wanted.includes('critical') && c.critical));
@@ -37,7 +41,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
   limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
-if (['exploration','product','starter'].includes(suite)) report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
+if (['exploration','product','starter','followup','efficiency'].includes(suite)) report.assessment = { rubric: explorationRubric, cases: selected, verdict: 'pending independent review' };
 if (process.env.ASK_BENCHMARK_LIVE !== '1') {
   console.log(JSON.stringify({ ...report, plan: selected }, null, 2));
   process.exit(0);
@@ -253,6 +257,20 @@ try {
             return { windows, samples, available, minima, closestMinimumKm, minKm, minEt: closestEt };
           };
         }, { test: JSON.parse(JSON.stringify(test, (_k, v) => typeof v === 'function' || v instanceof RegExp ? undefined : v)) });
+        if (test.seed?.closestApproach) {
+          // The person already ran a native search and selected its closest result (#381 screenshot state).
+          run.seed = await page.evaluate(async ({ observer, target, label }) => {
+            const c = window.cosmo;
+            // The shared closest-approach operation (coverage-aware, presents the closest), then the person's own label on the saved search.
+            const r = await c.findClosestApproach({ observer, target, windowMode: 'coverage', present: true });
+            const info = r.query ? c.getEventQueryInfo(r.query) : null;
+            if (info?.definition) c.upsertEventQuery({ ...info.definition, label, query: { ...info.definition.query, label } });
+            const page = r.query ? c.getEventResultPage(r.query, { order: 'range-ascending', limit: 1 }) : null;
+            const closest = page?.items[0] ?? null;
+            return { status: r.status, reason: r.reason, query: r.query, total: page?.total ?? 0, selected: closest ? { id: closest.reference.id, rangeKm: closest.metrics?.find(m => m.key === 'range')?.value ?? null, et: c.getTime() } : null };
+          }, test.seed.closestApproach);
+          console.log(`Seeded ${JSON.stringify(run.seed)}`);
+        }
         const initial = await page.evaluate(() => window.__benchSnapshot());
         run.initialState = initial.stable;
         const started = performance.now();

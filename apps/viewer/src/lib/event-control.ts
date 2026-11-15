@@ -136,11 +136,12 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     if (!run) return { ...empty, status: analysis.eventResultRuns[id]?.complete ? 'stale-result' : 'not-searched' };
     let events = analysis.eventResults[id] ?? [];
     let ranking: ScriptEventResultPage['ranking'];
-    if (opts?.order === 'range-ascending') {
+    if (opts?.order === 'range-ascending' || opts?.order === 'range-descending') {
       const range = (e: typeof events[number]) => e.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value;
       if (query.definition?.query.kind !== 'closest-approach' || events.some(e => !Number.isFinite(range(e)))) throw new Error('Cannot rank the complete candidate set: measured closest-approach ranges are required for every candidate');
-      ranking = { order: 'range-ascending', compared: events.length };
-      events = [...events].sort((a,b) => range(a)! - range(b)!);
+      ranking = { order: opts.order, compared: events.length };
+      const sign = opts.order === 'range-ascending' ? 1 : -1;
+      events = [...events].sort((a,b) => sign * (range(a)! - range(b)!));
     } else if (opts?.order && opts.order !== 'chronological') throw new Error('Unknown event ordering');
     return { ...empty, ...(ranking ? { ranking } : {}), status: events.length ? 'ready' : 'no-results', total: events.length,
       nextOffset: offset + limit < events.length ? offset + limit : null,

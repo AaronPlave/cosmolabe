@@ -15,8 +15,9 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, Send } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
+    ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
+  import { presentTurn } from '../lib/ask/result';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
   import type { AskExample, AskHelp } from '@cosmolabe/control';
   import { etToUtcString, vs } from '../lib/viewer-state.svelte';
@@ -201,21 +202,25 @@
             <span class="h-px flex-1 bg-border"></span>
           </li>
         {/if}
+        {@const shown = presentTurn(turn, etToUtcString)}
         <li class="ask-turn flex flex-col gap-2">
           <p class="ask-prompt ui-body ml-auto max-w-[92%] self-end rounded-md border border-border bg-hover px-2.5 py-1.5 whitespace-pre-wrap text-text-primary">{turn.prompt}</p>
+          {#if shown.hostAccount}
+            <p class="ask-host-account ui-helper whitespace-normal text-warning" role="status">{shown.hostAccount}</p>
+          {/if}
           {#if turn.reply}
             <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
             <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
               {@render answerBlocks(parseAnswer(turn.reply))}
             </div>
           {/if}
-          <p class="ask-status ui-meta flex items-center gap-1 text-text-muted" role="status">
+          <!-- One line on what the viewer did, in the person's terms; the loop's own checks live under Action details. -->
+          <p class="ask-status ui-helper flex items-center gap-1 whitespace-normal text-text-muted" role="status">
             {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
-            {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
+            {shown.outcome ?? actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
           </p>
-          {#if checkNote(turn)}
-            {@const check = checkNote(turn)!}
-            <p class="ui-helper whitespace-normal {check.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{check.text}</p>
+          {#if shown.limitation}
+            <p class="ask-limitation ui-helper whitespace-normal {shown.limitation.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{shown.limitation.text}</p>
           {/if}
           {#if endNote(turn, stepLabel)}
             {@const note = endNote(turn, stepLabel)!}
@@ -244,6 +249,11 @@
                   </li>
                 {/each}
               </ul>
+              {#if shown.diagnostics.length}
+                <ul class="mt-1 flex flex-col gap-0.5" aria-label="Viewer checks">
+                  {#each shown.diagnostics as line}<li class="ui-helper whitespace-normal text-text-faint">{line}</li>{/each}
+                </ul>
+              {/if}
               <details class="ask-details mt-1">
                 <summary class="ui-helper cursor-pointer select-none text-text-faint">Details</summary>
                 <button class="ui-meta mt-1 rounded px-1.5 py-0.5 text-text-secondary hover:bg-hover hover:text-text-primary" onclick={() => copyTrace(turn)}>{copied === turn.id ? 'Copied full trace' : 'Copy full trace'}</button>

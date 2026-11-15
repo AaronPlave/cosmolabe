@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { findClosestApproach } from './closest-approach.js';
 import { createAgentTools } from './agent.js';
-import { checkAnswer } from './answer-check.js';
+import { checkAnswer, factSummary } from './answer-check.js';
 import { adopt } from './outcome.js';
 import { resultText } from './agent-loop.js';
 import type { ResultFact } from './agent.js';
@@ -27,6 +27,50 @@ const intervalRequest = { ...request, windowMode: 'interval' as const, start: 0,
 const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: { observer: request.observer, target: request.target }, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 8 }], missing: 0, gaps: [], minimum: { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
 
 describe('bounded closest-approach composition', () => {
+  it('finds the farthest point with the same native search, ranks it descending and reports a larger coverage edge (#381)', async () => {
+    const host = fixture();
+    host.getObjectState = (_n, opts) => ({ et: 0, frame: 'J2000', center: 'Cassini', position: (opts?.time as { et: number }).et === 0 ? [50, 0, 0] : [1, 0, 0], attitude: null, positionAvailability: { available: true } as never });
+    const result = await findClosestApproach(host, { ...request, extremum: 'farthest' });
+    expect(result).toMatchObject({ status: 'computed', computedEventVerified: true, edgeMaximum: { et: 0, km: 50 } });
+    expect(vi.mocked(host.upsertEventQuery!).mock.calls[0][0]).toMatchObject({ label: 'Farthest point', query: { params: { scope: 'local', extremum: 'maximum' } } });
+    expect((vi.mocked(host.getEventResultPage!).mock.calls as unknown[][]).some(c => (c[1] as { order?: string } | undefined)?.order === 'range-descending')).toBe(true);
+    expect(result.limitations.join(' ')).toMatch(/larger at a coverage edge .* not the presented result/);
+    // Without a larger edge, the turning point stands and no edge is claimed.
+    host.getObjectState = () => ({ et: 0, frame: 'J2000', center: 'Cassini', position: [1, 0, 0], attitude: null, positionAvailability: { available: true } as never });
+    expect((await findClosestApproach(host, { ...request, extremum: 'farthest' })).edgeMaximum).toBeUndefined();
+  });
+  it('never calls a farthest result a closest approach in the viewer\'s own account (#381)', () => {
+    const far = { kind: 'event-result' as const, query: 'f', id: 'f-0', extremum: 'maximum' as const, observer: 'Saturn', target: 'Cassini', utc: '2004-08-27T08:57:50Z', rangeKm: 9_095_760.6, altitudeKm: null, encounter: null, criterion: null, criterionBody: null, thresholdKm: null };
+    expect(factSummary([far])).toBe('The viewer\'s farthest Saturn–Cassini turning point is 9.10e+6 km center to center on 2004-08-27: the largest computed range maximum in the searched window, not an all-time maximum.');
+    expect(factSummary([far, { kind: 'range-edge', observer: 'Saturn', target: 'Cassini', km: 3e8, et: 0, utc: '2004-01-01T00:00:00Z' }])).toMatch(/larger, 3.00e\+8 km, at the 2004-01-01 edge of loaded coverage/);
+    expect(checkAnswer('Cassini is farthest from Saturn at about 9.1 million km on 2004-08-27.', [far])).toEqual([]);
+  });
+  it('holds an incomplete presentation to its framing and drawing, so it cannot read as a clean success (#381)', async () => {
+    const host = fixture();
+    host.presentEventResult = vi.fn(async (reference: ScriptEventReference): Promise<ScriptEventFocusReceipt> => ({ status: 'partial', reference, anchor: 'middle', observation: host.getEventVisualization!() }));
+    const tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    const r = await task.call('findClosestApproach', { ...request, extremum: 'farthest' });
+    expect(r).toMatchObject({ ok: true, data: { reason: 'presentation-incomplete' } });
+    expect(r.outcome!.expected.map(p => p.p)).toEqual(['eventSelected', 'paused', 'eventEpoch', 'eventFramed', 'eventDrawn']);
+    expect(tools.verify!(r.outcome!.expected).status).not.toBe('met');
+    task.finish(); tools.dispose();
+  });
+  it('publishes the searched pieces so an answer citing a coverage gap or end date is not replaced (#381)', async () => {
+    const host = fixture([window, { start: 200, end: 300 }]), tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    const r = await task.call('findClosestApproach', { ...request, windowMode: 'interval', start: 50, end: 250, extremum: 'farthest' });
+    const facts = (r as { facts?: ResultFact[] }).facts ?? [];
+    expect(facts.filter(f => f.kind === 'event-window').length).toBeGreaterThanOrEqual(2);
+    const end = (facts.filter(f => f.kind === 'event-window').at(-1) as { endUtc: string }).endUtc;
+    expect(checkAnswer(`The search ran to ${end.slice(0, 10)} ${end.slice(11, 19)} UTC.`, facts)).toEqual([]);
+    task.finish(); tools.dispose();
+  });
+  it('lets one request search the closest and then the farthest point of the same pair (#381)', async () => {
+    const host = fixture(), tools = createAgentTools(host, { allowAuthoring: true }), task = tools.begin();
+    expect(await task.call('findClosestApproach', request)).toMatchObject({ ok: true });
+    expect(await task.call('findClosestApproach', { ...intervalRequest, extremum: 'farthest' })).toMatchObject({ ok: true, data: { status: 'computed' } });
+    expect(await task.call('findClosestApproach', { ...request, extremum: 'farthest' })).toMatchObject({ ok: false, code: 'refused' });
+    task.finish(); tools.dispose();
+  });
   it('ranks the complete native set and verifies the actual result presentation', async () => {
     const host = fixture();
     const result = await findClosestApproach(host, request);
@@ -142,10 +186,14 @@ describe('bounded closest-approach composition', () => {
     expect(await findClosestApproach(host, request)).toMatchObject({ status: 'unavailable', reason: 'coverage-unassessed' });
     expect(host.upsertEventQuery).not.toHaveBeenCalled();
   });
-  it('refuses an explicit interval across a coverage gap without silently clipping it', async () => {
+  it('searches each covered piece of an explicit interval and discloses the internal gap, but never clips an uncovered end (#381)', async () => {
     const host = fixture([window, { start: 200, end: 300 }]);
-    expect(await findClosestApproach(host, { ...request, windowMode: 'interval', start: 50, end: 250 })).toMatchObject({ status: 'unavailable', reason: 'missing-coverage' });
-    expect(host.upsertEventQuery).not.toHaveBeenCalled();
+    const pieces = await findClosestApproach(host, { ...request, windowMode: 'interval', start: 50, end: 250 });
+    expect(pieces).toMatchObject({ status: 'computed', windows: [{ start: 50, end: 100 }, { start: 200, end: 250 }] });
+    expect(pieces.limitations.join(' ')).toMatch(/1 coverage gap \(100 s at ET 100\); each covered piece was searched and nothing inside a gap is known/);
+    const uncovered = fixture([window, { start: 200, end: 300 }]);
+    expect(await findClosestApproach(uncovered, { ...request, windowMode: 'interval', start: 150, end: 250 })).toMatchObject({ status: 'unavailable', reason: 'missing-coverage' });
+    expect(uncovered.upsertEventQuery).not.toHaveBeenCalled();
   });
   it('returns structured frame failure, labels the sampled alternative and does not certify it, and does not certify navigation', async () => {
     const host = fixture();

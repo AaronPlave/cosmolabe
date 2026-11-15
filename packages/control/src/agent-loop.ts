@@ -24,7 +24,7 @@ import type { ScriptCancelSignal } from './contracts.js';
 import type { AgentTask, AgentToolDef, AgentToolResult, AgentTools, ResultFact } from './agent.js';
 import type { OperationContract } from './verbs.js';
 import { checkAnswer, factSummary } from './answer-check.js';
-import { adopt, parsePredicate, release, retireDomain, slotOf, type GoalReport, type Predicate } from './outcome.js';
+import { adopt, carryOver, parsePredicate, release, retireDomain, slotOf, type GoalReport, type Predicate } from './outcome.js';
 
 export type AgentContent =
   // `raw`: the provider's own block, for whatever translated it to send back verbatim.
@@ -193,6 +193,10 @@ export interface AgentRun {
 export const HOST_CHECK_PREFIX = '[Viewer check]';
 
 const DISCOVERY_NAMES = new Set(['listCapabilities', 'describeCapabilities', 'getOperationResult']);
+/** The viewer domain a predicate is about, for superseding what an earlier request held. */
+const domainOf = (p: Predicate): string | null => ['epoch', 'eventEpoch', 'paused', 'rate'].includes(p.p) ? 'time'
+  : ['eventSelected', 'eventRun', 'eventQuery', 'eventDrawn'].includes(p.p) ? 'events' : ['viewpoint', 'tracked', 'inView', 'legible', 'range', 'eventFramed'].includes(p.p) ? 'camera' : null;
+const describe = (p: Predicate) => slotOf(p);
 const isCheck = (use: { name: string; input: unknown }) => use.name === 'checkGoal'
   || (use.name === 'invokeCapability' && typeof (use.input as { id?: unknown } | null)?.id === 'string' && (use.input as { id: string }).id.endsWith('.checkGoal'));
 const callInput = (use: { name: string; input: unknown }) => use.name === 'invokeCapability' ? (use.input as { input?: unknown } | null)?.input : use.input;
@@ -378,7 +382,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   // The goal this conversation is held to: every change's own postconditions
   // plus what the model stated the person asked for. The model can add to it
   // and name what the person released; it cannot certify it.
-  let held: Predicate[] = [...(opts.goals ?? [])];
+  // Earlier requests' goals arrive as prior: still checked, superseded by this request's own changes (#381).
+  let held: Predicate[] = carryOver(opts.goals ?? []);
   const changes: string[] = [];
   const unobservable: string[] = [];
   const facts: ResultFact[] = [];
@@ -411,6 +416,16 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     held = r.held;
     if (r.retired.length) changes.push(`The camera moved to another subject: ${r.retired.join(', ')} no longer held.`);
     if (r.replaced.length) changes.push(`Replaced ${r.replaced.join('; ')}.`);
+    // A change in this request that moves the clock, selects another event or re-aims the camera supersedes what an
+    // earlier request held about that domain; the person asked something new, so it is not a failed goal.
+    if (by === 'action' && incoming.length) {
+      const domains = new Set(incoming.map(p => domainOf(p)).filter((d): d is string => !!d));
+      // Earlier goals about another search (its epoch, framing, drawing) go with it once this request selects or runs a different one.
+      const searches = new Set(incoming.filter(q => ['eventSelected', 'eventRun'].includes(q.p)).map(q => q.query ?? ''));
+      const otherSearch = (p: Predicate) => !!p.query && searches.size > 0 && !searches.has(p.query);
+      const superseded = held.filter(p => p.prior && (domains.has(domainOf(p) ?? '') || otherSearch(p)) && !incoming.some(q => slotOf(q) === slotOf(p)));
+      if (superseded.length) { held = held.filter(p => !superseded.includes(p)); changes.push(`Earlier ${superseded.map(describe).join(', ')} superseded by this request.`); }
+    }
     return r;
   };
   /** The person's own camera or clock moves end what this request held them to. */
@@ -419,6 +434,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     if (taken?.camera && held.some(p => retireDomain([p], 'camera').length === 0)) { held = retireDomain(held, 'camera'); changes.push('The person moved the camera; camera goals are theirs now.'); }
     if (taken?.time && held.some(p => retireDomain([p], 'time').length === 0)) { held = retireDomain(held, 'time'); changes.push('The person moved the clock; time goals are theirs now.'); }
   };
+  yieldTaken();
   const verify = () => { yieldTaken(); return opts.tools.verify && held.length ? opts.tools.verify(held) : null; };
   const status = (): RequestStatus => !wrote ? 'no-change' : !report ? 'unverified' : report.status === 'unmet' ? 'failed'
     : report.status === 'inconclusive' || unobservable.length ? 'unverified' : report.status === 'partial' ? 'partial' : 'verified';
@@ -431,7 +447,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     }
     if (wrote && !report) report = verify();
     if (answer) opts.onEvent?.({ type: 'text', text: answer, final: true });
-    return { messages, stats: stats(), outcome, goals: [...held], answer,
+    // An interrupted, replaced or failed request leaves nothing behind but what the person made enduring.
+    const kept = ['done', 'refusal'].includes(outcome.kind) ? [...held] : held.filter(p => p.keep);
+    return { messages, stats: stats(), outcome, goals: kept, answer,
       result: { status: status(), report, unobservable: [...unobservable], changes: [...changes], facts: [...facts], answerIssues, answerSource, intentStated, escalated } };
   };
 

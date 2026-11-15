@@ -226,7 +226,8 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
     return `${history.observer}–${history.target} native range/range-rate profiles sampled over ${history.startUtc} to ${history.endUtc}: ${history.count} range samples (${history.missing} missing), ${rate.count} rate samples (${rate.missing} missing). The first and last available range rates are ${value(rates[0].value)} and ${value(rates.at(-1)!.value)} km/s; negative means closing, positive means opening. Center distance goes from ${value(first.km)} km through a sampled minimum of ${value(history.minimumKm)} km to ${value(last.km)} km. These samples do not certify a physical event or surface clearance.${plotText}`;
   }
   if (sampled && (!events.length || sampled.eventSearchUnavailable)) {
-    return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}). This is an approximate sampled minimum, not a verified closest approach, physical surface clearance or touchdown.`;
+    const max = sampled.maximumKm !== undefined ? ` The maximum among them is ${sampled.maximumKm} km at ${sampled.maximumUtc} (ET ${sampled.maximumEt}).` : '';
+    return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}).${max} These are approximate sampled extrema, not a verified closest approach, physical surface clearance or touchdown.`;
   }
   if (!events.length) {
     const images = facts.filter(f => f.kind === 'imagery-state');
@@ -236,8 +237,16 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
     const inventory=facts.filter(f=>f.kind==='activity-inventory').at(-1);
     return existence ? `The clock is at ET ${existence.observedEt}. ${existence.object}'s configured scene existence starts at ${existence.startUtc ?? `ET ${existence.startEt}`}, ${existence.secondsBeforeStart.toFixed(3)} seconds later. It is not independently drawn at this earlier time. This is a rendering boundary, not a measured release event.` : authored ? `The authored scene viewpoint "${authored.name}" has time ${authored.utc}. This is a catalog annotation, not a computed physical event.` : inventory ? `${inventory.object} has ${Object.entries(inventory.counts).map(([kind,total])=>`${total} enabled ${kind} activities`).join(', ')} in the native catalog. A bounded name-resolution list is not the full collection or a numerical result.` : (report?.checks.filter(c => c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ') ? `Current viewer check: ${report!.checks.filter(c=>c.slot.startsWith('view:') && c.ok !== null).map(c=>c.detail).join('; ')}. This establishes the final framing, not whether the requested camera improvement was achieved.` : '');
   }
-  const closest = events.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const range = (km: number) => km >= 1e6 ? `${km.toExponential(2)} km` : `${Number(km.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`;
+  const farthest = events.filter(f => f.extremum === 'maximum');
+  const latest = events.at(-1)!;
+  if (latest.extremum === 'maximum') {
+    const top = farthest.reduce((a, b) => (b.rangeKm! > a.rangeKm! ? b : a));
+    const edge = facts.filter(f => f.kind === 'range-edge').at(-1);
+    return `The viewer's farthest ${top.observer ?? ''}–${top.target ?? ''} turning point is ${range(top.rangeKm!)} center to center${top.utc ? ` on ${top.utc.slice(0, 10)}` : ''}: the largest computed range maximum in the searched window, not an all-time maximum.${edge ? ` The range is larger, ${range(edge.km)}, at the ${edge.utc.slice(0, 10)} edge of loaded coverage, so the farthest loaded point is that edge.` : ''}`;
+  }
+  const minima = events.filter(f => f.extremum !== 'maximum');
+  const closest = minima.reduce((a, b) => (b.rangeKm! < a.rangeKm! ? b : a));
   const kind = closest.encounter === true ? 'a flyby' : closest.encounter === false ? 'a distant range minimum, not a flyby' : 'a closest approach';
   return `The viewer's closest ${closest.observer ?? ''}–${closest.target ?? ''} result is ${range(closest.rangeKm!)}${closest.utc ? ` on ${closest.utc.slice(0, 10)}` : ''}: ${kind}${closest.criterion === 'sphere-of-influence' && closest.thresholdKm ? ` (${closest.criterionBody}'s sphere of influence is ${range(closest.thresholdKm)})` : ''}.`;
 }

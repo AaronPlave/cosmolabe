@@ -1,5 +1,6 @@
 # Ask quality, latency and cost benchmark (#332)
 
+[#381 follow-ups, goal lifecycle and result presentation](381-results.md) ·
 [#379 review implementation and final regressions](379-review.md)
 follow the [original findings and decision](379-findings.md), which assess 12 frozen tasks across four
 catalogs. The [protocol](379-exploration.md) and `ASK_BENCHMARK_SUITE=exploration`

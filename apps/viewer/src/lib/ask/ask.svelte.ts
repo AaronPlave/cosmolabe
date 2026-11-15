@@ -117,30 +117,6 @@ export function endNote(turn: AskTurn, label: (step: AskStep) => string = (s) =>
 
 /** A step that changed the viewer: its result carries its contract's outcome. */
 const wrote = (s: AskStep) => !!s.result?.ok && !!s.result.outcome && s.result.outcome.writes.length > 0;
-const plainList = (items: readonly string[]) => items.join('; ').replace(/\.$/, '');
-
-/**
- * The viewer's verdict beside the answer: whether the request's changes are
- * verified, only partly observed, unobservable or failing, and whether the
- * answer had to be replaced because it contradicted the viewer's results.
- * Null for a request that changed nothing and answered consistently, or that
- * did not finish (`endNote` speaks for those).
- */
-export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
-  const r = turn.result;
-  if (!r) return null;
-  if (turn.status !== 'done') return r.answerSource === 'host-facts' ? {tone:'warning',text:'The model stopped before finishing its answer. The viewer’s own measured account is shown; the requested view may still be incomplete.'} : null;
-  const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
-  const replaced = `${r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : ''}${r.escalated ? ` Answered by the escalation model: ${r.escalated}.` : ''}`;
-  switch (r.status) {
-    // Without a stated goal the check covers what each change itself promised, not the whole request.
-    case 'verified': return { tone: 'muted', text: `${r.intentStated ? 'Checked in the viewer.' : 'Each change checked in the viewer; the request as a whole was not stated, so not checked.'}${replaced}` };
-    case 'partial': return { tone: 'muted', text: `Holds; not yet observed: ${plainList(failing)}.${replaced}` };
-    case 'failed': return { tone: 'warning', text: `Viewer check: ${plainList(failing)}.${replaced}` };
-    case 'unverified': return { tone: 'muted', text: `Not checked against the viewer: ${plainList([...r.unobservable.map(u => u.replace(/^[^:]+: /, '')), ...failing])}.${replaced}` };
-    default: return replaced ? { tone: 'warning', text: replaced.trim() } : null;
-  }
-}
 
 /** Requests the panel keeps showing; older ones scroll away for good. */
 const MAX_SHOWN = 50;

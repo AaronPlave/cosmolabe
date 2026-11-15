@@ -58,7 +58,7 @@ const SCRIPT: Record<string, AgentResponse[]> = {
     say('Rotated around Psyche; Mars is now in frame.'),
   ],
   'but keep psyche up close': [
-    call(goal('d1', [{ p: 'range', object: 'Psyche', maxKm: 0.1 }])),
+    call(goal('d1', [{ p: 'range', object: 'Psyche', maxKm: 0.1, keep: true }])),
     say('Psyche is still close (60 m) and Mars stays in frame.'),
   ],
   'pull way back': [
@@ -183,7 +183,8 @@ describe('the loop holds the conversation to its goals (#345 review)', () => {
   it('a check that omits an earlier constraint is still judged by it', async () => {
     const { turns } = await converse();
     const last = turns.at(-1)!;
-    expect(last.goals).toEqual(expect.arrayContaining([{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }, { p: 'paused', value: true }, { p: 'epoch', et: ENCOUNTER }, { p: 'inView', object: 'Mars', stated: true }]));
+    // "keep" holds across requests; the rest of the earlier requests' goals are still checked as prior ones.
+    expect(last.goals).toEqual(expect.arrayContaining([{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true, keep: true }, { p: 'paused', value: true, prior: true }, { p: 'epoch', et: ENCOUNTER, prior: true }, { p: 'inView', object: 'Mars', stated: true }]));
     const summaries = last.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result').map(c => JSON.parse((c as { content: string }).content).summary);
     // Stated before the change, it is held, not yet judged.
     expect(summaries[0]).toMatch(/^Held: .*range:Psyche/);
@@ -217,8 +218,10 @@ describe('the loop holds the conversation to its goals (#345 review)', () => {
     const { turns } = await converse(undefined, [...FIVE, 'now just show mars'], [SURFACE]);
     const run = turns.at(-1)!;
     expect(run.goals.map(p => p.p === 'state' ? 'surface' : `${p.p}${p.object ? `:${p.object}` : ''}`).sort())
-      .toEqual(['epoch', 'inView:Mars', 'legible:Mars', 'paused', 'surface', 'tracked:Mars']);
-    expect(run.result.changes.join(' ')).toMatch(/Released range Psyche <= 0.1 km/);
+      .toEqual(['epoch', 'inView:Mars', 'paused', 'surface', 'tracked:Mars']);
+    // The earlier "legible Mars" was turn-local camera intent: framing Mars anew supersedes it.
+    expect(turns.at(-2)!.result.changes).toContain('Earlier legible:Mars superseded by this request.');
+    expect(run.result.changes.join(' ')).toMatch(/Released inView Psyche, range Psyche <= 0.1 km/);
     // The stale close-up is not held against the new request.
     expect(run.result.status).toBe('verified');
     expect(run.stats.rounds).toBe(2);

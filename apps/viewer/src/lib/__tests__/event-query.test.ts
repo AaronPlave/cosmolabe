@@ -32,7 +32,7 @@ describe('form construction', () => {
     expect(form).toEqual({
       kind: 'closest-approach',
       bodies: {},
-      params: { scope: 'local' },
+      params: { scope: 'local', extremum: 'minimum' },
       startEt: 0,
       endEt: 86_400,
       step: 3600,
@@ -83,7 +83,7 @@ describe('query construction', () => {
     form.params.maxRangeKm = '';
 
     const query = buildQuery(closest, form, 'q1');
-    expect(query.params).toEqual({ scope: 'local' });
+    expect(query.params).toEqual({ scope: 'local', extremum: 'minimum' });
     expect('maxRangeKm' in (query.params ?? {})).toBe(false);
   });
 

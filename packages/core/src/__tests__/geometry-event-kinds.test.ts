@@ -94,8 +94,8 @@ describe('built-in event kinds', () => {
   });
 
   it('declares its parameters so a generic form can render them', () => {
-    expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'maxRangeKm']);
-    expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local' });
+    expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'extremum', 'maxRangeKm']);
+    expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local', extremum: 'minimum' });
     expect(defaultParams(distanceRangeKind)).toEqual({ relation: '<', distanceKm: 1_000_000 });
     expect(defaultParams(occultationKind)).toEqual({ state: 'all' });
   });
