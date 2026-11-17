@@ -1,0 +1,219 @@
+{
+  "version": 1,
+  "implementation": "87ed58e56d9867736016ec0f5826b41a56c91c8b",
+  "model": [
+    "claude-haiku-5-5"
+  ],
+  "renderer": "Chromium SwiftShader; software WebGL, no physical GPU acceptance",
+  "started": "2026-11-17T19:45:15.642Z",
+  "cases": [
+    {
+      "id": "cassini-saturn-followup",
+      "turns": [
+        {
+          "prompt": "Show me what Closest approach: Cassini / Titan found and help me understand it.",
+          "status": "verified",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Cassini",
+              "target": "Titan"
+            },
+            "selectedUtc": "2004-10-26T15:30:04.770Z",
+            "rangeKm": 3749.0302345334926,
+            "candidates": 27,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true,
+            "typedRangeAndUtcMatchNative": true
+          },
+          "limitation": null
+        },
+        {
+          "prompt": "show me when cassini is furthest from saturn after initial orbit insertion",
+          "status": "verified",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Saturn",
+              "target": "Cassini"
+            },
+            "selectedUtc": "2004-08-27T08:56:46.152Z",
+            "rangeKm": 9095760.600002876,
+            "candidates": 7,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true,
+            "typedRangeAndUtcMatchNative": true
+          },
+          "limitation": null
+        },
+        {
+          "prompt": "compare that with the Titan encounter",
+          "status": "no-change",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Saturn",
+              "target": "Cassini"
+            },
+            "selectedUtc": "2004-08-27T08:56:46.152Z",
+            "rangeKm": 9095760.600002876,
+            "candidates": 7,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true
+          },
+          "limitation": null
+        }
+      ]
+    },
+    {
+      "id": "clipper-europa-followup",
+      "turns": [
+        {
+          "prompt": "Show me what Closest approach: Europa Clipper / Europa found and help me understand it.",
+          "status": "verified",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Europa Clipper",
+              "target": "Europa"
+            },
+            "selectedUtc": "2031-10-23T21:46:27.619Z",
+            "rangeKm": 1584.73393011446,
+            "candidates": 885,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true,
+            "typedRangeAndUtcMatchNative": true
+          },
+          "limitation": null
+        },
+        {
+          "prompt": "show me when clipper is farthest from jupiter",
+          "status": "failed",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Jupiter",
+              "target": "Europa Clipper"
+            },
+            "selectedUtc": "2026-07-08T09:44:54.026Z",
+            "rangeKm": 968920639.4943804,
+            "candidates": 84,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true,
+            "typedRangeAndUtcMatchNative": true
+          },
+          "limitation": "Jupiter in view, Europa Clipper not drawn at this time (its location is in frame)"
+        },
+        {
+          "prompt": "compare that with the Europa encounter",
+          "status": "no-change",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Jupiter",
+              "target": "Europa Clipper"
+            },
+            "selectedUtc": "2026-07-08T09:44:54.026Z",
+            "rangeKm": 968920639.4943804,
+            "candidates": 84,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true
+          },
+          "limitation": null
+        }
+      ]
+    },
+    {
+      "id": "clipper-boundary-maximum",
+      "turns": [
+        {
+          "prompt": "Show me when Europa Clipper is farthest from Jupiter between 2030-01-01 and 2030-01-02.",
+          "status": "failed",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": {
+            "bodies": {
+              "observer": "Jupiter",
+              "target": "Europa Clipper"
+            },
+            "selectedUtc": "2030-01-01T00:00:00.000Z",
+            "rangeKm": 59655586.02213003,
+            "candidates": 1,
+            "stepSeconds": 3600,
+            "nativeSelectedMatchesClock": true,
+            "typedRangeAndUtcMatchNative": true
+          },
+          "limitation": "Jupiter in view, Europa Clipper not drawn at this time (its location is in frame)"
+        }
+      ]
+    },
+    {
+      "id": "ingenuity-belva",
+      "turns": [
+        {
+          "prompt": "What is the current distance from Ingenuity to Belva crater’s mapped reference point?",
+          "status": "no-change",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": null,
+          "mappedPoint": {
+            "km": 5.222686353050699,
+            "utc": "2021-07-05T09:00:08.000Z",
+            "frame": "IAU_MARS",
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal"
+            },
+            "coverage": "available-at-epoch",
+            "accuracyKm": null
+          },
+          "limitation": null
+        },
+        {
+          "prompt": "When was Ingenuity closest to that mapped point?",
+          "status": "no-change",
+          "answerSource": "model",
+          "answerIssues": [],
+          "native": null,
+          "limitation": null
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "requests": 31,
+    "requestedModels": [
+      "claude-haiku-5-5"
+    ],
+    "answeredModels": [
+      "claude-haiku-5-5"
+    ],
+    "uncachedInput": 80,
+    "cacheReads": 446454,
+    "cacheWrites": 43319,
+    "output": 12945,
+    "rawProcessed": 502798,
+    "estimatedUsd": 0.016359915000000003,
+    "byModel": {
+      "claude-haiku-5-5": {
+        "requests": 31,
+        "estimatedUsd": 0.016359915000000003
+      }
+    },
+    "actualBilledUsd": null
+  }
+}

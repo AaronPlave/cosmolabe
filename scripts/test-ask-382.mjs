@@ -71,8 +71,9 @@ try {
     for (const [width, zoom] of [[1280, 1], [1280, 1.25], [1280, 1.5], [420, 1]]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(z => { document.body.style.zoom = String(z); }, zoom);
-      const geometry = await page.locator('.ask-measurements').evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth }));
+      const geometry = await page.locator('.ask-measurements').evaluate(el => ({ width: el.clientWidth, scrollWidth: el.scrollWidth, dockScrollTop: el.closest('.instrument')?.parentElement?.scrollTop ?? null }));
       assert.ok(geometry.scrollWidth <= geometry.width + 1, 'measurement readout fits the panel');
+      assert.equal(geometry.dockScrollTop, 0, 'the shared dock remains anchored while the transcript scrolls');
       const composer = await page.getByRole('textbox', { name: 'Request', exact: true }).boundingBox();
       assert.ok(composer && composer.y >= 0 && composer.y + composer.height <= 900, 'composer remains in view');
       layout.push({ width, zoom, geometry });

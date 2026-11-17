@@ -1,5 +1,7 @@
 # Ask follow-ups: goal lifecycle, requested quantity and result presentation (#381)
 
+> Historical record at `bc6a17ca`, before the #382 review fixes. The measured before/after numbers below are retained. Boundary selection, insertion wording, result hierarchy and Place-distance readback are corrected in [382-review.md](382-review.md).
+
 All live runs: `claude-haiku-5-5`, fixed tools, Chromium SwiftShader, `ASK_BENCHMARK_SUITE=followup` and
 `ASK_BENCHMARK_SUITE=efficiency`. Estimated spend for every run in this work, including failed harness
 attempts: about $0.13 (proxy estimate, not a bill). Single observations per cell, not success rates.
