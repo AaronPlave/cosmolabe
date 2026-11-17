@@ -47,7 +47,7 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[], report?: GoalReport | null): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
-  if (events.some(f => f.rangeKm !== null) && !facts.some(f => f.kind === 'sampled-range')
+  if (events.some(f => f.rangeKm !== null) && !facts.some(f => f.kind === 'sampled-range' || f.kind === 'sampled-profile')
     && /\b(?:largest|smallest|maximum|minimum)\s+(?:of|among)\s+\d+\s+(?:hourly|daily|uniform|1-hour)\s+samples\b/i.test(text)) {
     issues.push('Event Finder reports computed range turning-point candidates from a step-limited search, not an hourly sampled profile. Do not describe its event count as a sample count.');
   }

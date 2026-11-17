@@ -1,3 +1,4 @@
+import { etToDate } from '@cosmolabe/core';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { findClosestApproach } from './closest-approach.js';
@@ -61,6 +62,12 @@ describe('bounded closest-approach composition', () => {
     expect(factSummary([far, { kind: 'range-edge', observer: 'Saturn', target: 'Cassini', km: 3e8, et: 0, utc: '2004-01-01T00:00:00Z' }])).toMatch(/larger, 3.00e\+8 km, at the 2004-01-01 edge of loaded coverage/);
     expect(checkAnswer('Cassini is farthest from Saturn at about 9.1 million km on 2004-08-27.', [far])).toEqual([]);
     expect(checkAnswer('That is the largest of 84 hourly samples.', [far])).toContain('Event Finder reports computed range turning-point candidates from a step-limited search, not an hourly sampled profile. Do not describe its event count as a sample count.');
+    // A genuine range-rate profile alongside an event can describe its own
+    // uniform samples; the GF candidate count must not suppress that evidence.
+    const rate = [0, 3600, 7200].map((et, i) => ({ et, utc: etToDate(et).toISOString(), value: i / 1000 }));
+    expect(checkAnswer('The maximum among 3 hourly samples of range rate is 0.002 km/s; no missing samples.', [far,
+      { kind: 'sampled-profile', observer: 'Saturn', target: 'Cassini', quantity: 'range-rate', unit: 'km/s', startUtc: rate[0].utc, endUtc: rate[2].utc, count: 3, missing: 0, samples: rate },
+    ])).toEqual([]);
   });
   it('holds an incomplete presentation to its framing and drawing, so it cannot read as a clean success (#381)', async () => {
     const host = fixture();
