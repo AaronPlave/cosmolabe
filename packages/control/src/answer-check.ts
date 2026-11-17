@@ -47,6 +47,10 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[], report?: GoalReport | null): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  if (events.some(f => f.rangeKm !== null) && !facts.some(f => f.kind === 'sampled-range')
+    && /\b(?:largest|smallest|maximum|minimum)\s+(?:of|among)\s+\d+\s+(?:hourly|daily|uniform|1-hour)\s+samples\b/i.test(text)) {
+    issues.push('Event Finder reports computed range turning-point candidates from a step-limited search, not an hourly sampled profile. Do not describe its event count as a sample count.');
+  }
   const current = facts.filter(f => f.kind === 'current-event').at(-1);
   if (current) for (const sentence of sentences(text)) {
     const claim = /\b(?:viewer|view)\s+(?:is\s+)?(?:still\s+)?(?:on|showing)\s+(?:the\s+)?([A-Z][A-Za-z0-9 -]{0,60}?)\s+(?:closest approach|farthest (?:point|result)|encounter|result)\b/.exec(sentence)?.[1]

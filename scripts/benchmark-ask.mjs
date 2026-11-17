@@ -123,7 +123,14 @@ try {
       try {
         console.log(`Running ${test.id} ${model} ${mode}`);
         await page.goto(`${base}?catalog=test-catalogs/${test.catalog}&test=1&askMode=${mode}`, { waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
+        // A scene shell can become ready before its requested catalog/coverage
+        // replaces the previous scene. Seed only the intended loaded fixture.
+        await page.waitForFunction(({ object, pair }) => {
+          const c = window.cosmo;
+          return c?.getScene()?.ready && (!object || c.listObjects().includes(object))
+            && (!pair || c.getEventSearchOptions({ kind: 'closest-approach', bodies: pair }).coverage?.status === 'available');
+        }, { object: test.readyObject ?? test.seed?.closestApproach?.observer ?? null,
+          pair: test.readyPair ?? (test.seed?.closestApproach ? { observer: test.seed.closestApproach.observer, target: test.seed.closestApproach.target } : null) }, { timeout: 120000 });
         await page.evaluate(async ({ test }) => {
           const loaded = path => performance.getEntriesByType('resource').map(e => e.name).find(url => new URL(url).pathname === path);
           window.__askBench = await import(loaded('/src/lib/ask/ask.svelte.ts'));

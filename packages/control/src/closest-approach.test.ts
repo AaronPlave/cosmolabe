@@ -60,6 +60,7 @@ describe('bounded closest-approach composition', () => {
     expect(factSummary([far])).toBe('The viewer\'s farthest Saturn–Cassini turning point is 9.10e+6 km center to center on 2004-08-27: the largest computed range maximum in the searched window, not an all-time maximum.');
     expect(factSummary([far, { kind: 'range-edge', observer: 'Saturn', target: 'Cassini', km: 3e8, et: 0, utc: '2004-01-01T00:00:00Z' }])).toMatch(/larger, 3.00e\+8 km, at the 2004-01-01 edge of loaded coverage/);
     expect(checkAnswer('Cassini is farthest from Saturn at about 9.1 million km on 2004-08-27.', [far])).toEqual([]);
+    expect(checkAnswer('That is the largest of 84 hourly samples.', [far])).toContain('Event Finder reports computed range turning-point candidates from a step-limited search, not an hourly sampled profile. Do not describe its event count as a sample count.');
   });
   it('holds an incomplete presentation to its framing and drawing, so it cannot read as a clean success (#381)', async () => {
     const host = fixture();
