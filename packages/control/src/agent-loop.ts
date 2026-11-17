@@ -371,6 +371,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const contractOf = (name: string, input: unknown) => opts.tools.contractOf?.(name, input) ?? null;
   const isRead = (name: string, input: unknown) => DISCOVERY_NAMES.has(name) || contractOf(name, input)?.writes.length === 0;
   const messages: AgentMessage[] = [...compactHistory(opts.history ?? [], isRead), { role: 'user', content: [{ type: 'text', text: opts.prompt }] }];
+  try {
+    const current = opts.tools.inspect?.().facts?.filter(f => f.kind === 'current-event').at(-1);
+    if (current) messages[messages.length - 1] = { role: 'user', content: [...messages[messages.length - 1].content,
+      { type: 'text', text: `${HOST_CHECK_PREFIX} Current native selected event: ${current.observer ?? '?'}–${current.target ?? '?'}; viewer clock ${current.utc}. This is the current selection, independent of historical results being compared; a comparison does not switch it.` }] };
+  } catch { /* A missing current observation supplies no evidence. */ }
   let rounds = 0;
   let usage: AgentUsage | null = null;
   const stats = () => ({ rounds, usage, rawTokens: usage ? usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens : null });

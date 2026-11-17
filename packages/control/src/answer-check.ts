@@ -49,7 +49,8 @@ export function checkAnswer(text: string, facts: readonly ResultFact[], report?:
   const issues: string[] = [];
   const current = facts.filter(f => f.kind === 'current-event').at(-1);
   if (current) for (const sentence of sentences(text)) {
-    const claim = /\b(?:viewer|view)\s+(?:is\s+)?(?:still\s+)?(?:on|showing)\s+(?:the\s+)?([A-Z][A-Za-z0-9 -]{0,60}?)\s+(?:closest approach|farthest (?:point|result)|encounter|result)\b/.exec(sentence)?.[1];
+    const claim = /\b(?:viewer|view)\s+(?:is\s+)?(?:still\s+)?(?:on|showing)\s+(?:the\s+)?([A-Z][A-Za-z0-9 -]{0,60}?)\s+(?:closest approach|farthest (?:point|result)|encounter|result)\b/.exec(sentence)?.[1]
+      ?? /\b(?:the\s+)?([A-Z][A-Za-z0-9 -]{0,60}?)\s+(?:result|encounter)\s+is\s+still\s+(?:the one\s+)?(?:framed|shown|selected)\b/.exec(sentence)?.[1];
     if (claim && ![current.observer, current.target].some(n => n?.toLowerCase() === claim.toLowerCase())) issues.push(`The native selected event is ${current.observer ?? '?'}–${current.target ?? '?'} at ${current.utc}, not the claimed ${claim} result. Describe the comparison separately from the current selection.`);
   }
   for (const sentence of sentences(text)) {

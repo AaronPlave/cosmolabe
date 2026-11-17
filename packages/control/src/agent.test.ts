@@ -404,14 +404,15 @@ describe('runAgent: the transport gives out partway', () => {
 });
 
 describe('runAgent', () => {
-  it('checks the final native selection on a no-change comparison, without reviving earlier goals', async () => {
+  it.each(['The viewer is still on the Titan closest approach.', 'The viewer is unchanged, so the Titan result is still the one framed.'])('checks final selection on a no-change comparison: %s', async text => {
     const tools = createAgentTools(new FakeViewer());
     tools.inspect = () => ({ ok: true, summary: 'Current selection', facts: [{ kind: 'current-event', query: 'saturn-max', id: 'max', observer: 'Saturn', target: 'Cassini', utc: '2004-08-27T08:56:46Z' }] });
     const transport = new MockTransport([
-      { stop: 'end', content: [{ type: 'text', text: 'The viewer is still on the Titan closest approach.' }] },
-      { stop: 'end', content: [{ type: 'text', text: 'The viewer is still on the Titan closest approach.' }] },
+      { stop: 'end', content: [{ type: 'text', text }] },
+      { stop: 'end', content: [{ type: 'text', text }] },
     ]);
     const run = await runAgent({ transport, tools, prompt: 'compare that with the Titan encounter' });
+    expect(JSON.stringify(transport.requests[0].messages.at(-1))).toContain('Current native selected event: Saturn–Cassini');
     expect(run.result.status).toBe('no-change');
     expect(run.result.answerSource).toBe('host-facts');
     expect(run.result.answerIssues[0]).toContain('native selected event is Saturn–Cassini');

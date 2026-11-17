@@ -57,8 +57,17 @@
   $effect(() => {
     void ask.turns.length;
     void ask.turns.at(-1)?.steps.length;
-    void ask.turns.at(-1)?.reply;
-    void tick().then(() => transcript?.scrollTo({ top: transcript.scrollHeight }));
+    const latest = ask.turns.at(-1);
+    void latest?.reply;
+    void latest?.status;
+    void tick().then(() => {
+      if (!transcript) return;
+      // Completed numerical results start at their quantity/value, not at the
+      // diagnostics below them. Scroll only this panel's transcript.
+      const result = latest?.status !== 'running' ? transcript.querySelector('.ask-turn:last-child .ask-measurements') : null;
+      const top = result ? transcript.scrollTop + result.getBoundingClientRect().top - transcript.getBoundingClientRect().top : transcript.scrollHeight;
+      transcript.scrollTo({ top });
+    });
   });
 
   function send() {
