@@ -183,7 +183,7 @@
   {/each}
 {/snippet}
 
-<InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
+<InstrumentPanel key="ask" title="Ask Cosmolabe" initialHeightVh={65} width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if import.meta.env.DEV}
       <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} data-ask-catalog="shared-capability-v1" title="Shared capability catalog: Fixed uses a compact direct schema shortlist; Discovery uses registry tools">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>

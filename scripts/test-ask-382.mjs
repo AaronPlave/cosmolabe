@@ -13,7 +13,7 @@ try {
   for (const catalog of (process.env.ASK_382_CATALOGS?.split(',') ?? ['cassini-soi', 'europa-clipper', 'ingenuity-jezero'])) {
     console.log(`Loading ${catalog}`);
     await page.goto(`${base}?catalog=test-catalogs/${catalog}`);
-    await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 120000 });
+    await page.waitForFunction(object => window.cosmo?.getScene()?.ready && window.cosmo.listObjects().includes(object), catalog === 'cassini-soi' ? 'Cassini' : catalog === 'europa-clipper' ? 'Europa Clipper' : 'Ingenuity', { timeout: 120000 });
     await page.evaluate(async () => {
       const path = p => performance.getEntriesByType('resource').map(r => r.name).find(u => new URL(u).pathname === p);
       window.__ask382 = await import(path('/src/lib/ask/ask.svelte.ts'));
@@ -23,7 +23,7 @@ try {
     const data = { catalog };
     // Native results are retained independently from fixture presentation.
     const native = await page.evaluate(async catalog => {
-      const c = window.cosmo;
+      const c = window.cosmo; c.setTimeRate(0); c.setPlaying(false);
       if (catalog === 'ingenuity-jezero') {
         const places = c.searchPlaces('Belva', { body: 'Mars' });
         const p = places.find(p => p.name === 'Belva');
