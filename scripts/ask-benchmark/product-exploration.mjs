@@ -16,7 +16,7 @@ export const followupCases = [
     turns:['Show me what Closest approach: Cassini / Titan found and help me understand it.',
       'show me when cassini is furthest from saturn after initial orbit insertion',
       'compare that with the Titan encounter'],
-    rubric:'Turn 2 must not fail on a clock/event goal held from turn 1; must report Cassini–Saturn distance (center range) at the farthest sampled/covered point after the derived insertion boundary, scoped to loaded coverage. Turn 3 compares the two without resurrecting a stale time/camera obligation.' },
+    rubric:'Turn 2 must not fail on a clock/event goal held from turn 1; must report Cassini–Saturn distance (center range) at the farthest sampled/covered point after a genuinely sourced insertion epoch or explicitly after the first observed Saturn periapsis in loaded data (never equate that proxy with insertion), scoped to loaded coverage. Turn 3 compares the two without resurrecting a stale time/camera obligation.' },
   { id:'clipper-europa-followup', catalog:'europa-clipper', assessment:true, seed:{ closestApproach:{ observer:'Europa Clipper', target:'Europa', label:'Closest approach: Europa Clipper / Europa' } },
     turns:['Show me what Closest approach: Europa Clipper / Europa found and help me understand it.',
       'show me when clipper is farthest from jupiter',

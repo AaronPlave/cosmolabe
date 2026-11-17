@@ -208,11 +208,17 @@
           {#if shown.hostAccount}
             <p class="ask-host-account ui-helper whitespace-normal text-warning" role="status">{shown.hostAccount}</p>
           {/if}
-          {#if turn.reply}
-            <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
-            <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
-              {@render answerBlocks(parseAnswer(turn.reply))}
-            </div>
+          {#if shown.measurements.length}
+            <dl class="ask-measurements flex flex-col gap-2" aria-label="Measured results">
+              {#each shown.measurements as measurement}
+                <div class="flex min-w-0 flex-col gap-0.5">
+                  <dt class="ui-section-label whitespace-normal">{measurement.quantity}</dt>
+                  <dd class="ui-readout-strong">{measurement.value}</dd>
+                  {#if measurement.utc}<dd class="ui-readout whitespace-normal">{measurement.utc}</dd>{/if}
+                  <dd class="ui-helper whitespace-normal text-text-muted">{measurement.context}</dd>
+                </div>
+              {/each}
+            </dl>
           {/if}
           <!-- One line on what the viewer did, in the person's terms; the loop's own checks live under Action details. -->
           <p class="ask-status ui-helper flex items-center gap-1 whitespace-normal text-text-muted" role="status">
@@ -225,6 +231,23 @@
           {#if endNote(turn, stepLabel)}
             {@const note = endNote(turn, stepLabel)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
+          {/if}
+          {#if shown.interpretation}
+            <p class="ask-interpretation ui-body whitespace-normal text-text-primary">{shown.interpretation}</p>
+          {/if}
+          {#if turn.reply}
+            {#if shown.measurements.length}
+              <details class="ask-explanation">
+                <summary class="ui-helper cursor-pointer text-text-muted">Explanation</summary>
+                <div class="ask-answer ui-body mt-1 flex w-full flex-col gap-1.5 text-text-primary">
+                  {@render answerBlocks(parseAnswer(turn.reply))}
+                </div>
+              </details>
+            {:else}
+              <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
+                {@render answerBlocks(parseAnswer(turn.reply))}
+              </div>
+            {/if}
           {/if}
           {#if turn.steps.length > 0}
             <details class="ask-actions">

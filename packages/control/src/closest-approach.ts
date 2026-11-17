@@ -113,17 +113,10 @@ export async function findClosestApproach(host: ViewerControl, request: ScriptCl
       if (page.items.length && (farthest ? range(page) > range(result.result) : range(page) < range(result.result))) result.result = page;
     }
     if (!result.result) return stop(null, 'no-results');
-    if (farthest) {
-      // A local-maximum search cannot see a window edge: a range still growing when coverage ends (or largest
-      // where it begins) is farther than every turning point. Say so instead of calling the turning point the farthest.
-      const best = result.result.items[0]?.event.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value ?? -Infinity;
-      const rangeAt = (et: number) => { try { const p = host.getObjectState?.(request.target, { time: { kind: 'et', et }, center: request.observer })?.position; return p ? Math.hypot(...p) : null; } catch { return null; } };
-      const edges = result.windows.flatMap(w => [w.start, w.end]).map(et => ({ et, km: rangeAt(et) })).filter((e): e is { et: number; km: number } => e.km !== null && e.km > best);
-      if (edges.length) {
-        const edge = edges.reduce((a, b) => (b.km > a.km ? b : a));
-        result.edgeMaximum = edge;
-        result.limitations = [...result.limitations, `The range is larger at a coverage edge (ET ${edge.et}, ${Math.round(edge.km)} km) than at any computed turning point, so the farthest point in loaded coverage is that edge, not the presented result. The data may continue beyond it.`];
-      }
+    const winner = result.result.items[0].event;
+    if (farthest && winner.state === 'coverage-boundary' && winner.temporality === 'instant') {
+      result.edgeMaximum = { et: winner.et, km: winner.metrics!.find(m => m.key === 'range')!.value };
+      result.limitations = [...result.limitations, 'The largest evaluated range is at a coverage boundary of the searched interval, not an interior turning point. Larger ranges may occur outside this interval; the step-limited search is not a certified global maximum.'];
     }
     if (cancelled()) return stop('cancelled', 'interrupted');
     if (request.present !== false) {

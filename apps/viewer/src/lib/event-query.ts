@@ -236,8 +236,10 @@ const STATE_TITLE: Record<string, string> = { full: 'Full', partial: 'Partial', 
 export function eventCalloutTitle(event: GeometryEvent): string {
   const { observer, target, back } = event.bodies;
   switch (event.kind) {
-    case 'closest-approach':
-      return target ? `Closest approach · ${target}` : 'Closest approach';
+    case 'closest-approach': {
+      const title = event.state === 'coverage-boundary' ? 'Boundary maximum' : event.state === 'range-maximum' ? 'Farthest point' : 'Closest approach';
+      return target ? `${title} · ${target}` : title;
+    }
     case 'occultation': {
       const phenomenon = back?.toUpperCase() === 'SUN' ? 'eclipse' : 'occultation';
       const state = event.state ? STATE_TITLE[event.state] ?? event.state : '';

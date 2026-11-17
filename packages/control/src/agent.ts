@@ -149,7 +149,19 @@ export interface ImageryEvidenceFact { readonly kind: 'imagery-state'; readonly 
 
 export interface ProfileSeriesFact { readonly kind: 'sampled-profile'; readonly plot?: { readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly visible: boolean }; readonly observer: string; readonly target: string; readonly quantity: string; readonly unit: string | null; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly samples: readonly { value: number | null; utc: string; et: number }[] }
 
-export type ResultFact = ProfileSeriesFact | ImageryEvidenceFact | { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly maximumKm?: number; readonly maximumUtc?: string; readonly maximumEt?: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'range-edge'; readonly observer: string; readonly target: string; readonly km: number; readonly et: number; readonly utc: string } | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
+export interface PlaceDistanceFact {
+  readonly kind: 'place-distance';
+  readonly object: string;
+  readonly place: string;
+  readonly placeName?: string | null;
+  readonly km: number | null;
+  readonly utc: string | null;
+  readonly frame: string | null;
+  readonly body: string | null;
+  readonly datum: import('@cosmolabe/core').TerrainDatum | null;
+  readonly sourceClassification: string;
+}
+export type ResultFact = { readonly kind: 'current-event'; readonly query: string | null; readonly id: string | null; readonly observer: string | null; readonly target: string | null; readonly utc: string } | PlaceDistanceFact | ProfileSeriesFact | ImageryEvidenceFact | { readonly kind:'activity-inventory'; readonly object:string; readonly counts:Readonly<Record<string,number>> } | { readonly kind:'authored-viewpoint'; readonly name:string; readonly utc:string } | HeightAnalysisFact | SceneExistenceFact | { readonly kind: 'event-search-failure'; readonly reason: string } | { readonly kind: 'sampled-range'; readonly observer: string; readonly target: string; readonly startUtc: string; readonly endUtc: string; readonly count: number; readonly missing: number; readonly minimumKm: number; readonly minimumUtc: string; readonly minimumEt: number; readonly maximumKm?: number; readonly maximumUtc?: string; readonly maximumEt?: number; readonly eventSearchUnavailable: boolean; readonly samples?: readonly { km: number; utc: string; et: number }[] } | EventResultFact | { readonly kind: 'range-edge'; readonly observer: string; readonly target: string; readonly km: number; readonly et: number; readonly utc: string } | { readonly kind: 'event-window'; readonly query: string; readonly startUtc: string; readonly endUtc: string; readonly maxRangeKm: number | null };
 export interface HeightAnalysisFact {
   readonly kind: 'height-analysis'; readonly status: string; readonly message: string;
   readonly requested: number; readonly completed: number; readonly metric: string;
@@ -172,6 +184,7 @@ export interface EventResultFact {
   readonly query: string;
   /** The search's range extremum: closest approaches (minimum) or farthest points (maximum). */
   readonly extremum?: 'minimum' | 'maximum';
+  readonly rangeLocation?: 'coverage-boundary' | 'interior';
   readonly id: string;
   readonly observer: string | null;
   readonly target: string | null;
@@ -360,6 +373,7 @@ const READ_TOOLS: readonly AgentDefinition[] = [
     } } },
     release: { type: 'array', maxItems: 12, items: { type: 'string' }, description: 'Held predicates the person explicitly gave up, by slot (e.g. "range:Psyche", "view:Mars", "clock").' },
   } }, contract: { namespace: 'scene', writes: [] } },
+  { name: 'getPlaceDistance', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getPlaceDistance', description: 'Current straight-line distance from an entity to a Place mapped reference point through the shared SpatialEndpoint measurement resolver. First resolve the Place ref using searchPlaces. Supports geographic point anchors, not only scene objects. Returns numerical km, exact epoch, frame/datum and position availability; zero mapped height is reference shape, not physical terrain. Accuracy/registration unknown: never invent precision or local/Mars-centered numerical estimates. A current distance does NOT answer "when closest?": Event Finder supports entity pairs, not a geographic point; for closest-time requests report that concise limitation without a model-made estimate or time.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, place: { type: 'string' } }, required: ['object','place'], additionalProperties: false } },
   { name: 'getSpatialContext', contract: { namespace: 'spatial', writes: [], guide: 'For "top of a body", the north pole and the top of the visible disc differ: ask when ambiguous. Take reference shape and body-fixed frame from this read, never from memory. It is body-scoped: check a saved feature on its layer\'s body (Mars), not on the vehicle above it (Ingenuity).' }, effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'getObjectState', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. Position units are km. For a transition investigation, read getObjectContext for relevant scene boundaries and inspect a bounded numerical history; isolated point ranges/minima do not prove release/contact. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', contract: { namespace: 'spatial', writes: [] }, effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['rendered','reference','terrain'] } }, required: ['object'], additionalProperties: false } },
@@ -836,7 +850,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const summary = scene === null && has(host, 'getScene')
       ? 'No scene is loaded.'
       : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected object ${selected ?? 'none'}; selected activity ${activity?.name ?? 'none'}; selected place ${place?.name ?? 'none'}; tracking ${tracked ?? 'nothing'}.`;
-    return { ok: true, summary, data: { ...data, askHelp: { categories:guidanceOverview(capabilities), examples:guidanceExamples({capabilities,scene:data}), authority:ASK_AUTHORITY } }, ...(imagery?.layers.length ? { facts: [imageryFact(imagery)] } : {}) };
+    const selection = attempt(() => host.getEventVisualization?.().selected);
+    const definition = selection ? attempt(() => host.getEventQueryInfo?.(selection.query).definition?.query) : null;
+    const current: ResultFact[] = selection && definition ? [{ kind: 'current-event', query: selection?.query ?? null, id: selection?.id ?? null,
+      observer: definition?.bodies.observer ?? null, target: definition?.bodies.target ?? null, utc: etToDate(et).toISOString() }] : [];
+    return { ok: true, summary, data: { ...data, askHelp: { categories:guidanceOverview(capabilities), examples:guidanceExamples({capabilities,scene:data}), authority:ASK_AUTHORITY } }, facts: [...current, ...(imagery?.layers.length ? [imageryFact(imagery)] : [])] };
   }
 
   function resolve(input: Input): AgentToolResult {
@@ -1046,6 +1064,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       return { ok: true, summary: 'Configured scene timing, not measured event timing.', data: context ? { ...context, existence: window(context.existence), trajectoryArcs: context.trajectoryArcs.map(window), geometryWindows: context.geometryWindows.map(window) } : null };
     },
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    getPlaceDistance: input => {
+      const r = host.getPlaceDistance!(input.object as string, input.place as string);
+      const data = r ? { ...r, placeName: metadata.text(r.placeName), frame: metadata.text(r.frame), sourceClassification: ['unknown','observed','reconstructed','predicted','planned','synthetic'].includes(r.sourceClassification) ? r.sourceClassification : 'unknown', utc: etToDate(r.et).toISOString() } : null;
+      return { ok: true, summary: data?.status === 'available' ? 'Native current distance to the mapped reference anchor. State frame/datum, epoch and unknown accuracy; no closest-time claim.' : 'Current mapped-point distance unavailable. No numerical estimate, precision or closest-time claim is supported.', data,
+        facts: [{ kind: 'place-distance' as const, object: input.object as string, place: input.place as string, placeName: r ? metadata.text(r.placeName) : null, km: r?.distanceKm ?? null, utc: r ? etToDate(r.et).toISOString() : null, frame: r ? metadata.text(r.frame) : null, body: r?.body ?? null, datum: r?.datum ?? null, sourceClassification: data?.sourceClassification ?? 'unknown' }] };
+    },
     getSpatialContext: input => ({ ok: true, summary: 'Targeted body/state/Draw conventions; missing layers can be created after approval.', data: metadata.spatialContext(host.getSpatialContext!(input.object as string)) }),
     getObjectState: input => {
       const state = host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined });
@@ -1092,7 +1116,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const facts: ResultFact[] = data.items.map((item): EventResultFact => {
         const metric = (key: string) => item.metrics.find(m => m.key === key && m.unit === 'km')?.value ?? null;
         const c = 'encounter' in item ? item.encounter : undefined;
-        return { kind: 'event-result', query: item.reference.query, id: item.reference.id, extremum: data.query.definition?.params.extremum === 'maximum' ? 'maximum' : 'minimum', observer: (item.bodies as Record<string, string>).observer ?? null, target: (item.bodies as Record<string, string>).target ?? null,
+        return { kind: 'event-result', rangeLocation: item.rangeLocation, query: item.reference.query, id: item.reference.id, extremum: data.query.definition?.params.extremum === 'maximum' ? 'maximum' : 'minimum', observer: (item.bodies as Record<string, string>).observer ?? null, target: (item.bodies as Record<string, string>).target ?? null,
           utc: 'utc' in item ? item.utc ?? null : null, rangeKm: metric('range'), altitudeKm: metric('altitude'), encounter: c?.encounter ?? null, criterion: c?.criterion ?? null, criterionBody: c?.body ?? null, thresholdKm: c?.thresholdKm ?? null };
       });
       if (window && data.query.definition) facts.push({ kind: 'event-window', query: data.query.definition.id, startUtc: window.start, endUtc: window.end, maxRangeKm: typeof data.query.definition.params.maxRangeKm === 'number' ? data.query.definition.params.maxRangeKm : null });

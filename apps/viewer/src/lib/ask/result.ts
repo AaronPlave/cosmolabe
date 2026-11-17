@@ -12,6 +12,8 @@ import { tally } from './ask.svelte';
 export interface TurnPresentation {
   /** The outcome in the person's terms, or null while the request runs. */
   readonly outcome: string | null;
+  readonly interpretation: string | null;
+  readonly measurements: readonly { quantity: string; value: string; utc: string | null; context: string }[];
   /** The one limitation that changes what the person should believe, or null. */
   readonly limitation: { readonly text: string; readonly tone: 'warning' | 'muted' } | null;
   /** Why the shown answer is the viewer's account instead of the model's, or null. */
@@ -44,7 +46,7 @@ export function plainFailure(slot: string, detail: string): string {
 
 export function presentTurn(turn: AskTurn, formatTime: (et: number) => string): TurnPresentation {
   const r = turn.result;
-  if (turn.status === 'running' || !r) return { outcome: null, limitation: null, hostAccount: null, diagnostics: [] };
+  if (turn.status === 'running' || !r) return { measurements: [], interpretation: null, outcome: null, limitation: null, hostAccount: null, diagnostics: [] };
   const checks = r.report?.checks ?? [];
   const diagnostics = [
     ...checks.map(c => `${c.slot}: ${c.ok === null ? 'unobserved' : c.ok ? 'ok' : 'unmet'} · ${c.detail}`),
@@ -62,11 +64,28 @@ export function presentTurn(turn: AskTurn, formatTime: (et: number) => string): 
   const counts = tally(turn);
   let outcome: string;
   if (event) {
-    const kind = event.extremum === 'maximum' ? 'farthest point' : event.encounter === true ? 'flyby' : 'closest approach';
-    outcome = `Showing ${kind} · ${event.observer ?? '?'} → ${event.target ?? '?'}${event.utc ? ` · ${event.utc.slice(0, 16).replace('T', ' ')} UTC` : ''}`;
+    const kind = event.rangeLocation === 'coverage-boundary' ? 'coverage-boundary maximum' : event.extremum === 'maximum' ? 'farthest point' : event.encounter === true ? 'flyby' : 'closest approach';
+    outcome = `Showing ${kind}${paused ? ' · paused' : ''}`;
   } else if (clock && Number.isFinite(Number(clock))) outcome = `${paused ? 'Paused' : 'Clock'} at ${formatTime(Number(clock))}`;
   else if (r.status === 'no-change') outcome = turn.status === 'done' ? 'No viewer changes' : 'Request stopped';
   else outcome = `${plural(counts.done + counts.partial, 'viewer change')}${r.status === 'verified' ? ', checked' : r.status === 'unverified' ? '; not all could be checked' : ''}`;
+
+  // Numerical evidence leads; ordinary chat/no-data keeps its natural prose.
+  // One latest result per pair supports comparisons without reviving old views.
+  const byPair = new Map<string, Extract<typeof r.facts[number], { kind: 'event-result' }>>();
+  for (const f of r.facts) if (f.kind === 'event-result' && f.rangeKm !== null) {
+    const key = `${f.observer}/${f.target}`, prior = byPair.get(key);
+    if (!prior || prior.query !== f.query || (f.extremum === 'maximum' ? f.rangeKm > prior.rangeKm! : f.rangeKm < prior.rangeKm!)) byPair.set(key, f);
+  }
+  if (event?.rangeKm !== null && event?.rangeKm !== undefined) byPair.set(`${event.observer}/${event.target}`, event);
+  const measurements: TurnPresentation['measurements'][number][] = [...byPair.values()].slice(-3).map(f => ({
+    quantity: `${f.observer ?? '?'} → ${f.target ?? '?'} · ${f.rangeLocation === 'coverage-boundary' ? 'Coverage-boundary maximum' : f.extremum === 'maximum' ? 'Maximum center range' : 'Minimum center range'}`,
+    value: `${Number(f.rangeKm!.toPrecision(6)).toLocaleString('en-US', { maximumSignificantDigits: 6 })} km`,
+    utc: f.utc?.replace('T', ' ').replace(/(?:\.\d+)?Z$/, ' UTC') ?? null,
+    context: f.rangeLocation === 'coverage-boundary' ? 'Largest evaluated range · coverage boundary' : f.extremum === 'maximum' ? 'Largest computed turning point · searched coverage' : 'Closest computed approach · searched coverage',
+  }));
+  const distance = r.facts.filter(f => f.kind === 'place-distance').at(-1);
+  if (distance?.km !== null && distance?.km !== undefined) measurements.push({ quantity: `${distance.object} → ${distance.placeName ?? 'Mapped reference point'} · Straight-line distance`, value: `${Number(distance.km.toPrecision(6))} km`, utc: distance.utc?.replace('T', ' ').replace(/(?:\.\d+)?Z$/, ' UTC') ?? null, context: `${distance.frame ?? 'Frame withheld'} · ${distance.datum?.verticalDatum ?? 'reference'} datum · available at this epoch` });
 
   let limitation: TurnPresentation['limitation'] = null;
   const failing = checks.filter(c => c.ok === false && !c.soft);
@@ -74,9 +93,12 @@ export function presentTurn(turn: AskTurn, formatTime: (et: number) => string): 
   else if (r.status === 'partial') limitation = { tone: 'muted', text: `Not yet observed: ${checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')}` };
   else if (r.status === 'unverified') limitation = { tone: 'muted', text: `Not checked in the viewer: ${[...r.unobservable.map(u => u.replace(/^[^:]+: /, '')), ...checks.filter(c => c.ok !== true).map(c => c.detail)].join('; ')}` };
 
-  // A farthest search whose range keeps growing to a coverage edge: the presented turning point is not the farthest loaded point.
-  const edge = r.facts.filter(f => f.kind === 'range-edge').at(-1);
-  if (!limitation && edge) limitation = { tone: 'warning', text: `Farther at the ${edge.utc.slice(0, 10)} edge of loaded data (${Math.round(edge.km).toLocaleString('en-US')} km); the data may continue beyond it.` };
+  // A boundary winner is already the selected native result.
+  const edge = r.facts.filter(f => f.kind === 'range-edge').at(-1) ?? [...byPair.values()].find(f => f.rangeLocation === 'coverage-boundary');
+  if (!limitation && edge) limitation = { tone: 'warning', text: `Largest at a searched interval boundary; larger ranges may occur outside it. No certified global maximum.` };
+
+  if (!limitation && distance) limitation = { tone: 'muted', text: distance.km === null ? 'Mapped-point distance unavailable; no numerical estimate is established.' : 'Distance to the mapped anchor, not the crater rim. Source registration and position accuracy are unknown.' };
+  if (!limitation && [...byPair.values()].some(f => f.extremum === 'maximum')) limitation = { tone: 'muted', text: 'Step-limited search in loaded coverage; not a certified global maximum.' };
 
   let hostAccount: string | null = null;
   if (r.answerSource === 'host-facts') {
@@ -84,5 +106,6 @@ export function presentTurn(turn: AskTurn, formatTime: (et: number) => string): 
       ? `The viewer's own account is shown: the model's answer contradicted its results (${r.answerIssues[0] ?? 'see Action details'}).`
       : 'The model stopped before finishing; the viewer\'s measured account is shown and the requested view may be incomplete.';
   }
-  return { outcome, limitation, hostAccount, diagnostics };
+  const interpretation = measurements.length ? distance ? 'Straight-line separation to the mapped anchor.' : 'Measured between object centers.' : null;
+  return { measurements, interpretation, outcome, limitation, hostAccount, diagnostics };
 }

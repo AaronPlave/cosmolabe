@@ -47,6 +47,20 @@ const dayDiff = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)
 export function checkAnswer(text: string, facts: readonly ResultFact[], report?: GoalReport | null): string[] {
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result');
   const issues: string[] = [];
+  const current = facts.filter(f => f.kind === 'current-event').at(-1);
+  if (current) for (const sentence of sentences(text)) {
+    const claim = /\b(?:viewer|view)\s+(?:is\s+)?(?:still\s+)?(?:on|showing)\s+(?:the\s+)?([A-Z][A-Za-z0-9 -]{0,60}?)\s+(?:closest approach|farthest (?:point|result)|encounter|result)\b/.exec(sentence)?.[1];
+    if (claim && ![current.observer, current.target].some(n => n?.toLowerCase() === claim.toLowerCase())) issues.push(`The native selected event is ${current.observer ?? '?'}–${current.target ?? '?'} at ${current.utc}, not the claimed ${claim} result. Describe the comparison separately from the current selection.`);
+  }
+  for (const sentence of sentences(text)) {
+    if (/first (?:observed )?(?:\w+ )?(?:periapsis|perijove|range minimum)[^.!?]{0,100}\b(?:is|was|marks|establishes)\b[^.!?]{0,60}\b(?:orbit |orbital )?insertion\b/i.test(sentence) && !NEGATED.test(sentence)) issues.push('The first observed periapsis in loaded data does not establish orbit insertion; use a sourced epoch or explicitly disclose the observed-periapsis scope.');
+  }
+  const placeDistances = facts.filter(f => f.kind === 'place-distance');
+  if (placeDistances.length) {
+    for (const d of statedDistancesKm(text)) if (!placeDistances.some(f => f.km !== null && Math.abs(d.km - f.km) <= Math.max(1e-6, f.km * 0.05))) issues.push(`"${d.text}" is not supported by the native mapped-point distance read.`);
+    if (sentences(text).some(s => /\b(?:accuracy|accurate|precision|precise|uncertainty|error bound)\b/i.test(s) && !/\b(?:unknown|unavailable|not|no|cannot|doesn.t|does not|without)\b/i.test(s))) issues.push('Mapped-point registration and position accuracy are unknown; numerical display precision is not accuracy.');
+    if (sentences(text).some(s => /\b(?:closest|minimum)\b/i.test(s) && /\b(?:at|on|was|is|occurs?|occurred)\b/i.test(s) && !/\b(?:unknown|unavailable|unsupported|not|no|cannot|can.t|doesn.t|does not|without)\b/i.test(s))) issues.push('A current mapped-point distance does not establish a closest time. No geographic-point time search ran.');
+  }
   for (const c of report?.checks ?? []) {
     if (!c.slot.startsWith('view:') || c.ok === null) continue;
     const name=c.slot.slice(5);
@@ -209,6 +223,9 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
   if (height?.candidate && !height.winner) return `${height.evaluated}/${height.requested} intervals produced numerical candidates; ${height.temporalComplete??height.completed} have complete temporal coverage${height.endpointReconciledIntervals ? ` at source epoch encoding precision (${height.endpointReconciledIntervals} intervals have disclosed Julian-date endpoint equivalences)` : ''}. ${height.numericalComplete??height.completed} ${height.numericalComplete===undefined ? 'have sampled-complete results' : 'completed numerical search'}. The best available sampled ${metric} candidate is ${height.candidate.value} km at ${height.candidate.utc} (${height.candidate.activityId??height.candidate.object}); ${height.gapIntervals} intervals have declared trajectory gaps up to ${height.maximumGapSeconds} seconds.${height.unavailableSampleIntervals ? ` ${height.unavailableSampleIntervals} intervals have unavailable evaluated samples.` : ''}${budget}${height.budgetLimitedIntervals ? ' A numerically limited interval could contain a higher value.' : ''} No full-scope winner or global error bound is established.${source}${terrain}${height.shown?' The viewer is paused at this candidate with its vehicle selected and tracked.':''}`;
   if (height) return height.winner ? `${height.completed}/${height.requested} requested intervals have sampled-complete results. The sampled and locally refined ${metric} result for ${height.winner.object} is ${height.winner.value} km at ${height.winner.utc}${height.winner.activityId ? ` (${height.winner.activityId})` : ''}. Global height error and source accuracy are not certified; navigation is a separate viewer outcome.${source}${terrain}`
     : `${height.message} ${height.completed}/${height.requested} requested intervals completed; no collection winner was established.`;
+  const placeDistance = facts.filter(f => f.kind === 'place-distance').at(-1);
+  if (placeDistance) return placeDistance.km === null ? 'The native current distance to the mapped reference point is unavailable. No numerical estimate, position accuracy or closest time is established.'
+    : `The native current straight-line distance from ${placeDistance.object} to the mapped reference point is ${Number(placeDistance.km.toPrecision(6))} km at ${placeDistance.utc}, in ${placeDistance.frame ?? 'the declared body-fixed frame'} on the declared ${placeDistance.datum?.verticalDatum ?? 'reference'} datum. Mapped height defaults to the reference shape when absent; this is not distance to a crater rim or physical terrain. Position accuracy and source registration are unknown. No closest-time search to this geographic point is supported.`;
   const events = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.rangeKm !== null);
   const sampled = facts.filter(f => f.kind === 'sampled-range').at(-1);
   // A paired range/range-rate history is already computed by the native
@@ -230,6 +247,8 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
     return `${sampled.eventSearchUnavailable ? 'Event Finder could not compute the requested event because a SPICE frame dependency is unavailable. ' : ''}The minimum among ${sampled.count} returned ${sampled.observer}–${sampled.target} center-distance samples from ${sampled.startUtc} to ${sampled.endUtc} (${sampled.missing} missing) is ${sampled.minimumKm} km at ${sampled.minimumUtc} (ET ${sampled.minimumEt}).${max} These are approximate sampled extrema, not a verified closest approach, physical surface clearance or touchdown.`;
   }
   if (!events.length) {
+    const current = facts.filter(f => f.kind === 'current-event').at(-1);
+    if (current?.query) return `The native selected event is ${current.observer ?? '?'}–${current.target ?? '?'}; the clock is at ${current.utc}. Earlier results remain comparison references, not the current selection.`;
     const images = facts.filter(f => f.kind === 'imagery-state');
     if (images.some(i => i.layers.length) && !facts.some(f => ['scene-existence','authored-viewpoint','activity-inventory'].includes(f.kind))) return images.map(image => `${image.body} at ET ${image.et}: ${image.layers.length} configured imagery layers. ${image.layers.filter(l => l.date).map(l => `${l.name} has selected acquisition date ${l.date}${l.pending ? ' (pending)' : ''}${l.illumination === 'baked' ? '; acquisition lighting is baked into the image' : ''}.`).join(' ')} ${image.layers.some(l => l.drawn) ? 'Drawing was observed for some layers; this does not establish that every configured layer contributes here.' : 'No current-view drawing of those layers was observed.'}`).join(' ') + ' Selected dates and drawing at both times do not establish changed pixels or weather; no independent visual comparison was observed.';
     const existence = facts.filter(f => f.kind === 'scene-existence').at(-1);
@@ -243,6 +262,7 @@ export function factSummary(facts: readonly ResultFact[], report?: GoalReport | 
   if (latest.extremum === 'maximum') {
     const top = farthest.reduce((a, b) => (b.rangeKm! > a.rangeKm! ? b : a));
     const edge = facts.filter(f => f.kind === 'range-edge').at(-1);
+    if (top.rangeLocation === 'coverage-boundary') return `The viewer's largest evaluated ${top.observer ?? ''}–${top.target ?? ''} center range is ${range(top.rangeKm!)} at the ${top.utc ?? 'unknown UTC'} coverage boundary, not an interior turning point. The data may continue beyond it; the step-limited search is not a certified global maximum.`;
     return `The viewer's farthest ${top.observer ?? ''}–${top.target ?? ''} turning point is ${range(top.rangeKm!)} center to center${top.utc ? ` on ${top.utc.slice(0, 10)}` : ''}: the largest computed range maximum in the searched window, not an all-time maximum.${edge ? ` The range is larger, ${range(edge.km)}, at the ${edge.utc.slice(0, 10)} edge of loaded coverage, so the farthest loaded point is that edge.` : ''}`;
   }
   const minima = events.filter(f => f.extremum !== 'maximum');

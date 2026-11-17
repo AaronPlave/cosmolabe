@@ -28,6 +28,7 @@ export function eventPageMetadata(page: ScriptEventResultPage, publicText: (s: s
     query: eventQueryMetadata(page.query, publicText), items: page.items.slice(0, 100).map(({ reference: r, event: e }) => ({
       reference: { scene: r.scene, query: r.query, id: r.id, revision: r.revision },
       kind: kinds.get(e.kind)?.kind ?? null, temporality: e.temporality,
+      rangeLocation: e.state === 'coverage-boundary' ? 'coverage-boundary' as const : 'interior' as const,
       ...(e.temporality === 'instant' ? { et: e.et, utc: etToDate(e.et).toISOString() } : { start: e.start, end: e.end, startUtc: etToDate(e.start).toISOString(), endUtc: etToDate(e.end).toISOString() }),
       bodies: Object.fromEntries(EVENT_ROLES.flatMap(role => e.bodies[role] ? [[role, e.bodies[role]]] : [])),
       ...(e.trajectoryAnalysis ? { trajectoryAnalysis: agentMetadata({ publicValue: value => publicText(value) === value }).trajectoryExtremum(e.trajectoryAnalysis) } : {}),

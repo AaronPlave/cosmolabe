@@ -26,7 +26,7 @@ export type {
   ScriptFlight,
   FlightOutcome,
   ScriptScene,
-  ScriptPlace,
+  ScriptPlace, ScriptPlaceDistance,
   ScriptSurfaceData,
   ScriptSurfaceProduct,
   ScriptImagery,

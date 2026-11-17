@@ -1,4 +1,4 @@
-import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, ContinuousProfileConfiguration, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { MeasurementDefinition, TerrainDatum, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, ContinuousProfileConfiguration, EventQuery, GeometryEvent } from '@cosmolabe/core';
 import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
@@ -285,6 +285,19 @@ export interface ScriptObjectState {
  * reuse a ref, and the older command would otherwise act on the newer scene's
  * record of that name.
  */
+/** Current distance to a mapped Place anchor; separate from a time-dependent event search. */
+export interface ScriptPlaceDistance {
+  status: 'available' | 'unavailable';
+  object: string; place: string; placeName: string; body: string; et: number;
+  frame: string; datum: TerrainDatum;
+  distanceKm: number | null;
+  coverage: 'available-at-epoch' | 'unavailable';
+  sourceClassification: string;
+  accuracyKm: null;
+  reason: string | null;
+  limitations: readonly string[];
+}
+
 export interface ScriptScene {
   readonly id: number;
   /** The catalog's display name; null when it has none. */
@@ -913,6 +926,9 @@ export interface ViewerControl {
    * from search are not searched. Bounded: `limit` defaults to 10, at most 100.
    */
   searchPlaces?(query: string, opts?: { body?: string; limit?: number }): readonly ScriptPlace[];
+  /** Current straight-line distance to a Place's mapped reference anchor using shared spatial geometry. */
+  getPlaceDistance?(object: string, ref: string): ScriptPlaceDistance | null;
+  /** One place by `ref`; undefined when the scene has none by that ref. */
   /** One place by `ref`; undefined when the scene has none by that ref. */
   getPlace?(ref: string): ScriptPlace | undefined;
   /** The place the Navigate panel has selected, if any. */

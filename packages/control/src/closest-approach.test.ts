@@ -27,17 +27,33 @@ const intervalRequest = { ...request, windowMode: 'interval' as const, start: 0,
 const samples: ScriptProfileData = { scene: 1, id: 'profile', status: 'available', quantity: 'range', unit: 'km', bodies: { observer: request.observer, target: request.target }, requestedWindow: window, window, samples: [{ et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, { et: 100, utc: '2000-01-01T12:01:40.000Z', value: 8 }], missing: 0, gaps: [], minimum: { et: 50, utc: '2000-01-01T12:00:50.000Z', value: 2.47 }, maximum: { et: 0, utc: '2000-01-01T12:00:00.000Z', value: 9 }, sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 100, coverage: 'not-certified', interpolation: 'none' }, limitations: [] };
 
 describe('bounded closest-approach composition', () => {
-  it('finds the farthest point with the same native search, ranks it descending and reports a larger coverage edge (#381)', async () => {
+  it.each([false, true])('selects a farther native boundary, including monotonic-only=%s (#382)', async monotonic => {
     const host = fixture();
-    host.getObjectState = (_n, opts) => ({ et: 0, frame: 'J2000', center: 'Cassini', position: (opts?.time as { et: number }).et === 0 ? [50, 0, 0] : [1, 0, 0], attitude: null, positionAvailability: { available: true } as never });
+    const original = host.getEventResultPage!;
+    host.getEventResultPage = vi.fn((query?: string, opts?: Parameters<NonNullable<ViewerControl['getEventResultPage']>>[1]) => {
+      const page = original(query ?? 'q', opts);
+      return { ...page, total: monotonic ? 1 : 3, items: [{ ...page.items[0], event: { ...page.items[0].event, et: 0, state: 'coverage-boundary', metrics: [{ key: 'range', label: 'Range', value: 50, unit: 'km' }] } }] };
+    });
+    const present = host.presentEventResult!;
+    host.presentEventResult = vi.fn(async (reference: ScriptEventReference) => { const r = await present(reference); host.setTime({ kind: 'et', et: 0 }); return r; });
     const result = await findClosestApproach(host, { ...request, extremum: 'farthest' });
     expect(result).toMatchObject({ status: 'computed', computedEventVerified: true, edgeMaximum: { et: 0, km: 50 } });
+    expect(host.getTime()).toBe(0);
+    expect(result.result!.items[0].event).toMatchObject({ et: 0, state: 'coverage-boundary' });
     expect(vi.mocked(host.upsertEventQuery!).mock.calls[0][0]).toMatchObject({ label: 'Farthest point', query: { params: { scope: 'local', extremum: 'maximum' } } });
-    expect((vi.mocked(host.getEventResultPage!).mock.calls as unknown[][]).some(c => (c[1] as { order?: string } | undefined)?.order === 'range-descending')).toBe(true);
-    expect(result.limitations.join(' ')).toMatch(/larger at a coverage edge .* not the presented result/);
-    // Without a larger edge, the turning point stands and no edge is claimed.
-    host.getObjectState = () => ({ et: 0, frame: 'J2000', center: 'Cassini', position: [1, 0, 0], attitude: null, positionAvailability: { available: true } as never });
-    expect((await findClosestApproach(host, { ...request, extremum: 'farthest' })).edgeMaximum).toBeUndefined();
+    expect(result.limitations.join(' ')).toMatch(/coverage boundary of the searched interval, not an interior turning point/);
+  });
+  it('does not establish insertion from a first observed Juno periapsis in truncated coverage (#382)', () => {
+    // A loaded interval beginning years into the mission can expose a first
+    // observed perijove, with no evidence of the earlier insertion epoch.
+    const observed = { kind: 'event-result' as const, query: 'truncated-juno', id: 'p1', extremum: 'minimum' as const, observer: 'Jupiter', target: 'Juno', utc: '2025-01-01T00:00:00Z', rangeKm: 75000, altitudeKm: null, encounter: null, criterion: null, criterionBody: null, thresholdKm: null };
+    expect(checkAnswer('The first observed Jupiter periapsis was orbit insertion.', [observed])).toContain('The first observed periapsis in loaded data does not establish orbit insertion; use a sourced epoch or explicitly disclose the observed-periapsis scope.');
+    expect(checkAnswer('This is after the first observed Jupiter periapsis in loaded data, not an established orbit insertion epoch.', [observed])).toEqual([]);
+    const guidance = createAgentTools(fixture());
+    const description = guidance.list().find(t => t.name === 'findClosestApproach')!.description;
+    expect(description).toMatch(/genuinely sourced|sourced.*epoch/);
+    expect(description).toContain('coverage may start after insertion');
+    guidance.dispose();
   });
   it('never calls a farthest result a closest approach in the viewer\'s own account (#381)', () => {
     const far = { kind: 'event-result' as const, query: 'f', id: 'f-0', extremum: 'maximum' as const, observer: 'Saturn', target: 'Cassini', utc: '2004-08-27T08:57:50Z', rangeKm: 9_095_760.6, altitudeKm: null, encounter: null, criterion: null, criterionBody: null, thresholdKm: null };

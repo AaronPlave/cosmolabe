@@ -557,6 +557,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         const unavailableEventSlots = new Set(missingEventDependency
           ? held.filter(p => ['eventSelected', 'eventRun', 'eventEpoch', 'eventFramed', 'eventDrawn'].includes(p.p)).map(slotOf) : []);
         const unseen = report?.checks.filter(c => !c.soft && c.ok === false && !seen.has(c.slot) && !unavailableEventSlots.has(c.slot)) ?? [];
+        // A no-change comparison can still misstate which earlier event is
+        // currently shown. Check the final native selection without imposing
+        // a new goal or trusting a history sentence about the old view.
+        if (outcome.kind === 'done' && /\b(?:viewer|view)\b/i.test(text)) {
+          try { facts.push(...(opts.tools.inspect?.().facts ?? []).filter(f => f.kind === 'current-event')); } catch { /* An unavailable observation certifies nothing. */ }
+        }
         const issues = outcome.kind === 'done' ? checkAnswer(text, facts, report) : [];
         if (outcome.kind === 'done' && !repaired && step + 1 < maxSteps && (unseen.length || issues.length)) {
           repaired = true;

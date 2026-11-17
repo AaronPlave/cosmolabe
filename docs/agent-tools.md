@@ -266,3 +266,28 @@ Built-in Ask (including the embedded workspace) uses `ask/public-metadata.ts`: a
 Raw tokens processed and estimated billed cost are separate. The proxy logs both request/process cost estimates using first-party standard global rates for the **reported answering model**, with cache reads and 5-minute cache writes priced separately. Unknown models show `unknown`; no fallback price is guessed. The reviewed rate table and source links live in `examples/ask-proxy/cost.mjs` (checked 2026-11-01): [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing). Estimates exclude regional/priority/batch rates, discounts and taxes; they are not billing records. Other model IDs require a reviewed rate entry.
 
 For the reported 62,057 raw-token Sonnet 5.5 run (12 uncached input, 43,231 cache reads, 17,898 cache writes, 916 output), standard estimated cost is about **$0.0583**, rather than 62,057 tokens at uncached rates. A raw cap of 50,000 therefore stops that workflow even with effective caching: use `TOKEN_BUDGET=500000` or the 2,000,000 default, plus provider workspace spending limits. `COST_BUDGET_USD` is a separate optional convenience guard; both guards are checked before requests, so concurrent/in-flight requests can overshoot. Provider account spending limits remain the enforcement boundary.
+
+### Interval maxima and mapped-point distances (#382 review)
+
+`findClosestApproach({extremum: 'farthest', ...})` uses Event Finder's range maxima and evaluates
+covered interval boundaries through the same provider and aberration correction. A winning boundary is
+a native selectable event with `state: 'coverage-boundary'`; its epoch, range and drawing are the result,
+including when there are no interior turning points. Model-facing event facts retain `rangeLocation`.
+The search step and loaded coverage limit completeness; this is never a certified global maximum.
+
+An orbit-insertion boundary needs a sourced epoch. The first observed periapsis in loaded data does not
+establish insertion, especially with truncated coverage. Without that epoch, clarify or explicitly scope
+the search as **after the first observed [body] periapsis in loaded data**, and state its searched bounds.
+
+`ViewerControl.getPlaceDistance(object, ref)` and the corresponding read-only agent capability bridge a
+resolved Place's mapped point to the existing `SpatialEndpoint` / `resolveSpatialRelationship` distance.
+The read returns km, epoch, frame, reference datum and availability at that epoch. An absent mapped height
+uses zero on that declared reference shape; no terrain height or crater-rim geometry is inferred. Incompatible
+frames/datums and missing source positions refuse a number. Source registration and position accuracy remain
+unknown. This current-epoch read does not implement a geographic-point Event Finder or establish **when
+closest**; answer that separate question with the truthful capability limitation, without numerical estimates.
+
+Typed ranges and mapped-point distances lead the Ask answer using the shared `ui-section-label`,
+`ui-readout-strong`, `ui-readout`, `ui-body` and `ui-helper` roles. One native outcome and one consequential
+limitation remain visible; full interpretation and action diagnostics expand separately. Ordinary chat
+and unsupported/no-data questions retain their prose layout.

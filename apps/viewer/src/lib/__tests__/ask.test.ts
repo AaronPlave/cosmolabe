@@ -275,7 +275,15 @@ describe('the Ask session', () => {
     // A presented result is named from the viewer's own ranked fact, with its extremum and time.
     const shown = { status: 'met' as const, checks: [{ slot: 'event', ok: true, detail: 'result far-0 selected', soft: false }, { slot: 'playing', ok: true, detail: 'paused', soft: false }, { slot: 'clock', ok: true, detail: 'clock at the event', soft: false }] };
     const fact = { kind: 'event-result' as const, query: 'far', id: 'far-0', extremum: 'maximum' as const, observer: 'Cassini', target: 'Saturn', utc: '2004-08-27T02:07:43.000Z', rangeKm: 9.1e6, altitudeKm: null, encounter: null, criterion: null, criterionBody: null, thresholdKm: null };
-    expect(presentTurn(turn({ status: 'verified', report: shown, facts: [fact] }), fmt).outcome).toBe('Showing farthest point · Cassini → Saturn · 2004-08-27 02:07 UTC');
+    expect(presentTurn(turn({ status: 'verified', report: shown, facts: [fact] }), fmt).outcome).toBe('Showing farthest point · paused');
+    const wrongPageTail = { ...fact, id: 'far-tail', rangeKm: 1e6 };
+    expect(presentTurn(turn({ status: 'verified', report: shown, facts: [fact, wrongPageTail] }), fmt).measurements[0].value).toBe('9,100,000 km');
+    const boundary = presentTurn(turn({ status: 'verified', report: shown, facts: [{ ...fact, rangeLocation: 'coverage-boundary' }] }), fmt);
+    expect(boundary.outcome).toContain('Showing coverage-boundary maximum');
+    expect(boundary.measurements[0]).toMatchObject({ value: '9,100,000 km', context: 'Largest evaluated range · coverage boundary' });
+    expect(boundary.measurements[0].utc).toContain('UTC');
+    expect(boundary.measurements[0].quantity).toContain('Coverage-boundary maximum');
+
     expect(presentTurn(turn({ status: 'verified', report: { status: 'met', checks: [{ slot: 'clock', ok: true, detail: 'ET 146844527.065', soft: false }, { slot: 'playing', ok: true, detail: 'paused', soft: false }] } }), fmt)).toMatchObject({ outcome: 'Paused at T146844527.065', limitation: null });
     expect(presentTurn(turn({ status: 'partial', report: { status: 'partial', checks: [{ slot: 'ready:terrain:Mars:', ok: false, detail: 'terrain on Mars partial', soft: true }] } }), fmt).limitation).toEqual({ tone: 'muted', text: 'Not yet observed: terrain on Mars partial' });
     expect(presentTurn(turn({ status: 'unverified', unobservable: ['showTrajectory: trajectory visibility has no read'] }), fmt).limitation).toEqual({ tone: 'muted', text: 'Not checked in the viewer: trajectory visibility has no read' });
