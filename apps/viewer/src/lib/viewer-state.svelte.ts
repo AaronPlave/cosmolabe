@@ -13,7 +13,7 @@ import {
   type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewDirection, type ViewPreset, type ViewpointDefinition,
 } from '@cosmolabe/core';
-import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, RegolithReflectanceModel, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
@@ -152,6 +152,7 @@ export const vs = $state({
   showSensorLabels: true,
   showStats: false,
   lightingMode: 'natural' as 'natural' | 'shadow' | 'flood',
+  regolithReflectance: 'legacy' as RegolithReflectanceModel,
   terrainShadowMode: null as 'off' | 'low' | 'medium' | 'high' | null,
 
   // Scrubber
@@ -623,6 +624,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   renderer.setSensorLabelsVisible(prefs.showSensorLabels);
   renderer.setSensorsVisible(prefs.showSensors);
   renderer.setLightingMode(prefs.lightingMode);
+  if (vs.regolithReflectance !== 'legacy') renderer.setRegolithReflectance(vs.regolithReflectance);
   renderer.setTerrainShadowMode(prefs.terrainShadowMode);
   // Not re-saved: this is restoring what was saved, not a new choice.
   if (prefs.fov !== 60) setFov(prefs.fov, { persist: false });
@@ -1914,6 +1916,11 @@ export function setTerrainShadowMode(mode: 'off' | 'low' | 'medium' | 'high') {
   vs.terrainShadowMode = mode;
   _renderer?.setTerrainShadowMode(mode);
   savePrefs({ terrainShadowMode: mode });
+}
+
+export function setRegolithReflectance(model: RegolithReflectanceModel): void {
+  _renderer?.setRegolithReflectance(model);
+  vs.regolithReflectance = model;
 }
 
 export function setLighting(mode: 'natural' | 'shadow' | 'flood') {

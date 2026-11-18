@@ -47,7 +47,7 @@ describe('imagery illumination provenance (#204)', () => {
     expect(shader.uniforms.uSurfaceAsIs).toBe(uniforms.surfaceAsIs); // shared by reference: a write needs no recompile
     expect(shader.uniforms.uBakedNightFloor).toBe(uniforms.nightFloor);
     expect(shader.fragmentShader).toContain('uniform float uSurfaceAsIs;');
-    expect(shader.fragmentShader).toContain('surfaceAsIs = uSurfaceAsIs;'); // each fragment starts at the uncovered weight
+    expect(shader.fragmentShader).toContain('surfaceAsIs = max(uSurfaceAsIs, 0.0);'); // each fragment starts at the uncovered weight
     expect(shader.fragmentShader).toContain('diffuseColor.rgb * surfaceBakedShare * surfaceBakedGate');
     expect(shader.fragmentShader).toContain('totalDiffuse * (1.0 - surfaceBakedShare)'); // relit share lit, baked share as-is
     // A later injection that replaces the same token still lands after ours.
@@ -64,7 +64,7 @@ describe('imagery illumination provenance (#204)', () => {
     injectAsIsDisplayIntoShader(a, createSurfaceAsIsUniforms());
     declareSurfaceAsIs(a);
     expect(declared(a.fragmentShader)).toBe(1);
-    expect(a.fragmentShader.split('surfaceAsIs = uSurfaceAsIs;').length - 1).toBe(1);
+    expect(a.fragmentShader.split('surfaceAsIs = max(uSurfaceAsIs, 0.0);').length - 1).toBe(1);
     expect(() => declareSurfaceAsIs({ fragmentShader: 'nothing' })).toThrow(/main/);
   });
 

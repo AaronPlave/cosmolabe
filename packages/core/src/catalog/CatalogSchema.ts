@@ -165,7 +165,7 @@ const GEOMETRY_COMMON = [
  */
 const GEOMETRY_KEYS: Record<string, KeySet> = {
   Globe: keys(
-    ...GEOMETRY_COMMON, 'baseMap', 'normalMap', 'displacementMap', 'displacementScale',
+    ...GEOMETRY_COMMON, 'baseMap', 'baseMapIllumination', 'regolithReflectance', 'normalMap', 'displacementMap', 'displacementScale',
     'displacementBias', 'bumpMap', 'bumpScale', 'atmosphere', 'imagery', 'terrain', 'surfaceTiles',
   ),
   Mesh: keys(...GEOMETRY_COMMON, 'source', 'size', 'scale', 'meshRotation', 'meshOffset', 'bumpMapType'),
@@ -175,9 +175,9 @@ const GEOMETRY_KEYS: Record<string, KeySet> = {
   ),
   Rings: keys(...GEOMETRY_COMMON, 'innerRadius', 'outerRadius', 'texture'),
   // `kernel` is Cosmographia's name for `source`; the loader renames it.
-  Dsk: keys(...GEOMETRY_COMMON, 'source', 'kernel', 'color'),
+  Dsk: keys(...GEOMETRY_COMMON, 'source', 'kernel', 'color', 'regolithReflectance'),
   // `color` is the fallback colour of Dsk entries.
-  TimeSwitched: keys(...GEOMETRY_COMMON, 'sequence', 'color'),
+  TimeSwitched: keys(...GEOMETRY_COMMON, 'sequence', 'color', 'regolithReflectance'),
 };
 
 /** A `TimeSwitched.sequence[]` entry, and the geometry each entry may hold:

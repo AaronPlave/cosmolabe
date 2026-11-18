@@ -484,8 +484,7 @@ ambient-only look.
 ## Not photometrically accurate
 
 - No terrain self-shadowing or horizon occlusion (#205).
-- Lambertian response only: no regolith BRDF, opposition effect or Hapke
-  photometry.
+- The baseline has no regolith phase function. [Regolith reflectance](regolith-reflectance.md) adds opt-in angular models for eligible surfaces.
 - No indirect bounce or Earthshine; `natural` ambient is a flat 3%.
 - Sun is a point direction; no penumbra on terrain.
 - `unknown` imagery is relit but may already contain shading.

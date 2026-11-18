@@ -132,7 +132,7 @@ Not scheduled absent a concrete performance requirement or a mission workflow th
 
 - Ring shadow casting (planet-to-ring and ring-to-planet)
 - Night-side emission (city lights, thermal maps)
-- Lunar-Lambert / Hapke BRDF for airless bodies — moves up if observation-geometry validation (tier 3) needs photometrically correct airless surfaces
+- Airless-body photometry (tier 3) — [Lunar–Lambert and approximate Hapke](docs/regolith-reflectance.md) are available for visual comparison. Observation-matched fits and calibrated color products remain future work.
 - Bloom / glare post-processing
 - WebGPU renderer path
 - Named-star labels in `StarField` — bright-star lookup (Sirius, Vega, Polaris, etc.), toggle + magnitude threshold

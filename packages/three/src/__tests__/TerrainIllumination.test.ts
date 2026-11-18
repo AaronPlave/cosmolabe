@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { TerrainManager, type TerrainConfig } from '../TerrainManager.js';
-import { imageryAsIsWeight } from '../SurfaceIllumination.js';
+import { imageryLightingWeight } from '../SurfaceIllumination.js';
 
 /**
  * Material variants for the imagery illumination contract (#204). No GL
@@ -75,13 +75,13 @@ const uniformOf = (mat: THREE.Material) => compile(mat).uniforms.uSurfaceAsIs as
 describe('tile material variants', () => {
   // On the geographic overlay path `uSurfaceAsIs` is the weight of a pixel no overlay covers: the base
   // map of an imagery-only body, else the tileset's own texture. Overlays carry their own per-layer weight.
-  it('gives relit provenance a zero uncovered-pixel weight: reflectance and legacy unknown stay Sun-lit', () => {
+  it('distinguishes reflectance and legacy unknown in the uncovered-pixel uniform', () => {
     for (const illumination of ['reflectance', undefined] as const) {
       const { scene, mesh } = unlitTile();
       customize(make({ type: 'imagery', imagery: imagery(illumination) }), scene);
       const mat = mesh.material as THREE.MeshStandardMaterial;
       expect(mat.isMeshStandardMaterial).toBe(true);
-      expect(uniformOf(mat).value).toBe(0);
+      expect(uniformOf(mat).value).toBe(illumination === 'reflectance' ? -1 : 0);
     }
   });
 
@@ -92,7 +92,7 @@ describe('tile material variants', () => {
     expect(shader.uniforms.uSurfaceAsIs).toEqual({ value: 1 });
     expect(shader.fragmentShader).toContain(mixLine);
     expect(shader.fragmentShader.indexOf(mixLine)).toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
-    expect(shader.fragmentShader).toContain('surfaceAsIs = uSurfaceAsIs;');
+    expect(shader.fragmentShader).toContain('surfaceAsIs = max(uSurfaceAsIs, 0.0);');
   });
 
   it('applies the same path to tiles that arrive as lit PBR materials', () => {
@@ -101,7 +101,7 @@ describe('tile material variants', () => {
     expect(uniformOf(mesh.material as THREE.Material).value).toBe(1);
     const { scene: relit, mesh: relitMesh } = litTile();
     customize(make({ type: '3dtiles', url: 'https://example.invalid/t.json', illumination: 'reflectance' }), relit);
-    expect(uniformOf(relitMesh.material as THREE.Material).value).toBe(0);
+    expect(uniformOf(relitMesh.material as THREE.Material).value).toBe(-1);
   });
 
   it('shares one program for relit and baked tiles: provenance is a uniform, not a variant', () => {
@@ -121,9 +121,9 @@ describe('tile material variants', () => {
     customize(tm, scene);
     expect(tm.surfaceIllumination).toBe('mixed');
     // The surface-wide weight stays the relit tileset texture; the baked overlay's own weight is per layer.
-    expect(uniformOf(mesh.material as THREE.Material).value).toBe(0);
+    expect(uniformOf(mesh.material as THREE.Material).value).toBe(-1);
     const layers = (tm as unknown as { layers: { id: string; illumination?: string }[] }).layers;
-    expect(layers.map(l => imageryAsIsWeight(l.illumination as never))).toEqual([0, 1]);
+    expect(layers.map(l => imageryLightingWeight(l.illumination as never))).toEqual([-1, 1]);
   });
 
   it('summarises only layers that contribute pixels: hidden or zero-opacity layers do not count', () => {

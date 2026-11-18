@@ -28,6 +28,7 @@ function harness(bodies: Record<string, ReturnType<typeof body>>, cameraPos: THR
     sunLight: light,
     ambientLight: ambient,
     _lightingMode: 'natural',
+    regolithReflectance: 'legacy',
     _illumCandidates: [],
   }) as unknown as {
     updateSunLightAndShadow(sun: unknown): void;

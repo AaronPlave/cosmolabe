@@ -511,7 +511,8 @@ diffuseColor.rgb = mix(saTint, diffuseColor.rgb, saImageryAmount);
     if (this.settings.hillshade) {
       shader.vertexShader = 'attribute vec3 surfaceReliefNormal; varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSALocal = position; vSAReliefNormal = surfaceReliefNormal;');
-      shader.fragmentShader = `varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;
+      shader.fragmentShader = `#define REGOLITH_HILLSHADE
+varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;
 uniform vec3 saLight, saUpScale; uniform float saContrast;
 ` + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <shadowmap_pars_fragment>',

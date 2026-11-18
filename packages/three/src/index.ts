@@ -213,3 +213,5 @@ export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geograp
 
 export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
 export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';
+
+export { REGOLITH_REFLECTANCE_MODELS, regolithAngularFactor, type RegolithReflectanceModel } from './RegolithReflectance.js';

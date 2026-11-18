@@ -1,3 +1,4 @@
+import { injectRegolithReflectance, type RegolithUniforms } from './RegolithReflectance.js';
 import { applyGraticuleToScene, type GraticuleUniforms } from './GraticuleShader.js';
 import { lunarProductFrame } from '@cosmolabe/core';
 
@@ -10,7 +11,7 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
-import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, type ImageryIllumination, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
+import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryLightingWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, type ImageryIllumination, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
@@ -718,12 +719,16 @@ export class TerrainManager {
   private readonly noImageryIllumination: ImageryIllumination;
   /**
    * Shared by every tile program. `surfaceAsIs` is the weight of a pixel no imagery
-   * layer covers (1 shows it as-is, 0 relights it with the Sun); each layer then blends
+   * layer covers (see imageryLightingWeight); each layer then blends
    * its own weight over it by alpha in the shader.
    */
   private readonly asIs = createSurfaceAsIsUniforms();
+  private readonly bareAsIs = { ...this.asIs, surfaceAsIs: { value: imageryLightingWeight('reflectance') } };
+  private readonly regolith?: RegolithUniforms;
   /** The lighting mode's `bakedNightFloor`; the shader sees 1 (no gate) on frames without a body centre. */
   private bakedNightFloor = LIGHTING_MODES.natural.bakedNightFloor;
+
+  get supportsRegolithReflectance(): boolean { return this.regolith !== undefined; }
 
   /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
   get surfaceIllumination(): SurfaceIlluminationSummary {
@@ -737,7 +742,7 @@ export class TerrainManager {
   /** Weight of a pixel no layer draws: the base map of an imagery-only body, else the tileset's own texture. */
   private refreshIllumination(): void {
     const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.noImageryIllumination;
-    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered);
+    this.asIs.surfaceAsIs.value = imageryLightingWeight(uncovered);
   }
 
   /**
@@ -982,7 +987,9 @@ export class TerrainManager {
     private readonly config: TerrainConfig,
     bodyRadii: number | [number, number, number],
     renderer: THREE.WebGLRenderer,
+    regolith?: RegolithUniforms,
   ) {
+    if (config.type !== '3dtiles' || config.cubeSphere) this.regolith = regolith;
     const [rxKm, ryKm, rzKm] = typeof bodyRadii === 'number'
       ? [bodyRadii, bodyRadii, bodyRadii]
       : bodyRadii;
@@ -2358,7 +2365,7 @@ export class TerrainManager {
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
       // Uploaded per layer into the overlay shader's LayerInfo (injectOverlayAsIsIntoShader).
-      o.asIs = imageryAsIsWeight(layer.illumination);
+      o.asIs = imageryLightingWeight(layer.illumination);
       const inner = o.preprocessURL;
       o.preprocessURL = (url: string) => {
         // The plugin queues overlay fetches on the shared download queue, and
@@ -3000,7 +3007,8 @@ export class TerrainManager {
     // (layer visibility) need no recompile and every tile shares one program.
     const asIs = this.asIs;
     const solar = this.solarShadow?.uniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '');
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v3' + (solar ? '_ss_v1' : '');
+    const regolith = this.regolith;
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -3057,11 +3065,12 @@ export class TerrainManager {
           }
           injectOverlayAsIsIntoShader(shader);
           injectAsIsDisplayIntoShader(shader, asIs);
+          if (regolith) injectRegolithReflectance(shader, regolith);
           if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };
-        mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
+        mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix + (regolith ? '_regolith' : '');
         // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
         // material a second time: the chain above already carries its shader.
         for (const sym of Object.getOwnPropertySymbols(basic)) {
@@ -3096,17 +3105,22 @@ export class TerrainManager {
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
-        const prevOBC = (mat as any).onBeforeCompile;
-        (mat as any).onBeforeCompile = (shader: any) => {
-          prevOBC?.(shader);
+        const standard = (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial === true;
+        const photometry = standard ? regolith : undefined;
+        const base = photometry && !this.isImageryOnly && !(mat as THREE.MeshStandardMaterial).map && this.noImageryIllumination !== 'baked'
+          ? this.bareAsIs : asIs;
+        const prevOBC = mat.onBeforeCompile.bind(mat);
+        mat.onBeforeCompile = (shader, renderer) => {
+          prevOBC(shader, renderer);
           injectOverlayAsIsIntoShader(shader);
-          injectAsIsDisplayIntoShader(shader, asIs);
+          injectAsIsDisplayIntoShader(shader, base);
+          if (photometry) injectRegolithReflectance(shader, photometry);
           if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
         };
-        (mat as any).customProgramCacheKey = () => cacheKey;
-        (mat as any).needsUpdate = true;
+        mat.customProgramCacheKey = () => cacheKey + (photometry ? '_regolith' : '');
+        mat.needsUpdate = true;
       }
     });
 

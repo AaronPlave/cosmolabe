@@ -19,7 +19,8 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
 import type { ImageryTimePolicy } from './ImageryTime.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
-import type { LightingMode } from './SurfaceIllumination.js';
+import { createSurfaceAsIsUniforms, imageryLightingWeight, injectAsIsDisplayIntoShader, isImageryIllumination, LIGHTING_MODES, sunDirectionAt, type LightingMode } from './SurfaceIllumination.js';
+import { createRegolithUniforms, injectRegolithReflectance, REGOLITH_REFLECTANCE_MODELS, type RegolithReflectanceModel, type RegolithUniforms } from './RegolithReflectance.js';
 
 /**
  * Which surface a Globe with a streamed surface is drawing:
@@ -131,6 +132,9 @@ export class BodyMesh extends THREE.Object3D {
   private terrainManager: TerrainManager | null = null;
   /** The scene's lighting mode, forwarded to streamed terrain for baked imagery's night floor (#204). */
   private lightingMode: LightingMode = 'natural';
+  private readonly regolith?: RegolithUniforms;
+  private regolithModel: RegolithReflectanceModel = 'legacy';
+  private globeIllumination?: ReturnType<typeof createSurfaceAsIsUniforms>;
   /** Whether terrain tiles are currently visible (vs static sphere fallback) */
   private terrainVisible = false;
   /** Surface tile overlays (local-frame tilesets positioned on the globe) */
@@ -278,6 +282,11 @@ export class BodyMesh extends THREE.Object3D {
     this.body = body;
     this.frames = frames;
     this.name = body.name;
+    // The Moon's built-in catalog may omit NAIF ID. 67P is identified by its NAIF ID.
+    if (body.naifId === 301 || (body.naifId == null && body.name === 'Moon' && body.classification === 'moon') ||
+        body.naifId === 1000012 || body.geometryData?.regolithReflectance === true) {
+      this.regolith = createRegolithUniforms();
+    }
 
     this.displayRadius = this.getDisplayRadius();
     this._hasMeasuredRadius = !!body.radii;
@@ -305,6 +314,21 @@ export class BodyMesh extends THREE.Object3D {
 
     this.sunVisual = body.name === 'Sun' ? new SunVisual() : null;
     this.mesh = new THREE.Mesh(geometry, this.sunVisual?.material ?? material);
+    if (this.regolith && isGlobe && !isEmissive) {
+      const regolith = this.regolith;
+      const globe = this.globeIllumination = createSurfaceAsIsUniforms();
+      globe.surfaceAsIs.value = imageryLightingWeight('reflectance');
+      material.onBeforeCompile = shader => {
+        injectAsIsDisplayIntoShader(shader, globe);
+        injectRegolithReflectance(shader, regolith);
+      };
+      material.customProgramCacheKey = () => '_regolith_globe';
+      this.mesh.onBeforeRender = (_renderer, _scene, camera) => {
+        if (globe.surfaceAsIs.value > 0) {
+          globe.centerView.value.setFromMatrixPosition(this.mesh.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+        }
+      };
+    }
     if (this.sunVisual) {
       material.dispose();
       this.mesh.layers.set(SOLAR_LAYER);
@@ -690,6 +714,9 @@ export class BodyMesh extends THREE.Object3D {
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         const receiveShadow = this.shadowEnabled;
         const su = this.shadowUniforms;
+        const regolith = dskSurface ? this.regolith : undefined;
+        const dskIllumination = regolith ? createSurfaceAsIsUniforms() : undefined;
+        if (dskIllumination) dskIllumination.surfaceAsIs.value = imageryLightingWeight('reflectance');
         for (const mat of mats) {
           // Only art models strip logarithmic depth for the tight model pass.
           // Also inject eclipse shadow uniforms when shadow receiving is enabled.
@@ -702,9 +729,13 @@ export class BodyMesh extends THREE.Object3D {
                 .replace('#include <logdepthbuf_pars_fragment>', '')
                 .replace('#include <logdepthbuf_fragment>', '');
             }
+            if (regolith && dskIllumination) {
+              injectAsIsDisplayIntoShader(shader, dskIllumination);
+              injectRegolithReflectance(shader, regolith);
+            }
             if (receiveShadow) injectShadowIntoShader(shader, su);
           };
-          mat.customProgramCacheKey = () => `${dskSurface ? 'dsk_logdepth' : 'model_nologdepth'}${receiveShadow ? '_shadow_v1' : ''}`;
+          mat.customProgramCacheKey = () => `${dskSurface ? 'dsk_logdepth' : 'model_nologdepth'}${receiveShadow ? '_shadow_v1' : ''}${regolith ? '_regolith' : ''}`;
         }
       }
     });
@@ -737,11 +768,12 @@ export class BodyMesh extends THREE.Object3D {
     // Bind to mat so prototype methods (e.g. default customProgramCacheKey which reads
     // this.onBeforeCompile) don't fail when called without a receiver.
     const prevOBC = mat.onBeforeCompile?.bind(mat);
+    const prevKey = mat.customProgramCacheKey?.() ?? '';
     mat.onBeforeCompile = (shader, renderer) => {
       prevOBC?.(shader, renderer);
       injectShadowIntoShader(shader, su);
     };
-    mat.customProgramCacheKey = () => '_shadow_v1';
+    mat.customProgramCacheKey = () => prevKey + '_shadow_v1';
     mat.needsUpdate = true;
 
     // Also enable on terrain tiles if already initialized
@@ -1199,7 +1231,29 @@ export class BodyMesh extends THREE.Object3D {
     return t ? { supported: t.supportsSolarShadow, mode: t.solarShadowMode, bakedOnly: t.surfaceIllumination === 'baked' } : null;
   }
   setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.terrainManager?.setSolarShadowDebug(mode); }
-  setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
+  setSurfaceLightingMode(mode: LightingMode): void {
+    this.lightingMode = mode;
+    if (this.globeIllumination) this.globeIllumination.nightFloor.value = LIGHTING_MODES[mode].bakedNightFloor;
+    this.setRegolithReflectance(this.regolithModel);
+    this.terrainManager?.setLightingMode(mode);
+  }
+
+  get supportsRegolithReflectance(): boolean {
+    return this.regolith !== undefined && (this.globeIllumination !== undefined ||
+      this.body.geometryType === 'Dsk' || this.body.geometryType === 'TimeSwitched' ||
+      this.terrainManager?.supportsRegolithReflectance === true);
+  }
+
+  setRegolithReflectance(model: RegolithReflectanceModel): void {
+    this.regolithModel = model;
+    if (this.regolith) this.regolith.model.value = this.lightingMode === 'natural' ? REGOLITH_REFLECTANCE_MODELS.indexOf(model) : 0;
+  }
+
+  updateRegolithSun(sunWorld: THREE.Vector3): void {
+    if (this.regolith && this.regolith.model.value > 0 && !sunDirectionAt(this.position, sunWorld, this.regolith.sunWorld.value)) {
+      this.regolith.sunWorld.value.set(0, 0, 0);
+    }
+  }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
@@ -1394,7 +1448,7 @@ export class BodyMesh extends THREE.Object3D {
     if (config.frame && frame && config.frame !== frame) {
       throw new Error(`Terrain frame ${config.frame} does not match ${this.body.name} attitude ${frame}`);
     }
-    this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
+    this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer, this.regolith);
     this.terrainManager.setLightingMode(this.lightingMode);
     this.terrainManager.applySolarShadowMode(this.solarShadowMode);
     this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
@@ -2077,6 +2131,10 @@ export class BodyMesh extends THREE.Object3D {
   private applyBaseMap(material: THREE.MeshPhongMaterial | THREE.MeshStandardMaterial, texture: THREE.Texture, label: string): void {
     texture.colorSpace = THREE.SRGBColorSpace;
     material.map = texture;
+    if (this.globeIllumination) {
+      const provenance = this.body.geometryData?.baseMapIllumination;
+      this.globeIllumination.surfaceAsIs.value = imageryLightingWeight(isImageryIllumination(provenance) ? provenance : undefined);
+    }
     material.color.setHex(0xffffff);
     if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) {
       material.emissiveMap = texture;

@@ -66,11 +66,13 @@ export function combineImageryIllumination(values: Iterable<ImageryIllumination 
   return baked === 0 && reflectance === 0 ? 'unknown' : 'mixed';
 }
 
-/**
- * The per-layer weight the compositor blends with that layer's alpha: 1 for a
- * source whose pixels already carry lighting (shown as-is), 0 for one the Sun
- * lights (`reflectance`, and legacy `unknown`).
- */
+/** Shader encoding for each source: baked (1), legacy unknown (0), or reflectance (-1).
+ * The compositor tracks baked and reflectance coverage independently through each layer. */
+export function imageryLightingWeight(illumination: ImageryIllumination | undefined): -1 | 0 | 1 {
+  return illumination === 'reflectance' ? -1 : imageryAsIsWeight(illumination);
+}
+
+/** 1 for imagery with baked lighting, 0 for reflectance and legacy imagery. */
 export function imageryAsIsWeight(illumination: ImageryIllumination | undefined): 0 | 1 {
   return illumination === 'baked' ? 1 : 0;
 }
@@ -243,7 +245,7 @@ export function solarGeometryAt(
 
 /**
  * Uniforms of the baked-imagery display hook. `uSurfaceAsIs` is the weight of a
- * pixel no imagery layer covers (1 = shown as-is); every imagery compositor
+ * pixel no imagery layer covers (see imageryLightingWeight); every imagery compositor
  * blends its layers' weights over it by alpha into the per-fragment
  * `surfaceAsIs`. `centerView` is the body centre in view space and `nightFloor`
  * the mode's `bakedNightFloor` (1 disables the terminator gate).
@@ -271,19 +273,26 @@ const TERMINATOR_HALF_WIDTH = 0.0047;
  */
 const AS_IS_DECLARATION = `uniform float uSurfaceAsIs;
 float surfaceAsIs;
+float surfaceReflectance;
+vec3 surfaceReflectanceRgb;
 vec3 surfaceBakedRgb;
 vec3 surfaceRelitRgb;
 float surfaceLayered;
 // under: the composited colour beneath this layer; premul: the layer's colour times its alpha.
-void surfaceAsIsLayer(vec3 under, vec3 premul, float asIs, float alpha) {
+void surfaceAsIsLayer(vec3 under, vec3 premul, float lightingWeight, float alpha) {
+  float asIs = max(lightingWeight, 0.0);
+  float reflectance = max(-lightingWeight, 0.0);
   if (surfaceLayered < 0.5) {
     surfaceLayered = 1.0;
     surfaceBakedRgb = surfaceAsIs * under;
+    surfaceReflectanceRgb = surfaceReflectance * under;
     surfaceRelitRgb = (1.0 - surfaceAsIs) * under;
   }
   surfaceBakedRgb = surfaceBakedRgb * (1.0 - alpha) + asIs * premul;
   surfaceRelitRgb = surfaceRelitRgb * (1.0 - alpha) + (1.0 - asIs) * premul;
   surfaceAsIs = mix(surfaceAsIs, asIs, alpha);
+  surfaceReflectance = mix(surfaceReflectance, reflectance, alpha);
+  surfaceReflectanceRgb = surfaceReflectanceRgb * (1.0 - alpha) + reflectance * premul;
 }
 `;
 
@@ -298,7 +307,7 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
   if (shader.fragmentShader.includes('float surfaceAsIs;')) return;
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Baked-imagery display: fragment shader has no main().');
-  shader.fragmentShader = AS_IS_DECLARATION + shader.fragmentShader.replace(main, 'void main() {\n  surfaceAsIs = uSurfaceAsIs; surfaceLayered = 0.0; surfaceBakedRgb = vec3(0.0); surfaceRelitRgb = vec3(0.0);');
+  shader.fragmentShader = AS_IS_DECLARATION + shader.fragmentShader.replace(main, 'void main() {\n  surfaceAsIs = max(uSurfaceAsIs, 0.0); surfaceReflectance = max(-uSurfaceAsIs, 0.0); surfaceReflectanceRgb = vec3(0.0); surfaceLayered = 0.0; surfaceBakedRgb = vec3(0.0); surfaceRelitRgb = vec3(0.0);');
 }
 
 /**

@@ -1,6 +1,7 @@
 <script lang="ts">
+  import type { RegolithReflectanceModel } from '@cosmolabe/three';
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setLighting, setRegolithReflectance, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -34,6 +35,10 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
+  const supportsRegolith = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.hasRegolithReflectance ?? false;
+  });
 
   // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
   // is the viewer's choice when it has made one, else what the catalog configured (Off unless it sets `solarShadows`).
@@ -171,6 +176,30 @@
         <option value="flood">Flood</option>
       </select>
     </div>
+
+    {#if supportsRegolith}
+      <label class="ui-body flex items-center gap-2 px-3 py-1">
+        <span class="flex-1 text-text-primary">Regolith reflectance</span>
+        <select
+          class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+          disabled={vs.lightingMode !== 'natural'}
+          value={vs.regolithReflectance}
+          onchange={(e) => setRegolithReflectance(e.currentTarget.value as RegolithReflectanceModel)}
+        >
+          <option value="legacy">Legacy</option>
+          <option value="lambert">Lambert</option>
+          <option value="lunar-lambert">Lunar–Lambert</option>
+          <option value="hapke">Hapke (approx.)</option>
+        </select>
+      </label>
+      <p class="ui-meta text-text-secondary px-3 pb-1">
+        {#if vs.lightingMode !== 'natural'}
+          Available in Natural lighting.
+        {:else}
+          Applies to bare regolith and reflectance imagery. Baked imagery keeps its source lighting. Unknown maps use legacy shading.
+        {/if}
+      </p>
+    {/if}
 
     {#if shadow}
       <div class="ui-body flex items-center gap-2 px-3 py-1">
