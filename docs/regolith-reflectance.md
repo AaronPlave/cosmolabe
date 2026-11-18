@@ -27,9 +27,18 @@ reference angles and wavelength. The renderer performs no photometric inversion.
 Baked colors preserve their acquired lighting and use the existing reference
 terminator/night floor. Unknown colors use legacy lighting. In a translucent
 stack, the selected response applies only to the weighted reflectance
-contribution. The production WAC morphology plus NAC south-pole composite is
-baked. Use the bare lunar cube terrain experiment for same-source comparisons. See the [WAC/NAC source
-audit](surface-illumination.md#source-provenance).
+contribution.
+
+MoonFall at Shackleton currently uses separate WAC morphology and NAC polar
+detail layers. Both retain acquisition shading and are undeclared in the catalog,
+so the renderer uses their legacy response. The optional PSR NAC observations
+are explicitly baked. The distant `moon-16k.jpg` map is a processed color map
+derived from normalized WAC and LOLA albedo, with undeclared provenance in
+the catalog. The earlier WAC+NAC composite is the baked comparison fixture.
+Use bare terrain for a geometry-only comparison, or a documented reflectance
+product for a textured comparison. The tested 100 m normalized WAC tile
+has gaps on permanently shadowed floors. [MoonFall catalog](../apps/viewer/test-catalogs/moonfall-shackleton.json),
+[WAC/NAC source audit](surface-illumination.md#source-provenance).
 
 ## Model and source choices
 
@@ -87,9 +96,11 @@ A live Moon cube-terrain capture at 2028-12-15 10:04:00 UTC used one sunlit
 pose at 34.45° N, 167.96° W with a 55.01° reference Sun elevation. The
 main camera drew nine source tiles across hierarchy depths 2–4 with solar
 visibility ready. Lambert, Lunar–Lambert and Hapke produced distinct captures
-on the same surface. With artificial
-hillshade enabled, the four captures agreed. Zooming out selected the
-globe and its undeclared texture kept its original render. The 390 px Display
-panel also retained access to the selector. The compact Rosetta fixture used
-the archived `ROS_CG_K200_OSPGDLR_N_V1.BDS` at 2014-11-12 08:35:40 UTC
+on the same surface. With artificial hillshade enabled, the four captures
+agreed. Zooming out selected the
+globe and its undeclared texture kept its original render. A globe-only fixture
+with the color map removed and the DEM-derived normal map loaded gave distinct
+renders. A fully covered baked WAC/NAC view produced identical output across
+all four choices. The 390 px Display panel retained access to the selector.
+The compact Rosetta fixture used the archived `ROS_CG_K200_OSPGDLR_N_V1.BDS` at 2014-11-12 08:35:40 UTC
 with the catalog's SPICE frame and orbit for the 67P comparison.
