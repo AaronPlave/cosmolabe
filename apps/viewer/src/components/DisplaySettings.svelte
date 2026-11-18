@@ -4,6 +4,7 @@
   import { vs, setGridSettings, setDisplayOption, setLighting, setRegolithReflectance, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
+  import { setImageryVisible } from '../lib/appearance-control';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { Camera, Video, Square } from 'lucide-svelte';
   import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
@@ -38,6 +39,19 @@
   const supportsRegolith = $derived.by(() => {
     void vs.frameTick;
     return getRenderer()?.hasRegolithReflectance ?? false;
+  });
+  const wacComparisonId = 'wac-reflectance-shackleton';
+  const wacComparisonState = $derived.by(() => {
+    void vs.frameTick;
+    const moon = getRenderer()?.getBodyMesh('Moon');
+    const layer = moon?.imageryLayers.find(item => item.id === wacComparisonId);
+    if (!moon || !layer) return null;
+    if (!layer.visible) return 'off';
+    if (layer.status === 'failed') return 'failed';
+    if (layer.opacity === 0) return 'transparent';
+    if (moon.surfaceTransitionState !== 'streamed') return 'static';
+    if (layer.view && !layer.view.inCoverage) return 'outside';
+    return layer.view ? 'streaming' : 'loading';
   });
 
   // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
@@ -178,6 +192,15 @@
     </div>
 
     {#if supportsRegolith}
+      {#if wacComparisonState}
+        <div class="px-3 py-1">
+          <button
+            type="button"
+            class="ui-control rounded border border-border bg-surface-3 px-2 py-1 hover:bg-surface-2"
+            onclick={() => setImageryVisible('Moon', wacComparisonId, wacComparisonState === 'off')}
+          >{wacComparisonState === 'off' ? 'Compare WAC reflectance' : 'Return to original imagery'}</button>
+        </div>
+      {/if}
       <label class="ui-body flex items-center gap-2 px-3 py-1">
         <span class="flex-1 text-text-primary">Regolith reflectance</span>
         <select
@@ -195,6 +218,16 @@
       <p class="ui-meta text-text-secondary px-3 pb-1">
         {#if vs.lightingMode !== 'natural'}
           Available in Natural lighting.
+        {:else if wacComparisonState === 'off'}
+          MoonFall’s original imagery uses its existing shading. Open the WAC comparison to see the models on textured terrain near Shackleton.
+        {:else if wacComparisonState === 'static' || wacComparisonState === 'outside'}
+          The WAC comparison appears on streamed terrain within 45 km of the south pole. Move closer to Shackleton.
+        {:else if wacComparisonState === 'failed'}
+          The WAC comparison failed to load. The imagery beneath still uses its existing shading.
+        {:else if wacComparisonState === 'transparent'}
+          The WAC comparison is transparent. Raise its opacity in Surface Layers to see it.
+        {:else if wacComparisonState === 'loading' || wacComparisonState === 'streaming'}
+          Models shade observed WAC samples. The original imagery shows through gaps, including permanently shadowed floors. Some slope shading remains in the source.
         {:else}
           Applies to bare regolith and reflectance imagery. Baked imagery keeps its source lighting. Unknown maps use legacy shading.
         {/if}

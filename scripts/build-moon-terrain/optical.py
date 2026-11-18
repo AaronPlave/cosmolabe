@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Independent lunar optical products (#147), using the existing cube sampler.
+"""Independent lunar optical products using the existing cube sampler.
 
 split --base WAC_COG --baseline SHIPPED_IMAGERY_JSON --out DATA_DIRECTORY
 psr --source ORIGINAL_PDS_IMG --out DATA_DIRECTORY
+wac-reflectance --source ORIGINAL_WAC_EMP_IMG --out DATA_DIRECTORY
 
 No composited JPEG is used as an input raster. The baseline supplies only the
 shipped tile selection and sampling parameters, preserving fallback at every LOD.
 """
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -32,6 +34,7 @@ NAC_URL = ('https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/'
 NAC_ETAG = '"bed0aa45cad34ee85a59fa4084b4522d-9200"'
 NAC_BYTES = 77174580438
 WAC_SHA256 = 'fa1af0ace36c1d481b246c8362c3fd6128b7757ee5114a9d69ef98efdfecbdac'
+WAC_REFLECTANCE_SHA256 = '10eb8b686e361a2835eb0b26d255d68a2917569fcd5922fcfc3bc6ba0c3afea4'
 BASELINE = 'cube-imagery-composite-3f34a19541af7710'
 FRAME = 'MOON_ME_DE421'
 PSR_URL = ('https://pds.mcp.nasa.gov/data/store/img/lunar_reconnaissance_orbiter/pds4/lroc/'
@@ -71,6 +74,9 @@ def public_metadata(path):
     name = manifest['source']['id']
     if name == 'psr-nac-stretch':
         command = 'psr --source PINNED_NAC_POLE_PSR_SOUTH_STRETCH.IMG'
+    elif name == 'wac-reflectance-shackleton':
+        command = 'wac-reflectance --source PINNED_WAC_EMP_643NM_P900S0000_304P.IMG'
+        del manifest['generator']['seconds']
     else:
         assert name in ('wac', 'nac-independent')
         command = ('split --base PINNED_WAC_COG --baseline PINNED_COMPOSITE/imagery.json '
@@ -80,8 +86,9 @@ def public_metadata(path):
     path.write_text(json.dumps(manifest, indent=1) + '\n')
 
 
-def emit(args, name, kind, source, tiles, provenance, reg, supersample=3):
-    output = Path(args.out) / f'moon-imagery-cube-{name}'
+def emit(args, name, kind, source, tiles, provenance, reg, supersample=3, color_space='srgb'):
+    directory = name if name == 'wac-reflectance-shackleton' else f'moon-imagery-cube-{name}'
+    output = Path(args.out) / directory
     assert not (output / 'imagery.json').exists(), f'{output}: use a fresh output directory'
     job = argparse.Namespace(source=str(source), out=str(output), body='Moon', frame=FRAME,
                              tile_size=args.tile_size, gutter=args.gutter, supersample=supersample,
@@ -90,7 +97,7 @@ def emit(args, name, kind, source, tiles, provenance, reg, supersample=3):
                   'frameAudit': 'docs/validation/lunar-frames/README.md',
                   'absoluteRegistrationErrorKm': None, 'gdal': gdal.VersionInfo('RELEASE_NAME'),
                   'inputGrid': source_grid(source)}
-    cube.run(job, kind, tiles, {'id': name, 'kind': 'imagery', **provenance}, reg, 'srgb',
+    cube.run(job, kind, tiles, {'id': name, 'kind': 'imagery', **provenance}, reg, color_space,
              extra={'provenance': provenance})
     public_metadata(output / 'imagery.json')
 
@@ -153,10 +160,71 @@ def psr(args):
                       'premultiplied native DN/validity area-average overviews; bilinear reconstruction; 4x4 cube quadrature'), 4)
 
 
+def wac_reflectance(args):
+    """Build a compact comparison crop, retaining native no-data and linear I/F."""
+    product = 'WAC_EMP_643NM_P900S0000_304P'
+    source = Path(args.source)
+    with source.open('rb') as file:
+        label = file.read(74676).decode('ascii')
+    assert product in label and '"v1.3"' in label and '16#FF7FFFFB#' in label
+    assert source.stat().st_size == 74676 * 18670
+    assert cube.file_sha256(str(source)) == WAC_REFLECTANCE_SHA256, 'WAC source differs from the audited PDS bytes'
+    raster = cube.raster_open(str(source))
+    ds = raster['ds']
+    band = ds.GetRasterBand(1)
+    gt = ds.GetGeoTransform()
+    assert ds.GetDriver().ShortName == 'PDS' and band.DataType == gdal.GDT_Float32
+    assert (ds.RasterXSize, ds.RasterYSize) == (18669, 18669)
+    assert raster['south_stereo']
+    assert np.allclose(gt, [-9335 * 99.747863237334, 99.747863237334, 0,
+                           9335 * 99.747863237334, 0, -99.747863237334], atol=1e-6, rtol=0)
+
+    # Use a power-of-two native window for aligned overview cells. The circular
+    # crop is smaller than the window and has an explicit transparent exterior.
+    size = 1024
+    col = round(-gt[0] / gt[1]) - size // 2
+    row = round(-gt[3] / gt[5]) - size // 2
+    x0, y0 = gt[0] + col * gt[1], gt[3] + row * gt[5]
+    x = x0 + (np.arange(size) + 0.5) * gt[1]
+    y = y0 + (np.arange(size) + 0.5) * gt[5]
+    radius = 45000
+    crop = np.hypot(x[None, :], y[:, None]) <= radius
+    values = band.ReadAsArray(col, row, size, size)
+    valid = crop & (band.GetMaskBand().ReadAsArray(col, row, size, size) > 0)
+    valid &= np.isfinite(values) & (values >= 0) & (values <= 1)
+    assert valid.any() and (crop & ~valid).any(), 'expected both observations and PSR gaps'
+    prepared = Path(args.work) / 'wac-reflectance-validity.tif'
+    prepared.parent.mkdir(parents=True, exist_ok=True)
+    out = gdal.GetDriverByName('GTiff').Create(str(prepared), size, size, 2, gdal.GDT_Float32,
+                                             options=['TILED=YES', 'COMPRESS=DEFLATE'])
+    out.SetGeoTransform((x0, gt[1], 0, y0, 0, gt[5]))
+    out.SetProjection(ds.GetProjection())
+    out.SetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY', '1')
+    out.GetRasterBand(1).WriteArray(np.where(valid, values, 0) * 255)
+    out.GetRasterBand(2).WriteArray(valid.astype(np.float32))
+    out.BuildOverviews('AVERAGE', [2 ** level for level in range(1, int(math.log2(size)) + 1)])
+    out = None
+
+    region = cube.parse_cube_region('south-pole@-90,0:' + ','.join(f'{level}=45.1' for level in range(1, 8)))
+    provenance = {
+        'product': product, 'versionLabel': 'v1.3', 'sha256': WAC_REFLECTANCE_SHA256,
+        'url': 'https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/MDR/WAC_EMP/' + product + '.IMG',
+        'attribution': 'NASA / LROC / ASU', 'nativeResolutionMeters': gt[1],
+        'referenceGeometryDegrees': {'incidence': 30, 'emission': 0, 'phase': 30},
+        'sourceNoData': 'PDS CORE_NULL 0xFF7FFFFB; non-finite and special values outside [0,1] excluded',
+        'polarCropRadiusMeters': radius, 'validNativeSamples': int(valid.sum()),
+        'missingNativeSamplesInCrop': int((crop & ~valid).sum()),
+    }
+    emit(args, 'wac-reflectance-shackleton', 'raster', prepared, cube.select_tiles(0, [region]),
+         provenance, registration('45 km polar stereographic crop; observed samples only',
+                                  'area-average premultiplied coverage and linear I/F; 4x4 cube quadrature; 8-bit linear PNG'),
+         4, color_space='linear')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('split', 'psr'):
+    for name in ('split', 'psr', 'wac-reflectance'):
         p = sub.add_parser(name)
         p.add_argument('--out', required=True)
         p.add_argument('--workers', type=int, choices=range(1, 5), default=1)
@@ -167,8 +235,10 @@ def main():
     sub.choices['split'].add_argument('--only', choices=('wac', 'nac'))
     sub.choices['psr'].add_argument('--source', required=True)
     sub.choices['psr'].add_argument('--work', default='work/lunar-optical')
+    sub.choices['wac-reflectance'].add_argument('--source', required=True)
+    sub.choices['wac-reflectance'].add_argument('--work', default='work/lunar-optical')
     args = parser.parse_args()
-    (split if args.command == 'split' else psr)(args)
+    {'split': split, 'psr': psr, 'wac-reflectance': wac_reflectance}[args.command](args)
 
 
 if __name__ == '__main__':

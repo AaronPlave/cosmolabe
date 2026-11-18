@@ -29,16 +29,60 @@ terminator/night floor. Unknown colors use legacy lighting. In a translucent
 stack, the selected response applies only to the weighted reflectance
 contribution.
 
-MoonFall at Shackleton currently uses separate WAC morphology and NAC polar
-detail layers. Both retain acquisition shading and are undeclared in the catalog,
-so the renderer uses their legacy response. The optional PSR NAC observations
-are explicitly baked. The distant `moon-16k.jpg` map is a processed color map
-derived from normalized WAC and LOLA albedo, with undeclared provenance in
-the catalog. The earlier WAC+NAC composite is the baked comparison fixture.
-Use bare terrain for a geometry-only comparison, or a documented reflectance
-product for a textured comparison. The tested 100 m normalized WAC tile
-has gaps on permanently shadowed floors. [MoonFall catalog](../apps/viewer/test-catalogs/moonfall-shackleton.json),
+## Compare textured terrain in MoonFall
+
+Open MoonFall at Shackleton, pause the clock at the initial **Shackleton
+Overview**, and choose **Display → Compare WAC reflectance**. Use **Regolith
+reflectance** to switch models at the same pose and time. **Return to original
+imagery** removes the comparison layer at the same pose. You can also toggle
+or adjust the layer in **Surface Layers**. Its footprint is near Shackleton
+and it appears on streamed terrain.
+
+The comparison uses a 45 km radius crop of LROC's v1.3 100 m WAC 643 nm mosaic,
+normalized to incidence 30°, emission 0° and phase 30°. The tiles store
+8-bit linear I/F as relative diffuse color. The source retains slope shading,
+especially on steep crater walls, and is unsuitable for absolute radiometry
+or validating Hapke parameters. About 22% of native samples within the crop
+are missing. Permanently shadowed floors and the region beyond the crop have
+transparent coverage, so the underlying imagery shows through. Mixed boundary
+texels carry the fractional coverage of sampled observations.
+[LROC product](https://data.lroc.im-ldi.com/lroc/view_rdr_product/WAC_EMP_643NM_P900S0000_304P),
+[comparison manifest](../apps/viewer/test-catalogs/data/wac-reflectance-shackleton/imagery.json).
+
+The default WAC morphology and NAC detail retain acquisition shading and use
+legacy lighting. The optional stretched PSR NAC observations are baked.
+The distant Moon Kit globe map remains undeclared and uses legacy lighting.
+[MoonFall catalog](../apps/viewer/test-catalogs/moonfall-shackleton.json),
 [WAC/NAC source audit](surface-illumination.md#source-provenance).
+
+The 46-tile comparison crop is bundled with the example catalog. Rebuild
+with the pinned original PDS IMG and GDAL/NumPy in a fresh output directory.
+
+```sh
+python3 scripts/build-moon-terrain/optical.py wac-reflectance \
+  --source WAC_EMP_643NM_P900S0000_304P.IMG --out work/lunar-comparison
+```
+
+Run the loaded-viewer check against a Vite server serving this checkout.
+
+```sh
+node scripts/test-moonfall-reflectance.mjs http://127.0.0.1:5296
+```
+
+![Shackleton Overview with the original imagery, four WAC comparison modes and terrain shadows](validation/regolith-reflectance/moonfall-wac-comparison.jpg)
+
+In the fixed-exposure capture at 2028-12-15 10:04:00 UTC the Sun is 0.66°
+above the reference horizon at Shackleton. Eight terrain tiles are drawn and
+the comparison reaches imagery level 7. Each model pair changes 14–20% of
+the frame by at least 3 of 255 red-channel values. Lunar–Lambert brightens
+lit slopes relative to Lambert at this pose, while the Hapke approximation
+darkens them. The first five frames have terrain
+shadows off. Turning shadows to High darkens about 20% of the Hapke frame at
+the same threshold. Shadow coverage is partial (26% unknown in the clipmap
+summary). The original detail, restored detail and orbital globe are
+pixel-identical across their respective controls in this capture. Returning
+from the static globe reproduces the streamed Hapke frame. Chrome used
+ANGLE Metal on Apple M4 Max. Labels and trajectories were hidden for capture.
 
 ## Model and source choices
 
