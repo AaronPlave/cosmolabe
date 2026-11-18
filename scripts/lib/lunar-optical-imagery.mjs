@@ -6,12 +6,14 @@ export function lunarOpticalImagery() {
       description: 'LROC global morphology mosaic, June 2013 edition, 100 m/px; source images acquired November 2009–February 2011. Original acquisition shading retained; the context beneath NAC and missing observations.',
       attribution: 'LROC team / USGS Astrogeology / ASU', resolutionMeters: 100,
       url: 'data/moon-imagery-cube-wac/imagery.json',
+      illumination: 'baked',
     },
     {
       type: 'cube', id: 'nac', name: 'Moon · NAC south-pole detail',
       description: 'The original deployed controlled south-pole NAC source, 1 m/px, independently switchable. Original display pixels and acquisition shading retained; nodata is transparent to WAC. DE421 mean-Earth coordinates; absolute registration accuracy is unknown.',
       attribution: 'LROC team / USGS Astrogeology / ASU', resolutionMeters: 1,
       url: 'data/moon-imagery-cube-nac-independent/imagery.json',
+      illumination: 'baked',
     },
     {
       type: 'cube', id: 'psr-nac', name: 'PSR observations · stretched / indirectly lit',

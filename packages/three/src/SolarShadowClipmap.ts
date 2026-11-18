@@ -1120,20 +1120,13 @@ export function injectSolarShadowIntoShader(
   }
   if (shader.fragmentShader.includes('solarShadowVisibility')) return;
   if (shader.uniforms) Object.assign(shader.uniforms, shaderUniforms(u));
-  const regolithSun = shader.fragmentShader.includes('uniform vec3 uRegolithSunWorld;') ? `
-#if !defined( REGOLITH_HILLSHADE )
-  if (uRegolithModel > 0 && surfaceReflectance > 0.0) {
-    solarIncidence = max(solarIncidence, dot(normal, mat3(viewMatrix) * uRegolithSunWorld));
-  }
-#endif` : '';
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Solar shadow: fragment shader has no main().');
   shader.fragmentShader = (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0; float solarApprox = 0.0;')
     .replace(end, `${end}
 #if NUM_DIR_LIGHTS > 0
 // Debug views show the Sun fraction on every fragment: the rendered normal (which varies with mesh LOD) only gates the cost.
-float solarIncidence = dot(normal, directionalLights[0].direction);${regolithSun}
-if (uSsEnabled > 0.5 && uSsDebug < 5.5 && (uSsDebug > 0.5 || solarIncidence > 0.0)) {
+if (uSsEnabled > 0.5 && uSsDebug < 5.5 && (uSsDebug > 0.5 || dot(normal, directionalLights[0].direction) > 0.0)) {
   solarVis = solarShadowVisibility(-vViewPosition, solarUnknown, solarApprox);
   reflectedLight.directDiffuse *= solarVis;
   reflectedLight.directSpecular *= solarVis;

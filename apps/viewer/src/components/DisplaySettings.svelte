@@ -1,10 +1,8 @@
 <script lang="ts">
-  import type { RegolithReflectanceModel } from '@cosmolabe/three';
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setLighting, setRegolithReflectance, setTerrainShadowMode } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
-  import { setImageryVisible } from '../lib/appearance-control';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { Camera, Video, Square } from 'lucide-svelte';
   import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
@@ -36,23 +34,6 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
-  const supportsRegolith = $derived.by(() => {
-    void vs.frameTick;
-    return getRenderer()?.hasRegolithReflectance ?? false;
-  });
-  const wacComparisonId = 'wac-reflectance-shackleton';
-  const wacComparisonState = $derived.by(() => {
-    void vs.frameTick;
-    const moon = getRenderer()?.getBodyMesh('Moon');
-    const layer = moon?.imageryLayers.find(item => item.id === wacComparisonId);
-    if (!moon || !layer) return null;
-    if (!layer.visible) return 'off';
-    if (layer.status === 'failed') return 'failed';
-    if (layer.opacity === 0) return 'transparent';
-    if (moon.surfaceTransitionState !== 'streamed') return 'static';
-    if (layer.view && !layer.view.inCoverage) return 'outside';
-    return layer.view ? 'streaming' : 'loading';
-  });
 
   // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
   // is the viewer's choice when it has made one, else what the catalog configured (Off unless it sets `solarShadows`).
@@ -65,9 +46,13 @@
   const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; coarse: number; baked: boolean } : null);
   const shadowStatusText = $derived.by(() => {
     if (!shadow) return '';
-    if (shadow.mode === 'off') return vs.lightingMode === 'flood' ? 'Off in Flood lighting: it has no Sun.' : '';
-    if (vs.lightingMode === 'flood') return 'Off in Flood lighting: it has no Sun.';
-    if (shadow.baked) return 'This surface\'s imagery has its lighting baked in, so shadows will not show on it.';
+    if (shadow.baked) {
+      if (vs.lightingMode === 'flood') return 'Flood shows the original imagery without a simulated day/night boundary. Photographic shadows stay fixed.';
+      const night = vs.lightingMode === 'shadow' ? 'The simulated night side is brighter' : 'The simulated Sun moves the day/night boundary';
+      return `${night}. Photographic shadows stay fixed. Terrain shadows can still affect nearby objects.`;
+    }
+    if (vs.lightingMode === 'flood') return 'Off in Flood lighting, which has no Sun.';
+    if (shadow.mode === 'off') return '';
     // The finest clipmap level, around the view's centre.
     if (shadow.coarse > 0 && (shadow.state === 'ready' || shadow.state === 'partial')) {
       return `Terrain heights here are farther apart than the shadow detail${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: shadows there are only as sharp as the heights support.`;
@@ -182,6 +167,7 @@
       <span class="flex-1 text-text-primary">Lighting</span>
       <select
         class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+        aria-label="Lighting"
         value={vs.lightingMode}
         onchange={(e) => setLighting((e.target as HTMLSelectElement).value as 'natural' | 'shadow' | 'flood')}
       >
@@ -191,54 +177,13 @@
       </select>
     </div>
 
-    {#if supportsRegolith}
-      {#if wacComparisonState}
-        <div class="px-3 py-1">
-          <button
-            type="button"
-            class="ui-control rounded border border-border bg-surface-3 px-2 py-1 hover:bg-surface-2"
-            onclick={() => setImageryVisible('Moon', wacComparisonId, wacComparisonState === 'off')}
-          >{wacComparisonState === 'off' ? 'Compare WAC reflectance' : 'Return to original imagery'}</button>
-        </div>
-      {/if}
-      <label class="ui-body flex items-center gap-2 px-3 py-1">
-        <span class="flex-1 text-text-primary">Regolith reflectance</span>
-        <select
-          class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
-          disabled={vs.lightingMode !== 'natural'}
-          value={vs.regolithReflectance}
-          onchange={(e) => setRegolithReflectance(e.currentTarget.value as RegolithReflectanceModel)}
-        >
-          <option value="legacy">Legacy</option>
-          <option value="lambert">Lambert</option>
-          <option value="lunar-lambert">Lunar–Lambert</option>
-          <option value="hapke">Hapke (approx.)</option>
-        </select>
-      </label>
-      <p class="ui-meta text-text-secondary px-3 pb-1">
-        {#if vs.lightingMode !== 'natural'}
-          Available in Natural lighting.
-        {:else if wacComparisonState === 'off'}
-          MoonFall’s original imagery uses its existing shading. Open the WAC comparison to see the models on textured terrain near Shackleton.
-        {:else if wacComparisonState === 'static' || wacComparisonState === 'outside'}
-          The WAC comparison appears on streamed terrain within 45 km of the south pole. Move closer to Shackleton.
-        {:else if wacComparisonState === 'failed'}
-          The WAC comparison failed to load. The imagery beneath still uses its existing shading.
-        {:else if wacComparisonState === 'transparent'}
-          The WAC comparison is transparent. Raise its opacity in Surface Layers to see it.
-        {:else if wacComparisonState === 'loading' || wacComparisonState === 'streaming'}
-          Models shade observed WAC samples. The original imagery shows through gaps, including permanently shadowed floors. Some slope shading remains in the source.
-        {:else}
-          Applies to bare regolith and reflectance imagery. Baked imagery keeps its source lighting. Unknown maps use legacy shading.
-        {/if}
-      </p>
-    {/if}
-
     {#if shadow}
       <div class="ui-body flex items-center gap-2 px-3 py-1">
         <span class="flex-1 text-text-primary" title="Terrain-cast Sun shadows and horizon occlusion on relit terrain. A visual aid, not a certified illumination product. Higher quality costs more GPU time.">Terrain shadows</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+          aria-label="Terrain shadows"
+          aria-describedby={shadowStatusText ? 'terrain-shadow-status' : undefined}
           data-testid="terrain-shadow-mode"
           value={shadow.mode}
           onchange={(e) => setTerrainShadowMode((e.target as HTMLSelectElement).value as 'off' | 'low' | 'medium' | 'high')}
@@ -249,7 +194,7 @@
           <option value="high">High</option>
         </select>
       </div>
-      {#if shadowStatusText}<p class="ui-meta text-text-secondary px-3 pb-1" data-testid="terrain-shadow-status">{shadowStatusText}</p>{/if}
+      {#if shadowStatusText}<p class="ui-meta text-text-secondary px-3 pb-1" id="terrain-shadow-status" data-testid="terrain-shadow-status">{shadowStatusText}</p>{/if}
     {/if}
 
     <!-- Capture -->

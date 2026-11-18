@@ -635,7 +635,8 @@
               "description": "LROC global morphology mosaic, June 2013 edition, 100 m/px; source images acquired November 2009–February 2011. Original acquisition shading retained; the context beneath NAC and missing observations.",
               "attribution": "LROC team / USGS Astrogeology / ASU",
               "resolutionMeters": 100,
-              "url": "data/moon-imagery-cube-wac/imagery.json"
+              "url": "data/moon-imagery-cube-wac/imagery.json",
+              "illumination": "baked"
             },
             {
               "type": "cube",
@@ -644,7 +645,8 @@
               "description": "The original deployed controlled south-pole NAC source, 1 m/px, independently switchable. Original display pixels and acquisition shading retained; nodata is transparent to WAC. DE421 mean-Earth coordinates; absolute registration accuracy is unknown.",
               "attribution": "LROC team / USGS Astrogeology / ASU",
               "resolutionMeters": 1,
-              "url": "data/moon-imagery-cube-nac-independent/imagery.json"
+              "url": "data/moon-imagery-cube-nac-independent/imagery.json",
+              "illumination": "baked"
             },
             {
               "type": "cube",
@@ -662,18 +664,6 @@
                 180,
                 -80
               ]
-            },
-            {
-              "type": "cube",
-              "id": "wac-reflectance-shackleton",
-              "name": "Moon · WAC reflectance comparison",
-              "description": "45 km south-polar crop of the LROC WAC 643 nm mosaic v1.3, 100 m/px. Normalized to incidence 30°, emission 0°, phase 30°. Residual slope shading remains. Missing observations, including permanently shadowed floors, are transparent to the underlying WAC/NAC imagery. The lighting models are illustrative.",
-              "attribution": "NASA / LROC / ASU",
-              "resolutionMeters": 100,
-              "url": "data/wac-reflectance-shackleton/imagery.json",
-              "visible": false,
-              "illumination": "reflectance",
-              "bounds": [-180, -90, 180, -88.5]
             }
           ],
           "cubeSphere": {

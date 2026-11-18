@@ -37,6 +37,7 @@ describe('LRO hosted lunar surface migration', () => {
     const layers = moon.geometry.terrain.imagery;
     expect(layers).toEqual(lunarOpticalImagery());
     expect(layers.map(l => l.id)).toEqual(['wac', 'nac', 'psr-nac']);
+    expect(layers.slice(0, 2).map(l => l.illumination)).toEqual(['baked', 'baked']);
     expect(layers[1].visible).not.toBe(false);
     expect(layers[2]).toMatchObject({ visible: false, illumination: 'baked', resolutionMeters: 10 });
     expect(layers[2].description).toContain('not calibrated reflectance or sunlight at the simulation time');

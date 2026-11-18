@@ -2,7 +2,6 @@
  * planes against analytic cos(incidence), illumination-baked imagery against
  * double-lighting, flood against slope shading, and program/variant counts.
  * CL_CHROMIUM=/usr/bin/chromium node scripts/test-surface-illumination-webgl.mjs
- * CL_ILLUM_GPU=metal opts into the physical Mac GPU via ANGLE Metal.
  * CL_ILLUM_OUTPUT=/tmp/surface-illumination selects the JSON/screenshot directory.
  * Software WebGL is repeatable acceptance evidence, not a hardware benchmark:
  * its timings are reported but carry no GPU or mobile claim.
@@ -24,9 +23,8 @@ server.middlewares.use(async (req, res, next) => {
     import * as THREE from 'three';
     import { injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode } from '/packages/three/src/SurfaceIllumination.ts';
     // The installed library's own overlay compositor (an internal module, loaded from the package source).
-    import { createRegolithUniforms, injectRegolithReflectance, regolithAngularFactor, REGOLITH_REFLECTANCE_MODELS } from '/packages/three/src/RegolithReflectance.ts';
     import { wrapOverlaysMaterial } from '/node_modules/3d-tiles-renderer/src/three/plugins/images/overlays/wrapOverlaysMaterial.js';
-    window.illumTest = { THREE, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, wrapOverlaysMaterial, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode, createRegolithUniforms, injectRegolithReflectance, regolithAngularFactor, REGOLITH_REFLECTANCE_MODELS };
+    window.illumTest = { THREE, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, wrapOverlaysMaterial, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode };
   </script>`);
   res.setHeader('Content-Type', 'text/html');
   res.end(html);
@@ -35,7 +33,7 @@ let browser;
 try {
   await server.listen();
   browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM,
-    args: process.env.CL_ILLUM_GPU === 'metal' ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -298,7 +296,7 @@ try {
       for (let i = 0; i < 40; i++) shade({ slope: 10, elevation: 40, material });
       return (performance.now() - t) / 40;
     };
-    out.timing = { plainMs: time(plain), hookMs: time(a), note: 'Batched wall-clock render timing; no isolated GPU or mobile claim' };
+    out.timing = { plainMs: time(plain), hookMs: time(a), note: 'software WebGL; no GPU/mobile claim' };
     canvas.getContext; // keep canvas referenced for screenshot
     return out;
   });
@@ -409,138 +407,6 @@ try {
     return out.toDataURL('image/png');
   });
   await writeFile(`${output}/ridge-lighting-sheet.png`, Buffer.from(sheet.split(',')[1], 'base64'));
-  const { sheet: regolithSheet, ...regolith } = await page.evaluate(() => {
-    const { THREE, injectAsIsDisplayIntoShader, createSurfaceAsIsUniforms, createRegolithUniforms,
-      injectRegolithReflectance, regolithAngularFactor, REGOLITH_REFLECTANCE_MODELS: models } = window.illumTest;
-    const canvas = document.createElement('canvas');
-    const size = 256;
-    const renderer = new THREE.WebGLRenderer({ canvas, preserveDrawingBuffer: true });
-    renderer.setSize(size, size);
-    renderer.toneMapping = THREE.NoToneMapping;
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
-    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.FloatType });
-    const scene = new THREE.Scene();
-    const sun = new THREE.DirectionalLight(0xffffff, Math.PI);
-    const provenance = createSurfaceAsIsUniforms('flood');
-    const reflectance = createRegolithUniforms();
-    const material = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.4, 0.4, 0.4), roughness: 0.85 });
-    material.onBeforeCompile = shader => {
-      injectAsIsDisplayIntoShader(shader, provenance);
-      injectRegolithReflectance(shader, reflectance);
-    };
-    const surface = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), material);
-    scene.add(surface, sun, sun.target);
-    const direction = (zenith, azimuth = 0) => {
-      const i = THREE.MathUtils.degToRad(zenith), a = THREE.MathUtils.degToRad(azimuth);
-      return new THREE.Vector3(Math.sin(i) * Math.cos(a), Math.sin(i) * Math.sin(a), Math.cos(i));
-    };
-    const pose = (i, e, azimuth) => {
-      const toSun = direction(i);
-      const toEye = direction(e, azimuth);
-      sun.position.copy(toSun).multiplyScalar(6);
-      reflectance.sunWorld.value.copy(toSun);
-      camera.position.copy(toEye).multiplyScalar(5);
-      camera.lookAt(0, 0, 0);
-      return { mu0: toSun.z, mu: toEye.z, phase: toSun.dot(toEye) };
-    };
-    const pixel = new Float32Array(4);
-    const read = () => {
-      renderer.setRenderTarget(target);
-      renderer.render(scene, camera);
-      renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixel);
-      renderer.setRenderTarget(null);
-      return pixel[0];
-    };
-    let worst = 0, samples = 0;
-    provenance.surfaceAsIs.value = -1;
-    for (let model = 1; model < models.length; model++) {
-      reflectance.model.value = model;
-      for (const i of [0, 35, 75, 89, 105]) for (const e of [0, 40, 85]) for (const a of [0, 90, 180]) {
-        const { mu0, mu, phase } = pose(i, e, a);
-        const expected = 0.4 * regolithAngularFactor(models[model], mu0, mu, phase);
-        const error = Math.abs(read() - expected);
-        worst = Math.max(worst, error);
-        samples++;
-      }
-    }
-    const programCount = renderer.info.programs.length;
-    pose(75, 35, 0);
-    const byProvenance = [1, 0, -1].map(weight => {
-      provenance.surfaceAsIs.value = weight;
-      return models.map((_, index) => { reflectance.model.value = index; return read(); });
-    });
-    // A translucent unknown layer over reflectance should preserve the independently
-    // evaluated legacy and selected diffuse contributions.
-    const mixed = material.clone();
-    mixed.onBeforeCompile = shader => {
-      material.onBeforeCompile(shader);
-      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
-#include <map_fragment>
-surfaceAsIsLayer(diffuseColor.rgb, vec3(0.3, 0.1, 0.2), 0.0, 0.5);
-diffuseColor.rgb = vec3(0.3, 0.1, 0.2) + 0.5 * diffuseColor.rgb;`);
-    };
-    surface.material = mixed;
-    provenance.surfaceAsIs.value = -1;
-    reflectance.model.value = 3;
-    const mixedRed = read();
-    surface.material = material;
-    provenance.surfaceAsIs.value = 0;
-    material.color.setRGB(0.6, 0.2, 0.4);
-    const unknown = read();
-    provenance.surfaceAsIs.value = -1;
-    material.color.setRGB(0.4, 0.4, 0.4);
-    const reflectanceRed = read();
-
-    surface.geometry = new THREE.SphereGeometry(0.94, 128, 96);
-    const poses = [[0, 0, 0, 'Opposition'], [90, 0, 0, 'Quarter'], [82, 35, 0, 'Grazing Sun'], [35, 82, 0, 'Toward the limb']];
-    const contactSheet = document.createElement('canvas');
-    contactSheet.width = 144 + size * poses.length; contactSheet.height = size * models.length + 35;
-    const ctx = contactSheet.getContext('2d');
-    ctx.fillStyle = 'black'; ctx.fillRect(0, 0, contactSheet.width, contactSheet.height);
-    ctx.font = '14px sans-serif'; ctx.fillStyle = 'white';
-    poses.forEach(([i, e, a, title], c) => {
-      pose(i, e, a);
-      ctx.fillText(`${title} (i=${i}°, e=${e}°)`, 148 + c * size, 24);
-      models.forEach((model, r) => {
-        reflectance.model.value = r;
-        renderer.render(scene, camera);
-        ctx.drawImage(canvas, 144 + c * size, 35 + r * size);
-        if (c === 0) ctx.fillText(model, 8, 56 + r * size);
-      });
-    });
-    const timingTarget = new THREE.WebGLRenderTarget(1024, 1024);
-    const timingPixel = new Uint8Array(4);
-    renderer.setRenderTarget(timingTarget);
-    const timing = models.map((_, index) => {
-      reflectance.model.value = index;
-      const rounds = [];
-      for (let r = 0; r < 5; r++) {
-        const start = performance.now();
-        for (let frame = 0; frame < 16; frame++) {
-          renderer.render(scene, camera);
-          // Force the driver to complete each draw. Includes CPU, GPU and readback latency.
-          renderer.readRenderTargetPixels(timingTarget, 512, 512, 1, 1, timingPixel);
-        }
-        rounds.push((performance.now() - start) / 16);
-      }
-      return rounds.sort((a, b) => a - b)[2];
-    });
-    renderer.setRenderTarget(null);
-    timingTarget.dispose();
-    return { samples, worst, programCount, byProvenance, mixedError: Math.abs(mixedRed - (unknown + reflectanceRed) / 2),
-      medianRenderAndReadbackMs: Object.fromEntries(models.map((model, i) => [model, timing[i]])), sheet: contactSheet.toDataURL('image/png') };
-  });
-  assert.deepEqual(errors, [], 'no WebGL shader or page errors');
-  assert.ok(regolith.worst < 1e-4, `CPU/GPU agreement across the angle grid: ${regolith.worst}`);
-  assert.equal(regolith.programCount, 1, 'all four reflectance choices share a GPU program');
-  const [bakedModes, unknownModes, reflectanceModes] = regolith.byProvenance;
-  for (const values of [bakedModes, unknownModes]) assert.ok(values.every(v => Math.abs(v - values[0]) < 1e-6));
-  assert.ok(Math.abs(reflectanceModes[2] - reflectanceModes[3]) > 0.01, 'the same reflectance material responds to both experimental models');
-  assert.ok(regolith.mixedError < 1e-4, `partial unknown coverage keeps its own response: ${regolith.mixedError}`);
-  await writeFile(`${output}/regolith-reflectance.json`, JSON.stringify({ gpu: result.gpu, ...regolith }, null, 2));
-  await writeFile(`${output}/regolith-reflectance.png`, Buffer.from(regolithSheet.split(',')[1], 'base64'));
-  console.log(JSON.stringify({ regolith }, null, 2));
-
   await page.screenshot({ path: `${output}/last-frame.png` });
 } finally {
   await browser?.close();

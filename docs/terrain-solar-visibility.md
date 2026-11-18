@@ -232,12 +232,10 @@ Sun fraction | on: [Shackleton](validation/terrain-solar-shadow/shackleton-rim-p
 Before the scheduling fix the coarser levels could stay on an old Sun indefinitely; re-rendering every level every
 frame instead cost 13–15 ms p50 / 32–34 ms p95 at the pole.
 
-### The shipped WAC+NAC scene and baked illumination
+### WAC and NAC acquisition lighting
 
-`moonfall-shackleton` drapes the LROC WAC + NAC composite. Its pixels contain the illumination of the original images
-(the NAC polar mosaics are assembled for uniform lighting, and permanently shadowed floors are black), but the layer
-declares no provenance, so it is relit as `unknown`. Same Shackleton pose, `--catalog test-catalogs/moonfall-shackleton
---tag wac-nac`:
+The original `moonfall-shackleton` WAC + NAC composite carried the illumination of the source images. With
+undeclared provenance it was relit as `unknown`. Historical captures at the same Shackleton pose:
 [off](validation/terrain-solar-shadow/shackleton-rim-off-gpu-wac-nac.png), [on](validation/terrain-solar-shadow/shackleton-rim-on-gpu-wac-nac.png) (neutral and Sun-fraction
 views: `--modes`).
 
@@ -249,8 +247,9 @@ What that scene can honestly support:
   direct term, so the photo's baked shadows stay where they were, and the image is the union of baked and computed
   shadows.
 
-We did not declare the layer `baked` (that hides the effect), and we did not swap in the nodata-filled WAC_EMP mosaic.
-A relightable albedo product for the pole is the data needed for a trustworthy changing-illumination picture.
+MoonFall and LRO now declare the independent WAC and NAC layers `baked`. Terrain shadows can still affect
+objects and relightable surfaces. The [lunar lighting comparison](lunar-textured-lighting.md) shows what remains
+visible on the photographic terrain. A changing-illumination image needs relightable reflectance and suitable geometry.
 
 **Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its

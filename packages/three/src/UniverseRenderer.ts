@@ -1,4 +1,3 @@
-import { REGOLITH_REFLECTANCE_MODELS, type RegolithReflectanceModel } from './RegolithReflectance.js';
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
@@ -485,7 +484,6 @@ export class UniverseRenderer {
   private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
   /** Current lighting mode — eclipse shadows only apply in 'natural' mode */
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
-  private regolithReflectance: RegolithReflectanceModel = 'legacy';
   /** Selective bloom / Sun glare overlay (null when disabled). */
   private bloomEffect: BloomEffect | null = null;
   private sunGlareEffect: SunGlareEffect | null = null;
@@ -2733,18 +2731,6 @@ export class UniverseRenderer {
     for (const bm of this.bodyMeshes.values()) bm.setSurfaceLightingMode(mode);
   }
 
-  /** Select the direct solar response for supported bare and reflectance-mapped surfaces in Natural lighting. */
-  setRegolithReflectance(model: RegolithReflectanceModel): void {
-    if (!REGOLITH_REFLECTANCE_MODELS.includes(model)) throw new RangeError(`Unknown regolith reflectance model: ${model}`);
-    this.regolithReflectance = model;
-    for (const bm of this.bodyMeshes.values()) bm.setRegolithReflectance(model);
-  }
-
-  get hasRegolithReflectance(): boolean {
-    for (const bm of this.bodyMeshes.values()) if (bm.supportsRegolithReflectance) return true;
-    return false;
-  }
-
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
   setBodyVisible(name: string, visible: boolean): void {
     const bm = this.bodyMeshes.get(name);
@@ -3544,9 +3530,6 @@ export class UniverseRenderer {
   private updateSunLightAndShadow(sun: BodyMesh): void {
     const light = this.sunLight!;
     light.position.copy(sun.position);
-    if (this.regolithReflectance !== 'legacy' && this._lightingMode === 'natural') {
-      for (const bm of this.bodyMeshes.values()) bm.updateRegolithSun(sun.position);
-    }
 
     let caster: BodyMesh | null = null;
     for (const bm of this.bodyMeshes.values()) {
@@ -3704,13 +3687,13 @@ export class UniverseRenderer {
   }
 
   /**
-   * Fixed-pose diagnostic of the **baseline unshadowed Lambertian solar term**
-   * in the current lighting mode (#204): `sunIntensity × cos(incidence)`
+   * Fixed-pose diagnostic of the **unshadowed direct solar term** a surface
+   * receiver gets in the current lighting mode (#204): `sunIntensity × cos(incidence)`
    * for a surface whose normal is the local radial, or for `normal` (body-fixed
    * east/north/up components) to probe a slope. Zero past the terminator and in
    * `flood`. Ambient and baked terms are not included, and neither is terrain
    * occlusion (#205): a receiver facing the Sun can still be behind a ridge.
-   * The result is view independent, including when a regolith model is selected.
+   * The result does not depend on the camera or on what it can see.
    */
   directSolarTermAt(
     bodyName: string, latitudeDeg: number, longitudeDeg: number,
@@ -4352,7 +4335,6 @@ export class UniverseRenderer {
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
       bm.setSurfaceLightingMode(this._lightingMode);
-      bm.setRegolithReflectance(this.regolithReflectance);
       bm.setSolarShadowMode(this._terrainShadowMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);

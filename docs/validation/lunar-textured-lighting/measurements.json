@@ -1,0 +1,6919 @@
+{
+  "comparisons": {
+    "kocher-low: observed shadow toggle": {
+      "meanAbsoluteDn": 0.00015229044834307991,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    },
+    "kocher-low: legacy shadow toggle": {
+      "meanAbsoluteDn": 0.8402229532163743,
+      "changedFraction": 0.10340765107212475,
+      "darkenedFraction": 0.10340765107212475
+    },
+    "kocher-low: remove second lighting pass": {
+      "meanAbsoluteDn": 32.64592470760234,
+      "changedFraction": 0.8674476120857699,
+      "darkenedFraction": 0.2709368908382066
+    },
+    "ambient isolation": {
+      "meanAbsoluteDn": 0.08188230994152047,
+      "changedFraction": 0.000060916179337231965,
+      "darkenedFraction": 0.000060916179337231965
+    },
+    "kocher-low: contribution of NAC": {
+      "meanAbsoluteDn": 0.0001644736842105263,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    },
+    "kocher-higher: observed shadow toggle": {
+      "meanAbsoluteDn": 0.00001583820662768031,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    },
+    "kocher-higher: legacy shadow toggle": {
+      "meanAbsoluteDn": 0.1638425925925926,
+      "changedFraction": 0.017769249512670567,
+      "darkenedFraction": 0.017769249512670567
+    },
+    "kocher-higher: remove second lighting pass": {
+      "meanAbsoluteDn": 25.96188230994152,
+      "changedFraction": 0.9277375730994152,
+      "darkenedFraction": 0.3395589668615984
+    },
+    "shackleton: observed shadow toggle": {
+      "meanAbsoluteDn": 0.0000073099415204678366,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    },
+    "shackleton: legacy shadow toggle": {
+      "meanAbsoluteDn": 1.8512731481481481,
+      "changedFraction": 0.17668494152046785,
+      "darkenedFraction": 0.17668494152046785
+    },
+    "shackleton: remove second lighting pass": {
+      "meanAbsoluteDn": 30.432658382066275,
+      "changedFraction": 0.7034344541910331,
+      "darkenedFraction": 0.1012828947368421
+    },
+    "shackleton: contribution of NAC": {
+      "meanAbsoluteDn": 27.297034600389864,
+      "changedFraction": 0.6413011695906433,
+      "darkenedFraction": 0.5159320175438596
+    },
+    "Shackleton: Natural to Shadow": {
+      "meanAbsoluteDn": 5.421660575048733,
+      "changedFraction": 0.25731846978557504,
+      "darkenedFraction": 0
+    },
+    "Shackleton: Shadow to Flood": {
+      "meanAbsoluteDn": 6.353634259259259,
+      "changedFraction": 0.4179422514619883,
+      "darkenedFraction": 0
+    },
+    "globe versus baked stream, same camera": {
+      "crop": {
+        "left": 450,
+        "top": 315,
+        "right": 630,
+        "bottom": 495
+      },
+      "meanAbsoluteDn": 22.00351851851852,
+      "changedFraction": 0.6537037037037037,
+      "darkenedFraction": 0.5159259259259259
+    },
+    "globe versus legacy stream, same camera": {
+      "crop": {
+        "left": 450,
+        "top": 315,
+        "right": 630,
+        "bottom": 495
+      },
+      "meanAbsoluteDn": 31.021265432098765,
+      "changedFraction": 0.6127777777777778,
+      "darkenedFraction": 0.6096604938271605
+    },
+    "globe versus baked stream in Flood, same camera": {
+      "crop": {
+        "left": 450,
+        "top": 315,
+        "right": 630,
+        "bottom": 495
+      },
+      "meanAbsoluteDn": 14.577993827160494,
+      "changedFraction": 0.6661728395061728,
+      "darkenedFraction": 0.6557716049382716
+    },
+    "return to orbit": {
+      "meanAbsoluteDn": 0,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    },
+    "return from orbit": {
+      "meanAbsoluteDn": 0,
+      "changedFraction": 0,
+      "darkenedFraction": 0
+    }
+  },
+  "transitions": {
+    "inbound": [
+      {
+        "state": "static",
+        "distance": 40000,
+        "baseUncovered": 0
+      },
+      {
+        "state": "preloading",
+        "distance": 25063.93090954433,
+        "baseUncovered": 0
+      },
+      {
+        "state": "streamed",
+        "distance": 11864.020655267981,
+        "baseUncovered": 0
+      }
+    ],
+    "outbound": [
+      {
+        "state": "streamed",
+        "distance": 11500,
+        "baseUncovered": 0
+      },
+      {
+        "state": "preloading",
+        "distance": 12050.329465186343,
+        "baseUncovered": 0
+      },
+      {
+        "state": "static",
+        "distance": 25457.526915090708,
+        "baseUncovered": 0
+      }
+    ]
+  },
+  "captures": {
+    "kocher-low-baked": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": null,
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 205
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.0999999940395355,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4.200000017881393,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-baked-shadows": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.0348052978515625,
+        "coarseFraction": 1,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 13,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.7000000178813934,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-legacy-shadows": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.0348052978515625,
+        "coarseFraction": 1,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 13,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.0999999940395355,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-legacy": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 13,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.5999999940395355,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-legacy-no-ambient": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 13,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.0999999940395355,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.800000011920929,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-neutral-shadows": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.0348052978515625,
+        "coarseFraction": 1,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 17,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.300000011920929,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-neutral": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.0348052978515625,
+        "coarseFraction": 1,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 17,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 166,
+        "pinnedTextures": 6,
+        "textureBytes": 60217344,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 166,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.5,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-low-wac-only": {
+      "utc": "2028-12-18T18:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.5947021384006,
+        -162.7816346678605,
+        -1955.321331013437
+      ],
+      "targetKm": [
+        -248.74797592810484,
+        -186.08726105906715,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804706,
+        -0.5893703559485934,
+        0.17880221511634956
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 4.895006684711105,
+          "azimuthDeg": 295.3410299713487,
+          "cosIncidence": 0.08533009152739973
+        },
+        "kocher": {
+          "elevationDeg": 2.018019162552579,
+          "azimuthDeg": 286.4857488751942,
+          "cosIncidence": 0.03521379710535065
+        },
+        "monsKocher": {
+          "elevationDeg": 0.49040888886599243,
+          "azimuthDeg": 270.59836380974235,
+          "cosIncidence": 0.008559145282621503
+        },
+        "deForestN": {
+          "elevationDeg": 8.51011110666392,
+          "azimuthDeg": 317.7649374761371,
+          "cosIncidence": 0.1479839425357558
+        },
+        "zeeman": {
+          "elevationDeg": 4.905428098363488,
+          "azimuthDeg": 286.9670033978092,
+          "cosIncidence": 0.08551131470245033
+        },
+        "shackleton": {
+          "elevationDeg": 0.7457293702204677,
+          "azimuthDeg": 22.796683295024366,
+          "cosIncidence": 0.013015065369993108
+        }
+      },
+      "sunFixed": [
+        -0.8875909373243267,
+        0.460567876137896,
+        -0.007717476890153525
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 17,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 235
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 146,
+        "pinnedTextures": 6,
+        "textureBytes": 54269952,
+        "inFlight": 1,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 167,
+        "bytes": 4142480,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 108,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "2": 12,
+          "3": 30,
+          "4": 21,
+          "5": 39
+        },
+        "wantedLevels": {
+          "2": 27,
+          "3": 27,
+          "4": 34,
+          "5": 35
+        },
+        "fallbackBlocks": 1,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 1,
+        "updateMs": 0.9000000059604645,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 1,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.199999988079071,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-higher-baked": {
+      "utc": "2028-12-13T12:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.59470213840063,
+        -162.78163466786052,
+        -1955.3213310134374
+      ],
+      "targetKm": [
+        -248.74797592810495,
+        -186.08726105906726,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804712,
+        -0.5893703559485938,
+        0.17880221511634958
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 10.866718760121616,
+          "azimuthDeg": 359.76639918474524,
+          "cosIncidence": 0.18852502349821854
+        },
+        "kocher": {
+          "elevationDeg": 6.025021333405632,
+          "azimuthDeg": 350.54271476553225,
+          "cosIncidence": 0.10496276562388282
+        },
+        "monsKocher": {
+          "elevationDeg": 4.667855438191204,
+          "azimuthDeg": 334.5414424977794,
+          "cosIncidence": 0.08137935384563522
+        },
+        "deForestN": {
+          "elevationDeg": 10.578598337067062,
+          "azimuthDeg": 22.735223336407103,
+          "cosIncidence": 0.18358418245505662
+        },
+        "zeeman": {
+          "elevationDeg": 15.335576077383255,
+          "azimuthDeg": 351.32097571195857,
+          "cosIncidence": 0.2644719117486221
+        },
+        "shackleton": {
+          "elevationDeg": 0.5852560710212348,
+          "azimuthDeg": 86.79389377919904,
+          "cosIncidence": 0.010214467776584545
+        }
+      },
+      "sunFixed": [
+        -0.803084154470585,
+        -0.5957833090194743,
+        -0.00990401595672937
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0011444091796875,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 135.2999999821186,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0348052978515625,
+            "coarseFraction": 0.404937744140625,
+            "builds": 1,
+            "lastBuildMs": 161.40000000596046,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 17,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 236
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 168,
+        "pinnedTextures": 6,
+        "textureBytes": 60960768,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 188,
+        "bytes": 4452467,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.100000023841858,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4.5,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-higher-baked-shadows": {
+      "utc": "2028-12-13T12:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.59470213840063,
+        -162.78163466786052,
+        -1955.3213310134374
+      ],
+      "targetKm": [
+        -248.74797592810495,
+        -186.08726105906726,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804712,
+        -0.5893703559485938,
+        0.17880221511634958
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 10.866718760121616,
+          "azimuthDeg": 359.76639918474524,
+          "cosIncidence": 0.18852502349821854
+        },
+        "kocher": {
+          "elevationDeg": 6.025021333405632,
+          "azimuthDeg": 350.54271476553225,
+          "cosIncidence": 0.10496276562388282
+        },
+        "monsKocher": {
+          "elevationDeg": 4.667855438191204,
+          "azimuthDeg": 334.5414424977794,
+          "cosIncidence": 0.08137935384563522
+        },
+        "deForestN": {
+          "elevationDeg": 10.578598337067062,
+          "azimuthDeg": 22.735223336407103,
+          "cosIncidence": 0.18358418245505662
+        },
+        "zeeman": {
+          "elevationDeg": 15.335576077383255,
+          "azimuthDeg": 351.32097571195857,
+          "cosIncidence": 0.2644719117486221
+        },
+        "shackleton": {
+          "elevationDeg": 0.5852560710212348,
+          "azimuthDeg": 86.79389377919904,
+          "cosIncidence": 0.010214467776584545
+        }
+      },
+      "sunFixed": [
+        -0.803084154470585,
+        -0.5957833090194743,
+        -0.00990401595672937
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "ready",
+        "unknownFraction": 0,
+        "coarseFraction": 1,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 75,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 1.2999999821186066,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 2281,
+            "unknownFraction": 0,
+            "coarseFraction": 0.404937744140625,
+            "builds": 2,
+            "lastBuildMs": 5.5999999940395355,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 25,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 236
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 168,
+        "pinnedTextures": 6,
+        "textureBytes": 60960768,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 188,
+        "bytes": 4452467,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.300000011920929,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4.699999988079071,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-higher-legacy-shadows": {
+      "utc": "2028-12-13T12:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.59470213840063,
+        -162.78163466786052,
+        -1955.3213310134374
+      ],
+      "targetKm": [
+        -248.74797592810495,
+        -186.08726105906726,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804712,
+        -0.5893703559485938,
+        0.17880221511634958
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 10.866718760121616,
+          "azimuthDeg": 359.76639918474524,
+          "cosIncidence": 0.18852502349821854
+        },
+        "kocher": {
+          "elevationDeg": 6.025021333405632,
+          "azimuthDeg": 350.54271476553225,
+          "cosIncidence": 0.10496276562388282
+        },
+        "monsKocher": {
+          "elevationDeg": 4.667855438191204,
+          "azimuthDeg": 334.5414424977794,
+          "cosIncidence": 0.08137935384563522
+        },
+        "deForestN": {
+          "elevationDeg": 10.578598337067062,
+          "azimuthDeg": 22.735223336407103,
+          "cosIncidence": 0.18358418245505662
+        },
+        "zeeman": {
+          "elevationDeg": 15.335576077383255,
+          "azimuthDeg": 351.32097571195857,
+          "cosIncidence": 0.2644719117486221
+        },
+        "shackleton": {
+          "elevationDeg": 0.5852560710212348,
+          "azimuthDeg": 86.79389377919904,
+          "cosIncidence": 0.010214467776584545
+        }
+      },
+      "sunFixed": [
+        -0.803084154470585,
+        -0.5957833090194743,
+        -0.00990401595672937
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "ready",
+        "unknownFraction": 0,
+        "coarseFraction": 1,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "ready",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 75,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 1.2999999821186066,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 2281,
+            "unknownFraction": 0,
+            "coarseFraction": 0.404937744140625,
+            "builds": 2,
+            "lastBuildMs": 5.5999999940395355,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 25,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 236
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 168,
+        "pinnedTextures": 6,
+        "textureBytes": 60960768,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 188,
+        "bytes": 4452467,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.2999999821186066,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4.699999988079071,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "kocher-higher-legacy": {
+      "utc": "2028-12-13T12:00:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -217.59470213840063,
+        -162.78163466786052,
+        -1955.3213310134374
+      ],
+      "targetKm": [
+        -248.74797592810495,
+        -186.08726105906726,
+        -1709.4018649057352
+      ],
+      "up": [
+        -0.7878276152804712,
+        -0.5893703559485938,
+        0.17880221511634958
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 10.866718760121616,
+          "azimuthDeg": 359.76639918474524,
+          "cosIncidence": 0.18852502349821854
+        },
+        "kocher": {
+          "elevationDeg": 6.025021333405632,
+          "azimuthDeg": 350.54271476553225,
+          "cosIncidence": 0.10496276562388282
+        },
+        "monsKocher": {
+          "elevationDeg": 4.667855438191204,
+          "azimuthDeg": 334.5414424977794,
+          "cosIncidence": 0.08137935384563522
+        },
+        "deForestN": {
+          "elevationDeg": 10.578598337067062,
+          "azimuthDeg": 22.735223336407103,
+          "cosIncidence": 0.18358418245505662
+        },
+        "zeeman": {
+          "elevationDeg": 15.335576077383255,
+          "azimuthDeg": 351.32097571195857,
+          "cosIncidence": 0.2644719117486221
+        },
+        "shackleton": {
+          "elevationDeg": 0.5852560710212348,
+          "azimuthDeg": 86.79389377919904,
+          "cosIncidence": 0.010214467776584545
+        }
+      },
+      "sunFixed": [
+        -0.803084154470585,
+        -0.5957833090194743,
+        -0.00990401595672937
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 75,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 1.2999999821186066,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 2281,
+            "unknownFraction": 0,
+            "coarseFraction": 0.404937744140625,
+            "builds": 2,
+            "lastBuildMs": 5.5999999940395355,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 25,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 69,
+        "visible": 69,
+        "drawn": 31,
+        "loaded": 94,
+        "inCache": 94,
+        "cpu": 236
+      },
+      "drawnTreeDepths": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 168,
+        "pinnedTextures": 6,
+        "textureBytes": 60960768,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 188,
+        "bytes": 4452467,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 31,
+        "splitTiles": 0,
+        "blocks": 143,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 9,
+          "2": 21,
+          "3": 35,
+          "4": 20,
+          "5": 43
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 5,
+          "2": 32,
+          "3": 32,
+          "4": 34,
+          "5": 44
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.2000000178813934,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 4.4000000059604645,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-baked": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 3072,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 6.199999988079071,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 1,
+            "lastBuildMs": 126.79999980330467,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 75,
+            "unknownFraction": 0,
+            "coarseFraction": 1,
+            "builds": 2,
+            "lastBuildMs": 1.2999999821186066,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "new-data",
+            "lastSampledTexels": 2281,
+            "unknownFraction": 0,
+            "coarseFraction": 0.404937744140625,
+            "builds": 2,
+            "lastBuildMs": 5.5999999940395355,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 1,
+        "siteKm": [
+          -7.233380561189053E-14,
+          4.822253707459369E-14
+        ],
+        "siteMoves": 1,
+        "siteFade": 1,
+        "horizonRenders": 25,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 236
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 226,
+        "pinnedTextures": 6,
+        "textureBytes": 82520064,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 246,
+        "bytes": 6888200,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 79,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.9000000059604645,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-baked-shadows": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.15185546875,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 35,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 226,
+        "pinnedTextures": 6,
+        "textureBytes": 82520064,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 246,
+        "bytes": 6888200,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 79,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.2000000178813934,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-legacy-shadows": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "high",
+        "state": "partial",
+        "unknownFraction": 0.15185546875,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "partial",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 35,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 226,
+        "pinnedTextures": 6,
+        "textureBytes": 82520064,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 246,
+        "bytes": 6888200,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 79,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 3.2000000178813934,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-legacy": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 35,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 226,
+        "pinnedTextures": 6,
+        "textureBytes": 82520064,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 246,
+        "bytes": 6888200,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 79,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.7999999821186066,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-wac-only": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 35,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 158,
+        "pinnedTextures": 6,
+        "textureBytes": 58730496,
+        "inFlight": 8,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 254,
+        "bytes": 6888200,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 10,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "5": 4
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 38,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 4,
+        "updateMs": 0.20000001788139343,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 5,
+            "missingTiles": 0,
+            "degradedTiles": 38,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.800000011920929,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-shadow-mode": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 259,
+        "pinnedTextures": 6,
+        "textureBytes": 96273408,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 347,
+        "bytes": 9596702,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 75,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.800000011920929,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 5592405,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-flood-mode": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 259,
+        "pinnedTextures": 6,
+        "textureBytes": 96273408,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 347,
+        "bytes": 9596702,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 75,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.4000000059604645,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.5999999940395355,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 16777215,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-static": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -28205.07987405246,
+        -19749.409543618516,
+        -27430.728221043475
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "static",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 364
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 259,
+        "pinnedTextures": 6,
+        "textureBytes": 96273408,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 347,
+        "bytes": 9596702,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 75,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.6000000238418579,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 8.200000017881393,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-streamed-baked": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -9061.833464873353,
+        -6345.16410210534,
+        -8309.720243922487
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.29999998211860657,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 6.5999999940395355,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-streamed-legacy": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -9061.833464873353,
+        -6345.16410210534,
+        -8309.720243922487
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.19999998807907104,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "unknown",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 6.5999999940395355,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-matched-globe": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -9061.833464873353,
+        -6345.16410210534,
+        -8309.720243922487
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": true,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.30000001192092896,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 6.899999976158142,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-flood-streamed": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -9061.833464873353,
+        -6345.16410210534,
+        -8309.720243922487
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.19999998807907104,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 7.800000011920929,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 16777215,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-flood-globe": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -9061.833464873353,
+        -6345.16410210534,
+        -8309.720243922487
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": true,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.20000001788139343,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 6.5999999940395355,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 16777215,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "orbital-static-again": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        -28205.079874052466,
+        -19749.40954361852,
+        -27430.728221043475
+      ],
+      "targetKm": [
+        -1337.3656155554675,
+        -936.4334853544077,
+        -594.2257970140168
+      ],
+      "up": [
+        -0.28016649959323536,
+        -0.19617469496901116,
+        0.9396926207859084
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": false
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "static",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 6,
+        "visible": 6,
+        "drawn": 6,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        1
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 6,
+        "splitTiles": 0,
+        "blocks": 24,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 12
+        },
+        "wantedLevels": {
+          "0": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 0,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.19999998807907104,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 0,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 5.5,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    },
+    "shackleton-streamed-again": {
+      "utc": "2028-12-15T10:04:00Z",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "eyeKm": [
+        12.548117259556369,
+        -5.1891521367289085E-14,
+        -1797.3561986298769
+      ],
+      "targetKm": [
+        12.129241641678659,
+        -4.5145863471919144E-14,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053946,
+        1.298823380660799E-16,
+        0.006981260297961701
+      ],
+      "fov": 60,
+      "solar": {
+        "farSide": {
+          "elevationDeg": 9.94383035976695,
+          "azimuthDeg": 335.9925495738023,
+          "cosIncidence": 0.17268264286108215
+        },
+        "kocher": {
+          "elevationDeg": 5.16462052944817,
+          "azimuthDeg": 327.0495870806763,
+          "cosIncidence": 0.09001761604488209
+        },
+        "monsKocher": {
+          "elevationDeg": 3.506556124150742,
+          "azimuthDeg": 311.11423161524607,
+          "cosIncidence": 0.06116275166007685
+        },
+        "deForestN": {
+          "elevationDeg": 11.349256843216642,
+          "azimuthDeg": 358.9114179629677,
+          "cosIncidence": 0.19678910035906047
+        },
+        "zeeman": {
+          "elevationDeg": 13.166474997159114,
+          "azimuthDeg": 327.27426885019133,
+          "cosIncidence": 0.22778116892867678
+        },
+        "shackleton": {
+          "elevationDeg": 0.6645314817054885,
+          "azimuthDeg": 63.39741098272492,
+          "cosIncidence": 0.011598002308225198
+        }
+      },
+      "sunFixed": [
+        -0.9736412659846266,
+        -0.22790597159373224,
+        -0.009030685675536797
+      ],
+      "shadows": {
+        "mode": "off",
+        "state": null,
+        "unknownFraction": 0,
+        "coarseFraction": 0,
+        "bakedOnly": true
+      },
+      "clipmap": {
+        "state": "off",
+        "levels": [
+          {
+            "halfKm": 8,
+            "texelKm": 0.0625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.1150360107421875,
+            "coarseFraction": 0,
+            "builds": 3,
+            "lastBuildMs": 58.90000003576279,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 24,
+            "texelKm": 0.1875,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.15185546875,
+            "coarseFraction": 0,
+            "builds": 2,
+            "lastBuildMs": 66.79999992251396,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 80,
+            "texelKm": 0.625,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.0974578857421875,
+            "coarseFraction": 0.0381622314453125,
+            "builds": 3,
+            "lastBuildMs": 101.30000007152557,
+            "horizonSunLagDeg": 0
+          },
+          {
+            "halfKm": 320,
+            "texelKm": 2.5,
+            "valid": true,
+            "offsetKm": [
+              0,
+              0
+            ],
+            "lastReason": "initial",
+            "lastSampledTexels": 65536,
+            "unknownFraction": 0.04803466796875,
+            "coarseFraction": 0.080078125,
+            "builds": 3,
+            "lastBuildMs": 148.19999986886978,
+            "horizonSunLagDeg": 0
+          }
+        ],
+        "anchorResets": 2,
+        "siteKm": [
+          5.353777096605412E-30,
+          0
+        ],
+        "siteMoves": 2,
+        "siteFade": 1,
+        "horizonRenders": 37,
+        "rangeKm": 320,
+        "unknownDrawnLit": true
+      },
+      "transition": "streamed",
+      "forcedGlobe": false,
+      "globeMaterial": {
+        "type": "MeshStandardMaterial",
+        "map": true,
+        "normalMap": true,
+        "displacement": true
+      },
+      "terrain": {
+        "active": 105,
+        "visible": 105,
+        "drawn": 8,
+        "loaded": 142,
+        "inCache": 142,
+        "cpu": 367
+      },
+      "drawnTreeDepths": [
+        7
+      ],
+      "imagery": {
+        "version": "cube-imagery-base-8382ea2b8d3b8ff4",
+        "ready": true,
+        "manifestFailed": false,
+        "textures": 266,
+        "pinnedTextures": 6,
+        "textureBytes": 97016832,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 536870912,
+        "requests": 355,
+        "bytes": 9673917,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 8,
+        "splitTiles": 0,
+        "blocks": 80,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 12,
+          "2": 12,
+          "3": 12,
+          "7": 32
+        },
+        "wantedLevels": {
+          "6": 8,
+          "7": 30
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "gpuError": null
+      },
+      "sources": [
+        {
+          "id": "wac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": null,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "nac",
+          "illumination": "baked",
+          "visible": true,
+          "view": {
+            "inCoverage": true,
+            "zoomLevel": 7,
+            "missingTiles": 0,
+            "degradedTiles": 0,
+            "cacheFull": false
+          }
+        },
+        {
+          "id": "psr-nac",
+          "illumination": "baked",
+          "visible": false,
+          "view": null
+        }
+      ],
+      "renderSubmissionMedianMs": 2.9000000059604645,
+      "toneMapping": 0,
+      "exposure": 1,
+      "environment": false,
+      "ambient": 526344,
+      "hillshade": false,
+      "materials": [
+        {
+          "normalMap": false,
+          "roughness": 0.85,
+          "metalness": 0
+        }
+      ]
+    }
+  }
+}

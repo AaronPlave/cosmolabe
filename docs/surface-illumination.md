@@ -205,19 +205,14 @@ never a ridge's shadow: a crater floor facing the Sun is still treated as lit
 
 ### Source provenance
 
-What the real products are, with the evidence. "Baked" means shading is in the
-pixels as released; it is a statement about the products, not a preference about
-how Natural should look, and the last column is the classification the evidence
-supports, **not** what the shipped catalogs declare: existing demo catalogs leave
-`illumination` undeclared (`unknown`), which renders exactly as on `main`, until a
-default-appearance change is made intentionally with real-data comparisons. The
-opt-in fixture `moon-illumination-provenance` declares the WAC+NAC composite
-`baked` for anyone who wants to see it. Confidence is stated where the primary
-source is thin.
+The **baked** declaration means that the released pixels carry acquisition
+lighting. LRO and MoonFall declare their WAC morphology and controlled NAC
+layers baked. The [lunar textured lighting investigation](lunar-textured-lighting.md)
+shows the effect in fixed-view captures. The table also records evidence for
+other products. It does not change their catalog settings.
 
-Issue #147 separates the original WAC and controlled-NAC inputs into ordinary
-cube layers, preserving their existing default lighting policy. Its optional
-PSR optical observation is explicitly `baked`, initially disabled, and labeled
+Issue #147 separated the original WAC and controlled-NAC inputs into ordinary
+cube layers. Its optional PSR optical observation is explicitly `baked`, initially disabled, and labeled
 as stretched indirect-light photography. The source pins, masks and frame
 qualifications are in the [optical builder notes](../scripts/build-moon-terrain/README.md#independent-optical-layers-147).
 The composite below remains the immutable comparison baseline; source shading
@@ -274,10 +269,9 @@ Question: what should Natural show for real mission scenes, given that the
 highest-resolution imagery (NAC, CTX, HiRISE) carries the Sun it was acquired
 under? Same hosted terrain, camera, display settings and fixed epochs; real viewer
 on software WebGL; every frame fully streamed (displayed imagery level equal to
-the wanted level, no fallback blocks). **A** is the behaviour of undeclared provenance, which is what
-the shipped demos still render (baked imagery relit; pixel-identical to a build of
-the base commit on the same catalog: mean difference 0.00, 0 % of pixels differ),
-**B** is the same layer declared `baked` (as-is, opt-in), **C** is a
+the wanted level, no fallback blocks). **A** is the behaviour of undeclared provenance
+(baked imagery relit, pixel-identical to the base commit on the same catalog),
+**B** is the same layer declared `baked`, **C** is a
 physically relit normalized reflectance layer. Scripts, numbers and Sun geometry:
 [`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
 
@@ -435,12 +429,9 @@ interior (nodata, filled) and carries residual slope shading at crater walls, so
 the polar illumination-study scene shows the DEM's shading over a near-uniform
 albedo, with the baked NAC one toggle away. Equatorial 100 m tiles (eight
 `WAC_EMP_643NM_E300…` tiles, about 500 MB each, plus the north polar tile) exist on
-the same host and were located but not built or compared. The LRO/MoonFall catalogs
-leave the WAC+NAC composite undeclared (relit as on `main`); switching that default
-is the owner's decision, and the polar nodata floors and residual slope shading say
-the 100 m product is not ready to be the production default. NAC (1 m) has no normalized counterpart: at the
-south pole its footprint covers the whole scene, so a baked NAC layer there is the
-scene.
+the same host. The polar nodata floors and residual slope shading limit the 100 m
+product as a replacement for the ordinary imagery. NAC (1 m) has no normalized
+counterpart in this stack and dominates the displayed pixels close to Shackleton.
 
 ## Normals
 
@@ -484,7 +475,8 @@ ambient-only look.
 ## Not photometrically accurate
 
 - No terrain self-shadowing or horizon occlusion (#205).
-- The baseline has no regolith phase function. [Regolith reflectance](regolith-reflectance.md) adds opt-in angular models for eligible surfaces.
+- Lambertian response only: no regolith BRDF, opposition effect or Hapke
+  photometry.
 - No indirect bounce or Earthshine; `natural` ambient is a flat 3%.
 - Sun is a point direction; no penumbra on terrain.
 - `unknown` imagery is relit but may already contain shading.
