@@ -1,7 +1,7 @@
 import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
-import { declareSurfaceAsIs, imageryAsIsWeight } from './SurfaceIllumination.js';
+import { declareSurfaceAsIs, imageryAsIsWeight, type LightingMode } from './SurfaceIllumination.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
@@ -312,6 +312,7 @@ export function cubeBlockInsideBounds(address: ImageryAddress, bounds: readonly 
 /** Unknown pixels never establish opacity. Scan the original decoded alpha,
  * including gutters, once per texture; a downsample could erase small holes. */
 export class CubeImageryLayer {
+  lightingMode: LightingMode = 'natural';
   surfaceAppearance: SurfaceAppearance | null = null;
   manifest: CubeImageryManifest | null = null;
   readonly ready: Promise<void>;
@@ -827,7 +828,7 @@ export class CubeImageryLayer {
         u.srgb.value = s.manifest?.colorSpace === 'srgb' ? 1 : 0;
         u.opacity.value = s.info.opacity; u.bounded.value = s.info.bounds ? 1 : 0;
         u.bounds.value.fromArray(s.info.bounds ?? [-180, -90, 180, 90]);
-        u.asIs.value = imageryAsIsWeight(s.info.illumination);
+        u.asIs.value = imageryAsIsWeight(s.info.illumination, this.lightingMode);
       }
     }
     // Prioritize complete coarse feedback across all layers, followed by local

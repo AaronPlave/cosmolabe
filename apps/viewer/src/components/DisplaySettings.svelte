@@ -46,21 +46,28 @@
   const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; coarse: number; baked: boolean } : null);
   const shadowStatusText = $derived.by(() => {
     if (!shadow) return '';
-    if (shadow.baked) {
-      if (vs.lightingMode === 'flood') return 'Flood shows the original imagery without a simulated day/night boundary. Photographic shadows stay fixed.';
-      const night = vs.lightingMode === 'shadow' ? 'The simulated night side is brighter' : 'The simulated Sun moves the day/night boundary';
-      return `${night}. Photographic shadows stay fixed. Terrain shadows can still affect nearby objects.`;
+    if (vs.lightingMode === 'flood') return 'Flood shows the imagery without simulated sunlight or terrain shadows.';
+    if (shadow.mode === 'off') {
+      if (!shadow.baked) return '';
+      return vs.lightingMode === 'shadow'
+        ? 'The simulated night side is brighter. Photographic shadows remain.'
+        : 'The simulated Sun moves the day/night boundary. Photographic shadows remain.';
     }
-    if (vs.lightingMode === 'flood') return 'Off in Flood lighting, which has no Sun.';
-    if (shadow.mode === 'off') return '';
     // The finest clipmap level, around the view's centre.
     if (shadow.coarse > 0 && (shadow.state === 'ready' || shadow.state === 'partial')) {
       return `Terrain heights here are farther apart than the shadow detail${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: shadows there are only as sharp as the heights support.`;
     }
     switch (shadow.state) {
       case 'building': return 'Building terrain data…';
-      case 'partial': return `Some terrain not loaded (${shadow.unknown} %): drawn lit, not shadowed.`;
-      case 'ready': return 'On, from the loaded terrain heights.';
+      case 'partial': return shadow.baked
+        ? 'Terrain shadows use loaded heights. Gaps use the reference-sphere horizon.'
+        : `Some terrain not loaded (${shadow.unknown} %). Simulated shadows may be incomplete.`;
+      case 'ready': return shadow.baked
+        ? 'Simulated terrain shadows are layered over the photograph.'
+        : 'On, from the loaded terrain heights.';
+      case 'out-of-range': return shadow.baked
+        ? 'Terrain shadows are out of range. Using the reference-sphere horizon.'
+        : 'Terrain shadows are out of range.';
       default: return 'Starts when the camera is near the surface.';
     }
   });
@@ -179,7 +186,7 @@
 
     {#if shadow}
       <div class="ui-body flex items-center gap-2 px-3 py-1">
-        <span class="flex-1 text-text-primary" title="Terrain-cast Sun shadows and horizon occlusion on relit terrain. A visual aid, not a certified illumination product. Higher quality costs more GPU time.">Terrain shadows</span>
+        <span class="flex-1 text-text-primary" title="Uses loaded heights to estimate current Sun visibility. On photographs, simulated shadows are layered over the original acquisition shadows. Higher quality costs more GPU time.">Terrain shadows</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
           aria-label="Terrain shadows"

@@ -319,6 +319,7 @@ const catalog = {
           type: '3dtiles',
           frame: 'MOON_ME_DE421',
           url: `${TERRAIN.catalogPrefix}tileset.json`,
+          orbitalSolarShadows: { halfKm: 1500, size: 256, maxAltitudeKm: 1150 },
           errorTarget: 2,
           fadeDurationMs: 0,
           datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },

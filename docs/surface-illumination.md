@@ -187,17 +187,14 @@ perspective; only the Sun, ambient and environment lighting are bypassed.
 
 ### Baked imagery and the terminator
 
-A baked image cannot tell the renderer that the Sun has set on the surface it
-draws, and showing it at full brightness on the night side would make a lunar
-night look like day. Baked pixels therefore fall to the lighting mode's
-`bakedNightFloor` (natural 3 %, shadow 33 %, flood 100 % = no gate) when the Sun
-is below the **local horizon of the reference sphere**, over a ramp as wide as
-the Sun's angular radius (`sin 0.27°`). This is the terminator only. It uses the
-body-centre direction, never the terrain slope (slopes are in the image, and
-re-shading them would double-light it), never the camera's view of the Sun, and
-never a ridge's shadow: a crater floor facing the Sun is still treated as lit
-(#205). Baked pixels are shown at full scale (relit pixels carry the Lambert
-`1/π`), so Natural, Shadow and Flood of a baked surface differ only at night.
+Baked pixels keep their source shading and fade toward the lighting mode's
+`bakedNightFloor` (Natural 3%, Shadow 33%, Flood 100%) as the simulated Sun
+becomes occluded. With terrain shadows enabled and a valid height-based answer,
+the gate uses computed Sun visibility, including ridge and crater-wall occlusion.
+Elsewhere the gate uses the reference-sphere horizon and the Sun's angular width.
+Flood bypasses this gate and also shows declared reflectance layers in their
+source colours. The existing Flood material response remains for unknown imagery.
+See the [matched lunar comparisons](lunar-sun-visibility.md).
 
 `illumination` is accepted by the catalog schema on `imagery[]`,
 `terrain.imagery[]` and `terrain`. Cube imagery is declared as `terrain.imagery[]` layers

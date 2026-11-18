@@ -9,7 +9,10 @@ import { PNG } from 'pngjs';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5296';
 const out = process.argv[3] ?? 'work/lunar-textured-lighting';
+const pilot = process.argv.includes('--copernicus');
+const catalog = pilot ? 'experiments/moon-copernicus-photometry' : 'moonfall-shackleton';
 const locations = {
+  copernicus: [9.6447, -20.3651],
   farSide: [-79.7, -143.2],
   kocher: [-84.4671, -134.0244],
   monsKocher: [-85.46, -118.06],
@@ -46,14 +49,14 @@ function compare(label, from, to, crop) {
   };
 }
 
-try {
+async function run() {
   const page = await browser.newPage({ viewport: { width: 1080, height: 760 }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
     if (message.type() === 'error' && /shader|GL_INVALID|WebGLProgram/i.test(message.text())) errors.push(message.text());
   });
-  await page.goto(new URL('/?catalog=test-catalogs/moonfall-shackleton&test=1&solarExposure=fixed', base).href);
+  await page.goto(new URL(`/?catalog=test-catalogs/${catalog}&test=1&solarExposure=fixed`, base).href, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 120_000 });
   const overview = await page.evaluate(() => {
     const r = window.renderer;
@@ -169,6 +172,8 @@ try {
           solar: Object.fromEntries(Object.entries(locations).map(([key, [lat, lon]]) => [key, r.solarGeometryAt('Moon', lat, lon)])),
           sunFixed: r.getBodyMesh('Sun').position.clone().sub(b.position).normalize().applyQuaternion(q).toArray(),
           shadows: r.terrainShadowSummary(), clipmap: b.solarShadowStatus, transition: b.surfaceTransitionState,
+          vehicles: Object.fromEntries(['Polaris-A', 'Polaris-B', 'Polaris-C', 'Polaris-D'].map(name =>
+            [name, r.getBodyMesh(name)?.shadowUniforms.uTerrainSunVisibility.value]).filter(([, fraction]) => fraction !== undefined)),
           forcedGlobe: forceGlobe,
           globeMaterial: {
             type: b.mesh.material.type, map: !!b.mesh.material.map,
@@ -190,6 +195,56 @@ try {
     console.log(name, state.transition, state.shadows?.state);
   };
 
+  if (pilot) {
+    const site = locations.copernicus;
+    const time = '2028-12-10T06:00:00Z', later = '2028-12-26T00:00:00Z';
+    await pose(time, 68, site);
+    await settle();
+    await capture('original-natural', time);
+    await page.evaluate(() => window.renderer.setLightingMode('flood'));
+    await capture('original-flood', time);
+    await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
+    await page.getByRole('button', { name: 'Moon imagery' }).click();
+    const control = page.getByRole('checkbox', { name: /Show WAC normalized reflectance/ });
+    await control.click();
+    await page.waitForFunction(() => {
+      const moon = window.renderer.getBodyMesh('Moon');
+      const layer = moon.imageryLayers.find(l => l.id === 'wac-emp-copernicus');
+      return layer?.illumination === 'reflectance' && layer.view?.zoomLevel >= 7;
+    }, null, { timeout: 90_000 });
+    await settle();
+    await capture('normalized-flood', time);
+    await page.evaluate(() => window.renderer.setLightingMode('natural'));
+    await capture('normalized-natural', time);
+    await shadows('high');
+    await capture('normalized-high', time);
+    assert.ok(compare('normalization', 'original-flood', 'normalized-flood').changedFraction > .05);
+    assert.ok(compare('directional lighting', 'normalized-flood', 'normalized-natural').darkenedFraction > .05);
+    assert.ok(compare('shadow toggle', 'normalized-natural', 'normalized-high').darkenedFraction > .01);
+    await pose(later, 68, site);
+    await settle();
+    await shadows('high');
+    await capture('normalized-time-change', later);
+    await page.evaluate(() => window.renderer.setLightingMode('flood'));
+    await capture('normalized-flood-high', later);
+    assert.ok(compare('time invariance in Flood', 'normalized-flood', 'normalized-flood-high').changedFraction < .002);
+    await pose(later, 125, site);
+    await settle();
+    await capture('bounded-overlay', later);
+    await control.click();
+    await settle();
+    await capture('bounded-overlay-off', later);
+    const bound = compare('outside imagery footprint', 'bounded-overlay', 'bounded-overlay-off', { left: 0, right: 180, top: 0, bottom: 760 });
+    assert.ok(bound.changedFraction < .002);
+    await pose(later, 68, site);
+    await settle();
+    await capture('ordinary-wac-restored', later);
+    assert.ok(compare('restore WAC', 'original-flood', 'ordinary-wac-restored').changedFraction < .002);
+    assert.deepEqual(errors, []);
+    await writeFile(join(out, 'results.json'), JSON.stringify({ captures, comparisons }, null, 2) + '\n');
+    return;
+  }
+
   for (const { name, time, distance } of [
     { name: 'kocher-low', time: '2028-12-18T18:00:00Z', distance: 235 },
     { name: 'kocher-higher', time: '2028-12-13T12:00:00Z', distance: 235 },
@@ -208,7 +263,7 @@ try {
     await capture(name + '-legacy', time);
     await legacy(false);
 
-    assert.equal(compare(name + ': observed shadow toggle', name + '-baked', name + '-baked-shadows').changedFraction, 0);
+    compare(name + ': observed shadow toggle', name + '-baked', name + '-baked-shadows');
     assert.ok(compare(name + ': legacy shadow toggle', name + '-legacy', name + '-legacy-shadows').darkenedFraction > .001);
     assert.ok(compare(name + ': remove second lighting pass', name + '-legacy', name + '-baked').changedFraction > .1);
     const a = captures[name + '-baked'], b = captures[name + '-legacy'];
@@ -218,6 +273,9 @@ try {
     assert.deepEqual(a.drawnTreeDepths, b.drawnTreeDepths);
     assert.equal(a.imagery.tiles, b.imagery.tiles);
     assert.equal(a.imagery.requests, b.imagery.requests);
+    await page.evaluate(() => window.renderer.setLightingMode('flood'));
+    await capture(name + '-flood', time);
+    await page.evaluate(() => window.renderer.setLightingMode('natural'));
 
     if (name === 'kocher-low') {
       await legacy(true);
@@ -244,8 +302,32 @@ try {
       await settle();
     }
   }
+  assert.ok(comparisons['shackleton: observed shadow toggle'].darkenedFraction > .001);
+  assert.ok(Object.values(captures['shackleton-baked-shadows'].vehicles).some(fraction => fraction < .99));
+  assert.ok(Object.values(captures['shackleton-baked'].vehicles).every(fraction => fraction === 1));
+
+  const terminatorTime = '2028-12-18T18:00:00Z';
+  for (const [suffix, utc] of [['', terminatorTime], ['-later', '2028-12-18T23:00:00Z']]) {
+    await shadows('off');
+    await pose(utc, 991);
+    await settle();
+    await capture('terminator-off' + suffix, utc);
+    await shadows('high');
+    await capture('terminator-high' + suffix, utc);
+    assert.equal(captures['terminator-high' + suffix].clipmap.levels.length, 1);
+    assert.ok(compare('orbital horizon' + suffix, 'terminator-off' + suffix, 'terminator-high' + suffix).changedFraction > .01);
+  }
+  await pose(terminatorTime, 1400);
+  await settle();
+  await capture('terminator-out-of-range-high', terminatorTime);
+  assert.equal(captures['terminator-out-of-range-high'].clipmap.state, 'out-of-range');
+  await shadows('off');
+  await capture('terminator-out-of-range-off', terminatorTime);
+  assert.equal(compare('out-of-range fallback', 'terminator-out-of-range-off', 'terminator-out-of-range-high').changedFraction, 0);
 
   const time = '2028-12-15T10:04:00Z';
+  await pose(time, null);
+  await settle();
   const display = page.getByRole('button', { name: 'Display', exact: true });
   await display.click();
   const lighting = page.getByRole('combobox', { name: 'Lighting', exact: true });
@@ -255,13 +337,19 @@ try {
   assert.equal(await shadowControl.inputValue(), 'off');
   await expectStatus('The simulated Sun moves the day/night boundary');
   await shadowControl.selectOption('high');
-  await expectStatus('Photographic shadows stay fixed');
+  await page.waitForFunction(() => /loaded (terrain )?heights|layered over|shadow detail/.test(
+    document.querySelector('[data-testid="terrain-shadow-status"]')?.textContent ?? ''));
+  await lighting.selectOption('flood');
+  await expectStatus('Flood shows the imagery');
+  await capture('shackleton-flood-high', time);
+  assert.equal(compare('Flood ignores High', 'shackleton-flood', 'shackleton-flood-high').changedFraction, 0);
+  await lighting.selectOption('natural');
   await shadowControl.selectOption('off');
   await lighting.selectOption('shadow');
   await expectStatus('The simulated night side is brighter');
   await capture('shackleton-shadow-mode', time);
   await lighting.selectOption('flood');
-  await expectStatus('Flood shows the original imagery');
+  await expectStatus('Flood shows the imagery');
   await capture('shackleton-flood-mode', time);
   assert.ok(compare('Shackleton: Natural to Shadow', 'shackleton-baked', 'shackleton-shadow-mode').changedFraction > .01);
   assert.ok(compare('Shackleton: Shadow to Flood', 'shackleton-shadow-mode', 'shackleton-flood-mode').changedFraction > .01);
@@ -282,8 +370,10 @@ try {
       const distance = from * (to / from) ** (i / 80);
       camera.position.copy(controls.target).addScaledVector(offset, distance);
       r.renderFrame();
-      if (states.at(-1)?.state !== b.surfaceTransitionState) {
-        states.push({ state: b.surfaceTransitionState, distance, baseUncovered: b.terrainManager.cubeImageryStats?.baseUncoveredBlocks });
+      const clip = b.solarShadowStatus;
+      const range = clip?.state === 'off' ? null : clip?.rangeKm ?? null;
+      if (states.at(-1)?.state !== b.surfaceTransitionState || states.at(-1)?.range !== range) {
+        states.push({ state: b.surfaceTransitionState, distance, range, baseUncovered: b.terrainManager.cubeImageryStats?.baseUncoveredBlocks });
       }
       await new Promise(requestAnimationFrame);
     }
@@ -292,7 +382,7 @@ try {
   // The 80px show threshold is reached at roughly 12,500 km from lunar centre.
   const inbound = await dolly(40_000, 11_500);
   await settle();
-  await expectStatus('Photographic shadows stay fixed');
+  await expectStatus('Photographic shadows remain');
   await capture('orbital-streamed-baked', time);
   await legacy(true);
   await capture('orbital-streamed-legacy', time);
@@ -307,7 +397,7 @@ try {
   assert.deepEqual(captures['orbital-matched-globe'].targetKm, captures['orbital-streamed-baked'].targetKm);
   assert.deepEqual(captures['orbital-matched-globe'].up, captures['orbital-streamed-baked'].up);
   await lighting.selectOption('flood');
-  await expectStatus('Flood shows the original imagery');
+  await expectStatus('Flood shows the imagery');
   await capture('orbital-flood-streamed', time);
   await capture('orbital-flood-globe', time, true);
   compare('globe versus baked stream in Flood, same camera', 'orbital-flood-globe', 'orbital-flood-streamed', disk);
@@ -328,14 +418,36 @@ try {
   await settle();
   await capture('shackleton-streamed-again', time);
   assert.ok(compare('return from orbit', 'shackleton-baked', 'shackleton-streamed-again').changedFraction < .005);
+  await pose(terminatorTime, 280);
+  await settle();
+  await shadows('high');
+  const outwardShadow = await dolly(280, 390);
+  await settle();
+  await shadows('high');
+  await capture('orbital-after-dolly', terminatorTime);
+  const inwardShadow = await dolly(390, 280);
+  await settle();
+  await shadows('high');
+  await capture('near-after-dolly', terminatorTime);
+  assert.deepEqual(outwardShadow.map(sample => sample.range), [320, 1500]);
+  assert.deepEqual(inwardShadow.map(sample => sample.range), [1500, 320]);
+  assert.ok([...outwardShadow, ...inwardShadow].every(sample => sample.state === 'streamed' && sample.baseUncovered === 0));
+  await writeFile(join(out, 'shadow-transitions.json'), JSON.stringify({ outwardShadow, inwardShadow }, null, 2) + '\n');
+  await shadows('off');
+  await pose(time, null);
+  await settle();
   await display.click();
   await page.setViewportSize({ width: 390, height: 780 });
   await shadowControl.scrollIntoViewIfNeeded();
-  await expectStatus('Photographic shadows stay fixed');
+  await expectStatus('Photographic shadows remain');
   assert.equal(await shadowControl.getAttribute('aria-describedby'), 'terrain-shadow-status');
   await page.screenshot({ path: join(out, 'compact-display.png') });
   assert.deepEqual(errors, []);
   await writeFile(join(out, 'results.json'), JSON.stringify({ captures, comparisons }, null, 2) + '\n');
+}
+
+try {
+  await run();
 } finally {
   await browser.close();
 }

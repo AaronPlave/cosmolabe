@@ -616,6 +616,7 @@
         "terrain": {
           "type": "3dtiles",
           "frame": "MOON_ME_DE421",
+          "orbitalSolarShadows": { "halfKm": 1500, "size": 256, "maxAltitudeKm": 1150 },
           "url": "data/moon-terrain-cube/tileset.json",
           "errorTarget": 2,
           "fadeDurationMs": 0,

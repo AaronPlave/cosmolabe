@@ -28,9 +28,10 @@ fragment, including slopes facing away from the Sun, which the lit image leaves 
 clipmap); `4` **neutral grey albedo** lit by the Sun with terrain shadows (no imagery, no baked light); `5` the same
 without terrain shadows; `6` the normal image with shadows bypassed while the clipmap keeps updating (A/B "off").
 
-What it touches: the **direct** diffuse/specular term of relit surfaces (`reflectance` and `unknown` imagery), and the
-light on **vehicles** (any body with a model whose parent has terrain shadows: landed or flying, see step 6). Ambient
-and eclipse terms on terrain are untouched. A vehicle's own shadow on the ground keeps its shadow map.
+The terrain result attenuates the direct diffuse and specular light on relit surfaces, and gates
+acquisition-lit imagery independently of its existing photographic shadows. The near clipmap also
+affects the light on landed and flying vehicles with a terrain parent. Ambient and eclipse terms on
+relit terrain and vehicle shadow maps use their existing paths.
 
 ## How it works
 
@@ -247,9 +248,7 @@ What that scene can honestly support:
   direct term, so the photo's baked shadows stay where they were, and the image is the union of baked and computed
   shadows.
 
-MoonFall and LRO now declare the independent WAC and NAC layers `baked`. Terrain shadows can still affect
-objects and relightable surfaces. The [lunar lighting comparison](lunar-textured-lighting.md) shows what remains
-visible on the photographic terrain. A changing-illumination image needs relightable reflectance and suitable geometry.
+MoonFall and LRO declare WAC and NAC `baked`. The [baked-imagery follow-up](lunar-sun-visibility.md) applies computed Sun visibility to them independently of the original photographic shading.
 
 **Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
@@ -307,7 +306,7 @@ is measured.
   (debug view 2: orange): they show what the spacing supports, not a determined visibility. The softening uses one
   typical slope (0.05) for every terrain; rougher terrain would warrant more.
 - **Vehicles** are lit or shadowed as a whole from one point, and the factor dims their ambient light too (as eclipses do).
-- **Baked imagery** (see above). Imagery declared `baked` shows no terrain shadows, and the viewer says so.
+- **Baked imagery.** Computed Sun visibility can obscure additional areas. Shadows present in the original photograph remain. Coverage gaps use the reference-sphere horizon.
 - **Quantized-mesh terrain** mixes LODs in its CPU samples. Cube-sphere terrain is the supported low-Sun path.
 - **Overhangs.** A radial height field cannot represent overhangs. `clipmapSourceFromSurface` keeps the highest surface.
 

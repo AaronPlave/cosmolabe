@@ -21,7 +21,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
-import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus, type SolarShadowDebugMode } from './SolarShadowClipmap.js';
+import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapLevelConfig, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus, type SolarShadowDebugMode, type SolarShadowUniforms } from './SolarShadowClipmap.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
@@ -139,12 +139,14 @@ export interface TerrainConfig {
    *  `'reflectance'` for an untextured quantized mesh, otherwise `'unknown'`. */
   illumination?: ImageryIllumination;
   /**
-   * Terrain-cast solar shadows and horizon occlusion on relit surfaces (#205), off by default.
-   * `true` uses the default clipmap (8 / 64 / 320 km); an object tunes it. A visual aid
+   * Terrain-cast solar shadows and horizon occlusion (#205), off by default.
+   * `true` uses the default clipmap (8 / 24 / 80 / 320 km); an object tunes it. A visual aid
    * driven by the resident source terrain, not a certified illumination product; see
    * docs/terrain-solar-visibility.md.
    */
   solarShadows?: boolean | SolarShadowConfig;
+  /** Optional coarse single-level clipmap above the ordinary shadow range. Does not enable shadows by default. */
+  orbitalSolarShadows?: ClipmapLevelConfig & { maxAltitudeKm: number };
   /** Terrain source type. 'imagery' uses XYZ image tiles projected onto an ellipsoid (no terrain mesh needed). */
   type: 'quantized-mesh' | 'cesium-ion' | '3dtiles' | 'imagery';
   /** Base URL for quantized-mesh or 3dtiles tileset.json */
@@ -724,6 +726,7 @@ export class TerrainManager {
   private readonly asIs = createSurfaceAsIsUniforms();
   /** The lighting mode's `bakedNightFloor`; the shader sees 1 (no gate) on frames without a body centre. */
   private bakedNightFloor = LIGHTING_MODES.natural.bakedNightFloor;
+  private lightingMode: LightingMode = 'natural';
 
   /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
   get surfaceIllumination(): SurfaceIlluminationSummary {
@@ -736,8 +739,9 @@ export class TerrainManager {
 
   /** Weight of a pixel no layer draws: the base map of an imagery-only body, else the tileset's own texture. */
   private refreshIllumination(): void {
-    const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.noImageryIllumination;
-    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered);
+    // A bare height mesh has no measured colour; preserve its shared Flood material.
+    const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.config.illumination;
+    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered, this.lightingMode);
   }
 
   /**
@@ -753,13 +757,22 @@ export class TerrainManager {
 
   /** The scene's lighting mode, for the night floor of baked imagery and the Sun-less `flood` mode (#205). */
   setLightingMode(mode: LightingMode): void {
+    this.lightingMode = mode;
     this.bakedNightFloor = LIGHTING_MODES[mode].bakedNightFloor;
+    this.refreshIllumination();
+    if (this.cubeImagery) this.cubeImagery.lightingMode = mode;
+    for (const [id, overlay] of this.activeOverlays) {
+      (overlay as unknown as OverlayInternals).asIs = imageryAsIsWeight(this.layer(id)?.illumination, mode);
+    }
     this.lightingModeAllowsShadow = mode !== 'flood';
-    this.solarShadow?.setActive(this.lightingModeAllowsShadow && this.solarShadowsOn);
+    this.setSolarShadowActive();
   }
 
   /** Terrain-cast solar shadows (#205); null until the catalog configures them or the viewer turns them on. */
   private solarShadow: SolarShadowClipmap | null = null;
+  private orbitalSolarShadow: SolarShadowClipmap | null = null;
+  private drawingSolarShadow: SolarShadowClipmap | null = null;
+  private solarMaterialUniforms: SolarShadowUniforms | undefined;
   private solarQuality: SolarShadowQuality = 'high';
   private floatLinear = false;
   private glRenderer: THREE.WebGLRenderer | null = null;
@@ -801,6 +814,17 @@ export class TerrainManager {
     };
     this.solarQuality = config.quality ?? 'high';
     this.solarShadow = new SolarShadowClipmap(source, config, this.floatLinear);
+    this.drawingSolarShadow = this.solarShadow;
+    this.solarMaterialUniforms = this.solarShadow.uniforms;
+    const orbital = this.config.orbitalSolarShadows;
+    if (this.cubeConfigured && orbital && orbital.maxAltitudeKm > this.solarShadow.maxAltitudeKm) {
+      this.orbitalSolarShadow = new SolarShadowClipmap(source, {
+        ...config, levels: [{ halfKm: orbital.halfKm, size: orbital.size }], maxAltitudeKm: orbital.maxAltitudeKm,
+      }, this.floatLinear);
+      // Tile programs keep these uniform objects across altitude tiers.
+      this.solarMaterialUniforms = Object.fromEntries(Object.entries(this.solarShadow.uniforms)
+        .map(([name, u]) => [name, typeof u === 'boolean' ? u : { value: u.value }])) as unknown as SolarShadowUniforms;
+    }
   }
 
   /**
@@ -812,7 +836,8 @@ export class TerrainManager {
     this.solarShadowsOn = mode !== 'off';
     if (mode === null || mode === 'off') {
       if (mode === null) this.solarShadow?.setQuality(this.solarQuality);
-      this.solarShadow?.setActive(this.solarShadowsOn && this.lightingModeAllowsShadow);
+      if (mode === null) this.orbitalSolarShadow?.setQuality(this.solarQuality);
+      this.setSolarShadowActive();
       return;
     }
     if (!this.solarShadow) {
@@ -821,12 +846,13 @@ export class TerrainManager {
       this.addSolarShadowToLoadedTiles();
     }
     this.solarShadow!.setQuality(mode);
-    this.solarShadow!.setActive(this.lightingModeAllowsShadow);
+    this.orbitalSolarShadow?.setQuality(mode);
+    this.setSolarShadowActive();
   }
 
   /** Tiles customized before the clipmap existed get the hook appended to their shader chain (new tiles get it on load). */
   private addSolarShadowToLoadedTiles(): void {
-    const solar = this.solarShadow!.uniforms;
+    const solar = this.solarMaterialUniforms!;
     this.tiles.forEachLoadedModel((scene: THREE.Object3D) => scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
       for (const mat of Array.isArray(child.material) ? child.material : [child.material]) {
@@ -842,8 +868,35 @@ export class TerrainManager {
   /** Every frame, after the camera is final: refresh the clipmap, its uniforms and (when stale) its horizon maps. */
   updateSolarShadow(frame: SolarShadowFrame): void {
     if (!this.solarShadow) return;
-    this.solarShadow.update(frame);
-    if (this.glRenderer) this.solarShadow.renderHorizons(this.glRenderer);
+    const near = this.solarShadow;
+    const orbital = this.orbitalSolarShadow;
+    if (orbital) {
+      const altitude = frame.camera.position.distanceTo(frame.bodyPosition) / frame.scaleFactor - this.bodyRadiusKm;
+      const nearLimit = near.maxAltitudeKm;
+      const blendKm = Math.max(1e-6, Math.min(24, Math.abs(nearLimit) / 2, (orbital.maxAltitudeKm - nearLimit) / 2));
+      this.drawingSolarShadow = altitude > nearLimit ? orbital : near;
+      this.setSolarShadowActive();
+      // Fade through the stable reference horizon where the two resolutions exchange ownership.
+      this.drawingSolarShadow.uniforms.strength.value = THREE.MathUtils.clamp(
+        Math.min(Math.abs(altitude - nearLimit), orbital.maxAltitudeKm - altitude) / blendKm, 0, 1);
+    }
+    const shadow = this.drawingSolarShadow!;
+    shadow.update(frame);
+    if (this.glRenderer) shadow.renderHorizons(this.glRenderer);
+    if (orbital) this.syncSolarMaterialUniforms();
+  }
+  private setSolarShadowActive(): void {
+    const active = this.lightingModeAllowsShadow && this.solarShadowsOn;
+    this.solarShadow?.setActive(active && this.drawingSolarShadow === this.solarShadow);
+    this.orbitalSolarShadow?.setActive(active && this.drawingSolarShadow === this.orbitalSolarShadow);
+    if (!active && this.solarMaterialUniforms) this.solarMaterialUniforms.enabled.value = 0;
+  }
+  private syncSolarMaterialUniforms(): void {
+    const from = this.drawingSolarShadow!.uniforms;
+    for (const key of Object.keys(from) as (keyof SolarShadowUniforms)[]) {
+      const source = from[key], dest = this.solarMaterialUniforms![key];
+      if (typeof source !== 'boolean' && typeof dest !== 'boolean') (dest as { value: unknown }).value = source.value;
+    }
   }
   get hasSolarShadow(): boolean { return this.solarShadow !== null; }
   /** See `SolarShadowClipmap.sunFractionAt`. */
@@ -852,8 +905,11 @@ export class TerrainManager {
   get solarShadowMode(): 'off' | SolarShadowQuality {
     return this.solarShadow && this.solarShadowsOn ? this.solarShadow.quality : 'off';
   }
-  get solarShadowStatus(): SolarShadowStatus | null { return this.solarShadow?.status ?? null; }
-  setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.solarShadow?.setDebug(mode); }
+  get solarShadowStatus(): SolarShadowStatus | null { return this.drawingSolarShadow?.status ?? null; }
+  setSolarShadowDebug(mode: SolarShadowDebugMode): void {
+    this.solarShadow?.setDebug(mode);
+    this.orbitalSolarShadow?.setDebug(mode);
+  }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -2358,7 +2414,7 @@ export class TerrainManager {
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
       // Uploaded per layer into the overlay shader's LayerInfo (injectOverlayAsIsIntoShader).
-      o.asIs = imageryAsIsWeight(layer.illumination);
+      o.asIs = imageryAsIsWeight(layer.illumination, this.lightingMode);
       const inner = o.preprocessURL;
       o.preprocessURL = (url: string) => {
         // The plugin queues overlay fetches on the shared download queue, and
@@ -2829,6 +2885,7 @@ export class TerrainManager {
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
     this.solarShadow?.dispose();
+    this.orbitalSolarShadow?.dispose();
     this.cubeImagery?.dispose();
     this.cubeScenes.clear();
     if (this.terrainCam) {
@@ -2999,7 +3056,7 @@ export class TerrainManager {
     // Always injected and driven by a shared uniform, so provenance changes
     // (layer visibility) need no recompile and every tile shares one program.
     const asIs = this.asIs;
-    const solar = this.solarShadow?.uniforms;
+    const solar = this.solarMaterialUniforms;
     const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '');
 
     scene.traverse((child) => {

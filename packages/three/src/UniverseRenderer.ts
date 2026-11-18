@@ -3626,8 +3626,7 @@ export class UniverseRenderer {
   /**
    * What the viewer's control shows: null when no body has terrain a shadow can be built from, else the effective mode
    * (the choice made, or what the catalog configured: `off` when nothing is), and the least-finished clipmap state and
-   * largest unknown fraction across the bodies that have one, and whether all of them are drawn from baked imagery
-   * (which carries its own lighting, so shadows cannot show on it).
+   * largest unknown fraction across the bodies that have one, and whether their drawn terrain is acquisition-lit.
    */
   terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; coarseFraction: number; bakedOnly: boolean } | null {
     const rank: Record<SolarShadowStatus['state'], number> = { off: 0, 'out-of-range': 1, building: 2, partial: 3, ready: 4 };

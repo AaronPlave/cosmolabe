@@ -1,5 +1,7 @@
 # Lunar textured-surface lighting
 
+This report records the original provenance-only change. The follow-up adds [simulated Sun visibility on baked imagery and a Copernicus pilot](lunar-sun-visibility.md).
+
 The ordinary LRO and MoonFall WAC and NAC mosaics already encode slope shading and cast shadows. The legacy renderer multiplied those pixels by simulated slope illumination from a different Sun. This suppressed photographic detail and made some slopes and crater interiors look soft or inconsistently lit. The catalog correction declares both products `baked`, so the renderer displays the acquisition lighting on the day side and uses its existing reference-sphere terminator gate. The same texture bytes, alpha masks, layer order, terrain, material and display settings are used.
 
 ![Fixed-camera comparisons with legacy and baked imagery, with terrain shadows off and on](validation/lunar-textured-lighting/observed-imagery.jpg)

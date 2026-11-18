@@ -204,8 +204,9 @@ describe('injectSolarShadowIntoShader (#205)', () => {
     const c = new SolarShadowClipmap(source());
     const shader = stub();
     injectSolarShadowIntoShader(shader, c.uniforms);
-    expect(shader.fragmentShader).toContain('reflectedLight.directDiffuse *= solarVis');
-    expect(shader.fragmentShader).toContain('reflectedLight.directSpecular *= solarVis');
+    expect(shader.fragmentShader).toContain('reflectedLight.directDiffuse *= shadingVisibility');
+    expect(shader.fragmentShader).toContain('reflectedLight.directSpecular *= shadingVisibility');
+    expect(shader.uniforms.uSsStrength).toBe(c.uniforms.strength);
     expect(shader.fragmentShader).not.toContain('indirect');
     expect(Object.keys(shader.uniforms)).toContain('uSsTex2');
     // Idempotent on a second pass.

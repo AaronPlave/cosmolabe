@@ -26,8 +26,9 @@ server.middlewares.use(async (req, res, next) => {
   const html = await server.transformIndexHtml('/', `<link rel="icon" href="data:,"><canvas width="64" height="64"></canvas><script type="module">
     import * as THREE from 'three';
     import { SolarShadowClipmap, injectSolarShadowIntoShader } from '/packages/three/src/SolarShadowClipmap.ts';
+    import { createSurfaceAsIsUniforms, injectAsIsDisplayIntoShader } from '/packages/three/src/SurfaceIllumination.ts';
     import { solarVisibility } from '/packages/three/src/TerrainSunVisibility.ts';
-    window.shadowTest = { THREE, SolarShadowClipmap, injectSolarShadowIntoShader, solarVisibility };
+    window.shadowTest = { THREE, SolarShadowClipmap, injectSolarShadowIntoShader, createSurfaceAsIsUniforms, injectAsIsDisplayIntoShader, solarVisibility };
   </script>`);
   res.setHeader('Content-Type', 'text/html');
   res.end(html);
@@ -43,7 +44,7 @@ try {
   await page.goto(server.resolvedUrls.local[0]);
   await page.waitForFunction(() => window.shadowTest);
   const result = await page.evaluate(() => {
-    const { THREE, SolarShadowClipmap, injectSolarShadowIntoShader, solarVisibility } = window.shadowTest;
+    const { THREE, SolarShadowClipmap, injectSolarShadowIntoShader, createSurfaceAsIsUniforms, injectAsIsDisplayIntoShader, solarVisibility } = window.shadowTest;
     const DEG = Math.PI / 180, SCALE = 1e-6;
     const canvas = document.querySelector('canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
@@ -67,7 +68,7 @@ try {
     const E0 = -25, E1 = 55; // km east of the anchor covered by the image
     const ridgeAt = (c) => (lonDeg) => Math.abs(lonDeg * DEG * R - c.d0) <= c.width / 2 ? c.height : 0; // N-S crest by longitude
 
-    function render({ elDeg, azDeg, ridge, mode, holeFromKm = null, quality = 'high', hardwareLinear = floatLinear }) {
+    function render({ elDeg, azDeg, ridge, mode, holeFromKm = null, quality = 'high', hardwareLinear = floatLinear, asIs, flood = false, shadow = true }) {
       const crest = ridgeAt(ridge);
       const source = {
         datum, revision: 0,
@@ -94,8 +95,13 @@ try {
       geo.setIndex(index);
       geo.computeVertexNormals();
       const material = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, side: THREE.DoubleSide });
-      material.onBeforeCompile = shader => injectSolarShadowIntoShader(shader, clip.uniforms);
-      material.customProgramCacheKey = () => '_ss_test_v1' + (hardwareLinear ? 'hw' : 'sw');
+      const photo = createSurfaceAsIsUniforms(flood ? 'flood' : 'natural');
+      photo.surfaceAsIs.value = asIs ?? 0;
+      material.onBeforeCompile = shader => {
+        if (asIs !== undefined) injectAsIsDisplayIntoShader(shader, photo);
+        injectSolarShadowIntoShader(shader, clip.uniforms);
+      };
+      material.customProgramCacheKey = () => '_ss_test_v1' + (hardwareLinear ? 'hw' : 'sw') + (asIs === undefined ? '' : '_photo');
       const mesh = new THREE.Mesh(geo, material);
       mesh.quaternion.copy(rot); mesh.scale.setScalar(SCALE);
       mesh.position.copy(toScene(O));
@@ -117,6 +123,7 @@ try {
       camera.up.set(0, 0, 1).applyQuaternion(rot);
       camera.lookAt(toScene([R, centreE, 0]));
       camera.updateMatrixWorld();
+      photo.centerView.value.copy(bodyPos).applyMatrix4(camera.matrixWorldInverse);
 
       const frame = { camera, bodyPosition: bodyPos, bodyToScene: rot, sunPosition: sunPos, scaleFactor: SCALE,
         focus: toScene([R, centreE, 0]) };
@@ -127,6 +134,7 @@ try {
       clip.setDebug(mode);
       clip.setQuality(quality);
       clip.renderHorizons(renderer);
+      if (!shadow) clip.setActive(false);
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       const px = new Float32Array(W * H * 4);
@@ -224,6 +232,20 @@ try {
       const x = Math.round((0 - E0) / (E1 - E0) * W); // e = 0 km: terrain known, but the ridge (30 km) is in the hole
       out.unknown = { vis: lit.row[x][0], tintedMagenta: tint.row[x][2] > 0.5 && tint.row[x][1] < 0.5, state: lit.status.state };
     }
+    if (name === 'Moon') {
+      const daylight = { elDeg: 2.5, azDeg: 90, ridge, mode: 0 };
+      const at = (rendered, e) => rendered.row[Math.floor((e - E0) / (E1 - E0) * W)][0];
+      const shaded = render({ ...daylight, asIs: 1 });
+      const relit = render({ ...daylight, asIs: 0 });
+      const mixed = render({ ...daylight, asIs: 0.5 });
+      out.photo = {
+        knownShadow: at(shaded, 4), knownDay: at(shaded, -22),
+        shadowsOff: at(render({ ...daylight, asIs: 1, shadow: false }), 4),
+        unknownDay: at(render({ ...daylight, asIs: 1, holeFromKm: 10 }), 4),
+        flood: at(render({ ...daylight, asIs: 1, flood: true }), 4),
+        mixedError: Math.abs(at(mixed, 4) - (at(shaded, 4) + at(relit, 4)) / 2),
+      };
+    }
     out.timing = { clipmapBuildMsPerFrame: out.sweeps.map(s => s.buildMs) };
     out.body = name; out.radiusKm = R;
     return out;
@@ -233,6 +255,11 @@ try {
   await writeFile(`${output}/result.json`, JSON.stringify(result, null, 2));
   assert.deepEqual(errors, [], 'page errors: ' + errors.join('; '));
   const summary = { gpu: result.gpu };
+  const photo = result.moon.photo;
+  assert.ok(photo.knownShadow < .09 && photo.knownDay > .95, JSON.stringify(photo));
+  assert.ok(photo.shadowsOff > .95 && photo.unknownDay > .95 && photo.flood > .95, JSON.stringify(photo));
+  assert.ok(photo.mixedError < .001, JSON.stringify(photo));
+  summary.photo = photo;
   for (const r of [result.moon, result.mars]) {
     // Alignment: every covered pixel agrees with the clipmap to 10 m.
     assert.ok(r.alignment.green / r.alignment.total > 0.98, `${r.body}: frame/data alignment ${JSON.stringify(r.alignment)}`);

@@ -13,10 +13,8 @@ import * as THREE from 'three';
  *    being lit*, not at the scene origin, and the Sun's elevation/azimuth
  *    there, for diagnostics and screenshots.
  *
- * Out of scope here: terrain-cast shadows / horizon occlusion (#205),
- * observer-visible Sun disk occlusion (#242) and regolith photometry.
- * `directTerm` stays a separate quantity so #205 can attenuate it without
- * darkening the composited image.
+ * Terrain-cast Sun visibility is computed by SolarShadowClipmap (#205),
+ * independently of slope shading and layer provenance.
  */
 
 /**
@@ -25,8 +23,8 @@ import * as THREE from 'three';
  * - `reflectance`: approximately photometrically normalized albedo/reflectance.
  *   The simulated Sun may light it: `shade = albedo × sun × cos(incidence)`.
  * - `baked`: illumination (shading, shadows) is already in the pixels. It is
- *   displayed as-is; adding the Sun would double-darken it and misrepresent
- *   the source albedo.
+ *   displayed with its original slope shading. Current-Sun visibility can
+ *   darken the photograph independently of its acquisition lighting.
  * - `unknown`: no provenance declared. This is the **legacy** path: the image
  *   is relit exactly as it was before the contract existed, and is labeled as
  *   not asserted to be physically relightable.
@@ -67,12 +65,11 @@ export function combineImageryIllumination(values: Iterable<ImageryIllumination 
 }
 
 /**
- * The per-layer weight the compositor blends with that layer's alpha: 1 for a
- * source whose pixels already carry lighting (shown as-is), 0 for one the Sun
- * lights (`reflectance`, and legacy `unknown`).
+ * The per-layer weight the compositor blends with alpha: photographs keep
+ * their colour, and Flood also displays declared reflectance without relighting.
  */
-export function imageryAsIsWeight(illumination: ImageryIllumination | undefined): 0 | 1 {
-  return illumination === 'baked' ? 1 : 0;
+export function imageryAsIsWeight(illumination: ImageryIllumination | undefined, mode: LightingMode = 'natural'): 0 | 1 {
+  return illumination === 'baked' || (illumination === 'reflectance' && mode === 'flood') ? 1 : 0;
 }
 
 /** True only when the Sun's direct term is a physical claim for this source. */
@@ -314,8 +311,8 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
  * the acquisition Sun, not the simulated one, so slopes are never re-shaded;
  * but the Sun being below the local horizon of the reference sphere is not
  * something the image knows, so baked pixels past the terminator fall to the
- * lighting mode's `bakedNightFloor` over a Sun-radius-wide ramp. That is the
- * terminator only: terrain-cast shadow and horizon occlusion are #205.
+ * lighting mode's `bakedNightFloor`. Terrain with a valid shadow sample uses
+ * computed Sun visibility instead of the reference-sphere gate.
  *
  * The uniforms are shared objects (1 = as-is, 0 = lit), so a change of
  * provenance is a uniform write, not a recompile, and relit and as-is tiles
@@ -339,13 +336,17 @@ export function injectAsIsDisplayIntoShader(
   }
   declareSurfaceAsIs(shader);
   const h = TERMINATOR_HALF_WIDTH.toFixed(4);
-  shader.fragmentShader = 'uniform vec3 uSurfaceCenterView;\nuniform float uBakedNightFloor;\n' + shader.fragmentShader.replace(
+  shader.fragmentShader = '#define SURFACE_BAKED_DISPLAY\nuniform vec3 uSurfaceCenterView;\nuniform float uBakedNightFloor;\n' + shader.fragmentShader.replace(
     hook,
     `float surfaceBakedGate = 1.0;
 #if NUM_DIR_LIGHTS > 0
 if (uBakedNightFloor < 1.0) {
   float sunUp = dot(normalize(-vViewPosition - uSurfaceCenterView), directionalLights[0].direction);
-  surfaceBakedGate = mix(uBakedNightFloor, 1.0, smoothstep(-${h}, ${h}, sunUp));
+  float visibility = smoothstep(-${h}, ${h}, sunUp);
+#ifdef SURFACE_TERRAIN_SHADOW
+  visibility = solarBakedVisibility.x + (1.0 - solarBakedVisibility.y) * visibility;
+#endif
+  surfaceBakedGate = mix(uBakedNightFloor, 1.0, visibility);
 }
 #endif
 // What the layers' own renderings blend to: relit share lit by the Sun (diffuse is linear in albedo), the

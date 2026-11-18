@@ -149,6 +149,13 @@ describe('validateCatalog', () => {
     expect(ds.map((d) => d.suggestion)).toEqual(['size']);
   });
 
+  it('accepts the optional orbital terrain shadow level', () => {
+    const catalog = withItem({ geometry: { type: 'Globe', radius: 1737.4, terrain: {
+      type: '3dtiles', url: 'y', orbitalSolarShadows: { halfKm: 1500, size: 256, maxAltitudeKm: 1150 },
+    } } });
+    expect(validateCatalog(catalog)).toEqual([]);
+  });
+
   it('reports an unknown trajectory or rotation type, and its nearest spelling', () => {
     const ds = validateCatalog(withItem({
       trajectory: { type: 'Keplerain' },
