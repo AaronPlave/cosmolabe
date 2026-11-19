@@ -1135,7 +1135,17 @@ def cube_field_heights(lon, lat, spacing_deg):
     """
     mode = _T.get('cube_source_convention', 'sphere-radial')
     if mode == 'sphere-radial':
-        return field_heights(lon, lat, spacing_deg)
+        height = field_heights(lon, lat, spacing_deg)
+        regional = _T.get('regional_height')
+        if regional is None:
+            return height
+        west, south, east, north = regional['bounds']
+        if lon.min() > east or lon.max() < west or lat.min() > north or lat.max() < south:
+            return height
+        level = pick_level(regional['height'], spacing_deg)
+        weighted, gt = regional['height'][level]
+        weight = bilinear(regional['weight'][level][0], gt, lon, lat, outside=0.0)
+        return height * (1 - weight) + bilinear(weighted, gt, lon, lat, outside=0.0)
     if mode == 'areoid-radial':
         arr, gt, scale, offset = _T['areoid']
         areoid = bilinear(arr, gt, lon, lat, wrap_lon=True) * scale + offset
@@ -1605,6 +1615,27 @@ def cmd_cube_tile(args):
     spacing_rad = [2 / ((GRID - 1) * 2 ** L) for L in range(max_level + 1)]
     finest_deg = 1e-9  # pick_level → level 0 of every source
     load_field(args.base, args.fusion, [math.degrees(s) for s in spacing_rad] + [finest_deg])
+    regional_path = getattr(args, 'regional_height', None)
+    _T.pop('regional_height', None)
+    if regional_path:
+        regional = gdal.Open(regional_path)
+        srs = regional.GetSpatialRef()
+        if (convention != 'sphere-radial' or regional.RasterCount != 2
+                or not srs or abs(srs.GetSemiMajor() - a) > 1e-6 or srs.GetInvFlattening() != 0):
+            raise SystemExit('regional heights require two bands on the same reference sphere')
+        gt = geographic_grid(regional)
+        weighted = regional.GetRasterBand(1).ReadAsArray()
+        weight = regional.GetRasterBand(2).ReadAsArray()
+        if (gt[1] <= 0 or gt[5] >= 0 or gt[2] or gt[4]
+                or not np.isfinite(weighted).all() or not np.isfinite(weight).all()
+                or weight.min() < 0 or weight.max() > 1 or np.any(weighted[weight == 0] != 0)):
+            raise SystemExit('invalid regional height and weight raster')
+        _T['regional_height'] = {
+            'bounds': (gt[0], gt[3] + gt[5] * regional.RasterYSize,
+                       gt[0] + gt[1] * regional.RasterXSize, gt[3]),
+            'height': box_pyramid(weighted, gt),
+            'weight': box_pyramid(weight, gt),
+        }
     _T.update(out=args.out, radius=a, spacing_rad=spacing_rad, finest_deg=finest_deg,
               skirt_cells=args.skirt_cells, global_level=args.global_level, regions=regions, simplify=args.simplify)
     print(f'loaded sources ({time.time() - t0:.0f}s)')
@@ -1691,6 +1722,7 @@ def cmd_cube_tile(args):
         'base': args.base, 'residual': os.path.join(args.fusion, 'residual.tif'),
         **({'weight': os.path.join(args.fusion, 'weight.tif'), 'base_xy': os.path.join(args.fusion, 'base.tif')} if _T['grid'].kind == 'stere' else {}),
         **({'areoid': areoid_path} if areoid_path else {}),
+        **({'regionalHeight': regional_path} if regional_path else {}),
     }.items()}
     # Detached PDS labels describe an external image, whose bytes also shape output.
     if areoid_path and ds.GetFileList():
@@ -1720,6 +1752,12 @@ def cmd_cube_tile(args):
         'generator': {'script': 'scripts/terrain/dem.py cube-tile', 'sha256': generator_hash},
         'build': {k: v for k, v in build.items() if k != 'generator'},
     }
+    if regional_path:
+        source['regionalHeight'] = {
+            'product': regional.GetMetadataItem('PRODUCT_ID'),
+            'nativeSha256': regional.GetMetadataItem('PDS_SOURCE_SHA256'),
+            'blend': 'weighted regional radial elevations, with the fused field continuing outside coverage',
+        }
     datum = {'referenceShape': {'kind': 'sphere', 'radiusKm': a / 1000},
              'verticalDatum': 'reference-sphere', 'heightConvention': 'radial'}
     if a != c:
@@ -2444,6 +2482,7 @@ def main():
     ct.add_argument('--source-convention', choices=['sphere-radial', 'areoid-radial', 'ellipsoid-normal'],
                     help='explicit source latitude/height contract; defaults to sphere-radial only for equal radii')
     ct.add_argument('--areoid', help='global areoid-radius raster in metres (GDAL scale/offset honoured), required for areoid-radial')
+    ct.add_argument('--regional-height', help='optional north-up geographic raster on the reference sphere: weighted radial height (m), then blend weight [0,1]')
     ct.add_argument('--body'); ct.add_argument('--frame', help='body-fixed frame of the physical product')
     ct.add_argument('--simplify', type=float, default=0, metavar='FRAC',
                     help='RTIN-simplify each tile, own error ≤ FRAC × the level\'s face-centre vertex spacing (0: full lattice). '

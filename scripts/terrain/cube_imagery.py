@@ -374,8 +374,13 @@ def raster_tile(path, face, L, x, y, T, g, ss):
     return value, alpha
 
 
-def nac_tile(path, face, L, x, y, T, g, ss):
+def nac_tile(path, face, L, x, y, T, g, ss, encode_srgb=False):
     value, alpha = raster_tile(path, face, L, x, y, T, g, ss)
+    if encode_srgb:
+        # Encode after linear-light filtering. The viewer decodes before lighting,
+        # and the denser dark-end codes preserve more fine reflectance contrast.
+        linear = np.clip(value / 255, 0, 1)
+        value = 255 * np.where(linear <= 0.0031308, 12.92 * linear, 1.055 * linear ** (1 / 2.4) - 0.055)
     out = np.zeros(value.shape + (2,), np.uint8)
     out[..., 0] = np.clip(np.round(value), 0, 255)
     out[..., 1] = np.clip(np.round(alpha * 255), 0, 255)
@@ -444,7 +449,7 @@ def tile_job(key):
         value, _ = raster_tile(J['source'], face, L, x, y, T, g, ss)
         img = np.clip(np.round(value), 0, 255).astype(np.uint8)[..., None]
     else:
-        img = nac_tile(J['source'], face, L, x, y, T, g, ss)
+        img = nac_tile(J['source'], face, L, x, y, T, g, ss, J['encode_srgb'])
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
     write_image(path, img)
     return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz', 'raster') else 255)
@@ -487,6 +492,7 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     os.makedirs(args.out, exist_ok=True)
     ext = 'jpg' if kind in ('composite', 'base') else 'png'  # opaque grey
     _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext, radius_km=R_KM,
+                encode_srgb=getattr(args, 'encode_srgb', False),
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
     sizes, hashes, empty = {}, {}, set()

@@ -1,0 +1,247 @@
+{
+  "name": "Moon · Apollo 17 photometric pilot",
+  "description": "Explore Taurus–Littrow with LROC NAC imagery and regional stereo terrain. Use Surface layers to switch between the original acquisition and normalized NAC.",
+  "defaultTime": "2009-10-01T10:32:10Z",
+  "defaultViewpoint": "Apollo 17 overhead",
+  "items": [
+    {
+      "name": "Apollo 17 overhead",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "frame": "BodyFixed",
+      "time": "2009-10-01T10:32:10Z",
+      "eye": [
+        1400.000563414,
+        834.369138783,
+        599.318285363
+      ],
+      "target": [
+        1398.613847908,
+        833.542687242,
+        598.724654202
+      ],
+      "up": [
+        -0.296475109877,
+        -0.176692558963,
+        0.93855327437
+      ],
+      "fov": 45
+    },
+    {
+      "name": "Apollo 17 oblique",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "frame": "BodyFixed",
+      "time": "2009-10-01T10:32:10Z",
+      "eye": [
+        1399.782352202,
+        834.239089763,
+        598.212676427
+      ],
+      "target": [
+        1398.613847908,
+        833.542687242,
+        598.724654202
+      ],
+      "up": [
+        -0.296475109877,
+        -0.176692558963,
+        0.93855327437
+      ],
+      "fov": 45
+    },
+    {
+      "name": "Apollo 17 low Sun",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "frame": "BodyFixed",
+      "time": "2010-06-17T20:55:15Z",
+      "eye": [
+        1400.000563414,
+        834.369138783,
+        599.318285363
+      ],
+      "target": [
+        1398.613847908,
+        833.542687242,
+        598.724654202
+      ],
+      "up": [
+        -0.296475109877,
+        -0.176692558963,
+        0.93855327437
+      ],
+      "fov": 45
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "trajectoryPlot": {
+        "visible": false
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "../textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1
+        ]
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Moon"
+      },
+      "rotationModel": {
+        "type": "Spice",
+        "bodyFrame": "MOON_ME_DE421",
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "../textures/moon-16k.jpg",
+        "normalMap": "../textures/moon-normal-16k.jpg",
+        "displacementMap": "../textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "3dtiles",
+          "url": "../data/moon-terrain-cube-apollo17/tileset.json",
+          "errorTarget": 1,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "LOLA and south-pole residual + LROC NAC_DTM_APOLLO17_1_E199N0308",
+            "kind": "height-grid"
+          },
+          "cubeSphere": {
+            "cpuGrids": "../data/moon-terrain-cube-apollo17/cpu-grids.json",
+            "imagery": {
+              "maxScreenTexelError": 1
+            }
+          },
+          "frame": "MOON_ME_DE421",
+          "solarShadows": {
+            "quality": "high",
+            "levels": [
+              {
+                "halfKm": 0.75,
+                "size": 256
+              },
+              {
+                "halfKm": 2.5,
+                "size": 256
+              },
+              {
+                "halfKm": 9,
+                "size": 256
+              },
+              {
+                "halfKm": 36,
+                "size": 256
+              }
+            ],
+            "maxAltitudeKm": 25
+          },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "wac",
+              "name": "Moon · WAC context",
+              "description": "LROC global WAC morphology mosaic (100 m/pixel), with original acquisition shading.",
+              "attribution": "LROC team / USGS Astrogeology / ASU",
+              "resolutionMeters": 100,
+              "url": "../data/moon-imagery-cube-wac/imagery.json",
+              "illumination": "baked"
+            },
+            {
+              "type": "cube",
+              "id": "apollo17-original",
+              "name": "Apollo 17 · Original NAC",
+              "description": "LROC M109032389L, 2009-10-01. Calibrated I/F with acquisition lighting retained. The transparent exterior reveals WAC.",
+              "attribution": "NASA / LROC",
+              "resolutionMeters": 0.54,
+              "url": "../data/moon-imagery-cube-apollo17-original/imagery.json",
+              "illumination": "baked",
+              "bounds": [
+                30.755,
+                20.15,
+                30.835,
+                20.23
+              ]
+            },
+            {
+              "type": "cube",
+              "id": "apollo17-normalized",
+              "name": "Apollo 17 · Normalized NAC",
+              "description": "LROC M109032389L normalized to 30° incidence, 0° emission and 30° phase using terrain-aware angle backplanes. Hide Original NAC to reveal WAC in masked pixels.",
+              "attribution": "NASA / LROC",
+              "resolutionMeters": 0.54,
+              "url": "../data/moon-imagery-cube-apollo17-normalized/imagery.json",
+              "visible": false,
+              "illumination": "reflectance",
+              "bounds": [
+                30.755,
+                20.15,
+                30.835,
+                20.23
+              ]
+            }
+          ]
+        }
+      },
+      "label": {
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      }
+    }
+  ],
+  "require": [
+    "../base/naif.json",
+    "../base/lunar-surface.json"
+  ]
+}

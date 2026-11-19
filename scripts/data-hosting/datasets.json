@@ -251,6 +251,33 @@
       "catalogPrefix": "data/moon-terrain-cube/",
       "build": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
     },
+    "cube-terrain/moon-terrain-cube-apollo17": {
+      "kind": "cube-terrain",
+      "name": "moon-terrain-cube-apollo17",
+      "localDir": "apps/viewer/test-catalogs/data/moon-terrain-cube-apollo17",
+      "catalogPrefix": "data/moon-terrain-cube-apollo17/",
+      "build": null,
+      "localOnly": true,
+      "catalogs": ["experiments/moon-apollo17-photometry.json"]
+    },
+    "cube-imagery/moon-imagery-cube-apollo17-original": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-apollo17-original",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-apollo17-original",
+      "catalogPrefix": "data/moon-imagery-cube-apollo17-original/",
+      "build": null,
+      "localOnly": true,
+      "catalogs": ["experiments/moon-apollo17-photometry.json"]
+    },
+    "cube-imagery/moon-imagery-cube-apollo17-normalized": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-apollo17-normalized",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-apollo17-normalized",
+      "catalogPrefix": "data/moon-imagery-cube-apollo17-normalized/",
+      "build": null,
+      "localOnly": true,
+      "catalogs": ["experiments/moon-apollo17-photometry.json"]
+    },
     "cube-imagery/moon-imagery-cube-nac": {
       "kind": "cube-imagery",
       "name": "moon-imagery-cube-nac",
