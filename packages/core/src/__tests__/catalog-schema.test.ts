@@ -131,6 +131,17 @@ describe('validateCatalog', () => {
     expect(ds[0].suggestion).toBe('levels');
   });
 
+  it('accepts a Sensor mounting, and checks its fields', () => {
+    const sensor = (mounting: object) => withItem({
+      class: 'instrument',
+      geometry: { type: 'Sensor', target: 'Earth', horizontalFov: 10, verticalFov: 10, mounting },
+    });
+    expect(validateCatalog(sensor({ boresight: [0, 0, 1], up: [0, 1, 0] }))).toEqual([]);
+    const ds = validateCatalog(sensor({ boresight: [0, 0, 1], upp: [0, 1, 0] }));
+    expect(ds.map((d) => d.path)).toEqual(['$.items[0].geometry.mounting.upp']);
+    expect(ds[0].suggestion).toBe('up');
+  });
+
   it('accepts the imagery illumination contract on terrain and on each imagery layer (#204)', () => {
     expect(validateCatalog(withItem({
       geometry: {

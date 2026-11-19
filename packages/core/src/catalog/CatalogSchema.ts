@@ -171,7 +171,7 @@ const GEOMETRY_KEYS: Record<string, KeySet> = {
   Mesh: keys(...GEOMETRY_COMMON, 'source', 'size', 'scale', 'meshRotation', 'meshOffset', 'bumpMapType'),
   Sensor: keys(
     ...GEOMETRY_COMMON, 'target', 'spiceId', 'shape', 'horizontalFov', 'verticalFov', 'range',
-    'orientation', 'frustumColor', 'frustumOpacity',
+    'orientation', 'frustumColor', 'frustumOpacity', 'mounting',
   ),
   Rings: keys(...GEOMETRY_COMMON, 'innerRadius', 'outerRadius', 'texture'),
   // `kernel` is Cosmographia's name for `source`; the loader renames it.
@@ -281,7 +281,8 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
     surfaceLock: SURFACE_LOCK,
   },
   Mesh: { surfaceLock: SURFACE_LOCK },
-  Sensor: { surfaceLock: SURFACE_LOCK },
+  // Read by SensorFrustum's parseSensorMounting.
+  Sensor: { surfaceLock: SURFACE_LOCK, mounting: { keys: keys('boresight', 'up') } },
   Rings: { surfaceLock: SURFACE_LOCK },
 };
 
