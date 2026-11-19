@@ -68,15 +68,16 @@ export const analysisControl: Pick<Required<ViewerControl>, 'listMeasurements' |
     item.visible = visible;
     return analysisControl.restoreMeasurements(state, 'replace', opts);
   },
-  listGeographicLayers: () => (getSceneUniverse()?.geographicLayers.loads ?? []).map(load => {
+  listGeographicLayers: () => (getSceneUniverse()?.geographicLayers.loads ?? []).flatMap(load => {
+    if (load.status === 'deferred') return [];
     const layer = load.layer;
-    return {
+    return [{
       id: load.id, name: layer?.name ?? load.id, body: layer?.body ?? null, frame: layer?.frame ?? null,
       status: load.status, diagnostics: [...load.diagnostics.map(d => ({ code: d.code, severity: d.severity })), ...(getRenderer()?.geographicVectors?.diagnostics ?? []).filter(d => d.layerId === load.id).map(d => ({ code: d.code, severity: 'warning' as const }))],
       features: layer?.features.length ?? 0, visible: !!layer && layerVisible(layer.id), editable: !!layer && isEditable(layer.id),
       navigationUnavailable: layer ? vs.excludedPlaceLayers.includes(layer.id) ? 'Source is excluded.' : navigationUnavailable(layer) : 'The source failed to load or validate.',
       style: layer ? copy(layerStyle(layer.id)) : { version: 1 as const },
-    };
+    }];
   }),
   listGeographicFeatures: (id, opts) => {
     const layer = geographicLayer(id);

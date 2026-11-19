@@ -30,7 +30,9 @@ export interface GeographicLayerDefinition {
   source: string;
   /** Falls back only to the containing catalog's geographicCoordinates. */
   coordinates?: GeographicCoordinates;
-  display?: { visible?: boolean; color?: string; opacity?: number };
+  display?: { visible?: boolean; color?: string; opacity?: number; fillOpacity?: number };
+  /** Allow an interactive host to wait for the user's first request to load a hidden layer. */
+  loadOnDemand?: boolean;
   provenance?: { [key: string]: JsonValue };
 }
 
@@ -85,8 +87,12 @@ export interface GeographicLayer {
 export interface GeographicLayerLoad {
   id: string;
   source: GeographicSource;
-  status: 'ready' | 'error';
+  status: 'ready' | 'error' | 'deferred';
   layer?: GeographicLayer;
+  deferred?: {
+    definition: GeographicLayerDefinition;
+    load: () => Promise<GeographicLayerLoad>;
+  };
   diagnostics: GeographicDiagnostic[];
 }
 

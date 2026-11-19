@@ -77,8 +77,9 @@ export function validateGeographicDefinition(value: unknown, defaults?: unknown)
     const d = v.display;
     if (!geographicObject(d) || (d.visible !== undefined && typeof d.visible !== 'boolean')
       || (d.color !== undefined && typeof d.color !== 'string')
-      || (d.opacity !== undefined && (!finite(d.opacity) || d.opacity < 0 || d.opacity > 1))) fail('Invalid geographic display defaults');
+      || [d.opacity, d.fillOpacity].some(a => a !== undefined && (!finite(a) || a < 0 || a > 1))) fail('Invalid geographic display defaults');
   }
+  if (v.loadOnDemand !== undefined && typeof v.loadOnDemand !== 'boolean') fail('Invalid geographic loadOnDemand');
   if (v.provenance !== undefined && !geographicObject(v.provenance)) fail('Geographic provenance must be an object');
   return { ...value as unknown as GeographicLayerDefinition, coordinates: validateGeographicCoordinates(v.coordinates ?? defaults) };
 }
@@ -121,6 +122,32 @@ function intersects(a: XY, b: XY, c: XY, d: XY): boolean {
     && Math.sign(orient(c, d, a)) * Math.sign(orient(c, d, b)) < 0)
     || on(a, b, c) || on(a, b, d) || on(c, d, a) || on(c, d, b);
 }
+
+function checkRingIntersections(rings: XY[][], tick: () => void): void {
+  const edges = rings.flatMap((ring, ringIndex) => ring.slice(0, -1).map((start, index) => {
+    const end = ring[index + 1];
+    return { ringIndex, index, start, end, minX: Math.min(start[0], end[0]), maxX: Math.max(start[0], end[0]) };
+  })).sort((a, b) => a.minX - b.minX);
+
+  // Disjoint projected X ranges cannot intersect. Count every remaining
+  // comparison so dense or degenerate boundaries still hit the work limit.
+  for (let i = 0; i < edges.length; i++) {
+    const a = edges[i];
+    for (let j = i + 1; j < edges.length && edges[j].minX <= a.maxX; j++) {
+      tick();
+      const b = edges[j];
+      const sameRing = a.ringIndex === b.ringIndex;
+      if (sameRing) {
+        const separation = Math.abs(a.index - b.index);
+        if (separation === 1 || separation === rings[a.ringIndex].length - 2) continue;
+      }
+      if (intersects(a.start, a.end, b.start, b.end)) {
+        fail(sameRing ? 'Polygon ring self-intersects' : 'Polygon rings intersect or touch');
+      }
+    }
+  }
+}
+
 function inside(p: XY, ring: XY[]): boolean {
   let result = false;
   for (let i = 0; i < ring.length - 1; i++) {
@@ -193,7 +220,7 @@ export function parseGeographicGeoJson(
     const sourceRings = sourceCoordinates.map(ring => ring.map(p => ({ lonDeg: p[0], latDeg: p[1] })));
     const projection = geographicProjection(sourceRings[0]);
     const projected = projectGeographicRings(sourceRings, projection);
-    const rings = original.map((ring, ringIndex) => {
+    const areas = original.map((ring, ringIndex) => {
       const first = ring[0], last = ring.at(-1)!;
       if (first.latDeg !== last.latDeg || first.lonDeg !== last.lonDeg || first.heightKm !== last.heightKm) fail('Polygon ring must be closed, including Z');
       const xy = projected[ringIndex];
@@ -204,24 +231,16 @@ export function parseGeographicGeoJson(
       for (let i = 0; i < xy.length - 1; i++) {
         if (xy[i][0] === xy[i + 1][0] && xy[i][1] === xy[i + 1][1]) fail('Polygon has a repeated adjacent vertex');
         area += orient(xy[0], xy[i], xy[i + 1]);
-        for (let j = i + 2; j < xy.length - 1; j++) {
-          tick();
-          if (i === 0 && j === xy.length - 2) continue;
-          if (intersects(xy[i], xy[i + 1], xy[j], xy[j + 1])) fail('Polygon ring self-intersects');
-        }
       }
-      if (Math.abs(area) < 1e-14) fail('Polygon ring has zero area');
-      return xy;
+      return area;
     });
-    for (let i = 1; i < rings.length; i++) {
-      const hole = rings[i];
-      if (!inside(hole[0], rings[0])) fail('Polygon hole lies outside its exterior');
+    checkRingIntersections(projected, tick);
+    if (areas.some(area => Math.abs(area) < 1e-14)) fail('Polygon ring has zero area');
+    for (let i = 1; i < projected.length; i++) {
+      const hole = projected[i];
+      if (!inside(hole[0], projected[0])) fail('Polygon hole lies outside its exterior');
       for (let j = 0; j < i; j++) {
-        const other = rings[j];
-        for (let a = 0; a < hole.length - 1; a++) for (let b = 0; b < other.length - 1; b++) {
-          tick();
-          if (intersects(hole[a], hole[a + 1], other[b], other[b + 1])) fail('Polygon rings intersect or touch');
-        }
+        const other = projected[j];
         if (j > 0 && (inside(hole[0], other) || inside(other[0], hole))) fail('Polygon holes overlap or nest');
       }
     }

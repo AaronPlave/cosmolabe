@@ -55,6 +55,7 @@ export async function prepareGeographicCatalogs(
   try {
     for (const { url, json } of catalogs) {
       const loads = await loadGeographicLayers(json, {
+        deferHidden: !localFiles,
         catalogUrl: localFiles ? undefined : url,
         catalogIdentity: url,
         sourceKind: localFiles ? 'local-file' : 'catalog', signal,

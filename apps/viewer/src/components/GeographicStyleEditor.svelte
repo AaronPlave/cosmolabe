@@ -95,7 +95,7 @@
     {@render slider('Line width', style.line?.widthPx ?? style.polygon?.outlineWidthPx ?? 2, GEOGRAPHIC_STYLE_LIMITS.widthPx[0], GEOGRAPHIC_STYLE_LIMITS.widthPx[1], 0.5, 'px', (v) => setLayerLineWidth(layer.id, v))}
   {/if}
   {#if kinds.polygon}
-    {@render slider('Fill', style.polygon?.fillOpacity ?? 0.14, 0, 1, 0.02, '%', (v) => edit((s) => { s.polygon = { ...s.polygon, fillOpacity: v }; }))}
+    {@render slider('Fill', style.polygon?.fillOpacity ?? layer.definition.display?.fillOpacity ?? 0.14, 0, 1, 0.02, '%', (v) => edit((s) => { s.polygon = { ...s.polygon, fillOpacity: v }; }))}
   {/if}
 
   <label class="inline">

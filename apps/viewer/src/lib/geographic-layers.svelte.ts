@@ -195,6 +195,17 @@ export function setLayerVisible(id: string, visible: boolean): void {
   geo.revision++;
 }
 
+/** Attach an optional catalog layer only if the same scene still owns it. */
+export async function showDeferredLayer(load: GeographicLayerLoad): Promise<boolean> {
+  const scene = getUniverse();
+  if (!scene || !load.deferred) return false;
+  const ready = await load.deferred.load();
+  if (getUniverse() !== scene || !scene.geographicLayers.resolveDeferred(load, ready)) return false;
+  scene.events.emit('geographic:changed', {});
+  setLayerVisible(load.id, true);
+  return true;
+}
+
 /** Ready layers drawn on the same body as `id`. */
 function siblings(id: string): GeographicLayer[] {
   const body = geographicLayer(id)?.body;
