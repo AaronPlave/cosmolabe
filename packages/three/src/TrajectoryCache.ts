@@ -36,19 +36,31 @@ export class TrajectoryCache {
   readonly positions: Float64Array;
   /** Number of points in the cache. */
   readonly count: number;
+  /**
+   * 1 where point i does not connect to point i-1: the sampler found no data
+   * between them (a coverage-window boundary or an unavailable sample). The
+   * trail and lead never draw a segment across one. Length = count.
+   */
+  readonly breaks: Uint8Array;
 
-  private constructor(times: Float64Array, positions: Float64Array, count: number) {
+  private constructor(times: Float64Array, positions: Float64Array, count: number, breaks?: Uint8Array) {
     this.times = times;
     this.positions = positions;
     this.count = count;
+    this.breaks = breaks ?? new Uint8Array(count);
   }
 
   /**
    * Reconstitute a TrajectoryCache from raw typed arrays.
    * Used to receive cache data transferred from a Web Worker.
    */
-  static fromArrays(times: Float64Array, positions: Float64Array, count: number): TrajectoryCache {
-    return new TrajectoryCache(times, positions, count);
+  static fromArrays(times: Float64Array, positions: Float64Array, count: number, breaks?: Uint8Array): TrajectoryCache {
+    return new TrajectoryCache(times, positions, count, breaks);
+  }
+
+  /** Whether points i-1 and i are joined by a drawn segment. */
+  connects(i: number): boolean {
+    return i > 0 && this.breaks[i] === 0;
   }
 
   /**
@@ -147,30 +159,27 @@ export class TrajectoryCache {
       return new TrajectoryCache(new Float64Array(0), new Float64Array(0), 0);
     }
 
-    // Merge all segments into a single sorted buffer
-    let mergedTimes: Float64Array;
-    let mergedPositions: Float64Array;
-    if (allRaw.length === 1) {
-      mergedTimes = allRaw[0].times.slice(0, allRaw[0].count);
-      mergedPositions = allRaw[0].positions.slice(0, allRaw[0].count * 3);
-    } else {
-      mergedTimes = new Float64Array(totalRawCount);
-      mergedPositions = new Float64Array(totalRawCount * 3);
-      let offset = 0;
-      for (const raw of allRaw) {
-        mergedTimes.set(raw.times.subarray(0, raw.count), offset);
-        mergedPositions.set(raw.positions.subarray(0, raw.count * 3), offset * 3);
-        offset += raw.count;
-      }
+    // Merge all segments into a single sorted buffer. Each coverage segment
+    // starts a new run: the hole between windows is a gap, not a chord.
+    const mergedTimes = new Float64Array(totalRawCount);
+    const mergedPositions = new Float64Array(totalRawCount * 3);
+    const mergedBreaks = new Uint8Array(totalRawCount);
+    let offset = 0;
+    for (const raw of allRaw) {
+      mergedTimes.set(raw.times.subarray(0, raw.count), offset);
+      mergedPositions.set(raw.positions.subarray(0, raw.count * 3), offset * 3);
+      mergedBreaks.set(raw.breaks.subarray(0, raw.count), offset);
+      mergedBreaks[offset] = 1;
+      offset += raw.count;
     }
 
     // Phase 2: Visvalingam-Whyatt simplification if over budget
     if (totalRawCount <= maxPoints) {
-      return new TrajectoryCache(mergedTimes, mergedPositions, totalRawCount);
+      return new TrajectoryCache(mergedTimes, mergedPositions, totalRawCount, mergedBreaks);
     }
 
-    const result = visvalingamSimplify(mergedTimes, mergedPositions, totalRawCount, maxPoints);
-    return new TrajectoryCache(result.times, result.positions, result.count);
+    const result = visvalingamSimplify(mergedTimes, mergedPositions, mergedBreaks, totalRawCount, maxPoints);
+    return new TrajectoryCache(result.times, result.positions, result.count, result.breaks);
   }
 
   /**
@@ -192,8 +201,13 @@ export class TrajectoryCache {
 interface SampleBuffer {
   times: Float64Array;
   positions: Float64Array; // interleaved [x0,y0,z0, x1,y1,z1, ...]
+  /** 1 where the sample does not connect to the one before it. */
+  breaks: Uint8Array;
   count: number;
 }
+
+const EMPTY_BUFFER = (): SampleBuffer =>
+  ({ times: new Float64Array(0), positions: new Float64Array(0), breaks: new Uint8Array(0), count: 0 });
 
 function adaptiveSample(
   resolver: (t: number) => [number, number, number],
@@ -205,26 +219,33 @@ function adaptiveSample(
   maxSamples: number,
 ): SampleBuffer {
   const duration = endTime - startTime;
-  if (duration <= 0) {
-    return { times: new Float64Array(0), positions: new Float64Array(0), count: 0 };
-  }
+  if (duration <= 0) return EMPTY_BUFFER();
 
   // Pre-allocate output buffers
   let capacity = Math.min(maxSamples, Math.ceil(duration / coarseInterval) * 8);
   let times = new Float64Array(capacity);
   let positions = new Float64Array(capacity * 3);
+  let breaks = new Uint8Array(capacity);
   let count = 0;
+  // Set when the sampler saw no data since the last push: the next sample
+  // starts a new run instead of joining the previous one across the gap.
+  let gapPending = false;
 
   function push(t: number, x: number, y: number, z: number): void {
     if (count >= capacity) {
       capacity = Math.min(maxSamples, capacity * 2);
       const newTimes = new Float64Array(capacity);
       const newPositions = new Float64Array(capacity * 3);
+      const newBreaks = new Uint8Array(capacity);
       newTimes.set(times.subarray(0, count));
       newPositions.set(positions.subarray(0, count * 3));
+      newBreaks.set(breaks.subarray(0, count));
       times = newTimes;
       positions = newPositions;
+      breaks = newBreaks;
     }
+    breaks[count] = gapPending ? 1 : 0;
+    gapPending = false;
     times[count] = t;
     const base = count * 3;
     positions[base] = x;
@@ -239,33 +260,32 @@ function adaptiveSample(
   const coarseX: number[] = [];
   const coarseY: number[] = [];
   const coarseZ: number[] = [];
-
-  for (let i = 0; i < numCoarse; i++) {
-    const t = Math.min(startTime + i * coarseInterval, endTime);
+  // Whether an unavailable coarse sample lies between coarse sample i-1 and i.
+  const coarseGap: boolean[] = [];
+  let skipped = false;
+  const coarse = (t: number) => {
     const pos = resolver(t);
-    if (!isNaN(pos[0])) {
-      coarseT.push(t);
-      coarseX.push(pos[0]);
-      coarseY.push(pos[1]);
-      coarseZ.push(pos[2]);
+    if (isNaN(pos[0])) {
+      skipped = true;
+      return;
     }
-  }
+    coarseT.push(t);
+    coarseX.push(pos[0]);
+    coarseY.push(pos[1]);
+    coarseZ.push(pos[2]);
+    coarseGap.push(skipped && coarseT.length > 1);
+    skipped = false;
+  };
+
+  for (let i = 0; i < numCoarse; i++) coarse(Math.min(startTime + i * coarseInterval, endTime));
   // Ensure exact end time is included
-  if (coarseT.length > 0 && coarseT[coarseT.length - 1] < endTime) {
-    const pos = resolver(endTime);
-    if (!isNaN(pos[0])) {
-      coarseT.push(endTime);
-      coarseX.push(pos[0]);
-      coarseY.push(pos[1]);
-      coarseZ.push(pos[2]);
-    }
-  }
+  if (coarseT.length > 0 && coarseT[coarseT.length - 1] < endTime) coarse(endTime);
 
   if (coarseT.length < 2) {
     for (let i = 0; i < coarseT.length; i++) {
       push(coarseT[i], coarseX[i], coarseY[i], coarseZ[i]);
     }
-    return { times, positions, count };
+    return { times, positions, breaks, count };
   }
 
   // Phase 2: Recursive midpoint refinement where curvature is high.
@@ -287,8 +307,9 @@ function adaptiveSample(
     const midT = (t0 + t1) * 0.5;
     const midPos = resolver(midT);
     if (isNaN(midPos[0])) {
-      // Kernel gap at midpoint — don't subdivide, just emit left endpoint
+      // Kernel gap at midpoint: emit the left endpoint and break before the right.
       push(t0, x0, y0, z0);
+      gapPending = true;
       return;
     }
 
@@ -317,6 +338,11 @@ function adaptiveSample(
 
   for (let i = 0; i < coarseT.length - 1; i++) {
     if (count >= maxSamples) break;
+    if (coarseGap[i + 1]) {
+      push(coarseT[i], coarseX[i], coarseY[i], coarseZ[i]);
+      gapPending = true;
+      continue;
+    }
     refine(
       coarseT[i], coarseX[i], coarseY[i], coarseZ[i],
       coarseT[i + 1], coarseX[i + 1], coarseY[i + 1], coarseZ[i + 1],
@@ -329,7 +355,7 @@ function adaptiveSample(
     push(coarseT[last], coarseX[last], coarseY[last], coarseZ[last]);
   }
 
-  return { times, positions, count };
+  return { times, positions, breaks, count };
 }
 
 
@@ -345,6 +371,7 @@ function adaptiveSample(
 function visvalingamSimplify(
   times: Float64Array,
   positions: Float64Array,
+  breaks: Uint8Array,
   n: number,
   targetCount: number,
 ): SampleBuffer {
@@ -352,6 +379,7 @@ function visvalingamSimplify(
     return {
       times: times.slice(0, n),
       positions: positions.slice(0, n * 3),
+      breaks: breaks.slice(0, n),
       count: n,
     };
   }
@@ -388,7 +416,9 @@ function visvalingamSimplify(
   }
 
   for (let i = 1; i < n - 1; i++) {
-    area[i] = triArea(i);
+    // Run endpoints are never removed, so a gap's edges stay where the data
+    // ends and no interior point's neighbors straddle a gap.
+    area[i] = breaks[i] || breaks[i + 1] ? Infinity : triArea(i);
   }
 
   // Min-heap with lazy deletion.
@@ -437,7 +467,7 @@ function visvalingamSimplify(
   // Build initial heap (all interior points)
   const removed = new Uint8Array(n);
   for (let i = 1; i < n - 1; i++) {
-    hPush(area[i], i);
+    if (area[i] !== Infinity) hPush(area[i], i);
   }
 
   // Remove points until we reach targetCount
@@ -464,22 +494,24 @@ function visvalingamSimplify(
     if (pi > 0 && !removed[pi]) {
       const newA = triArea(pi);
       area[pi] = Math.max(area[pi], newA);
-      hPush(area[pi], pi);
+      if (area[pi] !== Infinity) hPush(area[pi], pi);
     }
     if (ni >= 0 && ni < n - 1 && !removed[ni]) {
       const newA = triArea(ni);
       area[ni] = Math.max(area[ni], newA);
-      hPush(area[ni], ni);
+      if (area[ni] !== Infinity) hPush(area[ni], ni);
     }
   }
 
   // Collect surviving points by following the linked list from index 0
   const outTimes = new Float64Array(remaining);
   const outPositions = new Float64Array(remaining * 3);
+  const outBreaks = new Uint8Array(remaining);
   let cur = 0;
   let out = 0;
   while (cur >= 0) {
     outTimes[out] = times[cur];
+    outBreaks[out] = breaks[cur];
     const c3 = cur * 3, o3 = out * 3;
     outPositions[o3] = positions[c3];
     outPositions[o3 + 1] = positions[c3 + 1];
@@ -488,7 +520,7 @@ function visvalingamSimplify(
     cur = next[cur];
   }
 
-  return { times: outTimes, positions: outPositions, count: out };
+  return { times: outTimes, positions: outPositions, breaks: outBreaks, count: out };
 }
 
 

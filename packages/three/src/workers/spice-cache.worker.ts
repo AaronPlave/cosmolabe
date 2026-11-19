@@ -244,8 +244,9 @@ self.onmessage = async (event: MessageEvent) => {
             times: cache.times,
             positions: cache.positions,
             count: cache.count,
+            breaks: cache.breaks,
           },
-          [timesBuffer, positionsBuffer],
+          [timesBuffer, positionsBuffer, cache.breaks.buffer],
         );
       } catch (e) {
         (self as unknown as Worker).postMessage({

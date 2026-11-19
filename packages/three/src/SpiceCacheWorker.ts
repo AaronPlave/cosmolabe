@@ -187,6 +187,7 @@ export class SpiceCacheWorker {
             msg.times as Float64Array,
             msg.positions as Float64Array,
             msg.count as number,
+            msg.breaks as Uint8Array | undefined,
           );
           pending.resolve(cache);
           this.pendingRequests.delete(msg.id as string);
