@@ -248,7 +248,9 @@ What that scene can honestly support:
   direct term, so the photo's baked shadows stay where they were, and the image is the union of baked and computed
   shadows.
 
-MoonFall and LRO declare WAC and NAC `baked`. The [baked-imagery follow-up](lunar-sun-visibility.md) applies computed Sun visibility to them independently of the original photographic shading.
+MoonFall and LRO declare WAC and NAC `baked`. Computed Sun visibility combines
+with the original photographic shading in the
+[lunar imagery lighting guide](lunar-imagery-lighting.md#terminator-and-globe-handoff).
 
 **Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its

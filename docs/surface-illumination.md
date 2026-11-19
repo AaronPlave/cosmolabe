@@ -183,18 +183,21 @@ stack as the shared value or `mixed`; it no longer chooses a path. Only
 Provenance is a shared shader uniform per layer, so changing it is a uniform
 write: no recompile, no material churn, one program for all tiles. Baked
 imagery still composes with imagery overlays, eclipse shadow and aerial
-perspective; only the Sun, ambient and environment lighting are bypassed.
+perspective. Original photography bypasses simulated slope shading. The lunar
+imagery control can opt into approximate diffuse shading while keeping the
+source declaration.
 
 ### Baked imagery and the terminator
 
 Baked pixels keep their source shading and fade toward the lighting mode's
-`bakedNightFloor` (Natural 3%, Shadow 33%, Flood 100%) as the simulated Sun
-becomes occluded. With terrain shadows enabled and a valid height-based answer,
+night floor as the simulated Sun becomes occluded. Lunar Natural uses the linear
+ambient diffuse contribution. Shadow uses a brighter floor. With terrain shadows enabled and a valid height-based answer,
 the gate uses computed Sun visibility, including ridge and crater-wall occlusion.
 Elsewhere the gate uses the reference-sphere horizon and the Sun's angular width.
 Flood bypasses this gate and also shows declared reflectance layers in their
 source colours. The existing Flood material response remains for unknown imagery.
-See the [matched lunar comparisons](lunar-sun-visibility.md).
+See the [lunar imagery lighting guide](lunar-imagery-lighting.md#moonfall-and-lro)
+for the viewer controls and matched comparisons.
 
 `illumination` is accepted by the catalog schema on `imagery[]`,
 `terrain.imagery[]` and `terrain`. Cube imagery is declared as `terrain.imagery[]` layers
@@ -204,9 +207,8 @@ See the [matched lunar comparisons](lunar-sun-visibility.md).
 
 The **baked** declaration means that the released pixels carry acquisition
 lighting. LRO and MoonFall declare their WAC morphology and controlled NAC
-layers baked. The [lunar textured lighting investigation](lunar-textured-lighting.md)
-shows the effect in fixed-view captures. The table also records evidence for
-other products. It does not change their catalog settings.
+layers baked. The table also records evidence for other products independently of
+their catalog settings.
 
 Issue #147 separated the original WAC and controlled-NAC inputs into ordinary
 cube layers. Its optional PSR optical observation is explicitly `baked`, initially disabled, and labeled
