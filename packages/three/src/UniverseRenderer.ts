@@ -2,7 +2,7 @@ import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
 import type { SolarShadowDebugMode, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
-import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry } from './SurfaceIllumination.js';
+import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry, type ImageryLightingMode } from './SurfaceIllumination.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -483,6 +483,7 @@ export class UniverseRenderer {
   /** Per-body occluder list, rebuilt each frame by updateShadowOccluders() */
   private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
   /** Current lighting mode — eclipse shadows only apply in 'natural' mode */
+  private _imageryLightingMode: ImageryLightingMode = 'original';
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
   /** Selective bloom / Sun glare overlay (null when disabled). */
   private bloomEffect: BloomEffect | null = null;
@@ -2731,6 +2732,16 @@ export class UniverseRenderer {
     for (const bm of this.bodyMeshes.values()) bm.setSurfaceLightingMode(mode);
   }
 
+  get hasAcquiredImagery(): boolean {
+    for (const body of this.bodyMeshes.values()) if (body.userVisible && body.hasAcquiredImagery) return true;
+    return false;
+  }
+
+  setImageryLightingMode(mode: ImageryLightingMode): void {
+    this._imageryLightingMode = mode;
+    for (const body of this.bodyMeshes.values()) body.setImageryLightingMode(mode);
+  }
+
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
   setBodyVisible(name: string, visible: boolean): void {
     const bm = this.bodyMeshes.get(name);
@@ -3626,8 +3637,7 @@ export class UniverseRenderer {
   /**
    * What the viewer's control shows: null when no body has terrain a shadow can be built from, else the effective mode
    * (the choice made, or what the catalog configured: `off` when nothing is), and the least-finished clipmap state and
-   * largest unknown fraction across the bodies that have one, and whether all of them are drawn from baked imagery
-   * (which carries its own lighting, so shadows cannot show on it).
+   * largest unknown fraction across the bodies that have one, and whether their drawn terrain is acquisition-lit.
    */
   terrainShadowSummary(): { mode: 'off' | SolarShadowQuality; state: SolarShadowStatus['state'] | null; unknownFraction: number; coarseFraction: number; bakedOnly: boolean } | null {
     const rank: Record<SolarShadowStatus['state'], number> = { off: 0, 'out-of-range': 1, building: 2, partial: 3, ready: 4 };
@@ -4335,6 +4345,7 @@ export class UniverseRenderer {
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
       bm.setSurfaceLightingMode(this._lightingMode);
+      bm.setImageryLightingMode(this._imageryLightingMode);
       bm.setSolarShadowMode(this._terrainShadowMode);
       this.bodyMeshes.set(body.name, bm);
       if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);

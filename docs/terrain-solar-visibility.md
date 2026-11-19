@@ -28,9 +28,10 @@ fragment, including slopes facing away from the Sun, which the lit image leaves 
 clipmap); `4` **neutral grey albedo** lit by the Sun with terrain shadows (no imagery, no baked light); `5` the same
 without terrain shadows; `6` the normal image with shadows bypassed while the clipmap keeps updating (A/B "off").
 
-What it touches: the **direct** diffuse/specular term of relit surfaces (`reflectance` and `unknown` imagery), and the
-light on **vehicles** (any body with a model whose parent has terrain shadows: landed or flying, see step 6). Ambient
-and eclipse terms on terrain are untouched. A vehicle's own shadow on the ground keeps its shadow map.
+The terrain result attenuates the direct diffuse and specular light on relit surfaces, and gates
+acquisition-lit imagery independently of its existing photographic shadows. The near clipmap also
+affects the light on landed and flying vehicles with a terrain parent. Ambient and eclipse terms on
+relit terrain and vehicle shadow maps use their existing paths.
 
 ## How it works
 
@@ -232,12 +233,10 @@ Sun fraction | on: [Shackleton](validation/terrain-solar-shadow/shackleton-rim-p
 Before the scheduling fix the coarser levels could stay on an old Sun indefinitely; re-rendering every level every
 frame instead cost 13–15 ms p50 / 32–34 ms p95 at the pole.
 
-### The shipped WAC+NAC scene and baked illumination
+### WAC and NAC acquisition lighting
 
-`moonfall-shackleton` drapes the LROC WAC + NAC composite. Its pixels contain the illumination of the original images
-(the NAC polar mosaics are assembled for uniform lighting, and permanently shadowed floors are black), but the layer
-declares no provenance, so it is relit as `unknown`. Same Shackleton pose, `--catalog test-catalogs/moonfall-shackleton
---tag wac-nac`:
+The original `moonfall-shackleton` WAC + NAC composite carried the illumination of the source images. With
+undeclared provenance it was relit as `unknown`. Historical captures at the same Shackleton pose:
 [off](validation/terrain-solar-shadow/shackleton-rim-off-gpu-wac-nac.png), [on](validation/terrain-solar-shadow/shackleton-rim-on-gpu-wac-nac.png) (neutral and Sun-fraction
 views: `--modes`).
 
@@ -249,8 +248,9 @@ What that scene can honestly support:
   direct term, so the photo's baked shadows stay where they were, and the image is the union of baked and computed
   shadows.
 
-We did not declare the layer `baked` (that hides the effect), and we did not swap in the nodata-filled WAC_EMP mosaic.
-A relightable albedo product for the pole is the data needed for a trustworthy changing-illumination picture.
+MoonFall and LRO declare WAC and NAC `baked`. Computed Sun visibility combines
+with the original photographic shading in the
+[lunar imagery lighting guide](lunar-imagery-lighting.md#terminator-and-globe-handoff).
 
 **Vehicles** (`scripts/check-terrain-shadow-vehicles.mjs`, `moonfall-shackleton`, High). Every hop of Polaris-A–D, every
 10 s: the renderer's Sun fraction for the hopper against an independent CPU march of resident source terrain from its
@@ -308,7 +308,7 @@ is measured.
   (debug view 2: orange): they show what the spacing supports, not a determined visibility. The softening uses one
   typical slope (0.05) for every terrain; rougher terrain would warrant more.
 - **Vehicles** are lit or shadowed as a whole from one point, and the factor dims their ambient light too (as eclipses do).
-- **Baked imagery** (see above). Imagery declared `baked` shows no terrain shadows, and the viewer says so.
+- **Baked imagery.** Computed Sun visibility can obscure additional areas. Shadows present in the original photograph remain. Coverage gaps use the reference-sphere horizon.
 - **Quantized-mesh terrain** mixes LODs in its CPU samples. Cube-sphere terrain is the supported low-Sun path.
 - **Overhangs.** A radial height field cannot represent overhangs. `clipmapSourceFromSurface` keeps the highest surface.
 

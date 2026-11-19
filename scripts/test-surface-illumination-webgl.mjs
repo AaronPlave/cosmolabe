@@ -41,7 +41,7 @@ try {
   await page.goto(server.resolvedUrls.local[0]);
   await page.waitForFunction(() => window.illumTest);
   const result = await page.evaluate(() => {
-    const { THREE, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, wrapOverlaysMaterial, declareSurfaceAsIs, createSurfaceAsIsUniforms, LIGHTING_MODES, applyLightingMode } = window.illumTest;
+    const { THREE, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, wrapOverlaysMaterial, declareSurfaceAsIs, createSurfaceAsIsUniforms, applyLightingMode } = window.illumTest;
     const canvas = document.querySelector('canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // linear readback
@@ -261,14 +261,14 @@ try {
       out.libraryOpacity = { got: half, fiftyPercentBlend: want, maxDiff: Math.max(...half.map((v, i) => Math.abs(v - want[i]))) };
     }
     // 7. Terminator gate: baked pixels go to the mode's night floor when the Sun is below the body's local horizon.
-    const gated = (elevationDeg, mode) => {
+    const gated = (elevationDeg, mode, lunarMatte = false, tiltDeg = 0) => {
       const uniforms = createSurfaceAsIsUniforms(mode);
-      uniforms.surfaceAsIs.value = 1;
+      uniforms.surfaceAsIs.value = !lunarMatte || mode === 'flood' ? 1 : 0;
       const map = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
       map.needsUpdate = true;
       const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.5, 0.5, 0.5), map, roughness: 1, metalness: 0 });
-      m.onBeforeCompile = shader => injectAsIsDisplayIntoShader(shader, uniforms);
-      m.customProgramCacheKey = () => '_illum_gate';
+      m.onBeforeCompile = shader => injectAsIsDisplayIntoShader(shader, uniforms, lunarMatte);
+      m.customProgramCacheKey = () => lunarMatte ? '_illum_gate_lunar' : '_illum_gate';
       const scene = new THREE.Scene();
       const ambient = new THREE.AmbientLight(), sun = new THREE.DirectionalLight();
       scene.add(ambient, sun, sun.target);
@@ -277,6 +277,7 @@ try {
       sun.position.set(Math.cos(deg(elevationDeg)), 0, Math.sin(deg(elevationDeg))).multiplyScalar(5);
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m);
       plane.position.set(0, 0, 100);
+      plane.rotation.y = deg(tiltDeg);
       scene.add(plane);
       camera.position.set(0, 0, 103); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
       uniforms.centerView.value.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
@@ -288,6 +289,13 @@ try {
       return sum / n;
     };
     out.terminator = { dayNatural: gated(30, 'natural'), nightNatural: gated(-20, 'natural'), nightShadow: gated(-20, 'shadow'), nightFlood: gated(-20, 'flood'), grazing: gated(0.2, 'natural') };
+    // The tilted normal faces a Sun below the reference horizon.
+    out.lunarTerminator = {
+      day: gated(20, 'natural', true, 50),
+      night: gated(-20, 'natural', true, 50),
+      nightShadow: gated(-20, 'shadow', true, 50),
+      nightFlood: gated(-20, 'flood', true, 50),
+    };
     // 5. Software-GL timing, unrepresentative of any GPU: hook vs plain Standard material.
     const plain = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 });
     const time = (material) => {
@@ -297,7 +305,6 @@ try {
       return (performance.now() - t) / 40;
     };
     out.timing = { plainMs: time(plain), hookMs: time(a), note: 'software WebGL; no GPU/mobile claim' };
-    canvas.getContext; // keep canvas referenced for screenshot
     return out;
   });
   assert.deepEqual(errors, [], 'no page or console errors');
@@ -343,6 +350,9 @@ try {
   assert.ok(Math.abs(t.nightShadow - 0.5 * 0x55 / 255) < 1e-3, `shadow night floor: ${t.nightShadow}`);
   assert.ok(Math.abs(t.nightFlood - 0.5) < 1e-3, `flood is uniform: ${t.nightFlood}`);
   assert.ok(t.grazing > t.nightNatural && t.grazing < t.dayNatural, `the terminator is a short ramp, not a step: ${t.grazing}`);
+  const lunar = result.lunarTerminator;
+  assert.ok(lunar.day > .2 && lunar.night < .001 && lunar.nightShadow > .1);
+  assert.ok(Math.abs(lunar.nightFlood - .5) < 1e-3);
   // 4. One program.
   assert.equal(result.programs.total, 1, 'relit, baked and flood tiles all share one program');
   console.log(JSON.stringify({ gpu: result.gpu, cases: result.cases.length, programs: result.programs.total, timing: result.timing }, null, 2));

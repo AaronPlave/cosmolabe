@@ -616,6 +616,7 @@
         "terrain": {
           "type": "3dtiles",
           "frame": "MOON_ME_DE421",
+          "orbitalSolarShadows": { "halfKm": 1500, "size": 256, "maxAltitudeKm": 1150 },
           "url": "data/moon-terrain-cube/tileset.json",
           "errorTarget": 2,
           "fadeDurationMs": 0,
@@ -635,7 +636,8 @@
               "description": "LROC global morphology mosaic, June 2013 edition, 100 m/px; source images acquired November 2009–February 2011. Original acquisition shading retained; the context beneath NAC and missing observations.",
               "attribution": "LROC team / USGS Astrogeology / ASU",
               "resolutionMeters": 100,
-              "url": "data/moon-imagery-cube-wac/imagery.json"
+              "url": "data/moon-imagery-cube-wac/imagery.json",
+              "illumination": "baked"
             },
             {
               "type": "cube",
@@ -644,7 +646,8 @@
               "description": "The original deployed controlled south-pole NAC source, 1 m/px, independently switchable. Original display pixels and acquisition shading retained; nodata is transparent to WAC. DE421 mean-Earth coordinates; absolute registration accuracy is unknown.",
               "attribution": "LROC team / USGS Astrogeology / ASU",
               "resolutionMeters": 1,
-              "url": "data/moon-imagery-cube-nac-independent/imagery.json"
+              "url": "data/moon-imagery-cube-nac-independent/imagery.json",
+              "illumination": "baked"
             },
             {
               "type": "cube",

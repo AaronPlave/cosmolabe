@@ -183,21 +183,21 @@ stack as the shared value or `mixed`; it no longer chooses a path. Only
 Provenance is a shared shader uniform per layer, so changing it is a uniform
 write: no recompile, no material churn, one program for all tiles. Baked
 imagery still composes with imagery overlays, eclipse shadow and aerial
-perspective; only the Sun, ambient and environment lighting are bypassed.
+perspective. Original photography bypasses simulated slope shading. The lunar
+imagery control can opt into approximate diffuse shading while keeping the
+source declaration.
 
 ### Baked imagery and the terminator
 
-A baked image cannot tell the renderer that the Sun has set on the surface it
-draws, and showing it at full brightness on the night side would make a lunar
-night look like day. Baked pixels therefore fall to the lighting mode's
-`bakedNightFloor` (natural 3 %, shadow 33 %, flood 100 % = no gate) when the Sun
-is below the **local horizon of the reference sphere**, over a ramp as wide as
-the Sun's angular radius (`sin 0.27°`). This is the terminator only. It uses the
-body-centre direction, never the terrain slope (slopes are in the image, and
-re-shading them would double-light it), never the camera's view of the Sun, and
-never a ridge's shadow: a crater floor facing the Sun is still treated as lit
-(#205). Baked pixels are shown at full scale (relit pixels carry the Lambert
-`1/π`), so Natural, Shadow and Flood of a baked surface differ only at night.
+Baked pixels keep their source shading and fade toward the lighting mode's
+night floor as the simulated Sun becomes occluded. Lunar Natural uses the linear
+ambient diffuse contribution. Shadow uses a brighter floor. With terrain shadows enabled and a valid height-based answer,
+the gate uses computed Sun visibility, including ridge and crater-wall occlusion.
+Elsewhere the gate uses the reference-sphere horizon and the Sun's angular width.
+Flood bypasses this gate and also shows declared reflectance layers in their
+source colours. The existing Flood material response remains for unknown imagery.
+See the [lunar imagery lighting guide](lunar-imagery-lighting.md#moonfall-and-lro)
+for the viewer controls and matched comparisons.
 
 `illumination` is accepted by the catalog schema on `imagery[]`,
 `terrain.imagery[]` and `terrain`. Cube imagery is declared as `terrain.imagery[]` layers
@@ -205,19 +205,13 @@ never a ridge's shadow: a crater floor facing the Sun is still treated as lit
 
 ### Source provenance
 
-What the real products are, with the evidence. "Baked" means shading is in the
-pixels as released; it is a statement about the products, not a preference about
-how Natural should look, and the last column is the classification the evidence
-supports, **not** what the shipped catalogs declare: existing demo catalogs leave
-`illumination` undeclared (`unknown`), which renders exactly as on `main`, until a
-default-appearance change is made intentionally with real-data comparisons. The
-opt-in fixture `moon-illumination-provenance` declares the WAC+NAC composite
-`baked` for anyone who wants to see it. Confidence is stated where the primary
-source is thin.
+The **baked** declaration means that the released pixels carry acquisition
+lighting. LRO and MoonFall declare their WAC morphology and controlled NAC
+layers baked. The table also records evidence for other products independently of
+their catalog settings.
 
-Issue #147 separates the original WAC and controlled-NAC inputs into ordinary
-cube layers, preserving their existing default lighting policy. Its optional
-PSR optical observation is explicitly `baked`, initially disabled, and labeled
+Issue #147 separated the original WAC and controlled-NAC inputs into ordinary
+cube layers. Its optional PSR optical observation is explicitly `baked`, initially disabled, and labeled
 as stretched indirect-light photography. The source pins, masks and frame
 qualifications are in the [optical builder notes](../scripts/build-moon-terrain/README.md#independent-optical-layers-147).
 The composite below remains the immutable comparison baseline; source shading
@@ -274,10 +268,9 @@ Question: what should Natural show for real mission scenes, given that the
 highest-resolution imagery (NAC, CTX, HiRISE) carries the Sun it was acquired
 under? Same hosted terrain, camera, display settings and fixed epochs; real viewer
 on software WebGL; every frame fully streamed (displayed imagery level equal to
-the wanted level, no fallback blocks). **A** is the behaviour of undeclared provenance, which is what
-the shipped demos still render (baked imagery relit; pixel-identical to a build of
-the base commit on the same catalog: mean difference 0.00, 0 % of pixels differ),
-**B** is the same layer declared `baked` (as-is, opt-in), **C** is a
+the wanted level, no fallback blocks). **A** is the behaviour of undeclared provenance
+(baked imagery relit, pixel-identical to the base commit on the same catalog),
+**B** is the same layer declared `baked`, **C** is a
 physically relit normalized reflectance layer. Scripts, numbers and Sun geometry:
 [`real-scenes.json`](validation/surface-illumination/real-scenes/real-scenes.json).
 
@@ -435,12 +428,9 @@ interior (nodata, filled) and carries residual slope shading at crater walls, so
 the polar illumination-study scene shows the DEM's shading over a near-uniform
 albedo, with the baked NAC one toggle away. Equatorial 100 m tiles (eight
 `WAC_EMP_643NM_E300…` tiles, about 500 MB each, plus the north polar tile) exist on
-the same host and were located but not built or compared. The LRO/MoonFall catalogs
-leave the WAC+NAC composite undeclared (relit as on `main`); switching that default
-is the owner's decision, and the polar nodata floors and residual slope shading say
-the 100 m product is not ready to be the production default. NAC (1 m) has no normalized counterpart: at the
-south pole its footprint covers the whole scene, so a baked NAC layer there is the
-scene.
+the same host. The polar nodata floors and residual slope shading limit the 100 m
+product as a replacement for the ordinary imagery. NAC (1 m) has no normalized
+counterpart in this stack and dominates the displayed pixels close to Shackleton.
 
 ## Normals
 

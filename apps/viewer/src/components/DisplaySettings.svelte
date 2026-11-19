@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setImageryLighting, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -34,6 +34,10 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
+  const hasAcquiredImagery = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.hasAcquiredImagery ?? false;
+  });
 
   // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
   // is the viewer's choice when it has made one, else what the catalog configured (Off unless it sets `solarShadows`).
@@ -46,17 +50,29 @@
   const shadow = $derived(shadowSummary ? JSON.parse(shadowSummary) as { mode: 'off' | 'low' | 'medium' | 'high'; state: string | null; unknown: number; coarse: number; baked: boolean } : null);
   const shadowStatusText = $derived.by(() => {
     if (!shadow) return '';
-    if (shadow.mode === 'off') return vs.lightingMode === 'flood' ? 'Off in Flood lighting: it has no Sun.' : '';
-    if (vs.lightingMode === 'flood') return 'Off in Flood lighting: it has no Sun.';
-    if (shadow.baked) return 'This surface\'s imagery has its lighting baked in, so shadows will not show on it.';
+    if (vs.lightingMode === 'flood') return 'Flood shows the imagery without simulated sunlight or terrain shadows.';
+    const original = shadow.baked && vs.imageryLightingMode === 'original';
+    if (shadow.mode === 'off') {
+      if (!original) return '';
+      return vs.lightingMode === 'shadow'
+        ? 'The simulated night side is brighter. Photographic shadows remain.'
+        : 'The simulated Sun moves the day/night boundary. Photographic shadows remain.';
+    }
     // The finest clipmap level, around the view's centre.
     if (shadow.coarse > 0 && (shadow.state === 'ready' || shadow.state === 'partial')) {
       return `Terrain heights here are farther apart than the shadow detail${shadow.coarse < 100 ? ` (${shadow.coarse} %)` : ''}: shadows there are only as sharp as the heights support.`;
     }
     switch (shadow.state) {
       case 'building': return 'Building terrain data…';
-      case 'partial': return `Some terrain not loaded (${shadow.unknown} %): drawn lit, not shadowed.`;
-      case 'ready': return 'On, from the loaded terrain heights.';
+      case 'partial': return original
+        ? 'Terrain shadows use loaded heights. Gaps use the reference-sphere horizon.'
+        : `Some terrain not loaded (${shadow.unknown} %). Simulated shadows may be incomplete.`;
+      case 'ready': return original
+        ? 'Simulated terrain shadows are layered over the photograph.'
+        : 'On, from the loaded terrain heights.';
+      case 'out-of-range': return original
+        ? 'Terrain shadows are out of range. Using the reference-sphere horizon.'
+        : 'Terrain shadows are out of range.';
       default: return 'Starts when the camera is near the surface.';
     }
   });
@@ -163,6 +179,7 @@
       <span class="flex-1 text-text-primary">Lighting</span>
       <select
         class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+        aria-label="Lighting"
         value={vs.lightingMode}
         onchange={(e) => setLighting((e.target as HTMLSelectElement).value as 'natural' | 'shadow' | 'flood')}
       >
@@ -172,11 +189,28 @@
       </select>
     </div>
 
+    {#if hasAcquiredImagery}
+      <label class="ui-body flex flex-wrap items-center gap-2 px-3 py-1">
+        <span class="flex-1 text-text-primary" title="Simulated lighting adds slope shading to photography that already contains acquisition lighting. Flood always shows the source imagery.">Imagery lighting</span>
+        <select
+          class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none max-w-full"
+          value={vs.imageryLightingMode}
+          disabled={vs.lightingMode === 'flood'}
+          onchange={(e) => setImageryLighting(e.currentTarget.value === 'simulated' ? 'simulated' : 'original')}
+        >
+          <option value="original">Original photography</option>
+          <option value="simulated">Simulated (approximate)</option>
+        </select>
+      </label>
+    {/if}
+
     {#if shadow}
       <div class="ui-body flex items-center gap-2 px-3 py-1">
-        <span class="flex-1 text-text-primary" title="Terrain-cast Sun shadows and horizon occlusion on relit terrain. A visual aid, not a certified illumination product. Higher quality costs more GPU time.">Terrain shadows</span>
+        <span class="flex-1 text-text-primary" title="Uses loaded heights to estimate current Sun visibility. On photographs, simulated shadows are layered over the original acquisition shadows. Higher quality costs more GPU time.">Terrain shadows</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
+          aria-label="Terrain shadows"
+          aria-describedby={shadowStatusText ? 'terrain-shadow-status' : undefined}
           data-testid="terrain-shadow-mode"
           value={shadow.mode}
           onchange={(e) => setTerrainShadowMode((e.target as HTMLSelectElement).value as 'off' | 'low' | 'medium' | 'high')}
@@ -187,7 +221,7 @@
           <option value="high">High</option>
         </select>
       </div>
-      {#if shadowStatusText}<p class="ui-meta text-text-secondary px-3 pb-1" data-testid="terrain-shadow-status">{shadowStatusText}</p>{/if}
+      {#if shadowStatusText}<p class="ui-meta text-text-secondary px-3 pb-1" id="terrain-shadow-status" data-testid="terrain-shadow-status">{shadowStatusText}</p>{/if}
     {/if}
 
     <!-- Capture -->

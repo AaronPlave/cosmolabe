@@ -13,10 +13,8 @@ import * as THREE from 'three';
  *    being lit*, not at the scene origin, and the Sun's elevation/azimuth
  *    there, for diagnostics and screenshots.
  *
- * Out of scope here: terrain-cast shadows / horizon occlusion (#205),
- * observer-visible Sun disk occlusion (#242) and regolith photometry.
- * `directTerm` stays a separate quantity so #205 can attenuate it without
- * darkening the composited image.
+ * Terrain-cast Sun visibility is computed by SolarShadowClipmap (#205),
+ * independently of slope shading and layer provenance.
  */
 
 /**
@@ -25,8 +23,8 @@ import * as THREE from 'three';
  * - `reflectance`: approximately photometrically normalized albedo/reflectance.
  *   The simulated Sun may light it: `shade = albedo × sun × cos(incidence)`.
  * - `baked`: illumination (shading, shadows) is already in the pixels. It is
- *   displayed as-is; adding the Sun would double-darken it and misrepresent
- *   the source albedo.
+ *   displayed with its original slope shading. Current-Sun visibility can
+ *   darken the photograph independently of its acquisition lighting.
  * - `unknown`: no provenance declared. This is the **legacy** path: the image
  *   is relit exactly as it was before the contract existed, and is labeled as
  *   not asserted to be physically relightable.
@@ -67,12 +65,16 @@ export function combineImageryIllumination(values: Iterable<ImageryIllumination 
 }
 
 /**
- * The per-layer weight the compositor blends with that layer's alpha: 1 for a
- * source whose pixels already carry lighting (shown as-is), 0 for one the Sun
- * lights (`reflectance`, and legacy `unknown`).
+ * The per-layer weight the compositor blends with alpha. In Original,
+ * photographs keep their colors. Flood also displays declared reflectance directly.
  */
-export function imageryAsIsWeight(illumination: ImageryIllumination | undefined): 0 | 1 {
-  return illumination === 'baked' ? 1 : 0;
+export function imageryAsIsWeight(
+  illumination: ImageryIllumination | undefined,
+  mode: LightingMode = 'natural',
+  imageryLighting: ImageryLightingMode = 'original',
+): 0 | 1 {
+  if (mode === 'flood') return illumination === 'baked' || illumination === 'reflectance' ? 1 : 0;
+  return illumination === 'baked' && imageryLighting === 'original' ? 1 : 0;
 }
 
 /** True only when the Sun's direct term is a physical claim for this source. */
@@ -81,6 +83,7 @@ export function isPhysicallyRelit(illumination: SurfaceIlluminationSummary, mode
 }
 
 export type LightingMode = 'natural' | 'shadow' | 'flood';
+export type ImageryLightingMode = 'original' | 'simulated';
 
 export interface LightingModeParams {
   /** Ambient colour. */
@@ -252,11 +255,19 @@ export interface SurfaceAsIsUniforms {
   surfaceAsIs: { value: number };
   centerView: { value: THREE.Vector3 };
   nightFloor: { value: number };
+  natural: { value: boolean };
 }
 
 export function createSurfaceAsIsUniforms(mode: LightingMode = 'natural'): SurfaceAsIsUniforms {
-  return { surfaceAsIs: { value: 0 }, centerView: { value: new THREE.Vector3() }, nightFloor: { value: LIGHTING_MODES[mode].bakedNightFloor } };
+  return {
+    surfaceAsIs: { value: 0 }, centerView: { value: new THREE.Vector3() },
+    nightFloor: { value: LIGHTING_MODES[mode].bakedNightFloor },
+    natural: { value: mode === 'natural' },
+  };
 }
+
+/** Linear diffuse ambient for matte lunar terrain. The source color is linear at this point. */
+export const LUNAR_NATURAL_NIGHT_FLOOR = new THREE.Color(LIGHTING_MODES.natural.ambientHex).r / Math.PI;
 
 /** Half-width of the terminator gate in `sin(elevation)`: the Sun's angular radius. */
 const TERMINATOR_HALF_WIDTH = 0.0047;
@@ -314,8 +325,8 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
  * the acquisition Sun, not the simulated one, so slopes are never re-shaded;
  * but the Sun being below the local horizon of the reference sphere is not
  * something the image knows, so baked pixels past the terminator fall to the
- * lighting mode's `bakedNightFloor` over a Sun-radius-wide ramp. That is the
- * terminator only: terrain-cast shadow and horizon occlusion are #205.
+ * lighting mode's `bakedNightFloor`. Terrain with a valid shadow sample uses
+ * computed Sun visibility instead of the reference-sphere gate.
  *
  * The uniforms are shared objects (1 = as-is, 0 = lit), so a change of
  * provenance is a uniform write, not a recompile, and relit and as-is tiles
@@ -324,6 +335,7 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
 export function injectAsIsDisplayIntoShader(
   shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
   u: SurfaceAsIsUniforms,
+  lunarMatte = false,
 ): void {
   const hook = '#include <opaque_fragment>';
   if (!shader.fragmentShader.includes(hook)) {
@@ -336,16 +348,36 @@ export function injectAsIsDisplayIntoShader(
     shader.uniforms.uSurfaceAsIs = u.surfaceAsIs;
     shader.uniforms.uSurfaceCenterView = u.centerView;
     shader.uniforms.uBakedNightFloor = u.nightFloor;
+    if (lunarMatte) shader.uniforms.uSurfaceNatural = u.natural;
+  }
+  if (lunarMatte) {
+    const specular = 'vec3 totalSpecular = reflectedLight.directSpecular + reflectedLight.indirectSpecular;';
+    if (!shader.fragmentShader.includes(specular)) throw new Error('Lunar terrain: Three.js specular term changed.');
+    shader.fragmentShader = '#define SURFACE_LUNAR_MATTE\nuniform bool uSurfaceNatural;\n'
+      + shader.fragmentShader.replace(specular, 'vec3 totalSpecular = vec3(0.0);');
   }
   declareSurfaceAsIs(shader);
   const h = TERMINATOR_HALF_WIDTH.toFixed(4);
-  shader.fragmentShader = 'uniform vec3 uSurfaceCenterView;\nuniform float uBakedNightFloor;\n' + shader.fragmentShader.replace(
+  shader.fragmentShader = '#define SURFACE_BAKED_DISPLAY\nuniform vec3 uSurfaceCenterView;\nuniform float uBakedNightFloor;\n' + shader.fragmentShader.replace(
     hook,
     `float surfaceBakedGate = 1.0;
 #if NUM_DIR_LIGHTS > 0
 if (uBakedNightFloor < 1.0) {
   float sunUp = dot(normalize(-vViewPosition - uSurfaceCenterView), directionalLights[0].direction);
-  surfaceBakedGate = mix(uBakedNightFloor, 1.0, smoothstep(-${h}, ${h}, sunUp));
+  float visibility = smoothstep(-${h}, ${h}, sunUp);
+#ifdef SURFACE_TERRAIN_SHADOW
+  visibility = solarBakedVisibility.x + (1.0 - solarBakedVisibility.y) * visibility;
+#endif
+  surfaceBakedGate = mix(uBakedNightFloor, 1.0, visibility);
+#ifdef SURFACE_LUNAR_MATTE
+  if (uSurfaceNatural) {
+    // Shadow sampling supplies visibility where supported and the reference
+    // sphere supplies the rest. Apply it once to the directional slope term.
+    vec3 blocked = (1.0 - visibility) * reflectedLight.directDiffuse;
+    totalDiffuse -= blocked;
+    outgoingLight -= blocked;
+  }
+#endif
 }
 #endif
 // What the layers' own renderings blend to: relit share lit by the Sun (diffuse is linear in albedo), the

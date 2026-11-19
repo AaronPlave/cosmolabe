@@ -1,0 +1,149 @@
+{
+  "name": "Moon · Copernicus photometry pilot",
+  "description": "A regional LROC WAC normalized reflectance pilot. Open Surface layers and enable the Copernicus imagery to compare it with WAC morphology. The normalization preserves residual source shading.",
+  "defaultTime": "2028-12-15T10:04:00Z",
+  "defaultViewpoint": "Copernicus",
+  "items": [
+    {
+      "name": "Copernicus",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 70,
+      "latitude": 9.6447,
+      "longitude": -20.3651
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "trajectoryPlot": {
+        "visible": false
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "../textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1
+        ]
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Moon"
+      },
+      "rotationModel": {
+        "type": "Spice",
+        "bodyFrame": "MOON_ME_DE421",
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "../textures/moon-16k.jpg",
+        "normalMap": "../textures/moon-normal-16k.jpg",
+        "displacementMap": "../textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "3dtiles",
+          "url": "../data/moon-terrain-cube/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "kind": "height-grid"
+          },
+          "cubeSphere": {
+            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json",
+            "imagery": {
+              "maxTextureBytes": 536870912
+            }
+          },
+          "frame": "MOON_ME_DE421",
+          "solarShadows": { "quality": "high" },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "wac",
+              "name": "Moon · WAC context",
+              "description": "LROC global morphology mosaic, June 2013 edition, 100 m/px; source images acquired November 2009–February 2011. Original acquisition shading retained; the context beneath NAC and missing observations.",
+              "attribution": "LROC team / USGS Astrogeology / ASU",
+              "resolutionMeters": 100,
+              "url": "../data/moon-imagery-cube-wac/imagery.json",
+              "illumination": "baked"
+            },
+            {
+              "type": "cube",
+              "id": "wac-emp-copernicus",
+              "name": "WAC normalized reflectance · Copernicus",
+              "description": "LROC WAC 643 nm WAC_EMP_643NM_E300N3150_304P v1.2. Photometrically normalized against GLD100 to incidence 30°, emission 0°, phase 30°. Residual source shading remains. The exterior is transparent to WAC morphology.",
+              "attribution": "NASA / LROC / ASU",
+              "resolutionMeters": 99.747863237334,
+              "url": "data/wac-emp-copernicus/imagery.json",
+              "visible": false,
+              "illumination": "reflectance",
+              "bounds": [
+                -22.4211,
+                7.5888,
+                -18.3092,
+                11.7008
+              ]
+            }
+          ]
+        }
+      },
+      "label": {
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      }
+    }
+  ],
+  "require": [
+    "../base/naif.json",
+    "../base/lunar-surface.json"
+  ]
+}

@@ -151,6 +151,8 @@ export interface SolarShadowUniforms {
   /** Not a uniform: the shader variant. True when float textures filter in hardware (one fetch instead of four). */
   hardwareLinear: boolean;
   enabled: { value: number };
+  /** Renderer attenuation through the range boundary. CPU vehicle visibility is independent. */
+  strength: { value: number };
   debug: { value: number };
   stepTexels: { value: number };
   maxSteps: { value: number };
@@ -207,7 +209,7 @@ export interface SolarShadowStatus {
   horizonRenders: number;
   /** Farthest terrain the shadow can see, km: the outer level's half-width. */
   rangeKm: number;
-  /** Fragments the shader cannot answer (outside every level, unknown texels) are drawn lit and labelled by debug mode 2. */
+  /** The clipmap returns an unoccluded result without coverage. Surface shaders can supply a reference horizon. */
   unknownDrawnLit: true;
 }
 
@@ -262,7 +264,7 @@ export class SolarShadowClipmap {
   readonly uniforms: SolarShadowUniforms;
   private readonly levels: Level[];
   private readonly budgetMs: number;
-  private readonly maxAltitudeKm: number;
+  readonly maxAltitudeKm: number;
   private readonly unknownReliefKm: number;
   private anchor: { frame: TangentFrame; rcKm: number } | null = null;
   private state: SolarShadowState = 'off';
@@ -305,7 +307,7 @@ export class SolarShadowClipmap {
     const U = this.levels;
     this.uniforms = {
       hardwareLinear: this.hardwareLinear,
-      enabled: { value: 0 }, debug: { value: 0 }, ...qualityUniforms(config.quality ?? 'high'),
+      enabled: { value: 0 }, strength: { value: 1 }, debug: { value: 0 }, ...qualityUniforms(config.quality ?? 'high'),
       viewToTan: { value: new THREE.Matrix3() }, originView: { value: new THREE.Vector3() },
       sun: { value: new THREE.Vector3(0, 0, 1) }, sunRad: { value: 0.00465 }, rc: { value: 1 },
       hMax: { value: 0 }, maxRange: { value: cfgs[cfgs.length - 1].halfKm * 2 },
@@ -861,6 +863,7 @@ export type SolarShadowDebugMode = 0 | 1 | 2 | 3 | 4 | 5 | 6;
  */
 export const solarShadowGlsl = `
 uniform float uSsEnabled;
+uniform float uSsStrength;
 uniform float uSsDebug;
 uniform float uSsStepTexels;
 uniform float uSsMaxSteps;
@@ -1063,9 +1066,18 @@ vec3 ssOldHorizon(vec2 g) {
 // Fraction of the Sun disk visible from the fragment at view-space position viewPos; unknown = 1 when the march met
 // terrain the clipmap does not hold (the answer then uses only the known terrain); approx = 1 where the source spacing
 // limits the answer. While the site moves, cross-fades from what was drawn before.
-float solarShadowVisibility(vec3 viewPos, out float unknown, out float approx) {
+// bakedVisibility contains known Sun visibility and its weight. The remainder uses
+// the reference-sphere horizon, including while fading to or from missing terrain.
+float solarShadowVisibility(vec3 viewPos, out float unknown, out float approx, out vec2 bakedVisibility) {
   vec3 p = uSsViewToTan * (viewPos - uSsOriginView);
-  vec2 g0 = p.xy * uSsRc / (uSsRc + p.z);
+  bakedVisibility = vec2(0.0);
+  float radial = uSsRc + p.z;
+  if (radial <= 0.0) {
+    unknown = 1.0;
+    approx = 0.0;
+    return 1.0;
+  }
+  vec2 g0 = p.xy * uSsRc / radial;
   int l0 = ssLevel(g0);
   vec3 hz = vec3(-1e3, 1.0, 0.0);
   if (l0 >= 0) {
@@ -1075,9 +1087,12 @@ float solarShadowVisibility(vec3 viewPos, out float unknown, out float approx) {
   }
   // Sun-ray elevation is not part of the angle: the Sun centre and the terrain are measured from the same ray.
   float f = clamp(0.5 - 0.5 * hz.x, 0.0, 1.0);
+  bakedVisibility = vec2(f, 1.0) * (1.0 - step(0.01, hz.y));
   if (uSsFade < 1.0) {
     vec3 o = ssOldHorizon(g0);
-    f = mix(clamp(0.5 - 0.5 * o.x, 0.0, 1.0), f, uSsFade);
+    float oldFraction = clamp(0.5 - 0.5 * o.x, 0.0, 1.0);
+    bakedVisibility = mix(vec2(oldFraction, 1.0) * (1.0 - step(0.01, o.y)), bakedVisibility, uSsFade);
+    f = mix(oldFraction, f, uSsFade);
     hz.yz = mix(o.yz, hz.yz, uSsFade);
   }
   unknown = hz.y > 0.01 ? 1.0 : 0.0;
@@ -1100,7 +1115,7 @@ void main() {
 
 function shaderUniforms(u: SolarShadowUniforms): Record<string, { value: unknown }> {
   return {
-    uSsEnabled: u.enabled, uSsDebug: u.debug, uSsStepTexels: u.stepTexels, uSsMaxSteps: u.maxSteps, uSsViewToTan: u.viewToTan, uSsOriginView: u.originView, uSsSun: u.sun,
+    uSsEnabled: u.enabled, uSsStrength: u.strength, uSsDebug: u.debug, uSsStepTexels: u.stepTexels, uSsMaxSteps: u.maxSteps, uSsViewToTan: u.viewToTan, uSsOriginView: u.originView, uSsSun: u.sun,
     uSsSunRad: u.sunRad, uSsRc: u.rc, uSsHMax: u.hMax, uSsMaxRange: u.maxRange, uSsBias: u.bias, uSsHalf: u.half,
     uSsTexel: u.texel, uSsValid: u.valid, uSsOff0: u.off0, uSsOff1: u.off1, uSsOff2: u.off2, uSsOff3: u.off3,
     uSsTex0: u.tex0, uSsTex1: u.tex1, uSsTex2: u.tex2, uSsTex3: u.tex3, uSsHz0: u.hz0, uSsHz1: u.hz1, uSsHz2: u.hz2, uSsHz3: u.hz3,
@@ -1108,7 +1123,7 @@ function shaderUniforms(u: SolarShadowUniforms): Record<string, { value: unknown
   };
 }
 
-/** Wire the Sun visibility into a MeshStandard/Physical fragment shader: only the direct terms are attenuated. */
+/** Apply Sun visibility to direct lighting and expose it to the separate baked-imagery gate. */
 export function injectSolarShadowIntoShader(
   shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
   u: SolarShadowUniforms,
@@ -1122,14 +1137,29 @@ export function injectSolarShadowIntoShader(
   if (shader.uniforms) Object.assign(shader.uniforms, shaderUniforms(u));
   const main = /void main\(\s*\)\s*\{/;
   if (!main.test(shader.fragmentShader)) throw new Error('Solar shadow: fragment shader has no main().');
-  shader.fragmentShader = (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0; float solarApprox = 0.0;')
+  shader.fragmentShader = '#define SURFACE_TERRAIN_SHADOW\n' + (u.hardwareLinear ? '#define SS_HW_LINEAR\n' : '') + solarShadowGlsl + shader.fragmentShader.replace(main, 'void main() {\n  float solarVis = 1.0; float solarUnknown = 0.0; float solarApprox = 0.0; vec2 solarBakedVisibility = vec2(0.0);')
     .replace(end, `${end}
 #if NUM_DIR_LIGHTS > 0
-// Debug views show the Sun fraction on every fragment: the rendered normal (which varies with mesh LOD) only gates the cost.
-if (uSsEnabled > 0.5 && uSsDebug < 5.5 && (uSsDebug > 0.5 || dot(normal, directionalLights[0].direction) > 0.0)) {
-  solarVis = solarShadowVisibility(-vViewPosition, solarUnknown, solarApprox);
-  reflectedLight.directDiffuse *= solarVis;
-  reflectedLight.directSpecular *= solarVis;
+// The rendered normal can only skip the query for the relit share. A baked
+// pixel needs the horizon even on slopes that face away from the simulated Sun.
+bool needsVisibility = uSsDebug > 0.5 || dot(normal, directionalLights[0].direction) > 0.0;
+#ifdef SURFACE_BAKED_DISPLAY
+needsVisibility = needsVisibility || surfaceAsIs > 0.0;
+#endif
+if (uSsEnabled > 0.5 && uSsDebug < 5.5 && needsVisibility) {
+  solarVis = solarShadowVisibility(-vViewPosition, solarUnknown, solarApprox, solarBakedVisibility);
+  solarBakedVisibility *= uSsStrength;
+  float shadingVisibility = mix(1.0, solarVis, uSsStrength);
+#ifdef SURFACE_LUNAR_MATTE
+  // Natural terrain combines this sample with the reference horizon in the
+  // imagery display hook, which also handles the same lighting on the globe.
+  if (!uSurfaceNatural) {
+#endif
+  reflectedLight.directDiffuse *= shadingVisibility;
+  reflectedLight.directSpecular *= shadingVisibility;
+#ifdef SURFACE_LUNAR_MATTE
+  }
+#endif
 }
 #endif`)
     .replace(opaque, `if (uSsDebug > 0.5 && uSsDebug < 5.5 && uSsEnabled > 0.5) {
