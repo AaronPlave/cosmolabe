@@ -19,7 +19,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
 import type { ImageryTimePolicy } from './ImageryTime.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
-import type { LightingMode } from './SurfaceIllumination.js';
+import { createSurfaceAsIsUniforms, injectAsIsDisplayIntoShader, LIGHTING_MODES, LUNAR_NATURAL_NIGHT_FLOOR, type ImageryLightingMode, type LightingMode } from './SurfaceIllumination.js';
 
 /**
  * Which surface a Globe with a streamed surface is drawing:
@@ -131,6 +131,8 @@ export class BodyMesh extends THREE.Object3D {
   private terrainManager: TerrainManager | null = null;
   /** The scene's lighting mode, forwarded to streamed terrain for baked imagery's night floor (#204). */
   private lightingMode: LightingMode = 'natural';
+  private imageryLightingMode: ImageryLightingMode = 'original';
+  private readonly lunarGlobeLighting;
   /** Whether terrain tiles are currently visible (vs static sphere fallback) */
   private terrainVisible = false;
   /** Surface tile overlays (local-frame tilesets positioned on the globe) */
@@ -305,6 +307,16 @@ export class BodyMesh extends THREE.Object3D {
 
     this.sunVisual = body.name === 'Sun' ? new SunVisual() : null;
     this.mesh = new THREE.Mesh(geometry, this.sunVisual?.material ?? material);
+    this.lunarGlobeLighting = isGlobe && body.name === 'Moon' ? createSurfaceAsIsUniforms() : null;
+    if (this.lunarGlobeLighting) {
+      const lighting = this.lunarGlobeLighting;
+      lighting.nightFloor.value = LUNAR_NATURAL_NIGHT_FLOOR;
+      material.onBeforeCompile = shader => injectAsIsDisplayIntoShader(shader, lighting, true);
+      material.customProgramCacheKey = () => '_lunar_globe';
+      this.mesh.onBeforeRender = (_renderer, _scene, camera) => {
+        lighting.centerView.value.setFromMatrixPosition(this.mesh.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+      };
+    }
     if (this.sunVisual) {
       material.dispose();
       this.mesh.layers.set(SOLAR_LAYER);
@@ -741,7 +753,7 @@ export class BodyMesh extends THREE.Object3D {
       prevOBC?.(shader, renderer);
       injectShadowIntoShader(shader, su);
     };
-    mat.customProgramCacheKey = () => '_shadow_v1';
+    mat.customProgramCacheKey = () => this.lunarGlobeLighting ? '_lunar_globe_shadow_v1' : '_shadow_v1';
     mat.needsUpdate = true;
 
     // Also enable on terrain tiles if already initialized
@@ -1202,7 +1214,23 @@ export class BodyMesh extends THREE.Object3D {
     } : null;
   }
   setSolarShadowDebug(mode: SolarShadowDebugMode): void { this.terrainManager?.setSolarShadowDebug(mode); }
-  setSurfaceLightingMode(mode: LightingMode): void { this.lightingMode = mode; this.terrainManager?.setLightingMode(mode); }
+  get hasAcquiredImagery(): boolean { return this.terrainManager?.hasAcquiredImagery ?? false; }
+
+  setImageryLightingMode(mode: ImageryLightingMode): void {
+    this.imageryLightingMode = mode;
+    this.terrainManager?.setImageryLightingMode(mode);
+  }
+
+  setSurfaceLightingMode(mode: LightingMode): void {
+    this.lightingMode = mode;
+    const globe = this.lunarGlobeLighting;
+    if (globe) {
+      globe.natural.value = mode === 'natural';
+      globe.nightFloor.value = mode === 'natural' ? LUNAR_NATURAL_NIGHT_FLOOR : LIGHTING_MODES[mode].bakedNightFloor;
+      globe.surfaceAsIs.value = mode === 'flood' ? 1 : 0;
+    }
+    this.terrainManager?.setLightingMode(mode);
+  }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
@@ -1399,6 +1427,7 @@ export class BodyMesh extends THREE.Object3D {
     }
     this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
     this.terrainManager.setLightingMode(this.lightingMode);
+    this.terrainManager.setImageryLightingMode(this.imageryLightingMode);
     this.terrainManager.applySolarShadowMode(this.solarShadowMode);
     this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
     this.terrainManager.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());

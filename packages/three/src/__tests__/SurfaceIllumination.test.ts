@@ -30,6 +30,11 @@ describe('imagery illumination provenance (#204)', () => {
     expect(imageryAsIsWeight(undefined)).toBe(0);
     expect(imageryAsIsWeight('reflectance', 'flood')).toBe(1);
     expect(imageryAsIsWeight('unknown', 'flood')).toBe(0);
+    expect(imageryAsIsWeight('baked', 'natural', 'simulated')).toBe(0);
+    expect(imageryAsIsWeight('baked', 'shadow', 'simulated')).toBe(0);
+    expect(imageryAsIsWeight('baked', 'flood', 'simulated')).toBe(1);
+    expect(imageryAsIsWeight('reflectance', 'natural', 'simulated')).toBe(0);
+    expect(imageryAsIsWeight('reflectance', 'flood', 'simulated')).toBe(1);
   });
 
   it('asserts physical relighting only for reflectance in natural mode', () => {

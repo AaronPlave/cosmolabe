@@ -13,7 +13,7 @@ import {
   type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewDirection, type ViewPreset, type ViewpointDefinition,
 } from '@cosmolabe/core';
-import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, CameraFlightOutcome, FlightPath, ImageryLightingMode, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
@@ -151,6 +151,7 @@ export const vs = $state({
   showSensors: true,
   showSensorLabels: true,
   showStats: false,
+  imageryLightingMode: 'original' as ImageryLightingMode,
   lightingMode: 'natural' as 'natural' | 'shadow' | 'flood',
   terrainShadowMode: null as 'off' | 'low' | 'medium' | 'high' | null,
 
@@ -613,6 +614,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.showAxes = prefs.showAxes;
   vs.showSensors = prefs.showSensors;
   vs.showSensorLabels = prefs.showSensorLabels;
+  vs.imageryLightingMode = 'original';
   vs.lightingMode = prefs.lightingMode;
   vs.terrainShadowMode = prefs.terrainShadowMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
@@ -1914,6 +1916,11 @@ export function setTerrainShadowMode(mode: 'off' | 'low' | 'medium' | 'high') {
   vs.terrainShadowMode = mode;
   _renderer?.setTerrainShadowMode(mode);
   savePrefs({ terrainShadowMode: mode });
+}
+
+export function setImageryLighting(mode: ImageryLightingMode) {
+  vs.imageryLightingMode = mode;
+  _renderer?.setImageryLightingMode(mode);
 }
 
 export function setLighting(mode: 'natural' | 'shadow' | 'flood') {

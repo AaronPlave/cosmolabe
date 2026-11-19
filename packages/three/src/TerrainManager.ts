@@ -10,7 +10,7 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
-import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, type ImageryIllumination, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
+import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, LUNAR_NATURAL_NIGHT_FLOOR, type ImageryIllumination, type ImageryLightingMode, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
@@ -727,6 +727,16 @@ export class TerrainManager {
   /** The lighting mode's `bakedNightFloor`; the shader sees 1 (no gate) on frames without a body centre. */
   private bakedNightFloor = LIGHTING_MODES.natural.bakedNightFloor;
   private lightingMode: LightingMode = 'natural';
+  private imageryLightingMode: ImageryLightingMode = 'original';
+
+  private get lunarMatte(): boolean {
+    return this.config.bodyId === 'Moon' && (this.config.frame === 'IAU_MOON' || this.config.frame?.startsWith('MOON_') === true);
+  }
+
+  get hasAcquiredImagery(): boolean {
+    return this.config.illumination === 'baked' || (this.cubeImagery?.hasAcquiredImagery
+      ?? this.layers.some(l => l.visible && l.opacity > 0 && l.illumination === 'baked'));
+  }
 
   /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
   get surfaceIllumination(): SurfaceIlluminationSummary {
@@ -741,7 +751,7 @@ export class TerrainManager {
   private refreshIllumination(): void {
     // A bare height mesh has no measured colour; preserve its shared Flood material.
     const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.config.illumination;
-    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered, this.lightingMode);
+    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered, this.lightingMode, this.imageryLightingMode);
   }
 
   /**
@@ -758,14 +768,27 @@ export class TerrainManager {
   /** The scene's lighting mode, for the night floor of baked imagery and the Sun-less `flood` mode (#205). */
   setLightingMode(mode: LightingMode): void {
     this.lightingMode = mode;
-    this.bakedNightFloor = LIGHTING_MODES[mode].bakedNightFloor;
-    this.refreshIllumination();
-    if (this.cubeImagery) this.cubeImagery.lightingMode = mode;
-    for (const [id, overlay] of this.activeOverlays) {
-      (overlay as unknown as OverlayInternals).asIs = imageryAsIsWeight(this.layer(id)?.illumination, mode);
-    }
+    this.bakedNightFloor = this.lunarMatte && mode === 'natural' ? LUNAR_NATURAL_NIGHT_FLOOR : LIGHTING_MODES[mode].bakedNightFloor;
+    this.asIs.natural.value = mode === 'natural';
+    this.refreshImageryLighting();
     this.lightingModeAllowsShadow = mode !== 'flood';
     this.setSolarShadowActive();
+  }
+
+  setImageryLightingMode(mode: ImageryLightingMode): void {
+    this.imageryLightingMode = mode;
+    this.refreshImageryLighting();
+  }
+
+  private refreshImageryLighting(): void {
+    this.refreshIllumination();
+    if (this.cubeImagery) {
+      this.cubeImagery.lightingMode = this.lightingMode;
+      this.cubeImagery.imageryLightingMode = this.imageryLightingMode;
+    }
+    for (const [id, overlay] of this.activeOverlays) {
+      (overlay as unknown as OverlayInternals).asIs = imageryAsIsWeight(this.layer(id)?.illumination, this.lightingMode, this.imageryLightingMode);
+    }
   }
 
   /** Terrain-cast solar shadows (#205); null until the catalog configures them or the viewer turns them on. */
@@ -2414,7 +2437,7 @@ export class TerrainManager {
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
       // Uploaded per layer into the overlay shader's LayerInfo (injectOverlayAsIsIntoShader).
-      o.asIs = imageryAsIsWeight(layer.illumination, this.lightingMode);
+      o.asIs = imageryAsIsWeight(layer.illumination, this.lightingMode, this.imageryLightingMode);
       const inner = o.preprocessURL;
       o.preprocessURL = (url: string) => {
         // The plugin queues overlay fetches on the shared download queue, and
@@ -3057,7 +3080,8 @@ export class TerrainManager {
     // (layer visibility) need no recompile and every tile shares one program.
     const asIs = this.asIs;
     const solar = this.solarMaterialUniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '');
+    const lunarMatte = this.lunarMatte;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '') + (lunarMatte ? '_lunar_matte' : '');
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -3113,7 +3137,7 @@ export class TerrainManager {
             (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
           }
           injectOverlayAsIsIntoShader(shader);
-          injectAsIsDisplayIntoShader(shader, asIs);
+          injectAsIsDisplayIntoShader(shader, asIs, lunarMatte);
           if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
@@ -3157,7 +3181,7 @@ export class TerrainManager {
         (mat as any).onBeforeCompile = (shader: any) => {
           prevOBC?.(shader);
           injectOverlayAsIsIntoShader(shader);
-          injectAsIsDisplayIntoShader(shader, asIs);
+          injectAsIsDisplayIntoShader(shader, asIs, lunarMatte);
           if (solar) injectSolarShadowIntoShader(shader, solar);
           if (su) injectShadowIntoShader(shader, su);
           if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);

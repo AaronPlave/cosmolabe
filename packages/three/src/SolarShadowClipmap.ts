@@ -209,7 +209,7 @@ export interface SolarShadowStatus {
   horizonRenders: number;
   /** Farthest terrain the shadow can see, km: the outer level's half-width. */
   rangeKm: number;
-  /** Relit fragments without a terrain answer keep the original light. Baked fragments use the reference horizon. */
+  /** The clipmap returns an unoccluded result without coverage. Surface shaders can supply a reference horizon. */
   unknownDrawnLit: true;
 }
 
@@ -1150,8 +1150,16 @@ if (uSsEnabled > 0.5 && uSsDebug < 5.5 && needsVisibility) {
   solarVis = solarShadowVisibility(-vViewPosition, solarUnknown, solarApprox, solarBakedVisibility);
   solarBakedVisibility *= uSsStrength;
   float shadingVisibility = mix(1.0, solarVis, uSsStrength);
+#ifdef SURFACE_LUNAR_MATTE
+  // Natural terrain combines this sample with the reference horizon in the
+  // imagery display hook, which also handles the same lighting on the globe.
+  if (!uSurfaceNatural) {
+#endif
   reflectedLight.directDiffuse *= shadingVisibility;
   reflectedLight.directSpecular *= shadingVisibility;
+#ifdef SURFACE_LUNAR_MATTE
+  }
+#endif
 }
 #endif`)
     .replace(opaque, `if (uSsDebug > 0.5 && uSsDebug < 5.5 && uSsEnabled > 0.5) {

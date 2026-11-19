@@ -1,5 +1,7 @@
 # Lunar imagery and simulated Sun visibility
 
+The [lunar imagery lighting follow-up](lunar-imagery-lighting.md) documents the current Display choices, matte lunar shader and Copernicus height trials. The comparisons below record the earlier implementation.
+
 MoonFall and LRO keep the acquisition-lit WAC morphology and NAC mosaics. Natural and Shadow preserve the photographic slope shading and can overlay terrain shadows from the simulated Sun. Flood shows the original photographic colour across day and night. Declared reflectance is also shown directly in Flood. Unknown imagery retains its existing lighting fallback.
 
 The terrain shader computes Sun visibility even on baked pixels whose rendered normals face away from the Sun. It applies that visibility to the baked contribution above the mode's night floor. The relit contribution keeps its existing directional term with shadow attenuation. Premultiplied coverage keeps both contributions separate at translucent layer boundaries. Photographic shadows remain in the source, so a simulated shadow can darken an area that is already dark.

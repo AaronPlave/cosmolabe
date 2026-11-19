@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
-  import { vs, setGridSettings, setDisplayOption, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
+  import { vs, setGridSettings, setDisplayOption, setImageryLighting, setLighting, setTerrainShadowMode } from '../lib/viewer-state.svelte';
 
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -34,6 +34,10 @@
     return getRenderer()?.getSensorNames().join('\n') ?? '';
   });
   const sensors = $derived(sensorList ? sensorList.split('\n') : []);
+  const hasAcquiredImagery = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.hasAcquiredImagery ?? false;
+  });
 
   // Terrain shadows (#205): shown whenever a loaded body has terrain with heights a shadow can be built from. The select
   // is the viewer's choice when it has made one, else what the catalog configured (Off unless it sets `solarShadows`).
@@ -47,8 +51,9 @@
   const shadowStatusText = $derived.by(() => {
     if (!shadow) return '';
     if (vs.lightingMode === 'flood') return 'Flood shows the imagery without simulated sunlight or terrain shadows.';
+    const original = shadow.baked && vs.imageryLightingMode === 'original';
     if (shadow.mode === 'off') {
-      if (!shadow.baked) return '';
+      if (!original) return '';
       return vs.lightingMode === 'shadow'
         ? 'The simulated night side is brighter. Photographic shadows remain.'
         : 'The simulated Sun moves the day/night boundary. Photographic shadows remain.';
@@ -59,13 +64,13 @@
     }
     switch (shadow.state) {
       case 'building': return 'Building terrain data…';
-      case 'partial': return shadow.baked
+      case 'partial': return original
         ? 'Terrain shadows use loaded heights. Gaps use the reference-sphere horizon.'
         : `Some terrain not loaded (${shadow.unknown} %). Simulated shadows may be incomplete.`;
-      case 'ready': return shadow.baked
+      case 'ready': return original
         ? 'Simulated terrain shadows are layered over the photograph.'
         : 'On, from the loaded terrain heights.';
-      case 'out-of-range': return shadow.baked
+      case 'out-of-range': return original
         ? 'Terrain shadows are out of range. Using the reference-sphere horizon.'
         : 'Terrain shadows are out of range.';
       default: return 'Starts when the camera is near the surface.';
@@ -183,6 +188,21 @@
         <option value="flood">Flood</option>
       </select>
     </div>
+
+    {#if hasAcquiredImagery}
+      <label class="ui-body flex flex-wrap items-center gap-2 px-3 py-1">
+        <span class="flex-1 text-text-primary" title="Simulated lighting adds slope shading to photography that already contains acquisition lighting. Flood always shows the source imagery.">Imagery lighting</span>
+        <select
+          class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none max-w-full"
+          value={vs.imageryLightingMode}
+          disabled={vs.lightingMode === 'flood'}
+          onchange={(e) => setImageryLighting(e.currentTarget.value === 'simulated' ? 'simulated' : 'original')}
+        >
+          <option value="original">Original photography</option>
+          <option value="simulated">Simulated (approximate)</option>
+        </select>
+      </label>
+    {/if}
 
     {#if shadow}
       <div class="ui-body flex items-center gap-2 px-3 py-1">

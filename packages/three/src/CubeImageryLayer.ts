@@ -1,7 +1,7 @@
 import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
-import { declareSurfaceAsIs, imageryAsIsWeight, type LightingMode } from './SurfaceIllumination.js';
+import { declareSurfaceAsIs, imageryAsIsWeight, type LightingMode, type ImageryLightingMode } from './SurfaceIllumination.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
@@ -313,6 +313,7 @@ export function cubeBlockInsideBounds(address: ImageryAddress, bounds: readonly 
  * including gutters, once per texture; a downsample could erase small holes. */
 export class CubeImageryLayer {
   lightingMode: LightingMode = 'natural';
+  imageryLightingMode: ImageryLightingMode = 'original';
   surfaceAppearance: SurfaceAppearance | null = null;
   manifest: CubeImageryManifest | null = null;
   readonly ready: Promise<void>;
@@ -448,6 +449,10 @@ export class CubeImageryLayer {
   }
 
   /** Source state uses the same Globe.imagery UI contract as geographic overlays. */
+  get hasAcquiredImagery(): boolean {
+    return this.sources.some(({ info }) => info.visible && info.opacity > 0 && info.illumination === 'baked');
+  }
+
   get imageryLayers(): ImageryLayerInfo[] {
     return this.order.map(source => {
       const { info, setupFailed } = source;
@@ -828,7 +833,7 @@ export class CubeImageryLayer {
         u.srgb.value = s.manifest?.colorSpace === 'srgb' ? 1 : 0;
         u.opacity.value = s.info.opacity; u.bounded.value = s.info.bounds ? 1 : 0;
         u.bounds.value.fromArray(s.info.bounds ?? [-180, -90, 180, 90]);
-        u.asIs.value = imageryAsIsWeight(s.info.illumination, this.lightingMode);
+        u.asIs.value = imageryAsIsWeight(s.info.illumination, this.lightingMode, this.imageryLightingMode);
       }
     }
     // Prioritize complete coarse feedback across all layers, followed by local

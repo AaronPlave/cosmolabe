@@ -65,11 +65,16 @@ export function combineImageryIllumination(values: Iterable<ImageryIllumination 
 }
 
 /**
- * The per-layer weight the compositor blends with alpha: photographs keep
- * their colour, and Flood also displays declared reflectance without relighting.
+ * The per-layer weight the compositor blends with alpha. In Original,
+ * photographs keep their colors. Flood also displays declared reflectance directly.
  */
-export function imageryAsIsWeight(illumination: ImageryIllumination | undefined, mode: LightingMode = 'natural'): 0 | 1 {
-  return illumination === 'baked' || (illumination === 'reflectance' && mode === 'flood') ? 1 : 0;
+export function imageryAsIsWeight(
+  illumination: ImageryIllumination | undefined,
+  mode: LightingMode = 'natural',
+  imageryLighting: ImageryLightingMode = 'original',
+): 0 | 1 {
+  if (mode === 'flood') return illumination === 'baked' || illumination === 'reflectance' ? 1 : 0;
+  return illumination === 'baked' && imageryLighting === 'original' ? 1 : 0;
 }
 
 /** True only when the Sun's direct term is a physical claim for this source. */
@@ -78,6 +83,7 @@ export function isPhysicallyRelit(illumination: SurfaceIlluminationSummary, mode
 }
 
 export type LightingMode = 'natural' | 'shadow' | 'flood';
+export type ImageryLightingMode = 'original' | 'simulated';
 
 export interface LightingModeParams {
   /** Ambient colour. */
@@ -249,11 +255,19 @@ export interface SurfaceAsIsUniforms {
   surfaceAsIs: { value: number };
   centerView: { value: THREE.Vector3 };
   nightFloor: { value: number };
+  natural: { value: boolean };
 }
 
 export function createSurfaceAsIsUniforms(mode: LightingMode = 'natural'): SurfaceAsIsUniforms {
-  return { surfaceAsIs: { value: 0 }, centerView: { value: new THREE.Vector3() }, nightFloor: { value: LIGHTING_MODES[mode].bakedNightFloor } };
+  return {
+    surfaceAsIs: { value: 0 }, centerView: { value: new THREE.Vector3() },
+    nightFloor: { value: LIGHTING_MODES[mode].bakedNightFloor },
+    natural: { value: mode === 'natural' },
+  };
 }
+
+/** Linear diffuse ambient for matte lunar terrain. The source color is linear at this point. */
+export const LUNAR_NATURAL_NIGHT_FLOOR = new THREE.Color(LIGHTING_MODES.natural.ambientHex).r / Math.PI;
 
 /** Half-width of the terminator gate in `sin(elevation)`: the Sun's angular radius. */
 const TERMINATOR_HALF_WIDTH = 0.0047;
@@ -321,6 +335,7 @@ export function declareSurfaceAsIs(shader: { fragmentShader: string }): void {
 export function injectAsIsDisplayIntoShader(
   shader: { fragmentShader: string; uniforms?: Record<string, unknown> },
   u: SurfaceAsIsUniforms,
+  lunarMatte = false,
 ): void {
   const hook = '#include <opaque_fragment>';
   if (!shader.fragmentShader.includes(hook)) {
@@ -333,6 +348,13 @@ export function injectAsIsDisplayIntoShader(
     shader.uniforms.uSurfaceAsIs = u.surfaceAsIs;
     shader.uniforms.uSurfaceCenterView = u.centerView;
     shader.uniforms.uBakedNightFloor = u.nightFloor;
+    if (lunarMatte) shader.uniforms.uSurfaceNatural = u.natural;
+  }
+  if (lunarMatte) {
+    const specular = 'vec3 totalSpecular = reflectedLight.directSpecular + reflectedLight.indirectSpecular;';
+    if (!shader.fragmentShader.includes(specular)) throw new Error('Lunar terrain: Three.js specular term changed.');
+    shader.fragmentShader = '#define SURFACE_LUNAR_MATTE\nuniform bool uSurfaceNatural;\n'
+      + shader.fragmentShader.replace(specular, 'vec3 totalSpecular = vec3(0.0);');
   }
   declareSurfaceAsIs(shader);
   const h = TERMINATOR_HALF_WIDTH.toFixed(4);
@@ -347,6 +369,15 @@ if (uBakedNightFloor < 1.0) {
   visibility = solarBakedVisibility.x + (1.0 - solarBakedVisibility.y) * visibility;
 #endif
   surfaceBakedGate = mix(uBakedNightFloor, 1.0, visibility);
+#ifdef SURFACE_LUNAR_MATTE
+  if (uSurfaceNatural) {
+    // Shadow sampling supplies visibility where supported and the reference
+    // sphere supplies the rest. Apply it once to the directional slope term.
+    vec3 blocked = (1.0 - visibility) * reflectedLight.directDiffuse;
+    totalDiffuse -= blocked;
+    outgoingLight -= blocked;
+  }
+#endif
 }
 #endif
 // What the layers' own renderings blend to: relit share lit by the Sun (diffuse is linear in albedo), the

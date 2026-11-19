@@ -101,6 +101,7 @@
             }
           },
           "frame": "MOON_ME_DE421",
+          "solarShadows": { "quality": "high" },
           "imagery": [
             {
               "type": "cube",
