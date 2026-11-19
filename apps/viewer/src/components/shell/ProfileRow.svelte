@@ -94,6 +94,7 @@
     // `getRenderer()` is not reactive; the scene flag is what changes with it.
     void vs.sceneLoaded;
     void vs.kernelRevision;
+    void vs.missionStateRevision;
     const pos = positionOf();
     if (!shown || !spec || !bodies || !pos || !(axisWidth > 0)) return null;
     return sampleProfile(

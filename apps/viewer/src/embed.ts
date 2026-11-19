@@ -27,11 +27,14 @@ import type * as Declared from './embed-types';
 import { workspace, ALL_UI } from './lib/workspace.svelte';
 import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
 import { createViewerControl } from './lib/viewer-control';
-import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent } from './lib/viewer-state.svelte';
+import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent, vs } from './lib/viewer-state.svelte';
 import { disposeAsk, setHostAskTransport } from './lib/ask/ask.svelte';
 import { createHttpTransport } from './lib/ask/http-transport';
 import { resetStores } from './lib/session.svelte';
 import { splitShadowCss } from './lib/embed-css';
+
+/** How often profiles resample while a host's mission state is changing. */
+const MISSION_STATE_RESAMPLE_MS = 1000;
 
 interface AppExports {
   loadForHost(entryUrl: string, name: string, fetcher?: (url: string) => Promise<CatalogJson>): Promise<void>;
@@ -120,14 +123,18 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     const offFocus = onViewerEvent('time', (et) => manager.focus(et));
     undo.push(offFocus);
     // Sources whose coverage grows (a live feed) grow the navigable timeline.
+    // Views sampled from the state (profiles) resample at most once per interval:
+    // a live feed changes it several times a second.
+    let revisionTimer: ReturnType<typeof setTimeout> | undefined;
     const offCoverage = manager.onChange(({ sourceId }) => {
       if (!getRenderer()) return;
       for (const channel of ['position', 'attitude'] as const) {
         const extent = manager.extent(sourceId, channel);
         if (extent) extendTimelineBase(extent.start, extent.end);
       }
+      revisionTimer ??= setTimeout(() => { revisionTimer = undefined; vs.missionStateRevision++; }, MISSION_STATE_RESAMPLE_MS);
     });
-    undo.push(offCoverage);
+    undo.push(offCoverage, () => clearTimeout(revisionTimer));
 
     workspace.embedded = true;
     workspace.ui = { ...EMBED_DEFAULT_UI, ...options.ui };
