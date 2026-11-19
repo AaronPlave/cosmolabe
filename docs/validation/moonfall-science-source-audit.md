@@ -76,6 +76,40 @@ readiness at 8.58 s, then drew all three features 0.49 s after enable.
 A two-hour time seek retained GID 13 selection, the same geometry and
 its streaming terrain drape. The public Pages site has its previous catalog.
 
+### Polar renderer review
+
+An identical 4.9 s fixed-orientation dolly from 4 to 36 km and back was
+replayed on Apple M4 Max Chrome (ANGLE Metal, 2880 × 1800 framebuffer).
+CPU time encloses the renderer call. GPU time uses WebGL2 timer queries,
+with the vector pass measured in a separate replay. Missed refresh
+intervals are estimated from callback gaps at 60 Hz.
+
+| Version and layer state | CPU frame median / p95 (ms) | GPU frame median / p95 (ms) | GPU vector median / p95 (ms) | Missed refresh intervals |
+| --- | ---: | ---: | ---: | ---: |
+| Original, off | 10.2 / 12.9 | 4.65 / 9.08 | — | 0 |
+| Original, on | 11.0 / 91.2 | 22.77 / 57.05 | 22.99 / 31.38 | 93 |
+| Revised, off | 10.1 / 14.2 | 3.15 / 8.52 | — | 2 |
+| Revised, on | 11.2 / 16.8 | 6.26 / 11.53 | 5.73 / 6.48 | 0 |
+
+The polar cap supplies a scissor bound when it fits inside the viewport.
+Close views of this cap can fill the viewport. Polar detail grids narrow
+the candidate lists there and preserve each primitive's source chart.
+The three detail levels use three, four and five pages. The eight-page
+geographic index remains the bounded fallback. At 42 km the default terrain
+scissor covered about 48% of the viewport.
+
+Fixed-orientation captures at 2, 4, 6, 8, 12, 24, 42 and 90 km exercised
+different selected terrain tiles. At 42 km, independent radial intersections
+put 101 missing stroke samples on the nearest rendered terrain to within
+0.4 mm. Disabling depth testing, enabling both faces and disabling tile fades
+left the gap. The longitude padding limit was discarding those fragments.
+Selecting by the polar footprint and applying its padding limit restored
+all 101 samples with the existing depth test, stroke widths and source
+geometry. At the same camera pose, forcing fine and coarse terrain selected
+38 and four meshes, respectively. The repaired outline was present at all
+sampled vertices with a rendered terrain hit in both views. The Surface
+Layers title and layer view identify the Shackleton subset explicitly.
+
 ## Diviner summer-noon bolometric temperature
 
 The selected [PDS polar cumulative product](https://pds-geosciences.wustl.edu/lro/urn-nasa-pds-lro_diviner_derived1/data_derived_pcp/diurnal/ltim/pols/)
@@ -102,8 +136,11 @@ column closure measures internal consistency.
 I used the PDS summer-noon statistic because it is independently identified and
 downloadable. The [UCLA polar map link](https://luna1.diviner.ucla.edu/~jpierre/diviner/level4_polar/)
 failed TLS validation, and the
-[Hayne et al. supporting-data repository](https://doi.org/10.25810/gkdf-n764)
-returned HTTP 403 for the landing page. The selected values describe one
+[Landis et al. supporting-data repository](https://doi.org/10.25810/gkdf-n764)
+publishes a south-pole annual maximum bolometric temperature CSV at roughly
+300 m spacing. The DOI and the direct CU Scholar page returned HTTP 403,
+including in Chrome, so the source coordinates and bytes could not be checked.
+The selected PCP values describe one
 local-time bin and cannot establish an annual maximum or long-term ice
 stability.
 
@@ -172,6 +209,15 @@ residual for this exact mosaic was located. [Xu et al. (2025)](https://doi.org/1
 document localized geocoding problems in historical SAR sources. Their
 correction statistics apply to their processing, and their research data are
 available by request.
+
+A candidate from a different instrument is
+[Fassett et al.'s orthorectified Mini-RF product](https://doi.org/10.3847/PSJ/ad0a61).
+The [90 m south-pole archive](https://archive.data.jhu.edu/file.xhtml?fileId=16774&version=1.0)
+contains incidence-normalized δCPR with an offset to the nominal 49°
+geometry. The file is listed as public, but the archive page and direct
+download returned HTTP 403. Its CRS, nodata and Haworth/Amundsen control
+pixels need verification against the actual GeoTIFF. The source archive's
+Chandrayaan-1 Mini-SAR samples remain distinct from this LRO product.
 
 | Projected pixel centers | Valid / total | Valid fraction |
 | --- | ---: | ---: |

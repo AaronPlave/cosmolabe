@@ -28,4 +28,18 @@ it('ships the complete Shackleton PSR subset within the normal vector renderer b
   expect(index.features).toHaveLength(3);
   expect(index.diagnostics).toEqual([]);
   expect(index.renderPages).toBeLessThanOrEqual(VECTOR_RENDER_PAGE_LIMIT);
+  const packed = index.pack();
+  expect(packed.detail?.levels[0]?.chart).toBe('south-polar');
+  expect(packed.detail?.levels[0]?.pages).toBeLessThan(packed.pages);
+
+  // A real vertex on the visible section that vanished in the browser. Five
+  // CSS pixels here span more than the longitude index's six-degree cap.
+  const ring = layer.features[0].geometry.coordinates[0];
+  const outlines = new GeographicIndex([{
+    ...layer,
+    features: [{ ...layer.features[0], geometry: { type: 'LineString', coordinates: ring } }],
+  }]);
+  expect(outlines.pick(ring[350], [1.6, 0], [0, 0.0015])).toBeNull();
+  outlines.pack();
+  expect(outlines.pick(ring[350], [1.6, 0], [0, 0.0015])?.featureId).toBe('number:13');
 });

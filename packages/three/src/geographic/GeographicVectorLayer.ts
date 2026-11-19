@@ -410,9 +410,12 @@ export class GeographicVectorLayer {
     // The lowest and highest heights the meshes that can draw the footprint are drawn at.
     let low = Infinity, high = -Infinity, bounded = true;
     const shape = batch.datum.referenceShape;
+    if (footprint.kind === 'polar-cap' && shape.kind !== 'sphere') return Array(passes).fill(null);
     const radius = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
     for (const [source, proxy] of batch.proxies) {
       if (!proxy.seen || !sources.has(source as THREE.Mesh<THREE.BufferGeometry>)) continue;
+      const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
+      if (footprint.kind === 'polar-cap' && sourceMaterial.displacementMap) { bounded = false; continue; }
       const range = meshHeightRange(proxy.sourceGeometry, proxy.localToBody, batch.datum, footprint);
       if (range) {
         proxy.touches = range.touches;
@@ -420,7 +423,6 @@ export class GeographicVectorLayer {
         continue;
       }
       // A whole-globe mesh: chords sag below the datum between vertices; a displacement map is not bounded here.
-      const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
       if (sourceMaterial.displacementMap || batch.placement.mode !== 'clamp') { bounded = false; continue; }
       const segments = (proxy.sourceGeometry as THREE.BufferGeometry & { parameters?: { widthSegments?: number } }).parameters?.widthSegments
         ?? Math.sqrt(proxy.sourceGeometry.getAttribute('position').count / 2);

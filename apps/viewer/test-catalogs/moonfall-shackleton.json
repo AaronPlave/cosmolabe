@@ -487,7 +487,7 @@
   "geographicLayers": [
     {
       "id": "moon:science:barker-psr",
-      "name": "Permanently shadowed regions",
+      "name": "Shackleton-area permanently shadowed regions",
       "body": "Moon",
       "source": "places/moonfall-psr-295d61bce287e2be.geojson",
       "loadOnDemand": true,
@@ -504,7 +504,7 @@
         "sourceUrl": "https://pgda.gsfc.nasa.gov/products/90",
         "citation": "https://doi.org/10.3847/PSJ/acf3e1",
         "sourceProduct": "LPSR_80S_20MPP_ADJ_1km2",
-        "coverage": "Source regions over 1 km² within 16 km of Shackleton’s center in the source projection. Complete polygons and holes.",
+        "coverage": "Three Barker et al. regions over 1 km² that intersect a 16 km radius around Shackleton’s center. Each is shown in full, including its holes. Coverage is limited to these three regions.",
         "method": "Modeled permanent shadow from 20 m LOLA topography over an 18.6-year illumination cycle. Independent of the simulation clock.",
         "sha256": "295d61bce287e2be53a2c32f26faab51639fcc78c86b942428188b6b8c567b0b"
       }

@@ -298,10 +298,10 @@ const GEOGRAPHIC_COORDINATES: NestedSpec = {
 /** `geographicLayers[]` entries. `provenance` is free-form by design and is
  *  not checked. */
 const GEOGRAPHIC_LAYER: NestedSpec = {
-  keys: keys('id', 'name', 'body', 'source', 'coordinates', 'display', 'provenance'),
+  keys: keys('id', 'name', 'body', 'source', 'coordinates', 'display', 'provenance', 'loadOnDemand'),
   children: {
     coordinates: GEOGRAPHIC_COORDINATES,
-    display: { keys: keys('visible', 'color', 'opacity') },
+    display: { keys: keys('visible', 'color', 'opacity', 'fillOpacity') },
   },
 };
 
