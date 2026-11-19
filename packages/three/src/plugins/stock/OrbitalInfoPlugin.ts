@@ -19,12 +19,14 @@ export class OrbitalInfoPlugin implements RendererPlugin {
         id: 'orbital-elements',
         label: 'Orbital Elements',
         order: 10,
-        render: (body: Body, et: number, _ctx: RendererContext): InfoSectionResult | null => {
+        render: (body: Body, et: number, ctx: RendererContext): InfoSectionResult | null => {
+          // Covers the body's own data and everything it is placed relative to.
+          if (!ctx.universe.stateAvailability(body.name, et).position.available) return null;
           const elems = this.computeElements(body, et);
           if (!elems) return null;
           return {
             rows: [
-              { label: 'Semi-Major Axis', value: this.fmtDist(elems.a) },
+              ...(elems.a != null ? [{ label: 'Semi-Major Axis', value: this.fmtDist(elems.a) }] : []),
               { label: 'Eccentricity', value: elems.ecc.toFixed(4) },
               { label: 'Inclination', value: `${elems.inc.toFixed(2)}`, unit: '\u00B0' },
               { label: 'Periapsis', value: this.fmtDist(elems.periapsis) },
@@ -39,56 +41,13 @@ export class OrbitalInfoPlugin implements RendererPlugin {
 
   private computeElements(body: Body, et: number): OrbitalElements | null {
     if (!body.parentName) return null;
+    const mu = this.getParentGM(body.parentName);
+    if (!mu) return null;
 
-    try {
-      const state = body.stateAt(et);
-      if (!state) return null;
-
-      const [x, y, z] = state.position;     // km
-      const [vx, vy, vz] = state.velocity;  // km/s
-
-      const r = Math.sqrt(x * x + y * y + z * z);
-      const v = Math.sqrt(vx * vx + vy * vy + vz * vz);
-
-      if (r < 1e-10 || v < 1e-20) return null;
-
-      // GM of parent body (approximate from vis-viva if we don't have it)
-      // Try common values
-      const mu = this.getParentGM(body.parentName);
-      if (!mu) return null;
-
-      // Specific orbital energy
-      const energy = v * v / 2 - mu / r;
-
-      // Semi-major axis
-      const a = -mu / (2 * energy);
-
-      // Angular momentum vector h = r × v
-      const hx = y * vz - z * vy;
-      const hy = z * vx - x * vz;
-      const hz = x * vy - y * vx;
-      const h = Math.sqrt(hx * hx + hy * hy + hz * hz);
-
-      // Inclination
-      const inc = Math.acos(Math.max(-1, Math.min(1, hz / h))) * (180 / Math.PI);
-
-      // Eccentricity vector e = (v × h)/mu - r_hat
-      const ex = (vy * hz - vz * hy) / mu - x / r;
-      const ey = (vz * hx - vx * hz) / mu - y / r;
-      const ez = (vx * hy - vy * hx) / mu - z / r;
-      const ecc = Math.sqrt(ex * ex + ey * ey + ez * ez);
-
-      // Period (only for elliptical orbits)
-      const period = a > 0 ? 2 * Math.PI * Math.sqrt(a * a * a / mu) : null;
-
-      // Apoapsis / periapsis
-      const periapsis = a * (1 - ecc);
-      const apoapsis = ecc < 1 ? a * (1 + ecc) : null;
-
-      return { a, ecc, inc, period, periapsis, apoapsis, r, v, parentName: body.parentName };
-    } catch {
-      return null;
-    }
+    let state;
+    try { state = body.stateAt(et); } catch { return null; }
+    if (!state || ![...state.position, ...state.velocity].every(Number.isFinite)) return null;
+    return conicElements(state.position, state.velocity, mu, body.parentName);
   }
 
   private getParentGM(parentName: string): number | null {
@@ -128,8 +87,8 @@ export class OrbitalInfoPlugin implements RendererPlugin {
   }
 }
 
-interface OrbitalElements {
-  a: number;          // semi-major axis (km)
+export interface OrbitalElements {
+  a: number | null;   // semi-major axis (km), null for a parabola
   ecc: number;        // eccentricity
   inc: number;        // inclination (deg)
   period: number | null;  // orbital period (s), null for hyperbolic
@@ -138,4 +97,44 @@ interface OrbitalElements {
   r: number;          // current radius (km)
   v: number;          // current speed (km/s)
   parentName: string;
+}
+
+/**
+ * Osculating elements of a two-body state, or null where they are undefined:
+ * no motion, or motion along the radius (no orbital plane). Periapsis comes
+ * from the semi-latus rectum, which stays finite through a parabola where the
+ * semi-major axis does not.
+ */
+export function conicElements(
+  position: readonly number[], velocity: readonly number[], mu: number, parentName: string,
+): OrbitalElements | null {
+  const [x, y, z] = position;
+  const [vx, vy, vz] = velocity;
+  const r = Math.hypot(x, y, z);
+  const v = Math.hypot(vx, vy, vz);
+  if (!(r > 0) || !(v > 0)) return null;
+
+  const hx = y * vz - z * vy;
+  const hy = z * vx - x * vz;
+  const hz = x * vy - y * vx;
+  const h = Math.hypot(hx, hy, hz);
+  // Relative test: a rectilinear state has no plane, so no inclination or periapsis.
+  if (!(h > 1e-12 * r * v)) return null;
+
+  const inc = Math.acos(Math.max(-1, Math.min(1, hz / h))) * (180 / Math.PI);
+  const ex = (vy * hz - vz * hy) / mu - x / r;
+  const ey = (vz * hx - vx * hz) / mu - y / r;
+  const ez = (vx * hy - vy * hx) / mu - z / r;
+  const ecc = Math.hypot(ex, ey, ez);
+  const p = (h * h) / mu;
+
+  const parabolic = Math.abs(1 - ecc) < 1e-9;
+  const a = parabolic ? null : p / (1 - ecc * ecc);
+  const periapsis = p / (1 + ecc);
+  const apoapsis = ecc < 1 && !parabolic ? p / (1 - ecc) : null;
+  const period = a != null && a > 0 ? 2 * Math.PI * Math.sqrt((a * a * a) / mu) : null;
+
+  const out = { a, ecc, inc, period, periapsis, apoapsis, r, v, parentName };
+  const finite = (n: number | null) => n == null || Number.isFinite(n);
+  return [a, ecc, inc, period, periapsis, apoapsis].every(finite) ? out : null;
 }
