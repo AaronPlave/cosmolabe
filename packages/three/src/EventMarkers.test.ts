@@ -858,6 +858,21 @@ describe('events on the future lead (#105)', () => {
     group.dispose();
   });
 
+  it('draws a selected mission activity\'s sibling activities on the revealed lead, unlike ordinary results', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([
+      marker({ id: 'hop', kind: 'mission-activity', startEt: 20, endEt: 20, selected: true }),
+      marker({ id: 'survey', kind: 'mission-activity', startEt: 25, endEt: 25 }),
+      marker({ id: 'search-result', startEt: 26, endEt: 26 }),
+    ]);
+    group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 0.8,
+      undefined, 1, undefined, { range: [0, 40], alphaAt: () => 1 });
+    const sprites = group.children.map((child) => child as THREE.Sprite);
+    expect(sprites.map((sprite) => sprite.visible)).toEqual([true, true, false]);
+    expect(sprites[1].material.opacity).toBeCloseTo(0.8);
+    group.dispose();
+  });
+
   it('does not show an active future glyph inside the gap between lead excerpts', () => {
     const group = new EventMarkers(body);
     group.setMarkers([marker({ startEt: 20, endEt: 20, selected: true })]);

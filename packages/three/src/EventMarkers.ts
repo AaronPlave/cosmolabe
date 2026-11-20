@@ -645,7 +645,12 @@ export class EventMarkers extends THREE.Object3D {
     for (const visual of this.visuals) {
       const { marker } = visual;
       const emphasized = !!marker.selected || this.isPreview(marker);
-      const range = emphasized && leadVisibility ? leadVisibility.range : visibleRange;
+      // Mission activities are plans for the path they are drawn on: drawn
+      // beside a selected one (its vehicle's other activities), they follow the
+      // whole drawn path — its revealed lead included — so the next one can be
+      // picked in 3D. Search results keep to the trail.
+      const planned = !emphasized && marker.kind === 'mission-activity';
+      const range = (emphasized || planned) && leadVisibility ? leadVisibility.range : visibleRange;
       visual.visibleRange = range;
       const available = !this.options.sampleAvailable || visual.times.every(t => this.options.sampleAvailable!(t));
       if (!available) visual.framePositions = null;
@@ -708,8 +713,8 @@ export class EventMarkers extends THREE.Object3D {
         glyphUniforms(visual.sprites[i].material as THREE.SpriteMaterial).eventGlyphDpr.value = pixelRatio;
         const t = visual.times[sampleIndex];
         const historical = visibleRange !== null && t >= visibleRange[0] && t <= visibleRange[1];
-        const alpha = emphasized
-          ? !leadVisibility || historical || leadVisibility.alphaAt(t) > 0 ? 1 : 0
+        const alpha = emphasized || planned
+          ? !leadVisibility || historical || leadVisibility.alphaAt(t) > 0 ? (planned ? 0.8 : 1) : 0
           : trailAlphaAt(t) * (this.contextActive ? 0.35 : 1);
         const inRange = visual.times[sampleIndex] >= clipStart && visual.times[sampleIndex] <= clipEnd;
         visual.spriteBaseOpacity[i] = inRange && visual.present[i] ? alpha : 0;

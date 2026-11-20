@@ -601,6 +601,8 @@ onViewerEvent('activities', () => {
       && analysisResultGuards.get(`${ef.selectedQueryId}/${ef.selectedId}`)?.() === true
     : vs.activities.some((a) => a.id === id && activityEvent(a).queryId === ef.selectedQueryId);
   if (!still) setSelection(null);
+  // Drawn activities follow their records (times, siblings), whether or not the selection survived.
+  syncEventResultsInScene();
 });
 
 /** Drops the selection if it belongs to query `id`: its results are going. */
@@ -608,6 +610,23 @@ function dropSelectionIn(id: string | null): boolean {
   if (id == null || ef.selectedQueryId !== id) return false;
   setSelection(null);
   return true;
+}
+
+/** Most of the selected activity's sibling activities (same vehicle) drawn with it. */
+const MAX_SIBLING_ACTIVITIES = 24;
+
+/**
+ * The event a scene marker draws: an Event Finder result, or a mission
+ * activity (host-supplied or catalog), which is drawn the same way but is not
+ * a search result. Null for a marker whose record has gone.
+ */
+export function sceneMarkerEvent(id: string, queryId: string): GeometryEvent | null {
+  const result = analysisContext().eventResults.find((item) => item.id === id && item.queryId === queryId);
+  if (result) return result;
+  if (!queryId.startsWith('activity:')) return null;
+  const activity = vs.activities.find((a) => a.id === id && a.enabled !== false);
+  const event = activity ? activityEvent(activity) : null;
+  return event?.queryId === queryId ? event : null;
 }
 
 export function syncEventResultsInScene(): void {
@@ -618,7 +637,15 @@ export function syncEventResultsInScene(): void {
   // same way: its span on its vehicle's path, emphasized, with its interval
   // requested as that path's lead (the whole planned arc, even ahead of now).
   const activity = results.some(isSelectedEvent) ? undefined : vs.activities.find((a) => isSelectedEvent(activityEvent(a)));
-  const events = activity ? [...results, activityEvent(activity)] : results;
+  // Its vehicle's other activities are drawn beside it, unemphasized, so the
+  // operator can pick another one in 3D (nearest in time first, bounded).
+  const siblings = activity
+    ? vs.activities
+      .filter((a) => a !== activity && a.vehicle === activity.vehicle && a.enabled !== false)
+      .sort((a, b) => Math.abs(a.start - activity.start) - Math.abs(b.start - activity.start))
+      .slice(0, MAX_SIBLING_ACTIVITIES)
+    : [];
+  const events = activity ? [...results, activityEvent(activity), ...siblings.map(activityEvent)] : results;
   const selected = selectedEventOf(events) ?? null;
   // Brief: the global inspector carries the selection's full detail.
   const annotation = selected ? eventSceneAnnotationLines(selected).join('\n') : '';
@@ -1501,12 +1528,11 @@ export function resetForScene() {
 onViewerEvent('load', () => {
   resetForScene();
   unsubscribeSceneMarkerClick = getRenderer()?.events.on('event:click', ({ id, queryId, et }) => {
-    const event = analysisContext().eventResults.find((item) => item.id === id && item.queryId === queryId);
+    const event = sceneMarkerEvent(id, queryId);
     if (event) selectEvent(event, et);
   }) ?? null;
   unsubscribeSceneMarkerHover = getRenderer()?.events.on('event:hover', (hit) => {
-    const event = hit ? analysisContext().eventResults.find((item) => item.id === hit.id && item.queryId === hit.queryId) : null;
-    previewEvent(event ?? null, hit?.boundary);
+    previewEvent(hit ? sceneMarkerEvent(hit.id, hit.queryId) : null, hit?.boundary);
   }) ?? null;
 });
 

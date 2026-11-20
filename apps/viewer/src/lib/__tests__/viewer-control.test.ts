@@ -1168,6 +1168,34 @@ describe('shared activity host and script operations', () => {
     expect(vs.selectedBodyName).toBe(selectedBody);
     expect(renderer.calls).toEqual(calls);
   });
+  it('a click on a host activity’s 3D markers selects it and moves time to the marker; siblings are drawn to pick next', async () => {
+    // Host activities are not Event Finder results: the scene's marker click
+    // and hover must resolve them anyway (previously they resolved nothing).
+    const { sceneMarkerEvent } = await import('../event-finder.svelte');
+    vs.activities = parseMissionActivities(moonfallCatalog.activities);
+    emit('load', []);
+    const handler = (name: string) => renderer.events.on.mock.calls.filter(([e]) => e === name).at(-1)![1] as (p: unknown) => void;
+    const [a, b] = vs.activities.filter((x) => x.vehicle === vs.activities[0].vehicle && x.temporality === 'interval');
+    const host = createViewerControl();
+    // Start, midpoint and end glyphs carry their own epochs; a span click its point.
+    for (const et of [a.start, (a.start + a.end) / 2, a.end]) {
+      handler('event:click')({ id: a.id, queryId: activityEvent(a).queryId, et });
+      expect(host.getSelectedActivity!()?.id).toBe(a.id);
+      expect(renderer.timeController.et).toBe(et);
+    }
+    // Its vehicle's other activities are drawn too, unselected, so the next one can be clicked.
+    const [events, selected] = renderer.setEventResults.mock.lastCall!;
+    expect(selected).toMatchObject({ id: a.id });
+    expect(events).toContainEqual(expect.objectContaining({ id: b.id, kind: 'mission-activity' }));
+    handler('event:click')({ id: b.id, queryId: activityEvent(b).queryId, et: b.start });
+    expect(host.getSelectedActivity!()?.id).toBe(b.id);
+    expect(renderer.timeController.et).toBe(b.start);
+    // Hover previews the activity; a gone record resolves nothing.
+    handler('event:hover')({ id: b.id, queryId: activityEvent(b).queryId, boundary: 'end' });
+    expect(renderer.setEventPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: b.id }), expect.any(String), 'end');
+    expect(sceneMarkerEvent('plandev:gone', activityEvent(b).queryId)).toBeNull();
+    expect(sceneMarkerEvent(b.id, 'some-search')).toBeNull();
+  });
   it.each([['Ingenuity', ingenuityCatalog, 72], ['MoonFall', moonfallCatalog, 24], ['Curiosity', curiosityCatalog, 2]] as const)('reads and navigates real %s metadata independently of trajectories', async (_name, catalog, count) => {
     vs.activities = parseMissionActivities(catalog.activities);
     const host = createViewerControl();
