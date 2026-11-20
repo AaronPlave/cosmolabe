@@ -93,4 +93,14 @@ describe('mission activities independent of trajectory storage', () => {
     expect(laneColor(payload.items, payload.label)).toBe(laneColor(payload.items, 'Payload'));
     expect(laneColor(comms.items, comms.label)).not.toBe(laneColor(payload.items, payload.label));
   });
+  it('keeps touching intervals on one row, and coincident instants apart', () => {
+    const span = (id: string, start: number, end: number) => ({
+      version: 1, id, name: id, vehicle: 'SC-01', body: 'Earth', kind: 'phase', temporality: start === end ? 'instant' : 'interval', timeSystem: 'ET', start, end,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+    });
+    const rows = (specs: ReturnType<typeof span>[]) => activityLayout(parseMissionActivities(specs)).map(m => m.row);
+    expect(rows([span('nadir', 0, 100), span('gap', 100, 228), span('nadir2', 228, 300)])).toEqual([0, 0, 0]);
+    expect(rows([span('a', 0, 100), span('b', 50, 150)])).toEqual([0, 1]);
+    expect(rows([span('x', 10, 10), span('y', 10, 10)])).toEqual([0, 1]);
+  });
 });

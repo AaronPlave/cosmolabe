@@ -47,7 +47,8 @@ export function laneColor(items: readonly MissionActivity[], label: string): str
 export function activityLayout(items: readonly MissionActivity[]) {
   const ends: number[] = [];
   return items.map(item => {
-    let row = ends.findIndex(end => end < item.start);
+    // Intervals that only touch (one ends as the next starts) share a row.
+    let row = ends.findIndex(end => end <= item.start && end < item.end);
     if (row < 0) row = ends.length;
     row = Math.min(3, row);
     ends[row] = Math.max(ends[row] ?? -Infinity, item.end);
