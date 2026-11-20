@@ -326,6 +326,11 @@ try {
     await inPage(() => window.host.viewer.control.select('SC-1'));
     const text = await page.locator('#viewer [data-state-status]').innerText();
     assert(/No samples within 30 s/.test(text) && /Reconstructed/.test(text), text);
+    // The mesh keeps its last drawn position through a gap; no height may be measured from it.
+    const heights = async (s) => { await seek(s); await page.waitForTimeout(100); return (await page.locator('#viewer .ui-label').allInnerTexts()).filter((t) => /^Above \S+ (ref|terrain)$/.test(t.trim())); };
+    assert((await heights(3600)).length > 0, 'no height readout while SC-1 is available');
+    const inGap = await heights(3750);
+    assert(inGap.length === 0, `height readout during SC-1's position gap: ${inGap}`);
   });
 
   console.log('Activities');
