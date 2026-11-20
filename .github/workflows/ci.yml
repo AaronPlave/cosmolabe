@@ -205,6 +205,7 @@ jobs:
               - 'scripts/capture-starfield-calibration.mjs'
               - 'scripts/test-sun-viewer-gpu.mjs'
               - 'scripts/test-sun-terrain-gpu.mjs'
+              - 'scripts/test-atmosphere-twilight-gpu.mjs'
               - 'scripts/test-site-mesh-depth-gpu.mjs'
               - 'scripts/test-surface-illumination-webgl.mjs'
             # The embeddable workspace and its reference host (docs/embedding.md).
@@ -329,6 +330,8 @@ jobs:
           node scripts/test-sun-viewer-gpu.mjs
           node scripts/test-sun-terrain-gpu.mjs
           node scripts/test-site-mesh-depth-gpu.mjs /tmp/site-mesh-depth
+      - name: Atmosphere twilight GPU regression
+        run: node scripts/test-atmosphere-twilight-gpu.mjs
       - name: Physical Sun illumination of terrain tiles (#204)
         run: node scripts/test-surface-illumination-webgl.mjs
       - name: Upload StarField evidence
