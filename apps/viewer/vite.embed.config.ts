@@ -18,10 +18,20 @@ const STABLE_ASSET = /\.(wasm|bin|woff2?)$/;
 const assetFileNames = (info: { names?: string[] }) =>
   STABLE_ASSET.test(info.names?.[0] ?? '') ? 'assets/[name][extname]' : 'assets/[name]-[hash][extname]';
 
+/** The repository root: scoped-CSS class names hash paths relative to it, never absolute paths. */
+const REPO = path.resolve(__dirname, '../..');
+/**
+ * Svelte's default scoped-CSS hash is of the component's file name, which for
+ * a dependency is an absolute path: the same commit built in two checkouts gave
+ * two bundles, and a host's lockfile integrity could not be reproduced.
+ */
+const cssHash = ({ hash, css, filename }: { hash: (s: string) => string; css: string; filename?: string }) =>
+  `svelte-${hash(filename && filename !== '(unknown)' ? path.relative(REPO, filename).split(path.sep).join('/') : css)}`;
+
 export default defineConfig({
   base: './',
   // Component styles go into the shadow root with the components.
-  plugins: [svelte({ compilerOptions: { css: 'injected' }, emitCss: false }), tailwindcss()],
+  plugins: [svelte({ compilerOptions: { css: 'injected', cssHash }, emitCss: false }), tailwindcss()],
   publicDir: false,
   worker: {
     format: 'es',
