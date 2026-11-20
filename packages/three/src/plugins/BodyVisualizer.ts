@@ -23,6 +23,22 @@ export interface BodyVisualizer {
     ctx: RendererContext,
   ): void;
 
+  /**
+   * The parts of the visual a click should hit, for picking. Optional: a
+   * visualizer without it is not pickable (its body's hidden placeholder
+   * sphere is not raycast). Lines are best left out — a raycaster's line
+   * threshold is in world units and catches everything at scene scale.
+   */
+  pickTargets?(object: THREE.Object3D): THREE.Object3D[];
+
+  /**
+   * Whether the visual should still be updated (and decide its own visibility)
+   * while its body is outside its existence window. Optional; absent means no
+   * — the renderer hides it, as it does every other body. Observations use it
+   * so a selected one stays drawn after its window closes.
+   */
+  showsWhenAbsent?(object: THREE.Object3D): boolean;
+
   /** Clean up GPU resources. */
   dispose?(object: THREE.Object3D): void;
 }

@@ -141,6 +141,7 @@ export { installMissionPlugins } from './plugins/MissionPlugin.js';
 export type { MissionPluginRegistration } from './plugins/MissionPlugin.js';
 export type { RendererContext } from './plugins/RendererContext.js';
 export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+export { ObservationsVisualizer } from './plugins/ObservationsVisualizer.js';
 export type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 export type { RendererEventMap } from './events/RendererEventMap.js';
 

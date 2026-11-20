@@ -106,6 +106,12 @@
         <span class="warn" title="Neither the catalog nor a loaded instrument kernel gives this sensor's field of view; the image shows a nominal {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°">FOV unknown</span>
       {/if}
       <span title={info.pointingUnavailable ?? POINTING[info.pointing].title} class:warn={info.pointing !== 'spice' && info.pointing !== 'attitude'}>{POINTING[info.pointing].text}</span>
+      <!-- Provenance: a rendering of the scene from this pose, not an acquired image. -->
+      <span data-instrument-provenance title={vs.imageryLightingMode === 'original'
+        ? 'A synthetic rendering from the instrument pose. Surface imagery is shown with the illumination baked into the source mosaic, not the Sun at this time. Display → Imagery lighting: Simulated shows this time\'s sunlight.'
+        : 'A synthetic rendering from the instrument pose, lit by the scene\'s Sun at this time (no scattered light).'}>
+        Synthetic view · {vs.imageryLightingMode === 'original' ? 'mosaic lighting' : 'Sun at this time'}
+      </span>
     {/if}
   </div>
 

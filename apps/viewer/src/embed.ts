@@ -20,9 +20,12 @@ import App from './App.svelte';
 import css from './app.css?inline';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import starsUrl from '../public/stars.bin?url';
-import { MissionStateManager, parseMissionActivities, type CatalogJson, type MissionActivity } from '@cosmolabe/core';
+import {
+  MissionStateManager, etFromCalendarString, observationFromCosmographia, parseMissionActivities,
+  type CatalogJson, type MissionActivity, type Observation,
+} from '@cosmolabe/core';
 import { createAgentTools, createCapabilityTools, type ViewerControl } from '@cosmolabe/control';
-import type { ActivityConflict, CosmolabeViewer, MountOptions, WorkspaceUi } from './embed-api';
+import type { ActivityConflict, CosmolabeViewer, HostObservationPick, MountOptions, WorkspaceUi } from './embed-api';
 import type * as Declared from './embed-types';
 import { workspace, ALL_UI } from './lib/workspace.svelte';
 import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
@@ -122,6 +125,33 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     // Data is fetched around the playhead, wherever the clock goes.
     const offFocus = onViewerEvent('time', (et) => manager.focus(et));
     undo.push(offFocus);
+
+    // Host observations (read-only imaging results): kept per owner across
+    // scene loads, drawn by each scene's renderer, clicks reported back.
+    const hostObservations = new Map<string, readonly Observation[]>();
+    const observationListeners = new Set<(pick: HostObservationPick) => void>();
+    let observationSelection: Parameters<CosmolabeViewer['observations']['select']>[0] = null;
+    const sceneName = (owner: string, name: string) => `${owner}\u0000${name}`;
+    const applyHostObservations = () => {
+      const r = getRenderer();
+      if (!r) return;
+      r.setHostObservations([...hostObservations.values()].flat());
+      const s = observationSelection;
+      r.selectHostObservation(s ? { name: sceneName(s.owner, s.name), footprint: s.footprint ?? null, region: s.region } : null);
+    };
+    let offObservationClick: (() => void) | null = null;
+    const offObservationLoad = onViewerEvent('load', () => {
+      offObservationClick?.();
+      offObservationClick = getRenderer()?.events.on('observation:click', (hit) => {
+        const sep = hit.name.indexOf('\u0000');
+        if (sep < 0) return;
+        const pick: HostObservationPick = { owner: hit.name.slice(0, sep), name: hit.name.slice(sep + 1), footprint: hit.footprint, region: hit.region, et: hit.et };
+        observationSelection = { owner: pick.owner, name: pick.name, footprint: pick.footprint, region: pick.region };
+        for (const listener of [...observationListeners]) listener(pick);
+      }) ?? null;
+      applyHostObservations();
+    });
+    undo.push(offObservationLoad, () => offObservationClick?.());
     // Sources whose coverage grows (a live feed) grow the navigable timeline.
     // Views sampled from the state (profiles) resample at most once per interval:
     // a live feed changes it several times a second.
@@ -201,6 +231,38 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
         },
         owners: () => [...hostActivities.keys()],
       }),
+      observations: guarded({
+        replace: (owner, specs) => {
+          if (typeof owner !== 'string' || !owner.trim()) throw new Error('observation owner is required');
+          if (!Array.isArray(specs)) throw new TypeError('observations.replace takes a list of observations');
+          const parseTime = (v: string | number) => (typeof v === 'number' ? v : etFromCalendarString(v));
+          // Validated as a whole before anything changes: one bad record shows none of them.
+          const records = specs.map((spec) => {
+            const { name, target, ...geometry } = spec as unknown as Record<string, unknown> & { name: string; target: string };
+            const obs = observationFromCosmographia(String(name), String(target ?? ''), geometry, parseTime);
+            return { ...obs, name: sceneName(owner, obs.name) };
+          });
+          const names = new Set(records.map((r) => r.name));
+          if (names.size !== records.length) throw new Error(`observation names must be unique within owner "${owner}"`);
+          hostObservations.set(owner, records);
+          if (observationSelection?.owner === owner && !names.has(sceneName(owner, observationSelection.name))) observationSelection = null;
+          applyHostObservations();
+        },
+        remove: (owner) => {
+          if (!hostObservations.delete(owner)) return false;
+          if (observationSelection?.owner === owner) observationSelection = null;
+          applyHostObservations();
+          return true;
+        },
+        select: (selection) => {
+          observationSelection = selection;
+          applyHostObservations();
+        },
+        onSelect: (listener) => {
+          observationListeners.add(listener);
+          return () => { observationListeners.delete(listener); };
+        },
+      }),
       loadCatalog: async (catalog) => {
         live();
         const load = async (entry: string, name: string, fetcher?: (url: string) => Promise<CatalogJson>) => {
@@ -235,6 +297,9 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
         for (const off of [...subscriptions]) off();
         offFocus();
         offCoverage();
+        offObservationLoad();
+        offObservationClick?.();
+        observationListeners.clear();
         manager.dispose();
         // The scene first — renderer, WebGL context, workers, SPICE — then the
         // component tree, then every store back to its initial state, and the

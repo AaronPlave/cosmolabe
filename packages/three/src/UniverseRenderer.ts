@@ -18,6 +18,9 @@ import {
   eventMidpoint,
   eventStart,
   focusForEvent,
+  catalogTimeParser,
+  observationFromSensorActive,
+  type Observation,
   type Universe,
   type Body,
   type GeometryEvent,
@@ -49,7 +52,7 @@ import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } fro
 import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
-import { SensorFrustum, sensorPointing, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
+import { SensorFrustum, sensorPointing, sensorHasPlaceholder, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
 import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
@@ -79,6 +82,7 @@ import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+import { ObservationsVisualizer, DEPTH_PULL } from './plugins/ObservationsVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
@@ -513,6 +517,12 @@ export class UniverseRenderer {
 
   // Body visualizer registry (Pattern D)
   private readonly _visualizers = new Map<string, BodyVisualizer>();
+  /** The built-in observation footprint renderer: Cosmographia `Observations`
+   *  items, and sensors' `active` windows (`_sensorObservations`). */
+  private readonly _observations = new ObservationsVisualizer();
+  private readonly _sensorObservations = new Map<string, THREE.Object3D>();
+  /** Host-supplied observations (`setHostObservations`): read-only, drawn whatever the clock. */
+  private readonly _hostObservations = new Map<string, THREE.Object3D>();
   private readonly _customVisuals = new Map<string, THREE.Object3D>();
 
   // Attached visuals (Pattern F)
@@ -705,6 +715,9 @@ export class UniverseRenderer {
 
     // Register custom-geometry visualizers BEFORE buildScene so matching
     // bodies are routed to the visualizer instead of getting a default mesh.
+    // `Observations` is a Cosmographia geometry type, so it is built in; a
+    // host's own visualizer for it replaces this one.
+    this._visualizers.set('Observations', this._observations);
     if (options.visualizers) {
       for (const vis of options.visualizers) {
         this._visualizers.set(vis.geometryType, vis);
@@ -789,6 +802,82 @@ export class UniverseRenderer {
   /** Get the renderer context (for plugin UI slot execution). */
   getContext(): RendererContext {
     return this._ctx;
+  }
+
+  /** The built-in observation footprint renderer — for focusing the selected
+   *  observation or showing them all (`setFocus`, `setShowAll`). */
+  getObservationsVisualizer(): ObservationsVisualizer {
+    return this._observations;
+  }
+
+  /**
+   * Observations a host supplies — e.g. a mission simulation's imaging results:
+   * given footprints (one polygon per exposure), with the region they were
+   * asked to cover. Read-only scene content, not editable geography: drawn
+   * through the observation renderer (draped on streamed terrain), whatever the
+   * clock, until replaced. Clicking one emits `observation:click`. Replaces the
+   * previous set; an empty list clears it.
+   */
+  setHostObservations(list: readonly Observation[]): void {
+    for (const visual of this._hostObservations.values()) {
+      this.scene.remove(visual);
+      this._observations.dispose(visual);
+    }
+    this._hostObservations.clear();
+    for (const obs of list) {
+      const visual = this._observations.createVisualForObservation(obs, this._ctx, obs.name, { always: true });
+      // Analysis overlay, like sensor frustums: depth-tested against the
+      // terrain in the overlay pass, and never part of a synthetic instrument image.
+      visual.traverse((c) => c.layers.set(OVERLAY_LAYER));
+      this._hostObservations.set(obs.name, visual);
+      this.scene.add(visual);
+    }
+  }
+
+  /** Names of the host observations drawn now. */
+  getHostObservations(): string[] {
+    return [...this._hostObservations.keys()];
+  }
+
+  /** Emphasize one host observation's footprint (by index) or requested region; null clears. */
+  selectHostObservation(selection: { name: string; footprint?: number | null; region?: boolean } | null): void {
+    for (const [name, visual] of this._hostObservations) {
+      const part = selection?.name !== name ? null : selection.region ? 'region' : selection.footprint ?? null;
+      this._observations.setSelected(visual, part);
+    }
+  }
+
+  /** How a host observation's footprints are placed: on terrain, partly, or on the reference shape. */
+  getHostObservationPlacement(name: string): 'terrain' | 'partial-terrain' | 'reference' | null {
+    const visual = this._hostObservations.get(name);
+    return visual ? this._observations.placementOf(visual) : null;
+  }
+
+  /** The host observation footprint (or requested region) under a canvas point, nearest first. */
+  pickHostObservation(screenX: number, screenY: number): { name: string; footprint: number | null; region: boolean; et: number | null } | null {
+    if (!this._hostObservations?.size || !this._dblClickRaycaster) return null;
+    const el = this.renderer.domElement;
+    this._dblClickRaycaster.setFromCamera(new THREE.Vector2((screenX / el.clientWidth) * 2 - 1, -(screenY / el.clientHeight) * 2 + 1), this.camera);
+    let best: { name: string; footprint: number | null; region: boolean; et: number | null; distance: number } | null = null;
+    // They are drawn in the overlay layer; the raycaster sees layer 0 by default.
+    const mask = this._dblClickRaycaster.layers.mask;
+    this._dblClickRaycaster.layers.enable(OVERLAY_LAYER);
+    try {
+      for (const [name, visual] of this._hostObservations) {
+        const hit = this._observations.pickGiven(visual, this._dblClickRaycaster);
+        if (hit && (!best || hit.distance < best.distance || (best.region && !hit.region))) best = { name, ...hit };
+      }
+    } finally {
+      this._dblClickRaycaster.layers.mask = mask;
+    }
+    if (!best) return null;
+    // Terrain in front of the footprint hides it: the click belongs to that ground.
+    const { meshTargets } = this._pickTargets();
+    const ground = this._dblClickRaycaster.intersectObjects(meshTargets, true)[0];
+    // (Within the footprints' own depth pull: they are drawn over a coarser rendered surface.)
+    if (ground && ground.distance < best.distance * (1 - 1.5 * DEPTH_PULL) - 1e-12) return null;
+    const { distance: _d, ...rest } = best;
+    return rest;
   }
 
   /** Register a custom geometry type visualizer. */
@@ -1146,6 +1235,7 @@ export class UniverseRenderer {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       const pointing = sensorPointing(this.universe, sf, et, spiceInst);
       sf.pointingUnavailable = pointing.unavailable ?? null;
+      sf.pointingFrom = pointing.unavailable ? null : pointing.from;
       // A sensor that cannot be truthfully pointed is not drawn pointing somewhere.
       if (pointing.unavailable) { sf.present = false; continue; }
       const spiceRot = pointing.rotation;
@@ -1724,15 +1814,23 @@ export class UniverseRenderer {
         return;
       }
       iv.update(et, this.scaleFactor, originRelResolver, targetBody, pointing.rotation, pointing.from === 'attitude' ? 'attitude' : 'spice');
-      // The terrain draw cull is the main camera's.
-      for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
+      // The terrain draw cull is the main camera's, and so is its view-space
+      // shading state (baked imagery's terminator gate): both are the
+      // instrument's for its pass.
+      for (const bm of this.bodyMeshes.values()) {
+        bm.showCulledTerrainTiles();
+        bm.setTerrainViewCamera(iv.camera);
+      }
       // The instrument has its own observer position and may be inside a
       // different shell. Refresh its sky lookup and surface transport too.
       try {
         this.renderInstrumentScene();
       } finally {
-        // A failed feed must also restore the main camera's terrain cull.
-        if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+        // A failed feed must also restore the main camera's terrain cull and shading.
+        for (const bm of this.bodyMeshes.values()) {
+          bm.setTerrainViewCamera(this.camera);
+          if (!iv.fullScreen) bm.recullTerrainTiles();
+        }
       }
       // Publish only after a successful draw. The clock has an independent RAF:
       // a later clock tick makes this receipt stale, not physically unpointable.
@@ -2612,6 +2710,53 @@ export class UniverseRenderer {
       pointing: this.instrumentObservedPointing,
       pointingUnavailable: this.instrumentObservedUnavailable,
       imageRect: iv.imageRect,
+    };
+  }
+
+  /**
+   * What an inspector shows for a sensor — an instrument, not an orbiting body:
+   * its host, how it is pointed at the current epoch, its declared mounting and
+   * field of view, and where its boresight meets a surface (slant range, which
+   * surface answered). Null for a name that is not a sensor in this scene.
+   */
+  getSensorInspection(name: string): {
+    host: string | null;
+    target: string | null;
+    /** `null` while the sensor is not drawn (its body or host is absent, or it cannot be pointed). */
+    pointing: 'spice' | 'attitude' | 'target' | null;
+    pointingUnavailable: string | null;
+    /** Host-supplied attitude available now; null when the host's attitude is not host-supplied. */
+    hostAttitudeAvailable: boolean | null;
+    mounting: { boresight: number[]; up: number[] } | null;
+    mountingError: string | null;
+    /** Catalog FOV, degrees; `fovFromKernel` when an IK boundary replaces it. */
+    fovDeg: [number, number];
+    fovFromKernel: boolean;
+    slantRangeKm: number | null;
+    surface: { body: string; source: string; coarse: boolean; fallback: boolean } | null;
+    clipped: boolean;
+  } | null {
+    const sf = this.sensorFrustums.get(name);
+    if (!sf) return null;
+    const host = sf.body.parentName ?? null;
+    const hostBody = host ? this.universe.getBody(host) : undefined;
+    const hostAttitude = hostBody?.rotation?.availabilityAt ? this.bodyMeshes.get(host!)?.attitudeAvailable ?? null : null;
+    const m = (sf.body.geometryData as { mounting?: { boresight?: number[]; up?: number[] } } | undefined)?.mounting;
+    const summary = sf.present ? sf.clipSummary : null;
+    const hit = summary?.boresight ?? null;
+    return {
+      host,
+      target: sf.targetName ?? null,
+      pointing: sf.present ? sf.pointingFrom : null,
+      pointingUnavailable: sf.pointingUnavailable,
+      hostAttitudeAvailable: hostAttitude,
+      mounting: sf.mounting && m?.boresight && m.up ? { boresight: [...m.boresight], up: [...m.up] } : null,
+      mountingError: sf.mountingError ?? null,
+      fovDeg: [(sf.hFov * 180) / Math.PI, (sf.vFov * 180) / Math.PI],
+      fovFromKernel: !!sf.spiceFovBoundary,
+      slantRangeKm: hit?.distanceKm ?? null,
+      surface: hit ? { body: hit.body, source: hit.source, coarse: hit.coarse, fallback: hit.fallback } : null,
+      clipped: summary?.clipped ?? false,
     };
   }
 
@@ -4160,14 +4305,19 @@ export class UniverseRenderer {
 
   /** Update custom body visuals from the BodyVisualizer registry. */
   private updateCustomVisuals(et: number): void {
+    for (const visual of this._sensorObservations.values()) this._observations.updateObservation(visual, et, this._ctx);
+    for (const visual of this._hostObservations?.values() ?? []) this._observations.updateObservation(visual, et, this._ctx);
     for (const [bodyName, obj] of this._customVisuals) {
       const body = this.universe.getBody(bodyName);
       if (!body) continue;
       const vis = this._visualizers.get(body.geometryType ?? '');
       if (!vis) continue;
       const bm = this.bodyMeshes.get(bodyName);
-      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly.
-      obj.visible = bm ? bm.present && bm.userVisible : this.universe.isPresentAt(bodyName, et);
+      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly —
+      // unless the visualizer keeps this one while it is absent (a selected observation).
+      const present = bm ? bm.present : this.universe.isPresentAt(bodyName, et);
+      const userVisible = bm ? bm.userVisible : true;
+      obj.visible = userVisible && (present || vis.showsWhenAbsent?.(obj) === true);
       if (!obj.visible) continue;
       const pos: [number, number, number] = bm
         ? [bm.position.x, bm.position.y, bm.position.z]
@@ -4220,6 +4370,10 @@ export class UniverseRenderer {
       vis?.dispose?.(obj);
     }
     this._customVisuals.clear();
+    for (const visual of this._sensorObservations.values()) this._observations.dispose(visual);
+    this._sensorObservations.clear();
+    for (const visual of this._hostObservations.values()) this._observations.dispose(visual);
+    this._hostObservations.clear();
     // Clean up attached visuals
     for (const av of this._attachedVisuals) {
       this.scene.remove(av.object);
@@ -4274,6 +4428,26 @@ export class UniverseRenderer {
         sf.traverse(c => c.layers.set(OVERLAY_LAYER));
         this.sensorFrustums.set(body.name, sf);
         this.scene.add(sf);
+
+        // A sensor's ROADMAP `active: [{ start, end }]` windows are an
+        // observation of its target: footprints painted inside the windows,
+        // through the same model and renderer as an `Observations` item.
+        if (body.geometryData?.active !== undefined) {
+          let obs: Observation | undefined;
+          try {
+            const spice = this.universe.spiceInstance;
+            obs = observationFromSensorActive(
+              body.name, body.geometryData, catalogTimeParser(spice ? (t) => spice.str2et(t) : undefined),
+            );
+          } catch (err) {
+            console.warn(`[Cosmolabe] sensor "${body.name}": ${(err as Error).message}`);
+          }
+          if (obs) {
+            const visual = this._observations.createVisualForObservation(obs, this._ctx, `${body.name} (active)`);
+            this._sensorObservations.set(body.name, visual);
+            this.scene.add(visual);
+          }
+        }
       }
 
       // Rings get an annulus mesh attached to the parent body
@@ -4335,9 +4509,8 @@ export class UniverseRenderer {
       // Create body mesh (needed for click/track even for sensor bodies)
       const bm = new BodyMesh(body, this.universe.frames);
       bm.mesh.scale.setScalar(this.scaleFactor);
-      // Hide placeholder sphere for instrument-class sensors (e.g. ISS NAC on Cassini)
-      // but keep it for spacecraft-class sensors (e.g. WeatherSat in sensor demo)
-      if (body.geometryType === 'Sensor' && body.classification === 'instrument') bm.mesh.visible = false;
+      // A sensor is a field of view, not a sized body (see sensorHasPlaceholder).
+      if (body.geometryType === 'Sensor' && !sensorHasPlaceholder(body)) bm.mesh.visible = false;
       // Hide placeholder sphere for bodies with a custom visualizer — the
       // visualizer fully owns the body's appearance, and the placeholder
       // would otherwise render alongside it (z-fighting / engulf-on-flyTo).
@@ -5295,12 +5468,25 @@ export class UniverseRenderer {
     if (!this._dblClickRaycaster) return null;
     this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
     const { meshTargets, terrainOwner } = this._pickTargets();
+    // Custom visuals that declare pick targets — observation footprints sit
+    // just above their planet, so the nearest hit is the footprint, which
+    // selects the observation rather than the ground under it.
+    const visualOwner = new Map<THREE.Object3D, string>();
+    for (const [name, visual] of this._customVisuals) {
+      const vis = this._visualizers.get(this.universe.getBody(name)?.geometryType ?? '');
+      for (const t of vis?.pickTargets?.(visual) ?? []) {
+        meshTargets.push(t);
+        visualOwner.set(t, name);
+      }
+    }
     const hits = this._dblClickRaycaster.intersectObjects(meshTargets, true);
     if (hits.length === 0) return null;
     // Walk up from hit to find owning BodyMesh: either via terrainOwner map
     // (terrain hits) or via the placeholder sphere ancestry chain.
     let obj: THREE.Object3D | null = hits[0].object;
     while (obj) {
+      const owner0 = visualOwner.get(obj);
+      if (owner0) return owner0;
       if (this.bodyMeshes.has(obj.name)) return obj.name;
       const owner = terrainOwner.get(obj);
       if (owner) return owner.body.name;
@@ -5383,6 +5569,13 @@ export class UniverseRenderer {
     if (hit?.kind === 'event') {
       this.events.emit('event:click', { id: hit.eventId, queryId: hit.queryId, et: hit.et });
       return false;
+    }
+    // A host observation's footprint lies on the ground a body click would select.
+    const observation = !hit || (hit.kind === 'entity' && hit.via === 'mesh') ? this.pickHostObservation(screenX, screenY) : null;
+    if (observation) {
+      this.selectHostObservation(observation);
+      this.events.emit('observation:click', observation);
+      return true;
     }
     if (hit?.kind !== 'entity') return false;
 

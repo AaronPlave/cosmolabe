@@ -29,6 +29,20 @@
     return vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.terrainFrameAvailability : null;
   });
 
+  // A sensor is an instrument on its host, not an orbiting body: it gets its
+  // own section (host, pointing, mounting, FOV, slant range) instead of the
+  // body/orbit rows, which describe its offset from the host and nothing else.
+  let sensor = $derived.by(() => {
+    void vs.frameTick;
+    const name = vs.selectedBodyName;
+    const body = name ? getRenderer()?.getBodyMesh(name)?.body : undefined;
+    if (!name || body?.geometryType !== 'Sensor' || body.classification !== 'instrument') return null;
+    return getRenderer()?.getSensorInspection(name) ?? null;
+  });
+  const POINTING_TEXT = { spice: 'SPICE attitude (CK)', attitude: 'Host attitude × mounting', target: 'Aimed at target (no attitude)' } as const;
+  const SURFACE_TEXT: Record<string, string> = { terrain: 'terrain', reference: 'reference shape', mesh: 'shape model' };
+  const vec = (v: number[]) => `[${v.map((x) => +x.toFixed(3)).join(', ')}]`;
+
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
     void vs.et; // trigger reactivity each frame
@@ -283,8 +297,42 @@
       {/if}
     </div>
 
+    {#if sensor}
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Instrument</div>
+      <div class="flex flex-col gap-0.5" data-sensor-inspection>
+        <div class="ui-data-row"><span class="ui-label">Host</span><span class="ui-readout">{sensor.host ?? '—'}</span></div>
+        <div class="ui-data-row" data-pointing={sensor.pointing ?? 'none'}>
+          <span class="ui-label">Pointing</span>
+          <span class="ui-readout {sensor.pointing === 'spice' || sensor.pointing === 'attitude' ? '' : 'text-warning'}" title={sensor.pointingUnavailable ?? undefined}>
+            {sensor.pointing ? POINTING_TEXT[sensor.pointing] : sensor.pointingUnavailable ? 'Unavailable' : 'Not drawn'}
+          </span>
+        </div>
+        {#if sensor.hostAttitudeAvailable != null}
+          <div class="ui-data-row"><span class="ui-label">Host attitude now</span><span class="ui-readout {sensor.hostAttitudeAvailable ? '' : 'text-warning'}">{sensor.hostAttitudeAvailable ? 'Available' : 'None at this time'}</span></div>
+        {/if}
+        <div class="ui-data-row">
+          <span class="ui-label">Mounting</span>
+          <span class="ui-readout {sensor.mountingError ? 'text-warning' : ''}" title={sensor.mountingError ?? undefined}>
+            {sensor.mounting ? `boresight ${vec(sensor.mounting.boresight)} · up ${vec(sensor.mounting.up)}` : sensor.mountingError ? 'Invalid' : 'None declared'}
+          </span>
+        </div>
+        <div class="ui-data-row"><span class="ui-label">FOV</span><span class="ui-readout">{sensor.fovFromKernel ? 'From instrument kernel' : `${sensor.fovDeg[0].toFixed(1)}° × ${sensor.fovDeg[1].toFixed(1)}°`}</span></div>
+        <div class="ui-data-row"><span class="ui-label">Slant range</span><span class="ui-readout">{sensor.slantRangeKm != null ? formatDist(sensor.slantRangeKm) : '—'}</span></div>
+        <div class="ui-data-row" data-surface={sensor.surface?.source ?? 'none'}>
+          <span class="ui-label">Boresight meets</span>
+          <span class="ui-readout {sensor.surface && (sensor.surface.source !== 'terrain' || sensor.surface.coarse || sensor.surface.fallback) ? 'text-warning' : ''}">
+            {#if sensor.surface}
+              {sensor.surface.body} {SURFACE_TEXT[sensor.surface.source] ?? sensor.surface.source}{sensor.surface.fallback ? ' (terrain not loaded: fallback)' : sensor.surface.coarse ? ' (coarse terrain)' : ''}
+            {:else}
+              {sensor.clipped ? 'No surface within range' : 'Not evaluated'}
+            {/if}
+          </span>
+        </div>
+      </div>
+    {/if}
+
     <!-- BODY: this body's height above its parent's surface (terrain primary, ref fallback) -->
-    {#if bodyAltitudes.aboveTerrain != null || bodyAltitudes.aboveRef != null}
+    {#if !sensor && (bodyAltitudes.aboveTerrain != null || bodyAltitudes.aboveRef != null)}
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Body</div>
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
@@ -316,7 +364,7 @@
     {/if}
 
     <!-- ORBIT: this body's motion relative to its parent -->
-    {#if stateInfo && bodyAltitudes.parentBmName}
+    {#if !sensor && stateInfo && bodyAltitudes.parentBmName}
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
       <div class="flex flex-col gap-0.5">
         <div class="ui-data-row">
@@ -330,7 +378,7 @@
       </div>
     {/if}
 
-    {#if speAngle != null}
+    {#if !sensor && speAngle != null}
       <div class="ui-data-row mt-2 pt-2 border-t border-border">
         <span class="ui-label">SPE angle</span>
         <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>

@@ -6,6 +6,8 @@ import type { GeographicFeatureRef } from '../geographic/GeographicIndex.js';
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {
   'geographic:click': GeographicFeatureRef;
+  /** A host-supplied observation was clicked: one footprint (`footprint`, its index, and its exposure epoch when known) or its requested region. */
+  'observation:click': { name: string; footprint: number | null; region: boolean; et: number | null };
   'geographic:dblclick': GeographicFeatureRef;
   'geographic:hover': GeographicFeatureRef | null;
   /** The selected feature changed: a scene click, a host's `setSelected`, or a hide/filter/unload that removed it. */

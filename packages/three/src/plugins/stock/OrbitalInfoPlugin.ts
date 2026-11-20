@@ -20,6 +20,8 @@ export class OrbitalInfoPlugin implements RendererPlugin {
         label: 'Orbital Elements',
         order: 10,
         render: (body: Body, et: number, ctx: RendererContext): InfoSectionResult | null => {
+          // An instrument rides its spacecraft; it has no orbit of its own.
+          if (body.geometryType === 'Sensor' && body.classification === 'instrument') return null;
           // Covers the body's own data and everything it is placed relative to.
           if (!ctx.universe.stateAvailability(body.name, et).position.available) return null;
           const elems = this.computeElements(body, et);

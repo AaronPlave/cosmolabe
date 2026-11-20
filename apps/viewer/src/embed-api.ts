@@ -73,6 +73,56 @@ export interface HostActivities {
   owners(): string[];
 }
 
+/**
+ * One observation a host supplies (e.g. a simulation's imaging result): the
+ * core `Observation` fields in their Cosmographia-style form — `groups` of
+ * `{ startTime, endTime, obsRate? }` (ISO UTC ending in Z, or ET seconds), a
+ * given `coverage` (`{ kind: 'footprint', polygonLonLat }`, one polygon per
+ * group for per-exposure footprints) — plus `observer`, `instrument`,
+ * `provenance` and a `requestedRegion` it was evaluated against.
+ */
+export interface HostObservationSpec {
+  name: string;
+  /** The observed body (its body-fixed frame is the polygons' frame). */
+  target: string;
+  groups: readonly { startTime: string | number; endTime: string | number; obsRate?: number }[];
+  coverage: { kind: 'footprint'; polygonLonLat: readonly (readonly (readonly [number, number])[])[] };
+  instrument?: string;
+  observer?: string;
+  campaign?: string;
+  provenance?: import('@cosmolabe/core').DataProvenance;
+  requestedRegion?: { name?: string; label?: string; polygonLonLat: readonly (readonly [number, number])[] };
+  footprintColor?: readonly [number, number, number];
+  footprintOpacity?: number;
+  fillInObservations?: boolean;
+}
+
+/** What the operator clicked: one footprint of a host observation, or its requested region. */
+export interface HostObservationPick {
+  owner: string;
+  name: string;
+  /** Polygon index; null when the requested region was clicked. */
+  footprint: number | null;
+  region: boolean;
+  /** The footprint's exposure epoch (ET), when the observation has one group per polygon. */
+  et: number | null;
+}
+
+/**
+ * Host-owned observations: read-only scene content (not editable geography),
+ * drawn whatever the clock and draped on streamed terrain. Each owner's list
+ * replaces its previous one; they persist across catalog loads.
+ */
+export interface HostObservations {
+  /** Validate (all or nothing) and show `specs` as `owner`'s observations. Throws on invalid input. */
+  replace(owner: string, specs: readonly HostObservationSpec[]): void;
+  remove(owner: string): boolean;
+  /** Emphasize one footprint or a requested region; null clears. */
+  select(selection: { owner: string; name: string; footprint?: number | null; region?: boolean } | null): void;
+  /** Called when the operator clicks a host observation in the scene. */
+  onSelect(listener: (pick: HostObservationPick) => void): () => void;
+}
+
 /** A host owner whose activities could not be shown in a newly loaded scene. */
 export interface ActivityConflict {
   readonly owner: string;
@@ -93,6 +143,7 @@ export interface CosmolabeViewer {
   readonly capabilities: CapabilityTools;
   readonly missionState: MissionStateApi;
   readonly activities: HostActivities;
+  readonly observations: HostObservations;
   /**
    * Load a catalog (URL, or data), replacing the scene. Resolves when the
    * scene's initial assets have settled; rejects — leaving the previous scene

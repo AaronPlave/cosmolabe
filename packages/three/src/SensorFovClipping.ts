@@ -167,19 +167,21 @@ export class SensorFovClipping {
   clipperFor(sensorBodyName: string, pointingKey: string): SensorFovClipper {
     return (originKm, directionAt, baseParams, maxRangeKm) => {
       const key = `${this.frameKey}|${pointingKey}|${originKm.join(',')}|${maxRangeKm}|${baseParams.length}`;
-      const cached = this.cache.get(sensorBodyName);
+      // A single ray (the boresight) is cached apart from the perimeter.
+      const slot = baseParams.length === 1 ? `${sensorBodyName}\u0000ray` : sensorBodyName;
+      const cached = this.cache.get(slot);
       if (cached?.key === key) return cached.samples;
       const pool = this.candidates.filter(c => c.id !== sensorBodyName);
       try {
         const samples = clipFovPerimeter(originKm, directionAt, baseParams, pool, { maxRangeKm });
-        this.cache.set(sensorBodyName, { key, samples });
+        this.cache.set(slot, { key, samples });
         return samples;
       } catch (error) {
         if (error !== TERRAIN_BUDGET_EXCEEDED) throw error;
       }
       // Discard the partial pass: one perimeter must never mix budget fallback
       // with terrain. Cached rays can still serve later overlapping instruments.
-      this.cache.delete(sensorBodyName);
+      this.cache.delete(slot);
       const samples = clipFovPerimeter(originKm, directionAt, baseParams,
         this.deferredCandidates.filter(c => c.id !== sensorBodyName), { maxRangeKm });
       return samples;

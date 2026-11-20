@@ -1257,6 +1257,11 @@ export class BodyMesh extends THREE.Object3D {
     this.terrainManager?.showCulledTiles();
   }
 
+  /** Point the terrain's view-space shading state at `camera` (an instrument pass), or back at the main camera. */
+  setTerrainViewCamera(camera: THREE.Camera): void {
+    this.terrainManager?.setViewCamera(camera);
+  }
+
   /** Restore the main camera's terrain draw cull (after `showCulledTerrainTiles`). */
   recullTerrainTiles(): void {
     this.terrainManager?.recullToMainView();

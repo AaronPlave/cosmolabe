@@ -44,6 +44,8 @@ export interface SensorClipSummary {
   /** Any hit fell back from an unavailable detailed surface to a later one. */
   fallback: boolean;
   maxRangeKm: number;
+  /** The boresight ray's own surface intersection (slant range), when clipped; null when it hits nothing. */
+  boresight: { distanceKm: number; body: string; source: FovSurfaceSource; coarse: boolean; fallback: boolean } | null;
 }
 
 // Reusable temp objects for per-frame orientation (avoids GC pressure)
@@ -120,6 +122,17 @@ export function sensorPointing(
   return { from: 'target' };
 }
 
+/**
+ * Whether a Sensor body is drawn with a placeholder sphere. A sensor is a
+ * field of view, not a body with a size: an instrument (the loader's default
+ * for a Sensor) has none. Only a sensor the catalog explicitly classifies as
+ * something else — a spacecraft that is its own sensor, as in sensor-demo —
+ * keeps one. Tracking, selection and the instrument view do not need it.
+ */
+export function sensorHasPlaceholder(body: Pick<Body, 'classification'>): boolean {
+  return (body.classification ?? 'instrument') !== 'instrument';
+}
+
 export class SensorFrustum extends THREE.Object3D {
   readonly body: Body;
   /** Instrument → spacecraft body rotation from the catalog's `mounting`, if declared. */
@@ -143,8 +156,11 @@ export class SensorFrustum extends THREE.Object3D {
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
   readonly labelSprite: THREE.Sprite;
-  private readonly hFov: number; // full angle in radians
-  private readonly vFov: number; // full angle in radians
+  /** Catalog field of view, full angles in radians (an IK boundary, when loaded, replaces it). */
+  readonly hFov: number;
+  readonly vFov: number;
+  /** How the last update pointed the sensor (set by the renderer). */
+  pointingFrom: 'spice' | 'attitude' | 'target' | null = null;
   private readonly fixedLength: number | undefined;
   private readonly shape: 'elliptical' | 'rectangular';
   private readonly sensorOrientation: THREE.Quaternion;
@@ -351,6 +367,17 @@ export class SensorFrustum extends THREE.Object3D {
       : baseParams.map(t => ({ t, direction: directionAt(t), distanceKm: maxRangeKm, hit: null, base: true }));
     this._perimeter = perimeter;
     this._clipSummary = summarize(perimeter, !!clip, maxRangeKm);
+    if (clip) {
+      // The boresight's own ray: the slant range an inspector reports. One base
+      // parameter, so the clipper's per-sensor cache keeps it apart from the perimeter.
+      // Instrument +Z is mesh-local −Y.
+      const b = _v.set(0, -1, 0).applyQuaternion(q);
+      const boresight: Vec3 = [b.x, b.y, b.z];
+      const hit = clip([pos[0], pos[1], pos[2]], () => boresight, [0], maxRangeKm)[0]?.hit;
+      this._clipSummary.boresight = hit
+        ? { distanceKm: hit.surfaceDistanceKm, body: hit.candidateId, source: hit.source, coarse: hit.detail === 'coarse', fallback: hit.fallback }
+        : null;
+    }
     this.rebuildGeometry(perimeter, scaleFactor, boundary.kind === 'elliptical' ? null : boundary.vertices.length);
 
     // Label at the top-left of the far boundary.
@@ -439,7 +466,7 @@ function summarize(perimeter: readonly FovPerimeterSample[], clipped: boolean, m
     coarse ||= s.hit.detail === 'coarse';
     fallback ||= s.hit.fallback;
   }
-  return { clipped, samples: perimeter.length, hitSamples, bodies: [...bodies], sources: [...sources], coarse, fallback, maxRangeKm };
+  return { clipped, samples: perimeter.length, hitSamples, bodies: [...bodies], sources: [...sources], coarse, fallback, maxRangeKm, boresight: null };
 }
 
 /** Perimeter parameter nearest the top-left (−X, +Y) of the boundary. */

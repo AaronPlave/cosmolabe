@@ -952,7 +952,11 @@ export class CatalogLoader {
       parentName: parentName ?? item.center,
       radii,
       mass: typeof item.mass === 'number' ? item.mass : this.parseMass(item.mass),
-      classification: item.class,
+      // A Sensor is an instrument (a field of view), not a body with a size of
+      // its own: unless the catalog says otherwise (a sensor that is itself a
+      // spacecraft, as in sensor-demo), it is classified as one, which is what
+      // keeps a placeholder sphere, label and glyph from standing in for it.
+      classification: item.class ?? (geometry?.type === 'Sensor' ? 'instrument' : undefined),
       labelColor: item.label?.color ? this.parseColor(item.label.color) : undefined,
       labelVisible: item.label?.visible !== false,
       geometryType: geometry?.type as string | undefined,
@@ -1099,6 +1103,9 @@ export class CatalogLoader {
 
   private buildTrajectory(spec: TrajectorySpec | undefined, item: CatalogItem): Trajectory {
     if (!spec) {
+      // A Cosmographia observation item names no trajectory: it is a body on
+      // its target, at the target's centre, and SPICE has never heard of it.
+      if (item.geometry?.type === 'Observations') return new FixedPointTrajectory([0, 0, 0]);
       if (this.spice) {
         return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', this.spiceFrame(frameName(item.trajectoryFrame), item.center ?? 'SUN'));
       }

@@ -149,7 +149,7 @@ describe('BodyMesh.loadDsk', () => {
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
     const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
-      camera, bodyMeshes: new Map([['Shape', bm]]), _dblClickRaycaster: new THREE.Raycaster(),
+      camera, bodyMeshes: new Map([['Shape', bm]]), _customVisuals: new Map(), _dblClickRaycaster: new THREE.Raycaster(),
     }) as { _discoverBodyMesh(x: number, y: number): string | null };
     const aim = (x: number) => {
       camera.position.set(x, 0.2, 3); camera.lookAt(x, 0.2, 0); camera.updateMatrixWorld(true);

@@ -759,10 +759,28 @@ export class TerrainManager {
    * gate. Without a centre the local horizon is unknown, so there is no gate.
    */
   private updateTerminatorGate(camera: THREE.Camera, bodyWorldPos?: THREE.Vector3): void {
+    if (bodyWorldPos) (this.gateBodyWorldPos ??= new THREE.Vector3()).copy(bodyWorldPos);
+    else this.gateBodyWorldPos = null;
     if (bodyWorldPos) {
       this.asIs.centerView.value.copy(bodyWorldPos).applyMatrix4(_viewInverse.copy(camera.matrixWorld).invert());
       this.asIs.nightFloor.value = this.bakedNightFloor;
     } else this.asIs.nightFloor.value = 1;
+  }
+
+  /** The body centre the gate was last computed from (world space), for re-aiming it at another camera. */
+  private gateBodyWorldPos: THREE.Vector3 | null = null;
+
+  /**
+   * Re-aim view-space shading state at `camera` for a pass of its own — the
+   * instrument view — and back at the main camera afterwards. The terminator
+   * gate of baked imagery reads the body centre in view space: left at the main
+   * camera's, another camera's pass computes every fragment's local "up" from
+   * the wrong origin and gates the baked imagery to its night floor (black).
+   */
+  setViewCamera(camera: THREE.Camera): void {
+    if (!this.gateBodyWorldPos) return;
+    camera.updateMatrixWorld();
+    this.updateTerminatorGate(camera, this.gateBodyWorldPos.clone());
   }
 
   /** The scene's lighting mode, for the night floor of baked imagery and the Sun-less `flood` mode (#205). */
