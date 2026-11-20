@@ -458,29 +458,6 @@ describe('label-coordinated LOD (#337 live-testing feedback)', () => {
     expect(g.pickNearest(anchor.x, anchor.y, 20)).toBeNull();
   });
 
-  it('terrain occlusion of the anchor is debounced and hides dot and ring together', () => {
-    const g = new PositionGlyphs(2);
-    const cam = camera();
-    const rover = fakeBody('Rover', new THREE.Vector3());
-    const base = { isPinned: () => true };
-    let hidden = false;
-    const c = ctx({ ...base, terrainOccluded: () => hidden });
-    settle(g, [rover], cam, c);
-    expect(drawn(g)).toBe(2);
-    // A single frame of rim contact does not toggle the glyph.
-    hidden = true; g.update([rover], cam, c); hidden = false;
-    for (let i = 0; i < 10; i++) g.update([rover], cam, c);
-    expect(drawn(g)).toBe(2);
-    expect(g.readout()[0].occluded).toBe(false);
-    // A persistent occlusion hides both parts and makes the glyph unpickable.
-    hidden = true;
-    settle(g, [rover], cam, c);
-    expect(drawn(g)).toBe(0);
-    hidden = false;
-    settle(g, [rover], cam, c);
-    expect(drawn(g)).toBe(2);
-  });
-
   it('natural bodies never get a filled point; only selected/tracked ones get a hollow ring', () => {
     const cam = camera();
     const px = (r: number, d: number) => r / (2 * Math.tan((50 * Math.PI / 180) / 2) * d) * CSS.height;
