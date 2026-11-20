@@ -17,7 +17,7 @@ import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mes
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
 import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
-import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
+import type { PhysicalSurfaceMetadata, SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
@@ -1859,6 +1859,9 @@ export class TerrainManager {
    * ensure-coverage pass along the ray, so a repeated query finds finer triangles;
    * `requestSurfaceIntersection` awaits that pass instead.
    */
+  /** The cube grids' Cartesian surface, when configured: what `intersectSurfaceRay` queries. */
+  get cubeSurfaceMetadata(): PhysicalSurfaceMetadata | null { return this.cube?.surface.metadata ?? null; }
+
   intersectSurfaceRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
     if (!this.cube) return null;
     const result = this.cube.surface.intersectRay(ray, options);

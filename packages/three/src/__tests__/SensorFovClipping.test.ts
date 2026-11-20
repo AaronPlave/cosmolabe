@@ -103,3 +103,49 @@ describe('SensorFovClipping (renderer-side owner)', () => {
     expect(clipping.clipperFor('Cam', 'target')(origin, directionAt, base, 1000).every(s => s.hit?.source === 'reference')).toBe(true);
   });
 });
+
+describe('SensorFovClipping on cube-sphere terrain', () => {
+  // Cube-sphere terrain has no tile sampler, only Cartesian ray queries. A
+  // lunar crater floor 1 km below the reference sphere, a drone 1.8 km above
+  // it: the frustum must end on the floor, not 1 km up on the sphere.
+  const R = 1737.4, FLOOR = R - 1;
+  const meta = { bodyId: 'Moon', frame: 'MOON_ME', source: { id: 'cube', kind: 'height-grid' }, shape: { kind: 'globe', datum: { referenceShape: { kind: 'sphere', radiusKm: R }, verticalDatum: 'reference-sphere', heightConvention: 'radial' } }, coverage: 'partial-product' };
+  function fakeMoon(resident: boolean): BodyMesh {
+    return {
+      body: { name: 'Moon', geometryType: 'Globe', radii: [R, R, R] },
+      visible: true,
+      terrainSampler: null,
+      terrainRevision: 1,
+      terrainRaySurface: meta,
+      intersectTerrainRay: (ray: { origin: { xKm: number; yKm: number; zKm: number }; direction: Vec3; farKm: number }) => {
+        if (!resident) return { kind: 'unavailable', reason: 'not-resident', metadata: meta };
+        const o = [ray.origin.xKm, ray.origin.yKm, ray.origin.zKm], d = ray.direction;
+        const b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 - FLOOR ** 2;
+        const t = -b - Math.sqrt(b * b - c);
+        const p = o.map((v, i) => v + t * d[i]);
+        return { kind: 'hit', distanceKm: t, position: { xKm: p[0], yKm: p[1], zKm: p[2] }, metadata: meta };
+      },
+      bodyToWorldQuaternion: (q: THREE.Quaternion) => q.identity(),
+    } as unknown as BodyMesh;
+  }
+  const origin: Vec3 = [0, 0, -(FLOOR + 1.8)];
+  const h = Math.tan(20 * Math.PI / 180), v = Math.tan(15 * Math.PI / 180);
+  const rect = { kind: 'polygon' as const, vertices: [[-h, -v, 1], [h, -v, 1], [h, v, 1], [-h, v, 1]] as Vec3[] };
+  // Boresight straight down: +Z, toward the Moon's centre from below the south pole.
+  const directionAt = (t: number): Vec3 => fovBoundaryDirection(rect, t);
+
+  it('ends the frustum on the terrain, and falls back to the reference shape (flagged) where it is not resident', () => {
+    const clipping = new SensorFovClipping();
+    clipping.begin(0, [0, 0, 0], [fakeMoon(true)], atCenter);
+    const base = fovBaseParams(rect, 8);
+    const hits = clipping.clipperFor('Cam', 'attitude')(origin, directionAt, base, 5);
+    expect(hits.every(s => s.hit?.source === 'terrain' && !s.hit.fallback)).toBe(true);
+    for (const s of hits) {
+      const p = origin.map((v, i) => v + s.direction[i] * s.distanceKm);
+      expect(Math.abs(Math.hypot(...p) - FLOOR)).toBeLessThan(0.01);
+    }
+    clipping.begin(1, [0, 0, 0], [fakeMoon(false)], atCenter);
+    const ref = clipping.clipperFor('Cam', 'attitude')(origin, directionAt, base, 5);
+    expect(ref.every(s => s.hit?.source === 'reference' && s.hit.fallback)).toBe(true);
+  });
+});

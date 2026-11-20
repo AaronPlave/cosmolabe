@@ -15,7 +15,7 @@ import type { SolarShadowDebugMode, SolarShadowFrame, SolarShadowQuality, SolarS
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
-import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
+import type { PhysicalSurfaceMetadata, SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
 import type { ImageryTimePolicy } from './ImageryTime.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
@@ -1374,6 +1374,9 @@ export class BodyMesh extends THREE.Object3D {
   get terrainCubeImageryStats(): TerrainManager['cubeImageryStats'] {
     return this.terrainManager?.cubeImageryStats ?? null;
   }
+
+  /** The surface `intersectTerrainRay` answers from (cube-sphere grids); null when there is none. */
+  get terrainRaySurface(): PhysicalSurfaceMetadata | null { return this.terrainManager?.cubeSurfaceMetadata ?? null; }
 
   /** #148 ray query against CPU terrain in body-fixed km; null when this terrain has no Cartesian CPU surface. */
   intersectTerrainRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {

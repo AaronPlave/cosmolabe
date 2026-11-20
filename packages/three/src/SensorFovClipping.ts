@@ -20,6 +20,8 @@ const TERRAIN_BOUNDING_MARGIN = 0.01;
  * ray results remain usable without spending additional triangle budget.
  */
 const TERRAIN_TRIANGLE_BUDGET = 100_000;
+/** Per-frame cap on cube-sphere terrain ray queries across all sensors (same fallback as the triangle budget). */
+const CUBE_TERRAIN_RAY_BUDGET = 1024;
 
 const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
@@ -36,7 +38,7 @@ const TERRAIN_BUDGET_EXCEEDED = Symbol('terrain-budget-exceeded');
 class CachedTerrain implements PhysicalSurface {
   readonly metadata: PhysicalSurfaceMetadata;
   private readonly rays = new Map<string, SurfaceIntersection>();
-  constructor(private readonly surface: ResidentTerrainSurface, private readonly canQuery: () => boolean) {
+  constructor(private readonly surface: PhysicalSurface, private readonly canQuery: () => boolean) {
     this.metadata = surface.metadata;
   }
   intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
@@ -51,9 +53,25 @@ class CachedTerrain implements PhysicalSurface {
   }
 }
 
+/**
+ * Cube-sphere terrain: no tile sampler, but its CPU grids answer Cartesian
+ * rays (`BodyMesh.intersectTerrainRay`, which also requests finer coverage
+ * along the ray). Unresident cells answer `unavailable`, and the clipper falls
+ * back to the reference shape for that ray, flagged as such.
+ */
+class CubeTerrain implements PhysicalSurface {
+  queries = 0;
+  constructor(readonly metadata: PhysicalSurfaceMetadata, readonly bm: BodyMesh) {}
+  intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
+    this.queries++;
+    return this.bm.intersectTerrainRay(ray, options) ?? { kind: 'unavailable', reason: 'not-resident', metadata: this.metadata };
+  }
+}
+
 interface BodySurfaces {
   reference: ReferenceEllipsoidSurface;
   terrain?: ResidentTerrainSurface;
+  cube?: CubeTerrain;
 }
 
 /**
@@ -77,6 +95,7 @@ export class SensorFovClipping {
   /** Same bodies with terrain swapped for DeferredTerrain, used once the budget is spent. */
   private deferredCandidates: FovSurfaceCandidate[] = [];
   private terrainThisFrame: ResidentTerrainSurface[] = [];
+  private cubeThisFrame: CubeTerrain[] = [];
   private frameKey = '';
 
   /** Resolve candidate surfaces for this frame. Positions are origin-relative km. */
@@ -89,6 +108,7 @@ export class SensorFovClipping {
     const candidates: FovSurfaceCandidate[] = [];
     const deferred: FovSurfaceCandidate[] = [];
     const terrainThisFrame: ResidentTerrainSurface[] = [];
+    const cubeThisFrame: CubeTerrain[] = [];
     let terrainRevision = 0;
     for (const bm of bodyMeshes) {
       const body = bm.body;
@@ -101,14 +121,20 @@ export class SensorFovClipping {
       const sampler = bm.terrainSampler;
       if (sampler && entry.terrain?.sampler !== sampler) entry.terrain = new ResidentTerrainSurface(sampler, body.name, entry.reference.metadata.frame);
       if (!sampler) entry.terrain = undefined;
-      const hasTerrain = !!sampler && sampler.diagnostics.tileCount > 0;
+      const cubeMetadata = bm.terrainRaySurface;
+      if (cubeMetadata && (entry.cube?.metadata !== cubeMetadata || entry.cube.bm !== bm)) entry.cube = new CubeTerrain(cubeMetadata, bm);
+      if (!cubeMetadata) entry.cube = undefined;
+      const hasTerrain = !!entry.cube || (!!sampler && sampler.diagnostics.tileCount > 0);
       if (sampler) terrainRevision += sampler.revision;
+      if (entry.cube) terrainRevision += bm.terrainRevision ?? 0;
 
       bm.bodyToWorldQuaternion(_q);
       const e = _m.makeRotationFromQuaternion(_q).elements; // column-major
-      const terrain = hasTerrain
-        ? new CachedTerrain(entry.terrain!, () => this.terrainTrianglesThisFrame() < TERRAIN_TRIANGLE_BUDGET)
-        : null;
+      const terrain = entry.cube
+        ? new CachedTerrain(entry.cube, () => this.cubeQueriesThisFrame() < CUBE_TERRAIN_RAY_BUDGET)
+        : hasTerrain
+          ? new CachedTerrain(entry.terrain!, () => this.terrainTrianglesThisFrame() < TERRAIN_TRIANGLE_BUDGET)
+          : null;
       const candidate: FovSurfaceCandidate = {
         id: body.name,
         centerKm: [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]],
@@ -117,7 +143,11 @@ export class SensorFovClipping {
         surfaces: terrain ? [terrain, entry.reference] : [entry.reference],
       };
       candidates.push(candidate);
-      if (hasTerrain) {
+      if (entry.cube) {
+        entry.cube.queries = 0;
+        cubeThisFrame.push(entry.cube);
+        deferred.push({ ...candidate, surfaces: [new DeferredTerrain(entry.cube.metadata), entry.reference] });
+      } else if (hasTerrain) {
         entry.terrain!.trianglesTested = 0;
         terrainThisFrame.push(entry.terrain!);
         deferred.push({ ...candidate, surfaces: [new DeferredTerrain(entry.terrain!.metadata), entry.reference] });
@@ -128,6 +158,7 @@ export class SensorFovClipping {
     this.candidates = candidates;
     this.deferredCandidates = deferred;
     this.terrainThisFrame = terrainThisFrame;
+    this.cubeThisFrame = cubeThisFrame;
     // Geometry depends only on epoch, origin and resident surface data — not on the viewer camera.
     this.frameKey = `${et}|${originAbsPos.join(',')}|${terrainRevision}|${candidates.map(c => c.id).join(',')}`;
   }
@@ -162,12 +193,20 @@ export class SensorFovClipping {
     return n;
   }
 
+  /** Cube-sphere terrain rays cast since `begin`, across all bodies. */
+  cubeQueriesThisFrame(): number {
+    let n = 0;
+    for (const t of this.cubeThisFrame) n += t.queries;
+    return n;
+  }
+
   dispose(): void {
     this.surfaces.clear();
     this.cache.clear();
     this.candidates = [];
     this.deferredCandidates = [];
     this.terrainThisFrame = [];
+    this.cubeThisFrame = [];
   }
 
   private surfacesFor(bm: BodyMesh): BodySurfaces | null {
