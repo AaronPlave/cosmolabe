@@ -213,3 +213,5 @@ export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geograp
 
 export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
 export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';
+
+export type { PolarRasterManifest, SouthPolarRaster } from './surface/SouthPolarRaster.js';

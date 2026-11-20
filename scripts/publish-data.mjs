@@ -38,12 +38,14 @@ import { createLocalStorage, createS3Storage } from './data-hosting/lib/storage.
 import { terrainManifest, validateTerrain } from './data-hosting/lib/terrain.mjs';
 import { kernelManifest, validateKernelHeader } from './data-hosting/lib/kernels.mjs';
 import { cubeImageryManifest, cubeTerrainManifest, validateCubeImagery, validateCubeTerrain } from './data-hosting/lib/cube.mjs';
+import { scienceRasterManifest, validateScienceRaster } from './data-hosting/lib/science.mjs';
 import { verifyBuild } from './data-hosting/lib/verify.mjs';
 
 // The Pages site is served from its custom domain (aaronplave.github.io redirects there).
 const DEFAULT_ORIGINS = ['https://aaronplave.com', 'http://localhost:5173'];
 // Directory products other than quantized-mesh terrain and kernels: [validate, manifest, deferred files].
 const PRODUCT_KINDS = {
+  'science-raster': [validateScienceRaster, scienceRasterManifest, ['science.json']],
   'cube-terrain': [validateCubeTerrain, cubeTerrainManifest, ['tileset.json', 'cpu-grids.json']],
   'cube-imagery': [validateCubeImagery, cubeImageryManifest, ['imagery.json']],
 };

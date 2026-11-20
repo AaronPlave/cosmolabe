@@ -1,3 +1,4 @@
+import { SURFACE_DRAPE_VERTEX, SURFACE_DRAPE_FADE } from './SurfaceDrapeShader.js';
 import * as THREE from 'three';
 import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS, VECTOR_PADDING_DEG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from './GeographicIndex.js';
 
@@ -23,8 +24,7 @@ function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.len
 export class GeographicMaterial extends THREE.ShaderMaterial {
   readonly pages: number;
   readonly textures: THREE.DataTexture[];
-  constructor(index: GeographicIndex, equatorialKm: number, polarKm: number) {
-    const packed = index.pack();
+  constructor(index: GeographicIndex, equatorialKm: number, polarKm: number, packed = index.pack()) {
     const records = texture(packed.records), cells = texture(packed.cells), references = texture(packed.references);
     const detailCells = packed.detail ? texture(packed.detail.cells) : cells;
     super({
@@ -63,25 +63,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorDisplacement: { value: new THREE.Vector3() },
         vectorDisplacementMap: { value: null }, vectorDisplacementTransform: { value: new THREE.Matrix3() },
       },
-      vertexShader: `
-        #include <common>
-        #include <logdepthbuf_pars_vertex>
-        uniform mat4 vectorLocalToAnchor;
-        uniform vec3 vectorDisplacement;
-        uniform sampler2D vectorDisplacementMap;
-        uniform mat3 vectorDisplacementTransform;
-        varying vec3 vectorOffset;
-        void main() {
-          #include <begin_vertex>
-          if (vectorDisplacement.x > 0.5) {
-            vec2 mapUv = (vectorDisplacementTransform * vec3(uv, 1.0)).xy;
-            transformed += normalize(normal) * (texture2D(vectorDisplacementMap, mapUv).x * vectorDisplacement.y + vectorDisplacement.z);
-          }
-          vectorOffset = (vectorLocalToAnchor * vec4(transformed, 1.0)).xyz;
-          #include <project_vertex>
-          #include <logdepthbuf_vertex>
-        }
-      `,
+      vertexShader: SURFACE_DRAPE_VERTEX,
       fragmentShader: `
         #include <common>
         #include <logdepthbuf_pars_fragment>
@@ -127,16 +109,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           float halfSin = sin(0.5 * dLon), mid = lon0 + 0.5 * dLon;
           return dRadius * vec2(cos(lon0 + dLon), sin(lon0 + dLon)) + radius0 * 2.0 * halfSin * vec2(-sin(mid), cos(mid));
         }
-        // During an LOD cross-fade a parent tile and its children both draw,
-        // each keeping complementary pixels of a 4×4 Bayer pattern
-        // (3d-tiles-renderer's TilesFadePlugin, wrapFadeMaterial). A proxy keeps
-        // exactly the pixels its tile kept, so the overlay is blended once.
-        float vectorBayer2(vec2 v) { return mod(3.0 * v.y + 2.0 * v.x, 4.0); }
-        float vectorBayer4(vec2 v) { return 4.0 * vectorBayer2(mod(v, 2.0)) + vectorBayer2(floor(0.5 * mod(v, 4.0))); }
-        bool vectorFadedOut() {
-          float dither = (0.5 + vectorBayer4(floor(mod(gl_FragCoord.xy, 4.0)))) / 16.0;
-          return dither >= vectorFadeIn || dither < vectorFadeOut;
-        }
+        ${SURFACE_DRAPE_FADE}
         // Convert coordinate deltas into framebuffer pixels with the local
         // surface Jacobian. Derivatives are evaluated outside divergent loops.
         vec2 vectorPixel(vec2 delta, vec2 dx, vec2 dy) {
@@ -357,7 +330,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         }
       `,
     });
-    this.pages = packed.pages;
+    this.pages = Math.max(packed.pages, ...(packed.detail?.levels.map(level => level.pages) ?? []));
     this.textures = packed.detail ? [records, cells, references, detailCells] : [records, cells, references];
   }
   /** Anchor the shader's coordinates at `bodyKm` (body-fixed, ideally the

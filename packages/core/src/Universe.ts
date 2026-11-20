@@ -1,3 +1,4 @@
+import type { SurfaceRasterDefinition } from './catalog/SurfaceRaster.js';
 import { MissionActivityStore } from './MissionActivity.js';
 import { StateUnavailableError, type StateAvailability, type UnavailableReason } from './availability.js';
 import { surfaceTrajectoryAvailability, type SurfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
@@ -39,6 +40,8 @@ export interface UniverseOptions {
 export class Universe {
   readonly activities = new MissionActivityStore();
   readonly geographicLayers = new GeographicLayerStore();
+  private readonly rasterCatalogs = new Map<string, SurfaceRasterDefinition[]>();
+  get surfaceRasters(): readonly SurfaceRasterDefinition[] { return [...this.rasterCatalogs.values()].flat(); }
   private geographicCatalogOwners = new WeakMap<CatalogJson, string>();
   private nextGeographicCatalogOwner = 0;
   private bodies = new Map<string, Body>();
@@ -122,6 +125,18 @@ export class Universe {
       this.geographicCatalogOwners.set(json, geographicOwner);
     }
     this.activities.replace(geographicOwner, result.activities, json.activities !== undefined);
+    const definitions = Array.isArray(json.surfaceRasters) ? json.surfaceRasters : [];
+    const rasters = definitions.flatMap(definition => {
+      if (!definition || typeof definition.id !== 'string' || typeof definition.source !== 'string' ||
+        !Array.isArray(definition.colorScale) || definition.colorScale.length < 2) return [];
+      try {
+        const source = new URL(definition.source, options?.source);
+        if (source.protocol === 'https:' || source.protocol === 'http:') return [{ ...definition, source: source.href }];
+      } catch { /* Relative URLs require a URL-backed catalog. */ }
+      console.warn(`[Cosmolabe] surface raster "${definition.id}": unresolved HTTP source`);
+      return [];
+    });
+    this.rasterCatalogs.set(geographicOwner, rasters);
 
     for (const body of result.bodies) {
       // If a body with this name already exists (e.g. brought in by a `require`d
@@ -538,6 +553,7 @@ export class Universe {
     this.activities.clear();
     this.bodies.clear();
     this.geographicLayers.clear();
+    this.rasterCatalogs.clear();
     this.geographicCatalogOwners = new WeakMap();
     this.nextGeographicCatalogOwner = 0;
     this._viewpoints = [];

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { Place, PlaceSort } from '@cosmolabe/core';
+  import { geodeticToBodyFixed, type Place, type PlaceSort, type SurfacePoint } from '@cosmolabe/core';
+  import SurfaceScienceReadings from './SurfaceScienceReadings.svelte';
   import { onDestroy } from 'svelte';
   import { ArrowLeft, ChevronDown, ChevronRight, Copy, X } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
@@ -33,6 +34,11 @@
   $effect(() => { if (kind && !kinds.some(([value]) => value === kind)) kind = ''; });
   const range = $derived(navigationRange(place?.diameterKm));
   const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...placeNavigationCoordinates(place), latitude: 'planetocentric', longitudeDirection: 'east'}) : null);
+  const sciencePoint = $derived.by((): Pick<SurfacePoint, 'bodyName' | 'frame' | 'bodyFixedPositionKm'> | undefined => {
+    if (frameError || !place || place.feature.geometry.type !== 'Point') return;
+    const p = geodeticToBodyFixed(place.feature.geometry.coordinates, place.layer.datum);
+    return { bodyName: place.layer.body, frame: place.layer.frame, bodyFixedPositionKm: [p.xKm, p.yKm, p.zKm] };
+  });
   const results = $derived(searchPlaces(query, { body: body || undefined, kind: kind || undefined, origin: origin || undefined, sort, activeBody: vs.trackedBodyName ?? undefined, limit: 'all' }));
   let renderedCount = $state(100);
   let resultList = $state<HTMLUListElement>();
@@ -138,6 +144,7 @@
       <NavigationView scaleKm={target?.ok ? target.target.scaleKm : undefined} diameterKm={place.diameterKm} featureFraming />
       {#if !range.ok || navError}<p role="status">{!range.ok ? range.error : navError}</p>{/if}
       {#if copyStatus}<p role="status">{copyStatus}</p>{/if}
+      {#if sciencePoint}<SurfaceScienceReadings point={sciencePoint} />{/if}
       <details>
         <summary class="ui-control flex cursor-pointer items-center gap-1 rounded py-1 text-text-secondary hover:text-text-primary"><ChevronRight class="details-chevron" size={13} />Place details</summary>
         <p class="mt-2 text-text-secondary">{about}</p>

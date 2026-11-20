@@ -484,37 +484,12 @@
   "name": "MoonFall at Shackleton",
   "defaultTime": "2028-12-15T10:04:00Z",
   "defaultViewpoint": "Shackleton Overview",
-  "geographicLayers": [
-    {
-      "id": "moon:science:barker-psr",
-      "name": "Shackleton-area permanently shadowed regions",
-      "body": "Moon",
-      "source": "places/moonfall-psr-295d61bce287e2be.geojson",
-      "loadOnDemand": true,
-      "coordinates": {
-        "frame": "MOON_ME_DE421",
-        "latitude": "planetocentric",
-        "longitudeDirection": "east",
-        "longitudeDomain": "-180..180",
-        "referenceShape": { "kind": "sphere", "radiusKm": 1737.4 }
-      },
-      "display": { "visible": false, "color": "#6ccbd8", "opacity": 0.82, "fillOpacity": 0.035 },
-      "provenance": {
-        "attribution": "Barker et al. (2023), NASA Goddard Planetary Geodesy Data Archive",
-        "sourceUrl": "https://pgda.gsfc.nasa.gov/products/90",
-        "citation": "https://doi.org/10.3847/PSJ/acf3e1",
-        "sourceProduct": "LPSR_80S_20MPP_ADJ_1km2",
-        "coverage": "Three Barker et al. regions over 1 km² that intersect a 16 km radius around Shackleton’s center. Each is shown in full, including its holes. Coverage is limited to these three regions.",
-        "method": "Modeled permanent shadow from 20 m LOLA topography over an 18.6-year illumination cycle. Independent of the simulation clock.",
-        "sha256": "295d61bce287e2be53a2c32f26faab51639fcc78c86b942428188b6b8c567b0b"
-      }
-    }
-  ],
   "require": [
     "base/naif.json",
     "base/lunar-surface.json",
     "places/moon.json",
-    "places/moonfall-sites.json"
+    "places/moonfall-sites.json",
+    "moonfall-science.json"
   ],
   "defaultGeographicNames": [
     "Moon"

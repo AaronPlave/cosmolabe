@@ -119,3 +119,6 @@ __pycache__/
 /docs/validation/issue-329/ingenuity-acceptance.json
 /docs/validation/issue-329/trajectory-extrema.json
 /work/position-glyphs/
+
+# Generated and content-addressed lunar science products.
+apps/viewer/test-catalogs/data/moon-science/

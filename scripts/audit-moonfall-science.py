@@ -2,11 +2,11 @@
 
 See docs/validation/moonfall-science-source-audit.md for file names and hashes.
 """
+import argparse
 import json
 from math import radians, tan
 from pathlib import Path
 import subprocess
-import sys
 
 import numpy as np
 from osgeo import gdal, ogr, osr
@@ -91,7 +91,69 @@ def containing_features(layer, id_field, point):
     return hits
 
 
-def audit(root):
+def audit_summer_maximum(path, x_axis, y_axis, noon, controls):
+    ds = gdal.Open(str(path))
+    data = ds.ReadAsArray()
+    west, dx, _, north, _, dy = ds.GetGeoTransform()
+    row, col = np.nonzero(np.isfinite(noon))
+    x, y = x_axis[col], y_axis[row]
+    noon_values = noon[row, col]
+    col, row = np.floor((x - west) / dx).astype(int), np.floor((y - north) / dy).astype(int)
+    residual = np.hypot(x - west - (col + .5) * dx, y - north - (row + .5) * dy)
+    shifts = []
+    for ry, cx in ((0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)):
+        i, j = row + ry, col + cx
+        inside = (i >= 0) & (i < data.shape[0]) & (j >= 0) & (j < data.shape[1])
+        difference = data[i[inside], j[inside]] - noon_values[inside]
+        shifts.append({'rowColShift': [ry, cx], 'pairs': int(inside.sum()),
+                       'belowNoon': int((difference < -.01).sum()), 'equalWithin0.0001K': int((abs(difference) < .0001).sum())})
+    samples = {}
+    for control in controls:
+        x, y = south_polar_xy(control['latitude'], control['longitudeEast'])
+        i, j = int((y - north) // dy), int((x - west) // dx)
+        value = data[i, j] if 0 <= i < data.shape[0] and 0 <= j < data.shape[1] else np.nan
+        samples[control['name']] = float(value) if np.isfinite(value) else None
+    return {'maxPcpCenterResidualM': float(residual.max()), 'valid': int(np.isfinite(data).sum()),
+            'rangeK': [float(np.nanmin(data)), float(np.nanmax(data))], 'shiftChecks': shifts, 'controlsK': samples}
+
+
+def audit_radar_ground(s1_path, lola_path):
+    # A regional diagnostic without moving the raster. Total return can track
+    # along-look terrain slope, but varies with roughness and viewing geometry.
+    ds = gdal.Open(str(lola_path))
+    west, step, _, north, _, dy = ds.GetGeoTransform()
+    if step != 160 or dy != -160:
+        raise ValueError('Radar diagnostic expects the 160 m LOLA overview')
+    dem = ds.ReadAsArray()
+    radar = np.memmap(s1_path, mode='r', dtype='<f4', shape=CPR_SHAPE)
+    controls = {}
+    for name, lat, lon in [('Cabeus', -84.90, -35.5), ('Haworth', -87.45, -5.17), ('Amundsen', -84.4398, 83.0691)]:
+        x, y = south_polar_xy(lat, lon)
+        cx, cy = int((x - west) // step), int((y - north) // dy)
+        rows = cy + np.arange(-92, 93) * 2
+        cols = cx + np.arange(-92, 93) * 2
+        radar_cols = np.floor((west + (cols + .5) * step - CPR_AFFINE[0]) / CPR_AFFINE[1]).astype(int)
+        radar_rows = np.floor((north + (rows + .5) * dy - CPR_AFFINE[3]) / CPR_AFFINE[5]).astype(int)
+        power = radar[np.ix_(radar_rows, radar_cols)]
+        mask = (power > 0) & (power < 1)
+        measured = np.log(power[mask]).astype(float)
+        measured -= measured.mean()
+        squares = measured @ measured
+        quality = []
+        for oy in range(-8, 9):
+            for ox in range(-8, 9):
+                gy, gx = np.gradient(dem[np.ix_(rows + oy, cols + ox)])
+                slope = np.stack((gx[mask], gy[mask], np.hypot(gx, gy)[mask]), axis=1).astype(float)
+                slope -= slope.mean(axis=0)
+                error = measured - slope @ np.linalg.lstsq(slope, measured, rcond=None)[0]
+                quality.append((float(1 - (error @ error) / squares), ox * step, oy * dy))
+        best, sx, sy = max(quality)
+        controls[name] = {'valid': int(mask.sum()), 'nativeR2': quality[len(quality) // 2][0],
+                          'bestR2': best, 'bestDiagnosticShiftM': [sx, sy]}
+    return controls
+
+
+def audit(root, summer_max=None, radar_s1=None, lola_control=None):
     gdal.UseExceptions()
     ogr.UseExceptions()
     radar = np.memmap(root / 'cpr.img', mode='r', dtype='<f4', shape=CPR_SHAPE)
@@ -153,14 +215,26 @@ def audit(root):
             landing = flight['waypoints'][-1]
             controls.append(sample(f"{hopper['name']} landing {number}", landing['lat'], landing['lon']))
 
-    print(json.dumps({
+    report = {
         'psr': {'features': layer.GetFeatureCount(), 'invalidIds': invalid_psr_ids,
                 'barkerPublishedProjectionControlsResidualM': barker},
         'diviner': diviner, 'miniSar': audit_radar(radar), 'controls': controls,
-    }, indent=2, allow_nan=False))
+    }
+    if summer_max:
+        report['divinerSummerMaximum'] = audit_summer_maximum(summer_max, x_axis, y_axis, temperature, controls)
+    if radar_s1 and lola_control:
+        report['miniSarGroundDiagnostics'] = audit_radar_ground(radar_s1, lola_control)
+    print(json.dumps(report, indent=2, allow_nan=False))
+
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        sys.exit('Usage: python3 scripts/audit-moonfall-science.py SOURCE_DIRECTORY')
-    audit(Path(sys.argv[1]).resolve())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', type=Path)
+    parser.add_argument('--summer-max', type=Path)
+    parser.add_argument('--radar-s1', type=Path)
+    parser.add_argument('--lola-control', type=Path)
+    args = parser.parse_args()
+    if bool(args.radar_s1) != bool(args.lola_control):
+        parser.error('--radar-s1 and --lola-control must be used together')
+    audit(args.source.resolve(), args.summer_max, args.radar_s1, args.lola_control)

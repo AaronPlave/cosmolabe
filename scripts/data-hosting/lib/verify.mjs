@@ -67,6 +67,26 @@ export async function verifyBuild({
     const missing = await get('__missing__/0/0.terrain', withOrigin);
     if (missing.status !== 404) bad(`missing tile returned HTTP ${missing.status}, expected 404`);
     else if (/html/i.test(missing.headers.get('content-type') ?? '')) bad('missing tile 404 is an HTML page; the loader would try to decode it');
+  } else if (manifest.kind === 'science-raster') {
+    const res = await get('science.json', withOrigin);
+    let science;
+    if (res.status !== 200) bad(`science.json: HTTP ${res.status}`);
+    else {
+      checkCors(res, 'science.json');
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (createHash('sha256').update(bytes).digest('hex') !== manifest.revision) bad('science.json digest differs from the published build');
+      try { science = JSON.parse(bytes); } catch { bad('science.json is not JSON'); }
+    }
+    for (const key of manifest.sampleTiles ?? []) {
+      const tile = await get(key, withOrigin);
+      if (tile.status !== 200) { bad(`${key}: HTTP ${tile.status}`); continue; }
+      checkCors(tile, key);
+      if (tile.headers.get('content-encoding')) bad(`${key}: expected opaque gzip bytes`);
+      if (!/immutable/.test(tile.headers.get('cache-control') ?? '')) bad(`${key}: cache header is not immutable`);
+      const bytes = Buffer.from(await tile.arrayBuffer());
+      if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) bad(`${key}: expected gzip magic`);
+      if (createHash('sha256').update(bytes).digest('hex') !== science?.files?.[key]) bad(`${key}: published digest mismatch`);
+    }
   } else if (manifest.kind === 'cube-terrain' || manifest.kind === 'cube-imagery') {
     // Entry points name the manifest's revision: a geometry, grid or imagery
     // build can't be swapped under a pinned build id.

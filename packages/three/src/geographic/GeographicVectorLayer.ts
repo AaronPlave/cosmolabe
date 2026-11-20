@@ -28,6 +28,7 @@ interface Batch {
   bodyName: string;
   proxies: Map<THREE.Mesh, Proxy>;
   suppressed: boolean;
+  outlineOnly: boolean;
 }
 interface Proxy {
   mesh: THREE.Mesh;
@@ -84,6 +85,7 @@ export class GeographicVectorLayer {
   private dirty = true;
   private readonly unsubscribe: () => void;
   private readonly placements = new Map<string, GeographicPlacement>();
+  private readonly outlineOnly = new Set<string>();
   private readonly excludedSources = new Set<string>();
   private readonly visibility = new Map<string, boolean>();
   private readonly filters = new Map<string, ReadonlySet<string>>();
@@ -116,6 +118,15 @@ export class GeographicVectorLayer {
     return { restyles: this.restyles, drawCalls: this.drawCalls, shadedPixels: this.shaded, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
+  /** An exact selected boundary over a raster overview can omit fill triangles
+   * and draw only where the screen footprint fits a bounded detail grid. */
+  setOutlineOnly(layerId: string, enabled: boolean): void {
+    if (this.outlineOnly.has(layerId) === enabled) return;
+    if (enabled) this.outlineOnly.add(layerId);
+    else this.outlineOnly.delete(layerId);
+    this.dirty = true;
+  }
+
   /** Source inclusion is independent of its retained drawing visibility. */
   setSourceEnabled(layerId: string, enabled: boolean): void {
     if (this.excludedSources.has(layerId) === !enabled) return;
@@ -192,6 +203,11 @@ export class GeographicVectorLayer {
       const id = (feature: GeographicFeatureRef | null) => batch.index.features.findIndex(f => sameGeographicFeature(f, feature)) + 1;
       batch.material.uniforms.vectorSelected.value = id(this.selected) || -1;
       batch.material.uniforms.vectorHovered.value = id(this.hovered) || -1;
+      if (batch.outlineOnly) {
+        // This isolated batch has a single outline. Emphasize it in place.
+        batch.material.uniforms.vectorHighlight.value = -1;
+        continue;
+      }
       const selected = id(this.selected), hovered = id(this.hovered);
       const hasStroke = (id: number) => batch.index.primitives.some(p => p.feature === id && p.kind === 1);
       const wanted = [...(hovered && hovered !== selected ? [{id:hovered,selected:false}] : []), ...(selected ? [{id:selected,selected:true}] : [])].filter(h => hasStroke(h.id));
@@ -213,7 +229,7 @@ export class GeographicVectorLayer {
 
   private rebuild(): void {
     this.clear(); this._diagnostics = []; this._status = [];
-    const groups = new Map<string, { layers: GeographicLayer[]; placement: GeographicPlacement }>();
+    const groups = new Map<string, { layers: GeographicLayer[]; placement: GeographicPlacement; outlineOnly: boolean }>();
     // Every feature still shown. A selection or hover outside it (hidden, filtered,
     // unloaded) is cleared here rather than left pointing at nothing.
     const shown = new Set<string>();
@@ -254,35 +270,37 @@ export class GeographicVectorLayer {
         subset.layer.features.push(feature);
       }
       for (const { layer: subset, placement } of subsets.values()) {
-        const key = JSON.stringify([layer.body, layer.frame, layer.datum.referenceShape, placement]);
+        const outlineOnly = this.outlineOnly.has(layer.id);
+        const key = JSON.stringify([layer.body, layer.frame, layer.datum.referenceShape, placement, outlineOnly ? layer.id : null]);
         let group = groups.get(key);
         if (!group) {
           if (groups.size >= MAX_BATCHES) {
             this._diagnostics.push({ layerId: layer.id, code: 'vector-budget', message: `At most ${MAX_BATCHES} body/placement batches can draw at once` });
             continue;
           }
-          group = { layers: [], placement }; groups.set(key, group);
+          group = { layers: [], placement, outlineOnly }; groups.set(key, group);
         }
         group.layers.push(subset);
       }
     }
-    for (const { layers, placement } of groups.values()) {
+    for (const { layers, placement, outlineOnly } of groups.values()) {
       const datum = layers[0].datum;
       const shape = datum.referenceShape;
       if (!isSupportedGeodeticDatum(datum)) continue;
       const a = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
       const c = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[2];
-      const index = new GeographicIndex(layers, false, this.styleOf);
+      const index = new GeographicIndex(layers, false, this.styleOf, outlineOnly);
       this._diagnostics.push(...index.diagnostics);
       if (!index.primitives.length) continue;
       const pages = index.renderPages;
-      if (pages > VECTOR_RENDER_PAGE_LIMIT) {
+      const packed = outlineOnly ? index.pack() : undefined;
+      if ((pages > VECTOR_RENDER_PAGE_LIMIT && !outlineOnly) || (packed && !packed.pages && !packed.detail)) {
         this._diagnostics.push({ layerId: layers[0].id, code: 'vector-render-budget',
           message: `Geographic group needs ${pages} render pages; limit is ${VECTOR_RENDER_PAGE_LIMIT}. Entire group omitted from drawing and picking. Filter or simplify the source data.` });
         continue;
       }
-      const material = new GeographicMaterial(index, a, c);
-      const batch: Batch = { layers, index, material, highlights: [], placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false,
+      const material = new GeographicMaterial(index, a, c, packed);
+      const batch: Batch = { layers, index, material, highlights: [], placement, outlineOnly, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false,
         footprint: layerFootprint(layers) };
       this.batches.push(batch);
     }

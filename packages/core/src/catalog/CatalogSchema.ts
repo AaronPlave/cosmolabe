@@ -57,7 +57,7 @@ const keys = (...k: string[]): KeySet => new Set(k);
 
 const CATALOG_KEYS = keys(
   'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport', 'displayNote',
-  'activities', 'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates',
+  'activities', 'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates', 'surfaceRasters',
   // Free text for whoever reads the file; no code interprets it.
   'description',
 );
@@ -293,6 +293,11 @@ const GEOGRAPHIC_COORDINATES: NestedSpec = {
     referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
     height: { keys: keys('unit', 'datum', 'convention') },
   },
+};
+
+const SURFACE_RASTER: NestedSpec = {
+  keys: keys('id', 'name', 'body', 'source', 'description', 'quantity', 'unit', 'opacity', 'colorScale', 'observation'),
+  children: { colorScale: { keys: keys('value', 'color') }, observation: { keys: keys('latDeg', 'lonDeg') } },
 };
 
 /** `geographicLayers[]` entries. `provenance` is free-form by design and is
@@ -662,7 +667,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
 
   checkKeys(json, CATALOG_KEYS, '$', 'the catalog', 'catalog');
   checkKernelRefs(json.spiceKernels, '$.spiceKernels', 'the catalog');
-  checkNested(json, { geographicLayers: GEOGRAPHIC_LAYER, geographicCoordinates: GEOGRAPHIC_COORDINATES }, '$', 'the catalog', 'catalog');
+  checkNested(json, { geographicLayers: GEOGRAPHIC_LAYER, geographicCoordinates: GEOGRAPHIC_COORDINATES, surfaceRasters: SURFACE_RASTER }, '$', 'the catalog', 'catalog');
   if (Array.isArray(json.items)) json.items.forEach((item, i) => checkItem(item, `$.items[${i}]`));
   if (Array.isArray(json.frames)) {
     json.frames.forEach((f, i) => {

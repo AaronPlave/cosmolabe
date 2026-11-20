@@ -59,7 +59,7 @@ interface DetailLevel {
   step: readonly [number, number];
   chart?: 'north-polar' | 'south-polar';
 }
-interface PackedGeographicIndex {
+export interface PackedGeographicIndex {
   records: Float32Array;
   cells: Float32Array;
   references: Float32Array;
@@ -260,10 +260,11 @@ export class GeographicIndex {
   private references = 0;
   private polarPicking?: { levels: DetailLevel[]; cells: Float32Array; references: Float32Array };
   private pickReachPx = 4.5;
+  private coarsePicking = true;
   /** Source of each admitted feature, by `feature - 1`, for restyling without re-triangulating. */
   private readonly sources: { layer: GeographicLayer; feature: GeographicFeature }[] = [];
 
-  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false, private styleOf: GeographicStyleResolver = defaultStyle) {
+  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false, private styleOf: GeographicStyleResolver = defaultStyle, private readonly outlineOnly = false) {
     for (const layer of layers) {
       if (layer.definition.display?.visible === false || layer.definition.display?.opacity === 0) continue;
       for (const feature of layer.features) this.addFeature(layer, feature);
@@ -292,12 +293,14 @@ export class GeographicIndex {
     };
     const polygon = (rings: BodyFixedPosition[][]) => {
       const chart = geographicProjection(rings[0]);
-      const xy = projectGeographicRings(rings, chart).map(r => r.slice(0, -1));
-      const vertices = xy.flat();
-      // ShapeUtils delegates to earcut and respects independent hole rings.
-      const triangles = ShapeUtils.triangulateShape(xy[0].map(p => new Vector2(...p)), xy.slice(1).map(r => r.map(p => new Vector2(...p))));
-      if (!triangles.length) throw new Error('polygon could not be triangulated');
-      for (const [a, b, c] of triangles) emit(2, 'fill', vertices[a], vertices[b], vertices[c], chart);
+      if (!this.outlineOnly) {
+        const xy = projectGeographicRings(rings, chart).map(r => r.slice(0, -1));
+        const vertices = xy.flat();
+        // ShapeUtils delegates to earcut and respects independent hole rings.
+        const triangles = ShapeUtils.triangulateShape(xy[0].map(p => new Vector2(...p)), xy.slice(1).map(r => r.map(p => new Vector2(...p))));
+        if (!triangles.length) throw new Error('polygon could not be triangulated');
+        for (const [a, b, c] of triangles) emit(2, 'fill', vertices[a], vertices[b], vertices[c], chart);
+      }
       for (const ring of rings) line(ring, chart, 'outline');
     };
     try {
@@ -411,7 +414,7 @@ export class GeographicIndex {
    * cell wholly inside it holds one covered reference instead (`coveredCells`);
    * segments go only in the cells they pass near. The fine level is left out
    * when it would exceed the reference budget or the page count. */
-  private globalGrid(): { grids: number[][][]; level: DetailLevel }[] {
+  private globalGrid(pageLimit = this.renderPages): { grids: number[][][]; level: DetailLevel }[] {
     const result: { grids: number[][][]; level: DetailLevel }[] = [];
     let references = this.references, offset = 0;
     for (const [size, fine] of [[1024, true], [256, false]] as const) {
@@ -446,7 +449,7 @@ export class GeographicIndex {
       // In source order, as everywhere else: the shader composites fills in it.
       if (covered.full.length) for (const ids of bins) ids.sort((x, y) => (x < 0 ? -x - 1 : x) - (y < 0 ? -y - 1 : y));
       if (references + added > VECTOR_REFERENCE_LIMIT) { if (fine) continue; return result; }
-      if (pageCount(bins, this.primitives) > this.renderPages) { if (fine) continue; return result; }
+      if (pageCount(bins, this.primitives) > pageLimit) { if (fine) continue; return result; }
       const grids = pageCells(bins, this.primitives);
       result.push({ grids, level: { size, height: rows, offset, pages: grids.length, bounds: [-180, -90 + first * step[1], 180, -90 + (first + rows) * step[1]], step } });
       references += added; offset += grids.length * size * rows;
@@ -457,14 +460,14 @@ export class GeographicIndex {
   /** Local grids retain every primitive and one cell of padding at each scale.
    * Derivatives select a grid whose padding covers the CSS-pixel mark; wide,
    * seam and polar views retain the bounded global fallback. */
-  private detailGrids(): { grids: number[][][]; level: DetailLevel }[] {
+  private detailGrids(pageLimit = this.renderPages): { grids: number[][][]; level: DetailLevel }[] {
     const result: { grids: number[][][]; level: DetailLevel }[] = [];
     const coarsePages = this.renderPages;
     const inCap = (pole: 1 | -1) => this.primitives.every(p => [p.a, p.b, p.c].every(v =>
       p.chart === 'longitude-latitude' ? pole * v[1] > 80
         : p.chart === (pole > 0 ? 'north-polar' : 'south-polar') && Math.hypot(...v) < 10));
     const polar = inCap(-1) ? 'south-polar' : inCap(1) ? 'north-polar' : undefined;
-    if (!polar && this.primitives.some(p => p.chart !== 'longitude-latitude')) return this.globalGrid();
+    if (!polar && this.primitives.some(p => p.chart !== 'longitude-latitude')) return this.globalGrid(pageLimit);
     let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
     const bounds = this.primitives.map(p => polar ? polarBounds(p, polar) : [
       Math.min(p.a[0], p.b[0], p.c[0]), Math.min(p.a[1], p.b[1], p.c[1]),
@@ -474,7 +477,7 @@ export class GeographicIndex {
       west = Math.min(west, w); east = Math.max(east, e); south = Math.min(south, s); north = Math.max(north, n);
     }
     if (!polar && (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
-      || west < -180 || east >= 180 || south < -80 || north > 80)) return this.globalGrid();
+      || west < -180 || east >= 180 || south < -80 || north > 80)) return this.globalGrid(pageLimit);
     if (coarsePages <= 1 && !polar) return this.fineSinglePage ? this.globalGrid() : result;
     let references = this.references, offset = 0;
     for (const size of VECTOR_DETAIL_GRIDS) {
@@ -505,7 +508,7 @@ export class GeographicIndex {
           bins[y * size + x].push(id);
         }
       }
-      if (pageCount(bins, this.primitives) > coarsePages) continue;
+      if (pageCount(bins, this.primitives) > pageLimit) continue;
       const grids = pageCells(bins, this.primitives);
       result.push({ grids, level: { size, offset, pages: grids.length,
         bounds: [xOrigin, yOrigin, xOrigin + dx * size, yOrigin + dy * size], step: [dx, dy], chart: polar } });
@@ -522,11 +525,13 @@ export class GeographicIndex {
    * Total pages/references remain bounded by the batch admission budgets. */
   pack(): PackedGeographicIndex {
     const records = this.packRecords();
-    const grids = pageCells(this.cells, this.primitives);
+    const renderPages = this.renderPages;
+    this.coarsePicking = !this.outlineOnly || renderPages <= VECTOR_RENDER_PAGE_LIMIT;
+    const grids = this.coarsePicking ? pageCells(this.cells, this.primitives) : [];
     const cells = new Float32Array(grids.length * this.cells.length * 4);
-    const details = this.detailGrids();
+    const details = this.detailGrids(this.outlineOnly ? Math.min(renderPages, VECTOR_RENDER_PAGE_LIMIT) : renderPages);
     const extraReferences = details.reduce((n, d) => n + d.grids.reduce((m, grid) => m + grid.reduce((sum, ids) => sum + ids.length, 0), 0), 0);
-    const references = new Float32Array((this.references + extraReferences) * 4);
+    const references = new Float32Array(((this.coarsePicking ? this.references : 0) + extraReferences) * 4);
     let offset = 0;
     grids.forEach((grid, page) => grid.forEach((ids, cell) => {
       const at = (page * this.cells.length + cell) * 4;
@@ -562,7 +567,7 @@ export class GeographicIndex {
   private polarCandidates(position: BodyFixedPosition, dx: GeographicXY, dy: GeographicXY, reach: number): number[] | undefined {
     const packed = this.polarPicking;
     const chart = packed?.levels[0].chart;
-    if (!packed || !chart) return undefined;
+    if (!packed || !chart) return this.coarsePicking ? undefined : [];
     const q = projectGeographic(position, chart);
     const step = ([lon, lat]: GeographicXY) =>
       projectGeographic({ lonDeg: position.lonDeg + lon, latDeg: position.latDeg + lat }, chart);
@@ -570,7 +575,7 @@ export class GeographicIndex {
     const px = reach * (Math.abs(x[0] - q[0]) + Math.abs(y[0] - q[0]));
     const py = reach * (Math.abs(x[1] - q[1]) + Math.abs(y[1] - q[1]));
     const level = packed.levels.find(d => px <= d.step[0] && py <= d.step[1]);
-    if (!level) return undefined;
+    if (!level) return this.coarsePicking ? undefined : [];
     const { size, step: [sx, sy], bounds: [west, south], pages, offset } = level;
     const col = Math.floor((q[0] - west) / sx), row = Math.floor((q[1] - south) / sy);
     if (col < 0 || col >= size || row < 0 || row >= size) return [];

@@ -7,10 +7,12 @@
    * shows the selected feature. Rare actions live in each row's "…" menu.
    */
   import { ChevronLeft, ChevronRight, Ellipsis, Eye, EyeOff, Images } from 'lucide-svelte';
-  import type { GeographicLayer, GeographicLayerLoad } from '@cosmolabe/core';
+  import type { GeographicLayer, GeographicLayerLoad, SurfaceRasterDefinition } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { Input } from '$lib/components/ui/input';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import SurfaceRasterRow from './SurfaceRasterRow.svelte';
+  import { rasterDefinitions } from '../lib/surface-rasters.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
   import GeographicLayerView from './GeographicLayerView.svelte';
   import GeographicFeatureDetails from './GeographicFeatureDetails.svelte';
@@ -30,7 +32,7 @@
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
 
-  interface Group { body: string; imagery: number; layers: GeographicLayer[]; deferred: GeographicLayerLoad[] }
+  interface Group { body: string; imagery: number; layers: GeographicLayer[]; deferred: GeographicLayerLoad[]; rasters: SurfaceRasterDefinition[] }
   let requests = $state<Record<string, string>>({});
 
   async function enableLayer(load: GeographicLayerLoad, browse = false) {
@@ -53,7 +55,7 @@
     const byBody = new Map<string, Group>();
     const group = (body: string) => {
       let g = byBody.get(body);
-      if (!g) { g = { body, imagery: 0, layers: [], deferred: [] }; byBody.set(body, g); }
+      if (!g) { g = { body, imagery: 0, layers: [], deferred: [], rasters: [] }; byBody.set(body, g); }
       return g;
     };
     for (const load of geographicLoads()) {
@@ -61,6 +63,7 @@
       if (load.layer) group(load.layer.body).layers.push(load.layer);
       if (load.deferred) group(load.deferred.definition.body).deferred.push(load);
     }
+    for (const definition of rasterDefinitions()) group(definition.body).rasters.push(definition);
     for (const { name } of vs.bodies) {
       const n = r?.getBodyMesh(name)?.imageryLayers.length ?? 0;
       if (n > 0) group(name).imagery = n;
@@ -207,6 +210,9 @@
                 </button>
               </li>
               {#if request && request !== 'loading'}<li class="ui-meta failure" role="status">{request}</li>{/if}
+            {/each}
+            {#each group.rasters as definition (definition.id)}
+              <li><SurfaceRasterRow {definition} /></li>
             {/each}
             {#if group.imagery}
               <li class="layer">

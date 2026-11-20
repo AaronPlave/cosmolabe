@@ -116,7 +116,8 @@ export function createDevCatalogResolver({
             const { entries } = await inventory(dir, true, true, INLINE_TERRAIN_LIMIT + 64);
             validateTerrain(entries, dir);
           }
-        } else {
+        } else if (ds.kind !== 'science-raster') {
+          // Hashed science directories are validated exhaustively at publication.
           const { entries } = await inventory(dir, ds.recursive !== false);
           if (ds.kind === 'cube-terrain') validateCubeTerrain(entries, dir);
           else if (ds.kind === 'cube-imagery') validateCubeImagery(entries, dir);

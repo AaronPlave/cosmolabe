@@ -1,11 +1,10 @@
 # MoonFall south-pole science source audit
 
-The original LOLA, Diviner and Mini-SAR inputs were downloaded and inspected for
-[#308](https://github.com/AaronPlave/cosmolabe/issues/308). The normal MoonFall
-catalog now includes the tested Barker PSR subset in the local viewer. The
-catalog change awaits public deployment. Diviner and Mini-SAR still need
-product-specific registration evidence before they can be used for point
-inspection.
+This records the initial source investigation and the three-feature renderer
+baseline for [#308](https://github.com/AaronPlave/cosmolabe/issues/308).
+The [integration validation](moonfall-science-integration.md) covers the full
+Barker release, the author-published Diviner summer maximum, and the newer radar
+registration checks.
 
 ## LOLA permanently shadowed regions
 
@@ -214,10 +213,11 @@ A candidate from a different instrument is
 [Fassett et al.'s orthorectified Mini-RF product](https://doi.org/10.3847/PSJ/ad0a61).
 The [90 m south-pole archive](https://archive.data.jhu.edu/file.xhtml?fileId=16774&version=1.0)
 contains incidence-normalized δCPR with an offset to the nominal 49°
-geometry. The file is listed as public, but the archive page and direct
-download returned HTTP 403. Its CRS, nodata and Haworth/Amundsen control
-pixels need verification against the actual GeoTIFF. The source archive's
-Chandrayaan-1 Mini-SAR samples remain distinct from this LRO product.
+geometry. Automated download returned HTTP 403. A browser-supplied copy
+matched the published checksum, and the delivered projection, coverage and
+independent terrain checks are documented in the
+[integration validation](moonfall-science-integration.md#regional-s-band-mosaic).
+The Chandrayaan-1 Mini-SAR samples remain distinct from this LRO product.
 
 | Projected pixel centers | Valid / total | Valid fraction |
 | --- | ---: | ---: |
