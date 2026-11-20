@@ -1252,6 +1252,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.group ?? null;
   }
 
+  /** Conservative terrain interior, in scene units. Zero if unavailable. */
+  get terrainInnerRadius(): number {
+    return (this.terrainManager?.occlusionInnerRadiusKm ?? 0) * this.scaleFactor;
+  }
+
   /** Draw every selected terrain tile until the next update (before rendering with a non-main camera). */
   showCulledTerrainTiles(): void {
     this.terrainManager?.showCulledTiles();

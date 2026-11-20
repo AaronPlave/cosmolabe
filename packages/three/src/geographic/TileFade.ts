@@ -32,3 +32,12 @@ export function tileFade(material: THREE.Material | THREE.Material[] | undefined
   if (typeof fadeIn !== 'number' || typeof fadeOut !== 'number') return 'unreadable';
   return { fadeIn, fadeOut };
 }
+
+/** Dither bins whose fragments survive the fade shader. A bin is one pixel
+ * in its 4×4 Bayer cell. Unreadable fades keep their conservative full mask. */
+export function tileFadeMask(fade: TileFade): number {
+  if (fade === null || fade === 'unreadable') return 0xffff;
+  // The shader keeps bins where fadeOut <= (bin + 0.5) / 16 < fadeIn.
+  const bin = (value: number) => Math.max(0, Math.min(16, Math.ceil(value * 16 - 0.5)));
+  return ((1 << bin(fade.fadeIn)) - 1) & ~((1 << bin(fade.fadeOut)) - 1);
+}

@@ -4,6 +4,7 @@ import type { Body } from '@cosmolabe/core';
 import type { BodyMesh } from './BodyMesh.js';
 import type { ScreenRect } from './EventCallout.js';
 import { labelOverlaps } from './annotations/PersistentLabels.js';
+import { AnchorOcclusion } from './EntityOcclusion.js';
 
 export interface LabelManagerOptions {
   /** Font size in pixels */
@@ -138,8 +139,7 @@ export class LabelManager {
   private readonly selfSizeFadeEndPx: number;
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
-  private readonly _ray = new THREE.Vector3();
-  private readonly _toOccluder = new THREE.Vector3();
+  private readonly anchorOcclusion = new AnchorOcclusion();
   private readonly _projected = new THREE.Vector3();
   private readonly _corner = new THREE.Vector3();
   private readonly _bodyScreen = new THREE.Vector3();
@@ -449,6 +449,7 @@ export class LabelManager {
     camera: THREE.Camera,
     rendererSize: { width: number; height: number },
     device?: LabelDeviceViewport,
+    anchorVisibility?: (body: BodyMesh) => number,
   ): void {
     if (!this._globalVisible) return;
 
@@ -580,8 +581,12 @@ export class LabelManager {
       // before, which pushed labels well below center for big bodies.
       sprite.position.addScaledVector(this.up, -2 * worldPerPx);
 
-      this.applyOcclusionFade(sprite, bm.position, distToBody, bodyMeshes, camPos, bm);
-      entry.occlusionOpacity = mat.opacity;
+      if (anchorVisibility) {
+        entry.occlusionOpacity = anchorVisibility(bm);
+      } else {
+        this.applyOcclusionFade(sprite, bm.position, distToBody, bodyMeshes, camPos, bm);
+        entry.occlusionOpacity = mat.opacity;
+      }
       // A body that is not in the scene right now (outside its existence
       // window, or with no position) has no label either. This is an opacity,
       // not `sprite.visible`, which belongs to the user's show/hide choice.
@@ -608,8 +613,7 @@ export class LabelManager {
       // Bake into mat.opacity now so the disable-collision path also fades
       // correctly. The collision pass below overwrites this with the unified
       // formula (occlusion * collisionFade * selfSizeFade * opacityMultiplier)
-      // for entries it visits. Don't touch userData — applyOcclusionFade
-      // owns that for its own temporal smoothing.
+      // for entries it visits.
       mat.opacity = entry.occlusionOpacity * selfSizeFade * entry.opacityMultiplier * entry.emphasisOpacity;
 
       // Stash the projected screen position + pixel size for the collision pass.
@@ -857,90 +861,7 @@ export class LabelManager {
     camPos: THREE.Vector3,
     excludeBody?: BodyMesh,
   ): void {
-    const ray = this._ray;
-    const toOcc = this._toOccluder;
-    ray.subVectors(worldPos, camPos).normalize();
-
-    // For surface-locked bodies (rovers, landers, ground stations), the parent
-    // body needs special handling. The ray-sphere test would either:
-    //   - flicker at the limb (label position is right on the parent's silhouette,
-    //     so closest-approach jitters across the threshold each frame), or
-    //   - falsely fade visible front-side labels (the ray from camera to a surface
-    //     point necessarily passes through the parent's sphere from the camera's POV).
-    // Instead, we do a hemisphere check: dot(ray_dir, surface_normal). If the ray
-    // is going into the surface (back-facing), the label is occluded; otherwise
-    // it's visible. Smoothstep gives a clean limb fade with no numerical jitter.
-    const excludeParentName = excludeBody?.body.geometryData?.surfaceLock
-      ? excludeBody.body.parentName
-      : undefined;
-    let surfaceHemiFade = 1.0;
-    if (excludeParentName) {
-      const parent = bodyMeshes.find((b) => b.body.name === excludeParentName);
-      if (parent) {
-        const nx = worldPos.x - parent.position.x;
-        const ny = worldPos.y - parent.position.y;
-        const nz = worldPos.z - parent.position.z;
-        const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (nLen > 1e-12) {
-          // ray.dot(outwardNormal): positive ⇒ ray goes into surface ⇒ back-facing
-          const dot = (ray.x * nx + ray.y * ny + ray.z * nz) / nLen;
-          // Smooth fade across a narrow band centered on the limb (dot ≈ 0).
-          // Width chosen so the fade extends ~5° around the silhouette.
-          const fadeWidth = 0.087; // sin(5°)
-          // dot < -fadeWidth ⇒ fully visible (1); dot > +fadeWidth ⇒ fully hidden (0)
-          const t = Math.max(0, Math.min(1, (dot + fadeWidth) / (2 * fadeWidth)));
-          const smooth = t * t * (3 - 2 * t);
-          surfaceHemiFade = 1 - smooth;
-        }
-      }
-    }
-
-    let fade = surfaceHemiFade;
-    for (const other of bodyMeshes) {
-      if (other === excludeBody) continue;
-      if (!other.present) continue;
-      if (excludeParentName && other.body.name === excludeParentName) continue;
-      const dskHidden = other.dskOccludes(camPos, worldPos);
-      if (dskHidden !== null) {
-        if (dskHidden) fade = 0;
-        continue;
-      }
-      // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
-      // Skip spacecraft/instrument body meshes — they are colocated with their parent
-      // and would false-positive via ray-through-center at zero closest approach.
-      if (other.displayRadius < 50) continue;
-      const occR = other.displayRadius * other.scaleFactor;
-      if (occR < 1e-6) continue;
-
-      toOcc.subVectors(other.position, camPos);
-      const distToOccSq = toOcc.lengthSq();
-      // Camera inside the occluder sphere — skip (nothing should be occluded)
-      if (distToOccSq <= occR * occR) continue;
-
-      const tProj = toOcc.dot(ray);
-
-      // Closest approach of the infinite ray to the occluder center
-      const closestSq = distToOccSq - tProj * tProj;
-      const closest = Math.sqrt(Math.max(0, closestSq));
-
-      if (closest >= occR) continue; // ray misses sphere entirely
-
-      // Ray intersects sphere — check if the intersection overlaps [0, distToPos]
-      const halfChord = Math.sqrt(Math.max(0, occR * occR - closestSq));
-      const tEntry = tProj - halfChord;
-      const tExit = tProj + halfChord;
-      if (tExit <= 0 || tEntry >= distToPos) continue; // sphere is behind camera or beyond body
-
-      // Body is behind this occluder. Fade based on penetration depth.
-      // At the limb (closest ≈ occR): fade toward 1.0 (barely occluded)
-      // Deep inside (closest ≈ 0): fade toward 0.0 (fully occluded)
-      const fadeDepth = occR * 0.04;
-      const penetration = occR - closest;
-      const t = Math.max(0, 1 - penetration / fadeDepth);
-      const smooth = t * t * (3 - 2 * t);
-      fade = Math.min(fade, smooth);
-    }
-
+    const fade = this.anchorOcclusion.fade(camPos, worldPos, distToPos, bodyMeshes, excludeBody);
     // Temporal smoothing to prevent pop/flicker at the occlusion boundary
     const mat = sprite.material as THREE.SpriteMaterial;
     const prev = sprite.userData._labelOpacity as number | undefined;

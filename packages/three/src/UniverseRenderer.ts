@@ -88,13 +88,13 @@ import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 import { PlaceNames } from './geographic/PlaceNames.js';
 import type { PlaceAnchor } from './geographic/PlaceSurface.js';
 import { tileFade } from './geographic/TileFade.js';
+import { EntityOcclusion } from './EntityOcclusion.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
-const _tmpGlyphRay = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
@@ -451,6 +451,7 @@ export class UniverseRenderer {
   /** The last pin occlusion cast (`_pinOccluded`) and what it was cast for. */
   /** BVH line of sight for overlays (`projectGeographicPositions` with `occlusion`). */
   private readonly overlayOcclusion = new ContourOcclusion();
+  private readonly entityOcclusion = new EntityOcclusion(body => this.drawnSurfaceMeshes(body));
   private readonly _pinOcclusion = {
     point: null as SurfacePoint | null,
     view: new THREE.Matrix4(),
@@ -1295,6 +1296,8 @@ export class UniverseRenderer {
     this.applyReservedRects();
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
+    this.entityOcclusion.beginFrame();
+    const anchorVisibility = (body: BodyMesh) => this.entityOcclusion.visibility(body, this.camera, bodyMeshArr);
     if (this.labelManager) {
       this.labelManager.setTrackedName(this.cameraController.trackedBody?.body.name ?? null);
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
@@ -1303,14 +1306,14 @@ export class UniverseRenderer {
         this.camera,
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
         { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
+        anchorVisibility,
       );
 
       // Apply occlusion fade to sensor frustum labels
       const camPos = this.camera.position;
       for (const sf of this.sensorFrustums.values()) {
-        const dist = sf.position.distanceTo(camPos);
         this.labelManager.applyOcclusionFade(
-          sf.labelSprite, sf.position, dist, bodyMeshArr, camPos,
+          sf.labelSprite, sf.position, sf.position.distanceTo(camPos), bodyMeshArr, camPos,
         );
       }
     }
@@ -1320,7 +1323,6 @@ export class UniverseRenderer {
     // (selected/tracked entities always keep both) and shares its anchor.
     if (this._positionGlyphsEnabled) {
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
-      this._terrainOccluders = null;
       this.positionGlyphs.update(bodyMeshArr, this.camera, {
         viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
         device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
@@ -1329,7 +1331,7 @@ export class UniverseRenderer {
         trackedName: this.cameraController.trackedBody?.body.name ?? null,
         hoveredName: this._hoveredBody,
         labelState: (name) => this.labelManager?.getLabelState(name) ?? null,
-        terrainOccluded: (bm) => this._glyphTerrainOccluded(bm),
+        anchorVisibility,
       });
     } else this.positionGlyphs.group.visible = false;
 
@@ -5256,46 +5258,6 @@ export class UniverseRenderer {
       }
     }
     return { meshTargets, terrainOwner };
-  }
-
-  private _terrainOccluders: THREE.Object3D[] | null = null;
-
-  /**
-   * Whether streamed terrain or reconstructed (DSK) plates hide an entity's
-   * anchor from the camera. Bodies' globes are handled analytically by the
-   * label occlusion fade; this covers relief that a sphere cannot (a crater rim
-   * in front of a rover). It is asked once per drawn glyph per frame, about the
-   * anchor only, so the whole symbol is shown or hidden together. Hits within a
-   * few pixels (or a small fraction of the range) of the anchor itself are not
-   * occluders, so an asset standing on terrain is not hidden by it.
-   */
-  private _glyphTerrainOccluded(bm: BodyMesh): boolean {
-    const ray = this._dblClickRaycaster;
-    if (!ray) return false;
-    if (!this._terrainOccluders) {
-      const targets: THREE.Object3D[] = [];
-      for (const other of this.bodyMeshes.values()) {
-        if (!other.visible) continue;
-        targets.push(...other.getDskMeshes());
-        const terrain = other.terrainTileGroup;
-        if (terrain && terrain.visible) targets.push(terrain);
-      }
-      this._terrainOccluders = targets;
-    }
-    if (this._terrainOccluders.length === 0) return false;
-    const origin = this.camera.position;
-    const toBody = _tmpGlyphRay.copy(bm.position).sub(origin);
-    const dist = toBody.length();
-    if (!(dist > 0)) return false;
-    const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
-    const worldPerPx = (2 * dist * halfFovTan) / Math.max(1, this.renderer.domElement.clientHeight);
-    const savedNear = ray.near, savedFar = ray.far;
-    ray.set(origin, toBody.divideScalar(dist));
-    ray.near = 0;
-    ray.far = Math.max(0, dist - Math.max(8 * worldPerPx, 0.02 * dist));
-    const hit = ray.intersectObjects(this._terrainOccluders, true).length > 0;
-    ray.near = savedNear; ray.far = savedFar;
-    return hit;
   }
 
   private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {

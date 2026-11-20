@@ -44,10 +44,8 @@ const HALO_PX = 1;
 const HALO_ALPHA = 0.7;
 const REST_OPACITY = 0.85;
 const HOVER_SCALE = 1.25;
-/** Per-frame easing of the LOD / terrain-occlusion factors, and the frames a terrain verdict must persist. */
+/** Per-frame easing of the LOD factor. */
 const VIS_RATE = 0.2;
-const TERRAIN_RATE = 0.3;
-const TERRAIN_DEBOUNCE_FRAMES = 2;
 /** Below this opacity a sprite is imperceptible and is not drawn at all. */
 const MIN_DRAW_OPACITY = 0.02;
 
@@ -250,12 +248,8 @@ export interface PositionGlyphContext {
    * off too, selected/tracked included: `enabled: false`.
    */
   labelState: (name: string) => { legible: boolean; occlusion: number; enabled: boolean } | null;
-  /**
-   * Whether terrain or reconstructed plates hide the entity's anchor. Asked
-   * only for glyphs that would otherwise draw. Spheres are covered by the
-   * label occlusion fade.
-   */
-  terrainOccluded?: (bm: BodyMesh) => boolean;
+  /** Shared anchor visibility, including for entities without a label. */
+  anchorVisibility?: (bm: BodyMesh) => number;
 }
 
 interface GlyphEntry {
@@ -263,10 +257,6 @@ interface GlyphEntry {
   active: boolean;
   /** Eased 0..1 LOD visibility (label coordination / focus). */
   vis: number;
-  /** Eased 0..1 terrain-occlusion factor and its debounce. */
-  terrainVis: number;
-  terrainTarget: number;
-  terrainPending: number;
   dot: THREE.Sprite;
   ring: THREE.Sprite;
   readout: PositionGlyphReadout;
@@ -323,8 +313,7 @@ export class PositionGlyphs {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map,
       transparent: true,
-      // Occlusion is decided once, for the anchor (label occlusion fade + terrain
-      // test), and applied to the whole glyph as opacity. A per-fragment depth
+      // Anchor occlusion applies to the whole glyph as opacity. A per-fragment depth
       // test would let terrain slice an arbitrary crescent out of the symbol.
       depthTest: false,
       depthWrite: false,
@@ -344,7 +333,7 @@ export class PositionGlyphs {
     let entry = this.entries.get(name);
     if (!entry) {
       entry = {
-        active: false, vis: 0, terrainVis: 1, terrainTarget: 1, terrainPending: 0,
+        active: false, vis: 0,
         dot: this.makeSprite(textures.dot, 998),
         ring: this.makeSprite(textures.selected, 998),
         readout: {
@@ -447,20 +436,10 @@ export class PositionGlyphs {
       entry.vis = ease(entry.vis, wantVis, VIS_RATE);
       if (wantVis === 0 && entry.vis === 0) { this.hide(entry); continue; }
 
-      // Anchor occlusion: the label's analytic body occlusion fade, plus terrain /
-      // plate tests for the few glyphs that would draw. Decided for the anchor and
-      // applied to the whole glyph; debounced so a rim grazing the anchor does not
-      // toggle it frame to frame.
-      let terrainWant = 1;
-      if (ctx.terrainOccluded && entry.vis > 0.02) terrainWant = ctx.terrainOccluded(bm) ? 0 : 1;
-      if (terrainWant !== entry.terrainTarget) {
-        if (++entry.terrainPending >= TERRAIN_DEBOUNCE_FRAMES) { entry.terrainTarget = terrainWant; entry.terrainPending = 0; }
-      } else entry.terrainPending = 0;
-      entry.terrainVis = ease(entry.terrainVis, entry.terrainTarget, TERRAIN_RATE);
-      const occlusion = label?.occlusion ?? 1;
+      const occlusion = ctx.anchorVisibility?.(bm) ?? label?.occlusion ?? 1;
       entry.active = true;
-      const visibility = entry.vis * occlusion * entry.terrainVis;
-      const occluded = occlusion * entry.terrainVis < 0.5;
+      const visibility = entry.vis * occlusion;
+      const occluded = occlusion < 0.5;
 
       // Anchor: the body's true scene position, nudged a few pixels toward the
       // camera so a surface-locked asset sitting exactly on its parent's surface
@@ -516,7 +495,7 @@ export class PositionGlyphs {
     entry.dot.visible = false;
     entry.ring.visible = false;
     entry.active = false;
-    entry.vis = 0; entry.terrainVis = 1; entry.terrainTarget = 1; entry.terrainPending = 0;
+    entry.vis = 0;
     const r = entry.readout;
     r.visibility = 0; r.occluded = false; r.labelLegible = false;
     r.glyphWeight = 0;
