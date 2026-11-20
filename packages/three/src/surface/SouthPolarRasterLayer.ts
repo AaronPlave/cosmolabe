@@ -48,17 +48,13 @@ function materialFor(product: SouthPolarRaster) {
   };
   return new THREE.ShaderMaterial({
     uniforms,
-    defines: m.features ? { PSR_IDS: 1 } : {},
+    defines: m.features ? { PSR_COVERAGE: 1 } : m.overviewEncoding === 'mean-with-coverage' ? { VALID_FRACTION: 1 } : {},
     transparent: true, depthTest: true, depthWrite: false, depthFunc: THREE.LessEqualDepth,
     vertexShader: SURFACE_DRAPE_VERTEX,
     fragmentShader: `
       #include <common>
       #include <logdepthbuf_pars_fragment>
-      #ifdef PSR_IDS
-        uniform highp usampler2D grid;
-      #else
-        uniform sampler2D grid;
-      #endif
+      uniform highp sampler2D grid;
       uniform sampler2D palette;
       uniform vec4 projectedRect;
       uniform vec2 dataLimit, range;
@@ -75,17 +71,28 @@ function materialFor(product: SouthPolarRaster) {
         vec2 metres = (2.0 * radiusM / (r - p.z)) * p.yx;
         vec2 uv = (metres - projectedRect.xy) * vec2(1.0, -1.0) / projectedRect.zw;
         if (any(lessThan(uv, vec2(0.0))) || any(greaterThanEqual(uv, dataLimit))) discard;
-        #ifdef PSR_IDS
-          if (texture2D(grid, uv).r == 0u) discard;
+        vec2 cell = texture2D(grid, uv).rg;
+        float coverage = 1.0;
+        #ifdef PSR_COVERAGE
+          coverage = cell.r;
           vec3 color = texture2D(palette, vec2(0.5)).rgb;
         #else
-          float value = texture2D(grid, uv).r;
-          if (isnan(value)) discard;
-          float t = clamp((value - range.x) / (range.y - range.x), 0.0, 1.0);
+          #ifdef VALID_FRACTION
+            coverage = cell.g;
+          #endif
+          if (isnan(cell.r)) discard;
+          float t = clamp((cell.r - range.x) / (range.y - range.x), 0.0, 1.0);
           vec3 color = texture2D(palette, vec2(t, 0.5)).rgb;
         #endif
+        if (coverage <= 0.0) discard;
         #include <logdepthbuf_fragment>
-        gl_FragColor = vec4(color, layerOpacity);
+        #ifdef USE_LOGARITHMIC_DEPTH_BUFFER
+          // Separate shaders can round the same terrain depth differently.
+          // Allow one 24-bit depth step for the drape, while retaining the
+          // terrain depth test at ridges and the lunar limb.
+          gl_FragDepth = max(0.0, gl_FragDepth - 1.0 / 16777216.0);
+        #endif
+        gl_FragColor = vec4(color, layerOpacity * coverage);
         #include <colorspace_fragment>
       }
     `,

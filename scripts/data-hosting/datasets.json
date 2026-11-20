@@ -5,9 +5,9 @@
     "science-raster/moon-minirf-south-pole": {
       "kind": "science-raster",
       "name": "moon-minirf-south-pole",
-      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-south-pole-3f1c3cee679c1315b",
-      "catalogPrefix": "data/moon-science/minirf-south-pole-3f1c3cee679c1315b/",
-      "build": "m1-3f1c3cee679c1315b"
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-south-pole-49f0257b30403126",
+      "catalogPrefix": "data/moon-science/minirf-south-pole-49f0257b30403126/",
+      "build": "m2-49f0257b30403126"
     },
     "science-raster/moon-minirf-haworth": {
       "kind": "science-raster",
@@ -33,9 +33,9 @@
     "science-raster/moon-psr": {
       "kind": "science-raster",
       "name": "moon-psr",
-      "localDir": "apps/viewer/test-catalogs/data/moon-science/psr-96725d4371967879",
-      "catalogPrefix": "data/moon-science/psr-96725d4371967879/",
-      "build": "p1-96725d4371967879"
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/psr-79496e2f44a49200",
+      "catalogPrefix": "data/moon-science/psr-79496e2f44a49200/",
+      "build": "p2-79496e2f44a49200"
     },
     "terrain/mars-terrain-fused": {
       "kind": "terrain",

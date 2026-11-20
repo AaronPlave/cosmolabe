@@ -8,6 +8,7 @@ export interface PolarRasterManifest {
   polarLimitDeg: number;
   grid: { westM: number; northM: number; stepM: number; width: number; height: number };
   displayStride: number;
+  overviewEncoding?: 'psr-coverage' | 'mean-with-coverage';
   tileSize: number;
   nativeTiles: string[];
   source: { product: string; url: string; reference: string; originalResolutionM: number };
@@ -75,16 +76,22 @@ export class SouthPolarRaster {
         !Array.isArray(m.nativeTiles) || !m.nativeTiles.every(key => /^\d+\/\d+$/.test(key)) || !m.source || !m.files) {
         throw new Error('Invalid or unsupported south polar science grid');
       }
+      const encoding = m.overviewEncoding;
+      if (encoding !== undefined && encoding !== (m.features ? 'psr-coverage' : 'mean-with-coverage')) {
+        throw new Error('Invalid science overview encoding');
+      }
       const w = Math.ceil(width / m.displayStride), h = Math.ceil(height / m.displayStride);
       if (Math.max(w, h) > 4096) throw new Error('Science overview exceeds 4096 texels per side');
-      const values = await this.readGrid('overview.f32.gz', w * h);
+      const hasCoverage = encoding === 'mean-with-coverage';
+      const values = await this.readGrid('overview.f32.gz', w * h * (hasCoverage ? 2 : 1));
       this.controller.signal.throwIfAborted();
       this.manifest = m;
       this.tileKeys = new Set(m.nativeTiles);
-      // Polygon IDs fit in one unsigned channel; temperatures retain Float32.
-      this.texture = m.features
-        ? new THREE.DataTexture(Uint16Array.from(values), w, h, THREE.RedIntegerFormat, THREE.UnsignedShortType)
-        : new THREE.DataTexture(values, w, h, THREE.RedFormat, THREE.FloatType);
+      // The original PSR overview contained IDs. Its display only used presence.
+      if (m.features && !encoding) {
+        for (let i = 0; i < values.length; i++) values[i] = Number(values[i] > 0);
+      }
+      this.texture = new THREE.DataTexture(values, w, h, hasCoverage ? THREE.RGFormat : THREE.RedFormat, THREE.FloatType);
       this.texture.needsUpdate = true;
       this.status = 'ready';
     } catch (error) {

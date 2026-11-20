@@ -4,10 +4,11 @@ import { SouthPolarRaster, type PolarRasterManifest } from '../surface/SouthPola
 
 afterEach(() => vi.unstubAllGlobals());
 
-it('uses the native cell for inspection, retaining zero and excluding missing samples and incompatible frames', async () => {
+it.each([undefined, 'mean-with-coverage'] as const)('uses native cells for inspection with %s overview encoding', async overviewEncoding => {
   const manifest: PolarRasterManifest = {
     format: 'cosmolabe-south-polar-raster-1', frame: 'MOON_ME_DE421', radiusKm: 1737.4, polarLimitDeg: -80,
     grid: { westM: -100, northM: 100, stepM: 100, width: 2, height: 2 }, displayStride: 2, tileSize: 256,
+    overviewEncoding,
     nativeTiles: ['0/0'], source: { product: 'test', reference: 'test grid', url: 'https://example.com', originalResolutionM: 100 },
     files: {},
   };
@@ -19,7 +20,7 @@ it('uses the native cell for inspection, retaining zero and excluding missing sa
   }
   const fetch = vi.fn(async (url: URL) => {
     if (url.pathname.endsWith('/science.json')) return Response.json(manifest);
-    if (url.pathname.endsWith('/overview.f32.gz')) return grid([42.5]);
+    if (url.pathname.endsWith('/overview.f32.gz')) return grid(overviewEncoding ? [42.5, 0.75] : [42.5]);
     if (url.pathname.endsWith('/native/0/0.f32.gz')) return grid([901.125, 0, NaN, 42.5]);
     return new Response(null, { status: 404 });
   });
@@ -30,6 +31,7 @@ it('uses the native cell for inspection, retaining zero and excluding missing sa
   });
   await r.load();
   expect(r.status).toBe('ready');
+  expect(Array.from(r.texture!.image.data!)).toEqual(overviewEncoding ? [42.5, 0.75] : [42.5]);
   const sample = (x: number, y: number, frame: string = 'MOON_ME_DE421') =>
     r.sample({ bodyName: 'Moon', frame, bodyFixedPositionKm: [x, y, -1737.4] });
   expect(await sample(0.05, -0.05)).toBe(901.125);

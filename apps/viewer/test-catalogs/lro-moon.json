@@ -4,7 +4,7 @@
   "defaultGeographicNames": ["Moon"],
   "defaultTime": "2025-01-15T00:00:00Z",
   "defaultViewpoint": "Track LRO",
-  "require": ["base/naif.json", "places/moon.json"],
+  "require": ["base/naif.json", "places/moon.json", "moonfall-science.json"],
   "spiceKernels": [
     "kernels/lro/lro_frames_2014049_v01.tf.gz",
     "kernels/lro/moon_080317.tf.gz",

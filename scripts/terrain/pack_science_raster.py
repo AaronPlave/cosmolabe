@@ -13,19 +13,51 @@ def write_grid(path, values):
     path.write_bytes(gzip.compress(np.asarray(values, dtype="<f4").tobytes(), mtime=0))
 
 
-def pack(output, data, grid, *, display_stride, polar_limit_deg, source, features=None):
-    """Write a nearest-sample overview and lossless native tiles (NaN = no data)."""
+def aggregate_overview(data, stride, *, categorical):
+    """Summarize blocks anchored at the original grid's northwest corner."""
+    height, width = data.shape
+    rows, columns = np.arange(0, height, stride), np.arange(0, width, stride)
+    block_sizes = np.multiply.outer(np.minimum(stride, height - rows),
+                                    np.minimum(stride, width - columns))
+
+    def block_sums(values, dtype):
+        return np.add.reduceat(np.add.reduceat(values, columns, axis=1, dtype=dtype),
+                               rows, axis=0, dtype=dtype)
+
+    present = np.isfinite(data)
+    if categorical:
+        return block_sums(present & (data > 0), np.int32) / block_sizes
+
+    count = block_sums(present, np.int32)
+    sums = block_sums(np.where(present, data, 0), np.float64)
+    overview = np.empty((*count.shape, 2), dtype=np.float32)
+    overview[..., 0] = np.divide(sums, count, out=np.full_like(sums, np.nan), where=count > 0)
+    overview[..., 1] = count / block_sizes
+    return overview
+
+
+def pack(output, data, grid, *, display_stride, polar_limit_deg, source, features=None, legacy_overview=False):
+    """Write a grid-aligned display overview and lossless native tiles."""
     output = Path(output)
     tile_size = 256
     height, width = data.shape
     west, north, step = grid
-    # Pad cells at the edges by missing data. A center sample from each coarse
-    # cell has the same grid registration even when the native size is odd.
-    start = display_stride // 2
-    overview = np.full(((height + display_stride - 1) // display_stride,
-                        (width + display_stride - 1) // display_stride), np.nan, dtype=np.float32)
-    sampled = data[start::display_stride, start::display_stride]
-    overview[:sampled.shape[0], :sampled.shape[1]] = sampled
+    encoding = None
+    if features is not None:
+        overview = aggregate_overview(data, display_stride, categorical=True)
+        encoding = "psr-coverage"
+    elif display_stride == 1:
+        overview = data
+    elif legacy_overview:
+        # Reproduce the archived bistatic products.
+        start = display_stride // 2
+        overview = np.full(((height + display_stride - 1) // display_stride,
+                            (width + display_stride - 1) // display_stride), np.nan, dtype=np.float32)
+        sampled = data[start::display_stride, start::display_stride]
+        overview[:sampled.shape[0], :sampled.shape[1]] = sampled
+    else:
+        overview = aggregate_overview(data, display_stride, categorical=False)
+        encoding = "mean-with-coverage"
     write_grid(output / "overview.f32.gz", overview)
     tiles = []
     for y in range(0, height, tile_size):
@@ -48,6 +80,8 @@ def pack(output, data, grid, *, display_stride, polar_limit_deg, source, feature
     }
     if features is not None:
         metadata["features"] = features
+    if encoding is not None:
+        metadata["overviewEncoding"] = encoding
     # The manifest pins every delivered file, including native values and exact
     # geometry. Hash the manifest for the immutable product directory name.
     metadata["files"] = {}

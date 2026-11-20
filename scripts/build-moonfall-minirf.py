@@ -113,7 +113,7 @@ def main():
     ddr = np.memmap(inputs["ddr.img"], mode="r", dtype="<f4", shape=(11, *cpr.shape))
     with TemporaryDirectory() as work:
         data, grid = reproject(cpr, ddr[0], ddr[1], Path(work))
-    print(pack(args.output, data, grid, display_stride=2, polar_limit_deg=-79.97, source={
+    print(pack(args.output, data, grid, display_stride=2, polar_limit_deg=-79.97, legacy_overview=True, source={
         "product": capture["stem"].format("cpr"),
         "url": f"{ARCHIVE}{capture['directory']}/{inputs['cpr.xml'].name}",
         "reference": "NASA PDS LRO Mini-RF Bistatic DDR, DOI 10.17189/c3ym-tk17",

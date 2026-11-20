@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SurfacePoint } from '@cosmolabe/core';
+  import { formatFloat32 } from '../lib/format-float32';
   import { science, rasterSamples, outlineShadowRegion } from '../lib/surface-rasters.svelte';
 
   let { point }: { point: Pick<SurfacePoint, 'bodyName' | 'frame' | 'bodyFixedPositionKm'> } = $props();
@@ -37,7 +38,7 @@
     {:else if product.manifest?.features}
       <span>No mapped region over 1 km² at this sample</span>
     {:else}
-      <span>{Number(value.toPrecision(7))} {product.definition.unit}</span>
+      <span>{formatFloat32(value)} {product.definition.unit}</span>
     {/if}
   </div>
 {/each}

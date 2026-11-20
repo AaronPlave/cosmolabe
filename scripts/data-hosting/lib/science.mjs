@@ -10,13 +10,17 @@ const sha256 = data => createHash('sha256').update(data).digest('hex');
 export function validateScienceRaster(entries, dir) {
   const manifest = JSON.parse(readFileSync(join(dir, ENTRY), 'utf8'));
   const { width, height, stepM } = manifest.grid ?? {};
-  const { tileSize, displayStride } = manifest;
+  const { tileSize, displayStride, overviewEncoding } = manifest;
   if (manifest.format !== 'cosmolabe-south-polar-raster-1' || manifest.frame !== 'MOON_ME_DE421' ||
       ![width, height, tileSize, displayStride].every(v => Number.isSafeInteger(v) && v > 0) ||
       !Number.isFinite(stepM) || stepM <= 0 || !manifest.source?.originalSha256) {
     throw new Error('Invalid science raster registration or source lock');
   }
-  const counts = new Map([['overview.f32.gz', Math.ceil(width / displayStride) * Math.ceil(height / displayStride) * 4]]);
+  if (overviewEncoding !== undefined && overviewEncoding !== (manifest.features ? 'psr-coverage' : 'mean-with-coverage')) {
+    throw new Error('Invalid science overview encoding');
+  }
+  const channels = overviewEncoding === 'mean-with-coverage' ? 2 : 1;
+  const counts = new Map([['overview.f32.gz', Math.ceil(width / displayStride) * Math.ceil(height / displayStride) * channels * 4]]);
   for (const key of manifest.nativeTiles) {
     if (!/^\d+\/\d+$/.test(key)) throw new Error(`Invalid native tile ${key}`);
     const [x, y] = key.split('/').map(Number);

@@ -1,7 +1,7 @@
 # MoonFall south-pole science
 
 The normal MoonFall catalog requires `moonfall-science.json`. Surface Layers
-starts with all science layers off. Enable them independently, then use
+starts with all three science layers off. Enable and adjust them independently, then use
 Point Probe or select a named place to read their native samples. Point Probe
 can select a mapped shadow region and show its exact boundary at close range.
 The product uses the existing terrain depth, displacement and tile fades.
@@ -11,8 +11,9 @@ Science readings and coverage stay fixed as the simulation time changes.
 
 The [NASA PGDA release](https://pgda.gsfc.nasa.gov/products/90) contains 1,531
 modeled PSR features larger than 1 km², derived from 20 m LOLA topography.
-The regional overlay samples feature IDs at 160 m and the probe identifies
-regions on an 80 m grid. Every source feature is packaged separately, preserving
+The 160 m overview uses the fraction of an aligned 2 × 2 block of native
+80 m samples that are inside any mapped region. That fraction scales opacity.
+Point Probe identifies individual regions on the original 80 m grid. Every source feature is packaged separately, preserving
 its GID, source area, components and holes. The rasterizer used GEOS MakeValid
 for the five invalid source shapes (57, 116, 158, 408 and 645). Their exact
 stored outlines retain the release geometry. Outside the release footprint the
@@ -88,13 +89,20 @@ The native raster contains 35,287,872 observed cells, 98.4% of the source-grid
 centers south of 80°S and 34.4% south of 89°S. At the named centers Haworth
 and Amundsen read 0.3760976 and 0.4326535. The fictional Polaris-C landing
 site reads 0.7029259. Shackleton's center and the Polaris-A, B and D landing
-sites have no valid cell. The display uses a 270 m overview and the probe
-reads the native 90 m tiles. Source gaps and signed values are preserved.
+sites have no valid cell. The 270 m display uses the mean of finite native 90 m values in each
+3 × 3 block, with opacity proportional to its observed fraction. Empty
+blocks stay transparent. PSR and radar overview blocks use the native grid
+origin, and partial edge blocks clip to the original footprint. Point Probe
+uses native 90 m tiles, including signed values and nodata. The revised
+radar overview retains 19,476 partially observed cells missed by the old
+center sample. The PSR overview retains coverage in 34,600 additional cells.
 
 ### Targeted X-band observations
 
 The [PDS Mini-RF bistatic archive](https://doi.org/10.17189/c3ym-tk17) provides
-the two X-band CPR layers in MoonFall. Actual backplanes from 17 swaths showed why the ODE bounding
+the two separately hosted X-band CPR products tested during development.
+The normal MoonFall catalog uses the regional S-band mosaic. Actual backplanes
+from 17 swaths showed why the ODE bounding
 polygons alone are insufficient to infer coverage. The selected Haworth
 (2022-12-19) and Amundsen (2021-09-08) X-band observations use the archived
 per-pixel mean-Earth coordinates and DE421 kernels. In 35 km regions, their
@@ -109,8 +117,7 @@ packs each capture independently. The 100 m products preserve raw CPR values
 and only remap the actual south-polar return footprint. Example samples are
 1.176714 within Haworth's PSR (87.608019°S, 9.001369°W) and 0.9484395 inside
 Amundsen's PSR (83.681349°S, 91.269712°E). They come from distinct viewing
-geometries. Surface Layers provides a jump to each sample and identifies the
-acquisition date, bistatic geometry and swath gaps. Haworth's gazetteer
+geometries. Haworth's gazetteer
 anchor lies outside the Haworth swath, and Amundsen's gazetteer anchor lies
 outside the Amundsen swath.
 
@@ -129,79 +136,65 @@ outside the Amundsen swath.
   `FSB_XXXXX_3S1_PJU_90S000_V1.IMG` from the same PDS mosaic directory and
   the first 160 m overview of Barker's adjusted 80 m DEM.
 - The existing publisher verified the pinned
-  [PSR build](https://data.aaronplave.com/science-raster/moon-psr/p1-96725d4371967879/science.json)
+  [PSR build](https://data.aaronplave.com/science-raster/moon-psr/p2-79496e2f44a49200/science.json)
   and [Diviner build](https://data.aaronplave.com/science-raster/moon-diviner-summer-max/d1-90a09af641e79b00/science.json).
   It also verified the [Haworth](https://data.aaronplave.com/science-raster/moon-minirf-haworth/r1-7109289e364b5297/science.json)
   and [Amundsen](https://data.aaronplave.com/science-raster/moon-minirf-amundsen/r1-bd39f3a1b49193e9/science.json)
-  CPR builds and the [regional δCPR mosaic](https://data.aaronplave.com/science-raster/moon-minirf-south-pole/m1-3f1c3cee679c1315b/science.json).
+  CPR builds and the [regional δCPR mosaic](https://data.aaronplave.com/science-raster/moon-minirf-south-pole/m2-49f0257b30403126/science.json).
+
+The revised PSR and radar builds change only their overviews. Every native
+tile and exact-geometry file has the previous build's SHA-256. The Diviner
+stride-one rebuild reproduced its previous manifest byte for byte.
+Point Probe displays the shortest decimal that round-trips to the native
+Float32. The text precision describes the stored value.
+
+The production catalog requested zero science files at startup. Enabling
+all three layers, changing radar opacity, then jumping to the Haworth
+observation and picking the ground showed GID 2, 63.67955 K and δCPR
+0.49637052. Selecting the GID drew the exact boundary. All 1,531 IDs occur
+in the native shadow grid. The Amundsen GID 5 geometry retained 67 holes,
+and a control inside one returned no mapped region. Native readings at
+Shackleton, Haworth, Amundsen, Connecting Ridge and Polaris A–D agreed
+with the original rasters and stayed fixed through a two-hour time seek.
+At the Polaris bases only C had a radar sample (0.7029259). Named Places
+showed the same precision as Point Probe. Hiding the layers removed the
+products and terrain proxies. The browser reported zero WebGL errors.
 
 ## Hardware Chrome results
 
-Apple M4 Max, ANGLE Metal, 2880 × 1800 framebuffer, two dolly cycles over
-4.9 seconds per row. CPU measures the whole renderer call. GPU uses WebGL2
-timer queries. Refresh gaps are estimated against 60 Hz.
+Apple M4 Max, ANGLE Metal, DPR 2, 2880 × 1800 framebuffer. Two fixed-orientation
+dolly cycles per 4.9-second measurement near Haworth. CPU is whole renderer
+time. GPU is WebGL2 elapsed time. The selected outline is Haworth GID 2.
 
-| Navigation | CPU median / p95 (ms) | GPU median / p95 (ms) | Missed refresh intervals |
-| --- | ---: | ---: | ---: |
-| 4–36 km, off | 12.4 / 18.6 | 2.25 / 5.44 | 4 |
-| 4–36 km, regional PSR | 11.2 / 14.8 | 2.49 / 5.10 | 0 |
-| 4–36 km, PSR and Diviner | 11.1 / 15.5 | 4.28 / 6.94 | 0 |
-| 4–36 km, both and exact Shackleton outline | 11.2 / 14.7 | 3.98 / 6.25 | 0 |
-| 67–600 km, off | 12.8 / 18.7 | 2.96 / 6.88 | 1 |
-| 67–600 km, PSR and Diviner | 14.7 / 22.5 | 3.52 / 5.61 | 12 |
+| Path | Layers | CPU median / p95 (ms) | GPU median / p95 (ms) | Frames | Frame interval p95 (ms) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 4–36 km | Off | 7.7 / 9.0 | 2.41 / 5.92 | 294 | 17.6 |
+| 4–36 km | PSR | 7.4 / 8.3 | 1.51 / 1.98 | 294 | 17.5 |
+| 4–36 km | Diviner | 7.3 / 8.0 | 2.83 / 4.61 | 295 | 17.6 |
+| 4–36 km | δCPR | 7.4 / 8.3 | 2.41 / 4.08 | 294 | 17.5 |
+| 4–36 km | All three | 7.3 / 8.1 | 4.04 / 5.05 | 294 | 17.5 |
+| 4–36 km | All three + exact outline | 7.4 / 8.2 | 4.60 / 7.13 | 295 | 17.5 |
+| 4–36 km | Off, repeat | 7.1 / 8.0 | 3.77 / 5.47 | 295 | 17.5 |
+| 67–600 km | Off | 12.1 / 16.5 | 2.82 / 7.16 | 294 | 17.6 |
+| 67–600 km | PSR | 14.2 / 21.7 | 2.49 / 7.34 | 272 | 22.9 |
+| 67–600 km | Diviner | 14.5 / 19.4 | 2.50 / 3.68 | 281 | 20.2 |
+| 67–600 km | δCPR | 14.4 / 18.6 | 2.45 / 4.70 | 287 | 19.1 |
+| 67–600 km | All three | 13.9 / 18.9 | 3.31 / 5.59 | 285 | 19.5 |
+| 67–600 km | All three + exact outline | 14.1 / 18.5 | 5.72 / 11.11 | 287 | 19.2 |
+| 67–600 km | Off, repeat | 13.7 / 18.4 | 2.13 / 5.63 | 288 | 18.9 |
 
-The normal production catalog preview loaded both pinned R2 products and the
-existing lunar data. Opening the scene and panel requested zero science
-objects. On enable, PSR and Diviner took 273 and 531 ms in the successful
-replay. Navigation to Haworth and Amundsen used the existing Places controls.
-Their named anchors showed 65.91869 K and 211.1613 K respectively. The
-Amundsen PSR floor control is at a separate coordinate. Picking that floor
-displayed 61.33898 K and selected GID 5. At Shackleton the GID 13 and
-95.02922 K readings stayed fixed through a two-hour time seek. Equatorial
-samples returned no data. Hiding both layers released their textures and
-terrain proxies. The browser recorded no WebGL errors.
+At close range, all three and the off runs delivered 294–295 frames, with
+0–1 gaps estimated to span multiple 60 Hz refreshes. With all three from
+orbit, CPU p95 was 0.5 ms over the repeated off run and 2.4 ms over the first.
+The all-layer orbital run delivered three fewer frames than repeated off.
+The terrain update alone accounted for 11.4 ms CPU p95 with all three on and
+11.1 ms repeated off. Raster traversal plus submission accounted for 0.2 ms
+CPU p95. The first off run had lower terrain cost. The selected outline run
+had a higher GPU tail, 11.11 ms p95, with similar pacing to the repeated
+off run.
 
-The later production replay enabled all four catalog layers from R2 and
-used the **Jump to observation** and **Inspect with Point Probe** controls
-for both swaths. Each reading matched the archived CPR at the target. The
-other swath had no sample at each target, and both radar layers returned
-no value at the Shackleton control. Both measured values survived a
-two-hour simulation seek. The replay requested zero science assets at
-startup and released the raster textures and proxies when hidden.
-
-With all four products enabled near the Haworth observation, a separate
-DPR-2 replay measured the following frame costs. Raster draws now skip
-terrain meshes whose conservative projected bounds miss the product grid.
-
-| Haworth navigation | CPU median / p95 (ms) | GPU median / p95 (ms) | Missed refresh intervals |
-| --- | ---: | ---: | ---: |
-| 4–36 km, off | 7.6 / 10.0 | 3.25 / 5.45 | 0 |
-| 4–36 km, all layers | 7.8 / 8.8 | 3.69 / 6.31 | 0 |
-| 67–600 km, off | 13.7 / 20.2 | 2.70 / 5.53 | 5 |
-| 67–600 km, all layers | 15.5 / 24.1 | 3.22 / 6.62 | 16 |
-
-The earlier four-layer orbital replay, before mesh clipping, missed 63
-intervals with nine missed in its off replay. Both runs used the same
-camera path and had zero WebGL errors.
-
-With the regional mosaic added, the same DPR-2 replay measured zero missed
-intervals at close range with layers off and with all five layers enabled.
-At orbital distances the off replay missed 3 intervals and the five-layer
-replay missed 22. Whole-frame CPU median/p95 was 7.6/10.5 ms off and
-7.9/9.3 ms on close up, and 13.6/18.7 ms off and 15.7/24.9 ms on from
-orbit. GPU median/p95 was 2.45/3.51 and 3.54/6.27 ms close up, and
-3.06/6.72 and 2.87/6.04 ms from orbit. There were no WebGL errors.
-
-A second orbital replay compared the incremental cost in the same Chrome
-session. Over 4.9 seconds it recorded 291 frames with science off, 262 with
-only the mosaic, 278 with the original four layers and 274 with all five.
-The original four and all five measured 20.0 and 20.9 ms CPU p95 and
-5.15 and 5.87 ms GPU p95. Orbital frame pacing varied across runs and did
-not sustain 60 Hz in the enabled cases.
-
-The production preview loaded all five products from the existing data host.
-Opening the panel fetched no science assets. The mosaic's jump and Point
-Probe returned 0.4963705 in Haworth's PSR. The named centers and Polaris-C
-matched the source cells, and the Shackleton center, pole and equator
-returned no sample. The readings stayed fixed through a two-hour simulation
-seek. Hiding the mosaic unloaded it.
+The polar raster drape allows one 24-bit depth step for rounding differences
+between the terrain and raster shaders. In an oblique DPR-2 Chrome replay at
+Polaris-C, the change restored 144,516–151,326 Diviner pixels and 68,136–79,403
+Mini-RF pixels across seven camera positions. The depth-disabled comparison
+still exposed 14,900–31,807 Mini-RF pixels that the fixed shader kept hidden.

@@ -5,8 +5,8 @@
       "id": "moon:science:regional-psr",
       "name": "LOLA permanently shadowed regions",
       "body": "Moon",
-      "source": "data/moon-science/psr-96725d4371967879/science.json",
-      "description": "All 1,531 regions larger than 1 km² from the Barker et al. south-pole release. The overview samples the modeled boundaries at 160 m. Use Point Probe to inspect a mapped region and select its original boundary. Zoom in to see detailed outlines. Permanent shadow is a model result from LOLA topography, independent of the simulation clock. Smaller regions and locations beyond the release footprint are unclassified by this layer.",
+      "source": "data/moon-science/psr-79496e2f44a49200/science.json",
+      "description": "All 1,531 regions larger than 1 km² from the Barker et al. south-pole release. At 160 m, opacity reflects the fraction of each cell covered by mapped regions. Use Point Probe to inspect a mapped region and select its original boundary. Zoom in to see detailed outlines. Permanent shadow is a model result from LOLA topography, independent of the simulation clock. Smaller regions and locations beyond the release footprint are unclassified by this layer.",
       "quantity": "Modeled permanent shadow",
       "unit": "",
       "opacity": 0.44,
@@ -57,8 +57,8 @@
       "id": "moon:science:minirf-south-pole",
       "name": "Mini-RF south-pole δCPR mosaic",
       "body": "Moon",
-      "source": "data/moon-science/minirf-south-pole-3f1c3cee679c1315b/science.json",
-      "description": "Regional LRO Mini-RF monostatic S-band mosaic south of 80°S. Fassett et al. adjusted the measured circular polarization ratio for local incidence angle, with a 0.42 offset for the 49° reference. Transparent areas are coverage gaps, including Shackleton’s center. The color scale is centered at 0.42 and clips below 0.20 and above 0.80. Point Probe reads the archived 90 m values. Radar scattering alone cannot identify ice.",
+      "source": "data/moon-science/minirf-south-pole-49f0257b30403126/science.json",
+      "description": "Regional LRO Mini-RF monostatic S-band mosaic south of 80°S. Fassett et al. adjusted the measured circular polarization ratio for local incidence angle, with a 0.42 offset for the 49° reference. The 270 m overview averages valid measurements and fades partially observed cells. Cells with no observations are transparent. Point Probe reports no data in coverage gaps such as Shackleton’s center. The color scale is centered at 0.42 and clips below 0.20 and above 0.80. Point Probe reads the archived 90 m values. Radar scattering alone cannot identify ice.",
       "quantity": "Incidence-adjusted circular polarization ratio (δCPR)",
       "unit": "dimensionless",
       "opacity": 0.78,
@@ -72,70 +72,6 @@
       "observation": {
         "latDeg": -87.35,
         "lonDeg": -2.57
-      }
-    },
-    {
-      "id": "moon:science:minirf-haworth",
-      "name": "Mini-RF bistatic CPR · Haworth",
-      "body": "Moon",
-      "source": "data/moon-science/minirf-haworth-7109289e364b5297/science.json",
-      "description": "Lunar Reconnaissance Orbiter Mini-RF X-band acquisition on 2022-12-19. The Earth-based DSS-13 transmitter illuminated the Moon and Mini-RF received the echoes from orbit. CPR varies with the viewing geometry and surface scattering, including roughness. Ice identification requires separate evidence. Transparent areas have no valid return in this swath. The color scale saturates above 1.8; readings retain the archived values.",
-      "quantity": "Circular polarization ratio",
-      "unit": "dimensionless",
-      "opacity": 0.78,
-      "colorScale": [
-        {
-          "value": 0,
-          "color": "#10263a"
-        },
-        {
-          "value": 0.6,
-          "color": "#46a788"
-        },
-        {
-          "value": 1.2,
-          "color": "#f6ca65"
-        },
-        {
-          "value": 1.8,
-          "color": "#f95b56"
-        }
-      ],
-      "observation": {
-        "latDeg": -87.6080194564,
-        "lonDeg": -9.0013689413
-      }
-    },
-    {
-      "id": "moon:science:minirf-amundsen",
-      "name": "Mini-RF bistatic CPR · Amundsen",
-      "body": "Moon",
-      "source": "data/moon-science/minirf-amundsen-bd39f3a1b49193e9/science.json",
-      "description": "Lunar Reconnaissance Orbiter Mini-RF X-band acquisition on 2021-09-08. The Earth-based DSS-13 transmitter illuminated the Moon and Mini-RF received the echoes from orbit. CPR varies with the viewing geometry and surface scattering, including roughness. Ice identification requires separate evidence. Transparent areas have no valid return in this swath. The color scale saturates above 1.8; readings retain the archived values.",
-      "quantity": "Circular polarization ratio",
-      "unit": "dimensionless",
-      "opacity": 0.78,
-      "colorScale": [
-        {
-          "value": 0,
-          "color": "#10263a"
-        },
-        {
-          "value": 0.6,
-          "color": "#46a788"
-        },
-        {
-          "value": 1.2,
-          "color": "#f6ca65"
-        },
-        {
-          "value": 1.8,
-          "color": "#f95b56"
-        }
-      ],
-      "observation": {
-        "latDeg": -83.6813490086,
-        "lonDeg": 91.2697116035
       }
     }
   ]
