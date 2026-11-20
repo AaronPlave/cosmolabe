@@ -1159,6 +1159,11 @@ describe('shared activity host and script operations', () => {
     expect(renderer.setLabelPinned).toHaveBeenCalledWith('Titan', false);
     expect(renderer.setHoveredBody).toHaveBeenLastCalledWith(null);
     expect(renderer.setEventResults).toHaveBeenCalled();
+    // The selected activity is drawn on its vehicle's path: passed as an event, and selected.
+    const [events, selected] = renderer.setEventResults.mock.lastCall!;
+    const a = vs.activities[0];
+    expect(events).toContainEqual(expect.objectContaining({ id: a.id, kind: 'mission-activity', bodies: { observer: a.vehicle } }));
+    expect(selected).toMatchObject({ id: a.id });
     expect(renderer.timeController.et).toBe(time);
     expect(vs.selectedBodyName).toBe(selectedBody);
     expect(renderer.calls).toEqual(calls);

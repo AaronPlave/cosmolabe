@@ -613,10 +613,16 @@ function dropSelectionIn(id: string | null): boolean {
 export function syncEventResultsInScene(): void {
   const renderer = getRenderer();
   if (!renderer) return;
-  const selected = selectedEventOf(analysisContext().eventResults) ?? null;
+  const results = analysisContext().eventResults;
+  // A selected mission activity is not a search result, but it is drawn the
+  // same way: its span on its vehicle's path, emphasized, with its interval
+  // requested as that path's lead (the whole planned arc, even ahead of now).
+  const activity = results.some(isSelectedEvent) ? undefined : vs.activities.find((a) => isSelectedEvent(activityEvent(a)));
+  const events = activity ? [...results, activityEvent(activity)] : results;
+  const selected = selectedEventOf(events) ?? null;
   // Brief: the global inspector carries the selection's full detail.
   const annotation = selected ? eventSceneAnnotationLines(selected).join('\n') : '';
-  renderer.setEventResults(analysisContext().eventResults, selected, annotation);
+  renderer.setEventResults(events, selected, annotation);
 }
 
 function displayOccultation(event: GeometryEvent | null): void {
