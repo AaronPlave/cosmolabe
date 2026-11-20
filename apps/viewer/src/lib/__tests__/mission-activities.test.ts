@@ -103,4 +103,12 @@ describe('mission activities independent of trajectory storage', () => {
     expect(rows([span('a', 0, 100), span('b', 50, 150)])).toEqual([0, 1]);
     expect(rows([span('x', 10, 10), span('y', 10, 10)])).toEqual([0, 1]);
   });
+  it('keeps each vehicle\'s lanes together', () => {
+    const at = (id: string, vehicle: string, group: string, start: number) => ({
+      version: 1, id, name: id, vehicle, body: 'Earth', kind: 'other', group, temporality: 'interval', timeSystem: 'ET', start, end: start + 1,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+    });
+    const records = parseMissionActivities([at('a', 'SC-01', 'Attitude', 0), at('b', 'SC-02', 'Attitude', 1), at('c', 'SC-02', 'Payload', 2), at('d', 'SC-01', 'Payload', 3)]);
+    expect(activitySeries(records).map(s => `${s.body} ${s.label}`)).toEqual(['SC-01 Attitude', 'SC-01 Payload', 'SC-02 Attitude', 'SC-02 Payload']);
+  });
 });

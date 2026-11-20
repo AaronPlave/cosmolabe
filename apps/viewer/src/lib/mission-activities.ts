@@ -14,15 +14,17 @@ export function activityEvent(a: MissionActivity): GeometryEvent {
 /** The lane an activity belongs to: its group when it names one, else its kind. */
 export const activityLane = (a: MissionActivity) => a.group ?? a.kind;
 
-/** One lane per vehicle and group (or kind), in order of first appearance. */
+/** One lane per vehicle and group (or kind): each vehicle's lanes together, both in order of first appearance. */
 export function activitySeries(records: readonly MissionActivity[]) {
   const groups = new Map<string, { body: string; label: string; items: MissionActivity[] }>();
+  const vehicles: string[] = [];
   for (const a of records) {
     const key = `${a.vehicle}:${activityLane(a)}`;
+    if (!vehicles.includes(a.vehicle)) vehicles.push(a.vehicle);
     if (!groups.has(key)) groups.set(key, { body: a.vehicle, label: activityLane(a), items: [] });
     groups.get(key)!.items.push(a);
   }
-  return [...groups.values()];
+  return [...groups.values()].sort((x, y) => vehicles.indexOf(x.body) - vehicles.indexOf(y.body));
 }
 
 /**
