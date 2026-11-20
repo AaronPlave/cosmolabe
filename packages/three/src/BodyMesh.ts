@@ -1031,7 +1031,11 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
+  /** A `Point` body has a position and no physical extent: only its glyph marks it. */
+  get isPoint(): boolean { return this.body.geometryType === 'Point'; }
+
   private getDisplayRadius(): number {
+    if (this.isPoint) return 0;
     if (this.body.radii) {
       return Math.max(this.body.radii[0], this.body.radii[1], this.body.radii[2]);
     }

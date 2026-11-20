@@ -965,7 +965,10 @@ export class UniverseRenderer {
       const glyphActive = glyphReplacesPlaceholder(
         this._positionGlyphsEnabled, wantsPointMarker(bm, this._customVisuals.has(bm.body.name)), screenPixels);
 
-      if (bm.hasModel && !bm.attitudeAvailable) {
+      if (bm.isPoint) {
+        // Nothing physical to draw at any distance; the glyph is the whole representation.
+        bm.mesh.visible = false;
+      } else if (bm.hasModel && !bm.attitudeAvailable) {
         // Position known, attitude not: the marker, never a model at a held attitude.
         bm.setModelVisible(false);
         bm.mesh.visible = !glyphActive;

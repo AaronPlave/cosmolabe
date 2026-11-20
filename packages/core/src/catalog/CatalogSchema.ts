@@ -174,6 +174,8 @@ const GEOMETRY_KEYS: Record<string, KeySet> = {
     'orientation', 'frustumColor', 'frustumOpacity', 'mounting',
   ),
   Rings: keys(...GEOMETRY_COMMON, 'innerRadius', 'outerRadius', 'texture'),
+  // A position with no physical extent (a ground station, a waypoint), drawn as its glyph.
+  Point: keys('type', 'surfaceLock', 'group'),
   // `kernel` is Cosmographia's name for `source`; the loader renames it.
   Dsk: keys(...GEOMETRY_COMMON, 'source', 'kernel', 'color'),
   // `color` is the fallback colour of Dsk entries.
@@ -196,7 +198,7 @@ const canonicalGeometryType = (type: string): string => (type.toUpperCase() === 
 /** Every geometry type a renderer here draws or loads, field-checked or not:
  *  an unknown type near one of these is reported as its misspelling. */
 const BUILTIN_GEOMETRY_TYPES: readonly string[] = [
-  'Globe', 'Mesh', 'Sensor', 'Rings', 'Dsk', 'TimeSwitched',
+  'Globe', 'Mesh', 'Sensor', 'Rings', 'Dsk', 'TimeSwitched', 'Point',
   'Axes', 'KeplerianSwarm', 'ParticleSystem', 'Ellipsoid',
 ];
 
@@ -284,6 +286,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
   // Read by SensorFrustum's parseSensorMounting.
   Sensor: { surfaceLock: SURFACE_LOCK, mounting: { keys: keys('boresight', 'up') } },
   Rings: { surfaceLock: SURFACE_LOCK },
+  Point: { surfaceLock: SURFACE_LOCK },
 };
 
 // ── Geographic layers (core/geographic) ─────────────────────────────────────

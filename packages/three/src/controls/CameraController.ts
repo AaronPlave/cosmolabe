@@ -597,7 +597,8 @@ export class CameraController {
    * portrait viewport stands further back, so the body still fits across.
    */
   framingDistance(bodyMesh: BodyMesh, scaleFactor = 1e-6): number {
-    const radius = bodyMesh.displayRadius * scaleFactor;
+    // A point has no extent to fit; frame the ground around it instead.
+    const radius = (bodyMesh.isPoint ? CameraController.POINT_FRAMING_KM : bodyMesh.displayRadius) * scaleFactor;
     const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
     const halfH = Math.atan(Math.tan(halfV) * (this.camera.aspect || 1));
     return (radius * CameraController.FRAME_PADDING) / Math.sin(Math.min(halfV, halfH));
@@ -605,6 +606,8 @@ export class CameraController {
 
   /** Bounding-sphere padding `framingDistance` fits. */
   static readonly FRAME_PADDING = 1.5;
+  /** The radius, km, `framingDistance` fits around a `Point` body. */
+  static readonly POINT_FRAMING_KM = 10;
 
   /**
    * Focus: make `bodyMesh` the camera's anchor — the body it orbits, and the
