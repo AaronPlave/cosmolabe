@@ -1,3 +1,5 @@
+import { getUniverse } from './loader';
+import { placeDistance } from './place-distance';
 import { spatialControl } from './spatial-control';
 import { validateViewState } from '@cosmolabe/control';
 import { presentationControl } from './presentation-control';
@@ -541,6 +543,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       const matches = (vs.places?.places ?? []).filter(p => p.layer.body === query.body &&
         (query.layer === undefined || p.layer.id === query.layer) && p.feature.id === query.feature).map(scriptPlace);
       return { status: matches.length === 0 ? 'missing' : matches.length > 1 ? 'ambiguous' : matches[0].unavailable ? 'unlinked' : 'available', matches };
+    },
+    getPlaceDistance: (object, ref) => {
+      const place = placeByRef(ref), universe = getSceneUniverse();
+      return place && universe && getUniverse() === universe ? placeDistance(universe, object, place, getRenderer()?.timeController.et ?? vs.et) : null;
     },
     getPlace: (ref) => {
       const place = placeByRef(ref);

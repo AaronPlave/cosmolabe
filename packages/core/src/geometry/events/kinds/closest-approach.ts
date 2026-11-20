@@ -17,6 +17,11 @@ export interface ClosestApproachParams {
    * than silently returning unfiltered results.
    */
   maxRangeKm?: number;
+  /**
+   * `minimum` (default) finds closest approaches; `maximum` finds the farthest
+   * points (apoapsis-like range maxima) with the same GF search and metrics.
+   */
+  extremum?: 'minimum' | 'maximum';
 }
 
 /**
@@ -59,6 +64,17 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       help: 'Local minima give one result per encounter; the deepest gives one result overall.',
     },
     {
+      kind: 'choice',
+      key: 'extremum',
+      label: 'Extremum',
+      default: 'minimum',
+      options: [
+        { value: 'minimum', label: 'Closest (range minimum)' },
+        { value: 'maximum', label: 'Farthest (range maximum)' },
+      ],
+      help: 'Closest approaches are range minima; the farthest points of an orbit are range maxima. Center to center either way.',
+    },
+    {
       kind: 'number',
       key: 'maxRangeKm',
       label: 'Max range',
@@ -79,6 +95,11 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
     const scope = query.params?.scope;
     if (scope !== undefined && scope !== 'local' && scope !== 'global') {
       return { code: 'invalid-params', message: 'Scope must be "local" or "global"' };
+    }
+
+    const extremum = query.params?.extremum;
+    if (extremum !== undefined && extremum !== 'minimum' && extremum !== 'maximum') {
+      return { code: 'invalid-params', message: 'Extremum must be "minimum" or "maximum"' };
     }
 
     const max = query.params?.maxRangeKm;
@@ -104,7 +125,8 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       );
     }
 
-    const relate = query.params?.scope === 'global' ? 'ABSMIN' : 'LOCMIN';
+    const farthest = query.params?.extremum === 'maximum';
+    const relate = query.params?.scope === 'global' ? (farthest ? 'ABSMAX' : 'ABSMIN') : (farthest ? 'LOCMAX' : 'LOCMIN');
     const found = await ctx.provider.gfdist(
       target,
       query.abcorr,
@@ -142,10 +164,9 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       // Altitude leads when there is one: it is the number a flyby is quoted
       // by, and the result list and callouts lead with the first metric.
       const altitudeKm = await altitudeAt(ctx.provider, target, query.abcorr, observer, et);
-      const metrics = [
-        ...(altitudeKm === undefined ? [] : [rangeMetric('altitude', 'Altitude', altitudeKm)]),
-        ...(km === undefined ? [] : [rangeMetric('range', 'Range', km)]),
-      ];
+      const altitudeMetrics = altitudeKm === undefined ? [] : [rangeMetric('altitude', 'Altitude', altitudeKm)];
+      const rangeMetrics = km === undefined ? [] : [rangeMetric('range', 'Range', km)];
+      const metrics = farthest ? [...rangeMetrics, ...altitudeMetrics] : [...altitudeMetrics, ...rangeMetrics];
 
       events.push({
         id: ctx.nextEventId(),
@@ -153,9 +174,29 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
         kind: query.kind,
         temporality: 'instant',
         et,
+        ...(farthest ? { state: et === query.window.start || et === query.window.end ? 'coverage-boundary' : 'range-maximum' } : {}),
         bodies: { observer, target },
-        label: query.label ?? `${target} closest approach from ${observer}`,
+        label: farthest && (et === query.window.start || et === query.window.end) ? `${target} farthest from ${observer} at coverage boundary` : query.label ?? (farthest ? `${target} farthest from ${observer}` : `${target} closest approach from ${observer}`),
         ...(metrics.length ? { metrics } : {}),
+      });
+    }
+
+    // GF local extrema omit interval ends. Measure these through the same
+    // provider/correction as the turning points, and publish a native selectable
+    // boundary result when it wins (including monotonic intervals).
+    if (farthest && ctx.provider.range) {
+      const best = Math.max(-Infinity, ...events.map(e => rangeOf(e)));
+      const edges = await Promise.all([query.window.start, query.window.end].map(async et => ({
+        et, km: await rangeAt(ctx.provider, target, query.abcorr, observer, et),
+      })));
+      if (edges.some(e => e.km === undefined)) throw new Error('Farthest range: interval boundary could not be measured');
+      const eligible = edges.filter(e => maxRangeKm === undefined || e.km! <= maxRangeKm);
+      const edge = eligible.reduce<typeof edges[number] | null>((a, b) => !a || b.km! > a.km! ? b : a, null);
+      if (edge && edge.km! > best) events.push({
+        id: ctx.nextEventId(), queryId: query.id, kind: query.kind,
+        temporality: 'instant', et: edge.et, bodies: { observer, target },
+        state: 'coverage-boundary', label: `${target} farthest from ${observer} at coverage boundary`,
+        metrics: [rangeMetric('range', 'Center range', edge.km!)],
       });
     }
 
@@ -165,7 +206,7 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
     // with no provider `range` there is nothing to compare, and the first stands.
     if (query.params?.scope === 'global' && events.length > 1) {
       const deepest = events.reduce((best, event) =>
-        rangeOf(event) < rangeOf(best) ? event : best);
+        (farthest ? rangeOf(event) > rangeOf(best) : rangeOf(event) < rangeOf(best)) ? event : best);
       return [deepest];
     }
 

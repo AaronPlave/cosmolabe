@@ -32,7 +32,7 @@ describe('form construction', () => {
     expect(form).toEqual({
       kind: 'closest-approach',
       bodies: {},
-      params: { scope: 'local' },
+      params: { scope: 'local', extremum: 'minimum' },
       startEt: 0,
       endEt: 86_400,
       step: 3600,
@@ -83,7 +83,7 @@ describe('query construction', () => {
     form.params.maxRangeKm = '';
 
     const query = buildQuery(closest, form, 'q1');
-    expect(query.params).toEqual({ scope: 'local' });
+    expect(query.params).toEqual({ scope: 'local', extremum: 'minimum' });
     expect('maxRangeKm' in (query.params ?? {})).toBe(false);
   });
 
@@ -340,6 +340,10 @@ describe('scene callout copy', () => {
     ]);
   });
 
+  it.each([['range-maximum', 'Farthest point'], ['coverage-boundary', 'Boundary maximum']])('labels native %s callouts distinctly from closest approaches', (state, title) => {
+    const event: GeometryEvent = { id: 'max', queryId: 'q', kind: 'closest-approach', temporality: 'instant', et: 1688, state, bodies: { observer: 'Europa Clipper', target: 'Jupiter' }, label: 'Maximum' };
+    expect(eventCalloutLines(event, { utc })[0]).toBe(`${title} · Jupiter`);
+  });
   it('names eclipse boundaries and spans without restating the relationship as prose', () => {
     const event: GeometryEvent = {
       id: 'e', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 3456, end: 3894,

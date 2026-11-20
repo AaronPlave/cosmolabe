@@ -94,8 +94,8 @@ describe('built-in event kinds', () => {
   });
 
   it('declares its parameters so a generic form can render them', () => {
-    expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'maxRangeKm']);
-    expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local' });
+    expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'extremum', 'maxRangeKm']);
+    expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local', extremum: 'minimum' });
     expect(defaultParams(distanceRangeKind)).toEqual({ relation: '<', distanceKm: 1_000_000 });
     expect(defaultParams(occultationKind)).toEqual({ state: 'all' });
   });
@@ -175,6 +175,32 @@ describe('eclipse / occultation', () => {
 });
 
 describe('closest approach', () => {
+  it.each([false, true])('includes the larger boundary in maximum ranking (monotonic=%s)', async monotonic => {
+    const p = provider({ windows: { LOCMAX: monotonic ? [] : [{ start: 100, end: 100 }] }, range: (_t, _o, et) => et === WINDOW.end ? 50 : et === 100 ? 5 : 1 });
+    const result = await searchOver(p).run({ id: 'max', kind: 'closest-approach', bodies: { observer: 'JUNO', target: 'EUROPA' }, window: WINDOW, params: { extremum: 'maximum' } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const winner = result.events.reduce((a, b) => (b.metrics?.[0].value ?? 0) > (a.metrics?.[0].value ?? 0) ? b : a);
+    expect(winner).toMatchObject({ et: WINDOW.end, state: 'coverage-boundary', metrics: [{ value: 50, unit: 'km' }] });
+    expect(result.events).toHaveLength(monotonic ? 1 : 2);
+  });
+  it('refuses an unevaluable boundary instead of claiming the interior point wins', async () => {
+    const p = provider({ windows: { LOCMAX: [{ start: 100, end: 100 }] }, range: (_t, _o, et) => et === WINDOW.end ? NaN : 5 });
+    const result = await searchOver(p).run({ id: 'max', kind: 'closest-approach', bodies: { observer: 'JUNO', target: 'EUROPA' }, window: WINDOW, params: { extremum: 'maximum' } });
+    expect(result.ok).toBe(false);
+  });
+  it('keeps the configured range filter on boundary candidates', async () => {
+    const p = provider({ windows: { LOCMAX: [{ start: 100, end: 100 }] }, range: (_t, _o, et) => et === 100 ? 5 : 50 });
+    const result = await searchOver(p).run({ id: 'max', kind: 'closest-approach', bodies: { observer: 'JUNO', target: 'EUROPA' }, window: WINDOW, params: { extremum: 'maximum', maxRangeKm: 10 } });
+    expect(result.ok && result.events).toMatchObject([{ et: 100 }]);
+    expect(result.ok && result.events).toHaveLength(1);
+  });
+  it('chooses the largest maximum for global scope and retains an interior winner', async () => {
+    const p = provider({ windows: { ABSMAX: [{ start: 100, end: 100 }, { start: 200, end: 200 }] }, range: (_t, _o, et) => et === 200 ? 50 : et === 100 ? 10 : 1 });
+    const result = await searchOver(p).run({ id: 'max', kind: 'closest-approach', bodies: { observer: 'JUNO', target: 'EUROPA' }, window: WINDOW, params: { scope: 'global', extremum: 'maximum' } });
+    expect(result.ok && result.events).toMatchObject([{ et: 200 }]);
+    if (result.ok) expect(result.events[0].state).toBe('range-maximum');
+  });
   it('asks gfdist for local distance minima and reports the range at each', async () => {
     const p = provider({
       windows: { LOCMIN: [{ start: 100, end: 100 }, { start: 500, end: 500 }] },

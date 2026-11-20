@@ -15,8 +15,9 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight, ChevronDown, Send } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
+    ask, askHelp, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
+  import { presentTurn } from '../lib/ask/result';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
   import type { AskExample, AskHelp } from '@cosmolabe/control';
   import { etToUtcString, vs } from '../lib/viewer-state.svelte';
@@ -56,8 +57,17 @@
   $effect(() => {
     void ask.turns.length;
     void ask.turns.at(-1)?.steps.length;
-    void ask.turns.at(-1)?.reply;
-    void tick().then(() => transcript?.scrollTo({ top: transcript.scrollHeight }));
+    const latest = ask.turns.at(-1);
+    void latest?.reply;
+    void latest?.status;
+    void tick().then(() => {
+      if (!transcript) return;
+      // Completed numerical results start at their quantity/value, not at the
+      // diagnostics below them. Scroll only this panel's transcript.
+      const result = latest?.status !== 'running' ? transcript.querySelector('.ask-turn:last-child .ask-measurements') : null;
+      const top = result ? transcript.scrollTop + result.getBoundingClientRect().top - transcript.getBoundingClientRect().top : transcript.scrollHeight;
+      transcript.scrollTo({ top });
+    });
   });
 
   function send() {
@@ -173,7 +183,7 @@
   {/each}
 {/snippet}
 
-<InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
+<InstrumentPanel key="ask" title="Ask Cosmolabe" initialHeightVh={65} width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if import.meta.env.DEV}
       <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} data-ask-catalog="shared-capability-v1" title="Shared capability catalog: Fixed uses a compact direct schema shortlist; Discovery uses registry tools">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
@@ -201,25 +211,52 @@
             <span class="h-px flex-1 bg-border"></span>
           </li>
         {/if}
+        {@const shown = presentTurn(turn, etToUtcString)}
         <li class="ask-turn flex flex-col gap-2">
           <p class="ask-prompt ui-body ml-auto max-w-[92%] self-end rounded-md border border-border bg-hover px-2.5 py-1.5 whitespace-pre-wrap text-text-primary">{turn.prompt}</p>
-          {#if turn.reply}
-            <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
-            <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
-              {@render answerBlocks(parseAnswer(turn.reply))}
-            </div>
+          {#if shown.hostAccount}
+            <p class="ask-host-account ui-helper whitespace-normal text-warning" role="status">{shown.hostAccount}</p>
           {/if}
-          <p class="ask-status ui-meta flex items-center gap-1 text-text-muted" role="status">
+          {#if shown.measurements.length}
+            <dl class="ask-measurements flex flex-col gap-2" aria-label="Measured results">
+              {#each shown.measurements as measurement}
+                <div class="flex min-w-0 flex-col gap-0.5">
+                  <dt class="ui-section-label whitespace-normal">{measurement.quantity}</dt>
+                  <dd class="ui-readout-strong">{measurement.value}</dd>
+                  {#if measurement.utc}<dd class="ui-readout whitespace-normal">{measurement.utc}</dd>{/if}
+                  <dd class="ui-helper whitespace-normal text-text-muted">{measurement.context}</dd>
+                </div>
+              {/each}
+            </dl>
+          {/if}
+          <!-- One line on what the viewer did, in the person's terms; the loop's own checks live under Action details. -->
+          <p class="ask-status ui-helper flex items-center gap-1 whitespace-normal text-text-muted" role="status">
             {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
-            {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
+            {shown.outcome ?? actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
           </p>
-          {#if checkNote(turn)}
-            {@const check = checkNote(turn)!}
-            <p class="ui-helper whitespace-normal {check.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{check.text}</p>
+          {#if shown.limitation}
+            <p class="ask-limitation ui-helper whitespace-normal {shown.limitation.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{shown.limitation.text}</p>
           {/if}
           {#if endNote(turn, stepLabel)}
             {@const note = endNote(turn, stepLabel)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
+          {/if}
+          {#if shown.interpretation}
+            <p class="ask-interpretation ui-body whitespace-normal text-text-primary">{shown.interpretation}</p>
+          {/if}
+          {#if turn.reply}
+            {#if shown.measurements.length}
+              <details class="ask-explanation">
+                <summary class="ui-helper cursor-pointer text-text-muted">Explanation</summary>
+                <div class="ask-answer ui-body mt-1 flex w-full flex-col gap-1.5 text-text-primary">
+                  {@render answerBlocks(parseAnswer(turn.reply))}
+                </div>
+              </details>
+            {:else}
+              <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
+                {@render answerBlocks(parseAnswer(turn.reply))}
+              </div>
+            {/if}
           {/if}
           {#if turn.steps.length > 0}
             <details class="ask-actions">
@@ -244,6 +281,11 @@
                   </li>
                 {/each}
               </ul>
+              {#if shown.diagnostics.length}
+                <ul class="mt-1 flex flex-col gap-0.5" aria-label="Viewer checks">
+                  {#each shown.diagnostics as line}<li class="ui-helper whitespace-normal text-text-faint">{line}</li>{/each}
+                </ul>
+              {/if}
               <details class="ask-details mt-1">
                 <summary class="ui-helper cursor-pointer select-none text-text-faint">Details</summary>
                 <button class="ui-meta mt-1 rounded px-1.5 py-0.5 text-text-secondary hover:bg-hover hover:text-text-primary" onclick={() => copyTrace(turn)}>{copied === turn.id ? 'Copied full trace' : 'Copy full trace'}</button>

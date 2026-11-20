@@ -368,8 +368,8 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     host.frameObject = (name?: string) => { host.tracked = name ?? null; host.camera = { position: [-6000, 1500, 20_000], target: [-6000, 1500, 7800], up: [0, 1, 0], fov: 45 }; return true; };
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })), say('Framed Mars.'), say('Framed Mars; Psyche is no longer close.')]);
-    const run = await runAgent({ transport: model.transport, tools, prompt: 'show mars', goals: [{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }] });
-    expect(run.goals).toContainEqual({ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true });
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show mars', goals: [{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true, keep: true }] });
+    expect(run.goals).toContainEqual({ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true, keep: true });
     expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/range:Psyche unmet/);
     expect(run.result.status).toBe('failed');
   });
@@ -386,18 +386,24 @@ describe('intent comes before any change', () => {
     expect(run.result.status).toBe('no-change');
   });
 
-  it('an action cannot overwrite what the person stated; the person restating it can', async () => {
+  it('an action cannot overwrite what the person made enduring; a new request supersedes an ordinary earlier goal (#381)', async () => {
     const host = new EventScene();
     const tools = createCapabilityTools(host, { surface: 'fixed' });
     const select = (id: string, object: string) => use(id, 'invokeCapability', { id: 'scene.select', input: { object } });
-    const held = [{ p: 'selected' as const, object: 'Mars', stated: true }];
-    const blocked = await runAgent({ transport: scripted([call(goal(), select('1', 'Psyche')), say('Mars stays selected.')]).transport, tools, prompt: 'select psyche', goals: held });
+    const kept = [{ p: 'selected' as const, object: 'Mars', stated: true, keep: true }];
+    const blocked = await runAgent({ transport: scripted([call(goal(), select('1', 'Psyche')), say('Mars stays selected.')]).transport, tools, prompt: 'select psyche', goals: kept });
     expect(errorOf(blocked, '1')).toMatch(/the person asked for selected Mars, and this would leave selected Psyche\. If they changed their mind, restate it/);
     expect(host.selected).toBeNull();
-    const restated = await runAgent({ transport: scripted([call(goal([{ p: 'selected', object: 'Psyche' }]), select('1', 'Psyche')), say('Psyche is selected.')]).transport, tools, prompt: 'no, select psyche instead', goals: held });
+    const restated = await runAgent({ transport: scripted([call(goal([{ p: 'selected', object: 'Psyche' }]), select('1', 'Psyche')), say('Psyche is selected.')]).transport, tools, prompt: 'no, select psyche instead', goals: kept });
     expect(host.selected).toBe('Psyche');
     expect(restated.goals).toEqual([{ p: 'selected', object: 'Psyche', stated: true }]);
     expect(restated.result.status).toBe('verified');
+    // Stated in an earlier request without "keep": the new request's own change supersedes it, no release needed.
+    host.selected = null;
+    const superseded = await runAgent({ transport: scripted([call(goal(), select('1', 'Psyche')), say('Psyche is selected.')]).transport, tools, prompt: 'select psyche', goals: [{ p: 'selected', object: 'Mars', stated: true }] });
+    expect(host.selected).toBe('Psyche');
+    expect(superseded.goals).toEqual([{ p: 'selected', object: 'Psyche' }]);
+    expect(superseded.result).toMatchObject({ status: 'verified', changes: [expect.stringMatching(/Replaced earlier selected Mars → selected Psyche/)] });
   });
 });
 

@@ -46,7 +46,8 @@ export interface Predicate {
   readonly value?: boolean | number;
   readonly query?: string;
   readonly id?: string | null;
-  readonly pick?: 'closest';
+  /** eventSelected: the selected result must be the closest (smallest range) or farthest (largest) of its search. */
+  readonly pick?: 'closest' | 'farthest';
   /** eventSelected: the selected result must be an encounter by its stated criterion, not only a range minimum. */
   readonly encounter?: boolean;
   readonly framing?: 'pair' | 'target';
@@ -71,8 +72,15 @@ export interface Predicate {
   readonly policy?: 'reference' | 'rendered' | 'terrain';
   /** eventRun: the search window spans the participants' whole loaded coverage ("all", "every"). */
   readonly whole?: boolean;
-  /** Set by the loop on what the person asked for (checkGoal), as opposed to an action's derived result. Only the person's restatement or release changes it. */
+  /** Set by the loop on what the person asked for (checkGoal) in the current request, as opposed to an action's derived result. Within the request only the person's restatement or release changes it. */
   readonly stated?: boolean;
+  /**
+   * The person made this enduring ("keep Saturn in frame", "leave the clock paused"): it keeps its stated rank in
+   * later requests, so a change that contradicts it is refused with an explanation instead of superseding it.
+   */
+  readonly keep?: boolean;
+  /** Carried from an earlier request (`carryOver`): still checked, but any later change on its slot supersedes it. */
+  readonly prior?: boolean;
   /** Internal: a no-search preflight placeholder may bind to its corrected search.
    * This never relaxes pick/encounter requirements or a person-named query. */
   readonly pendingSearch?: boolean;
@@ -155,7 +163,7 @@ export function parsePredicate(input: unknown): Predicate {
       break;
     case 'eventSelected':
       need(text('query') || g.query === undefined, 'eventSelected query must be text, or omitted for the search this request presents');
-      need(g.pick === undefined || g.pick === 'closest', 'pick is closest');
+      need(g.pick === undefined || g.pick === 'closest' || g.pick === 'farthest', 'pick is closest|farthest');
       need(g.encounter === undefined || typeof g.encounter === 'boolean', 'encounter is boolean');
       break;
     case 'probeDrawn': break;
@@ -170,12 +178,26 @@ export function parsePredicate(input: unknown): Predicate {
   }
   if (g.framing !== undefined) need(g.framing === 'pair' || g.framing === 'target', 'framing is pair|target');
   if (g.policy !== undefined) need(['reference', 'rendered', 'terrain'].includes(g.policy as string), 'policy is reference|rendered|terrain');
-  // Only the loop marks what the person stated.
-  const { stated: _stated, soft: _soft, pendingSearch: _pendingSearch, ...rest } = g;
+  if (g.keep !== undefined) need(typeof g.keep === 'boolean', 'keep is a boolean');
+  // Only the loop marks what the person stated or carried over.
+  const { stated: _stated, soft: _soft, pendingSearch: _pendingSearch, prior: _prior, ...rest } = g;
   return rest as unknown as Predicate;
 }
 
 // ── Holding a conversation's goal ──
+
+/**
+ * What an earlier request held, as the next request starts (#381). Referents
+ * survive (the event, object and result under discussion are still checked);
+ * target states do not bind the new request: a stated predicate loses its rank
+ * unless the person made it enduring (`keep`), so a change on its slot
+ * supersedes it instead of being refused, and a camera move to another subject
+ * retires it. An unbound "all results" search intent never carried meaning
+ * beyond its own request.
+ */
+export function carryOver(held: readonly Predicate[]): Predicate[] {
+  return held.filter(p => !(p.p === 'eventRun' && !p.query)).map(p => p.keep ? { ...p, stated: true } : p.stated ? { ...p, stated: false, prior: true } : { ...p, prior: true });
+}
 
 /** The camera's subject in a set of predicates: what it tracks, or the event it presents. */
 function anchorOf(preds: readonly Predicate[]): string | null {
@@ -218,8 +240,8 @@ export function adopt(held: readonly Predicate[], incoming: readonly Predicate[]
     }
     // A selected result inherits what was required of it (the closest, a real encounter).
     const merged = sameSearch ? { ...old, ...p } : p;
-    if (old && !sameSearch && !same(old, merged)) replaced.push(`${describePredicate(old)} → ${describePredicate(p)}`);
-    next.set(slotOf(p), merged);
+    if (old && !sameSearch && !same(bare(old), bare(merged))) replaced.push(`${old.prior ? 'earlier ' : ''}${describePredicate(old)} → ${describePredicate(p)}`);
+    next.set(slotOf(p), old?.prior && sameSearch ? { ...merged, prior: undefined } : merged);
   }
   return { held: [...next.values()], replaced, retired };
 }
@@ -268,6 +290,8 @@ export function valueAt(value: unknown, path: string | undefined): unknown {
   return v;
 }
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** A predicate without its lifecycle flags, for comparing what it requires. */
+const bare = ({ stated: _s, prior: _p, keep: _k, ...rest }: Predicate) => rest;
 const contains = (actual: unknown, wanted: unknown): boolean => wanted !== null && typeof wanted === 'object' && !Array.isArray(wanted)
   ? actual !== null && typeof actual === 'object' && Object.entries(wanted).every(([k, v]) => contains((actual as Record<string, unknown>)[k], v))
   : same(actual, wanted);
@@ -278,6 +302,11 @@ export interface EvaluateOptions {
 }
 
 /** One computed result by ID, on whichever page it sits. */
+/** Whether a saved search finds range minima (closest approaches) or maxima (farthest points). */
+export function searchExtremum(host: ViewerControl, query: string): 'minimum' | 'maximum' {
+  try { return host.getEventQueryInfo?.(query).definition?.query.params?.extremum === 'maximum' ? 'maximum' : 'minimum'; } catch { return 'minimum'; }
+}
+
 export function findEventResult(host: ViewerControl, query: string, id: string) {
   if (!host.listEventResults) return undefined;
   for (let offset = 0, page = 0; page < EVENT_PAGES; page++, offset += EVENT_PAGE) {
@@ -319,10 +348,10 @@ export function preconditionProblem(host: ViewerControl, expected: readonly Pred
         const c = encounterOf(host, e.query, e.id);
         if (c?.encounter === false) return `the person asked for an encounter, and result ${e.id} is not one: ${c.basis}`;
       }
-      if (want.pick === 'closest' && host.getEventResultPage) {
+      if (want.pick && host.getEventResultPage) {
         let best: string | undefined;
-        try { best = host.getEventResultPage(e.query, { order: 'range-ascending', limit: 1 }).items[0]?.reference.id; } catch { best = undefined; }
-        if (best && best !== e.id) return `the person asked for the closest result, which is ${best}, not ${e.id}`;
+        try { best = host.getEventResultPage(e.query, { order: searchExtremum(host, e.query) === 'maximum' || want.pick === 'farthest' ? 'range-descending' : 'range-ascending', limit: 1 }).items[0]?.reference.id; } catch { best = undefined; }
+        if (best && best !== e.id) return `the person asked for the ${want.pick} result, which is ${best}, not ${e.id}`;
       }
       continue;
     }
@@ -428,10 +457,12 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         if (p.id && sel.id !== p.id) return check(p, false, `result ${sel.id} selected, not ${p.id}`);
         const notes: string[] = [`result ${sel.id} selected`];
         let ok: boolean | null = true;
-        if (p.pick === 'closest') {
-          const best = host.getEventResultPage ? try_(() => host.getEventResultPage!(sel.query, { order: 'range-ascending', limit: 1 }).items[0]) : undefined;
+        if (p.pick) {
+          // The extremum of the selected search decides the ranking: "the closest" of a farthest-point search is its farthest.
+          const order = searchExtremum(host, sel.query) === 'maximum' ? 'range-descending' : p.pick === 'farthest' ? 'range-descending' : 'range-ascending';
+          const best = host.getEventResultPage ? try_(() => host.getEventResultPage!(sel.query, { order, limit: 1 }).items[0]) : undefined;
           if (!best) { ok = null; notes.push('no ranked result'); }
-          else if (best.reference.id !== sel.id) { ok = false; notes.push(`closest is ${best.reference.id}`); }
+          else if (best.reference.id !== sel.id) { ok = false; notes.push(`${p.pick} is ${best.reference.id}`); }
         }
         if (p.encounter) {
           const c = encounterOf(host, sel.query, sel.id);
@@ -455,7 +486,7 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         const expected = p.framing === 'target' && event?.bodies.target ? [event.bodies.target] : all;
         const people = viz?.presentation?.participants ?? [];
         const framed = expected.length && people.length ? expected.every(b => people.some(x => x.object === b && x.inView && x.drawEnabled)) : null;
-        return check(p, framed, !people.length ? 'no participant projection' : expected.map(b => `${b} ${people.some(x => x.object === b && x.inView) ? 'in' : 'out of'} view`).join(', '));
+        return check(p, framed, !people.length ? 'no participant projection' : expected.map(b => { const x = people.find(o => o.object === b); return !x || !x.inView ? `${b} out of view` : !x.drawEnabled ? `${b} not drawn at this time (its location is in frame)` : `${b} in view`; }).join(', '));
       }
       case 'eventDrawn': {
         const sel = selectedOf(p.query!), drawn = viz?.renderer?.selected;
