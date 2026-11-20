@@ -83,6 +83,9 @@
     {layer.body} · {plural(layer.features.length, 'feature')} · <span title={origin.title}>{origin.label}</span>
     {#if issue}· <button class="issue" data-tone={issue.tone} onclick={() => (about = true)} title={issue.title}>{layer.skippedFeatures ? `${layer.skippedFeatures} not shown` : 'import notes'}</button>{/if}
   </p>
+  {#if typeof layer.definition.provenance?.coverage === 'string'}
+    <p class="ui-helper text-text-muted">{layer.definition.provenance.coverage}</p>
+  {/if}
 
   {#if action === 'delete'}
     <div class="confirm" role="alertdialog" aria-label="Delete this layer?">
@@ -111,7 +114,7 @@
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
       {#if layer.source.catalog}<dt>Catalog</dt><dd class="mono break">{layer.source.catalog}</dd>{/if}
       <dt>Layer ID</dt><dd class="mono break">{layer.id}</dd>
-      {#each Object.entries(layer.definition.provenance ?? {}) as [key, value] (key)}
+      {#each Object.entries(layer.definition.provenance ?? {}).filter(([key, value]) => key !== 'coverage' || typeof value !== 'string') as [key, value] (key)}
         <dt>{key}</dt><dd class="break">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
       {/each}
     </dl>

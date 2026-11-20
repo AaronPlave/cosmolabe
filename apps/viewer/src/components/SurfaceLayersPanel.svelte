@@ -7,10 +7,12 @@
    * shows the selected feature. Rare actions live in each row's "…" menu.
    */
   import { ChevronLeft, ChevronRight, Ellipsis, Eye, EyeOff, Images } from 'lucide-svelte';
-  import type { GeographicLayer, GeographicLayerLoad } from '@cosmolabe/core';
+  import type { GeographicLayer, GeographicLayerLoad, SurfaceRasterDefinition } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { Input } from '$lib/components/ui/input';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import SurfaceRasterRow from './SurfaceRasterRow.svelte';
+  import { rasterDefinitions } from '../lib/surface-rasters.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
   import GeographicLayerView from './GeographicLayerView.svelte';
   import GeographicFeatureDetails from './GeographicFeatureDetails.svelte';
@@ -22,7 +24,7 @@
   import {
     geo, geographicLoads, layerVisible, setLayerVisible, showAllLayers, hoverFeature,
     surfacePanelView, openLayer, openImagery, showLayerList, searchAllFeatures, selectFeature, featureRef,
-    GLOBAL_SEARCH_LIMIT, isPlannerDisplayLayer,
+    GLOBAL_SEARCH_LIMIT, isPlannerDisplayLayer, showDeferredLayer,
   } from '../lib/geographic-layers.svelte';
   import { layerSwatch, layerIssue } from '../lib/geographic-layer-labels';
   import { geoStyles, openStyleEditor } from '../lib/geographic-styles.svelte';
@@ -30,7 +32,19 @@
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
 
-  interface Group { body: string; imagery: number; layers: GeographicLayer[] }
+  interface Group { body: string; imagery: number; layers: GeographicLayer[]; deferred: GeographicLayerLoad[]; rasters: SurfaceRasterDefinition[] }
+  let requests = $state<Record<string, string>>({});
+
+  async function enableLayer(load: GeographicLayerLoad, browse = false) {
+    if (requests[load.id] === 'loading') return;
+    requests[load.id] = 'loading';
+    try {
+      if (await showDeferredLayer(load) && browse) openLayer(load.id);
+      delete requests[load.id];
+    } catch (error) {
+      requests[load.id] = error instanceof Error ? error.message : String(error);
+    }
+  }
 
   /** Imagery is polled the way its own section polls it; vector layers follow `geo.revision`. */
   let tick = $derived((void vs.frameTick, Math.floor(performance.now() / 1000)));
@@ -41,10 +55,15 @@
     const byBody = new Map<string, Group>();
     const group = (body: string) => {
       let g = byBody.get(body);
-      if (!g) { g = { body, imagery: 0, layers: [] }; byBody.set(body, g); }
+      if (!g) { g = { body, imagery: 0, layers: [], deferred: [], rasters: [] }; byBody.set(body, g); }
       return g;
     };
-    for (const load of geographicLoads()) if (load.status === 'ready' && load.layer && !isPlannerDisplayLayer(load.id)) group(load.layer.body).layers.push(load.layer);
+    for (const load of geographicLoads()) {
+      if (isPlannerDisplayLayer(load.id)) continue;
+      if (load.layer) group(load.layer.body).layers.push(load.layer);
+      if (load.deferred) group(load.deferred.definition.body).deferred.push(load);
+    }
+    for (const definition of rasterDefinitions()) group(definition.body).rasters.push(definition);
     for (const { name } of vs.bodies) {
       const n = r?.getBodyMesh(name)?.imageryLayers.length ?? 0;
       if (n > 0) group(name).imagery = n;
@@ -147,8 +166,11 @@
         <section class="body-group" aria-label="{group.body} surface layers">
           <div class="body-header">
             <span class="ui-section-label">{group.body}</span>
-            {#if group.layers.some((l) => !layerVisible(l.id))}
-              <button class="text-link ui-meta" onclick={() => showAllLayers(group.body)}>Show all</button>
+            {#if group.deferred.length || group.layers.some((l) => !layerVisible(l.id))}
+              <button class="text-link ui-meta" onclick={() => {
+                showAllLayers(group.body);
+                for (const load of group.deferred) void enableLayer(load);
+              }}>Show all</button>
             {/if}
           </div>
           <ul class="flex flex-col" aria-label="{group.body} layers">
@@ -173,6 +195,24 @@
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </li>
+            {/each}
+            {#each group.deferred as load (load.id)}
+              {@const definition = load.deferred!.definition}
+              {@const request = requests[load.id]}
+              <li class="layer off">
+                <button class="icon-action" onclick={() => enableLayer(load)} disabled={request === 'loading'}
+                  aria-label="Show {definition.name}" title="Show layer"><EyeOff size={14} /></button>
+                <span class="swatch" style:background={definition.display?.color} aria-hidden="true"></span>
+                <button class="layer-name" onclick={() => enableLayer(load, true)} disabled={request === 'loading'}
+                  aria-label="Open {definition.name}">
+                  <span class="label">{definition.name}</span>
+                  {#if request === 'loading'}<span class="ui-meta" role="status">Loading…</span>{/if}
+                </button>
+              </li>
+              {#if request && request !== 'loading'}<li class="ui-meta failure" role="status">{request}</li>{/if}
+            {/each}
+            {#each group.rasters as definition (definition.id)}
+              <li><SurfaceRasterRow {definition} /></li>
             {/each}
             {#if group.imagery}
               <li class="layer">

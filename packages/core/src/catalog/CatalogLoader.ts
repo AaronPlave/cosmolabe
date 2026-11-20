@@ -1,3 +1,4 @@
+import type { SurfaceRasterDefinition } from './SurfaceRaster.js';
 import { parseMissionActivities, type MissionActivity, type MissionActivitySpec } from '../MissionActivity.js';
 import { validateSurfaceTrajectoryProvenance, type SurfaceTrajectoryProvenance } from '../geometry/surface-trajectory.js';
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
@@ -78,6 +79,7 @@ export interface CatalogJson {
   /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
   geographicCoordinates?: GeographicCoordinates;
   geographicLayers?: GeographicLayerDefinition[];
+  surfaceRasters?: SurfaceRasterDefinition[];
   /** Viewer: geographic names initially enabled on these bodies (otherwise opt-in). */
   defaultGeographicNames?: string[];
   name?: string;

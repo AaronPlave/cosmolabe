@@ -43,6 +43,12 @@ loaded by `require`. Ordinary static HTTPS endpoints work subject to browser COR
 Any failed source produces a structured error record and a console diagnostic;
 other layers and the rest of the catalog continue loading.
 
+An HTTP catalog can set `loadOnDemand: true` on a layer with
+`display.visible: false`. Surface Layers lists the layer immediately and
+fetches it when opened or shown. The off state uses no vector buffers.
+`display.fillOpacity` specifies the default polygon fill alpha before the
+layer opacity is applied.
+
 For local data, use **Open local catalog…** or drag/drop and select the catalog
 JSON **together with** the referenced `.geojson` (or GeoJSON `.json`) files and
 any required catalogs/assets. A catalog with only `geographicLayers` is valid.
@@ -268,7 +274,7 @@ JSON nesting depth 32. Callers can lower these through `limits`. Limits are
 checked before JSON traversal; HTTP bodies are streamed with an actual decoded
 byte cap, regardless of Content-Length. A catalog has at most 16 layers and an
 8 MiB source-text budget; the viewer additionally caps a scene import at 64
-sources/16 MiB. Reads/parses are sequential to bound peak memory. Source fetches
+sources/16 MiB. Initial reads and parses are sequential to bound peak memory. Source fetches
 and parser workers have 15-second timeouts. In the viewer, the entire optional
 geographic phase also shares one 15-second deadline across all catalogs in the
 require graph. At the deadline, pending reads/workers are cancelled and remaining

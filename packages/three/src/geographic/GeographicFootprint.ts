@@ -7,15 +7,15 @@ import { bodyFixedToGeodetic, geodeticToBodyFixed, wrapLon, type BodyFixedPositi
  *
  * The overlay is drawn on proxies of whole surface meshes, and its fragment
  * shader runs wherever they cover the screen, whether or not a feature is
- * near. Edges are drawn linear in longitude and latitude, so every drawn
- * fragment of a feature lies inside the longitude/latitude box of its
- * vertices. Projecting that box at the lowest and highest drawn heights gives
- * a conservative screen rectangle; outside it the pass is scissored away.
+ * near. Bound local features by a longitude/latitude box or enclose a polar
+ * group in a cap. The projected bound at the drawn heights limits the pixels
+ * that run the pass.
  */
 
-/** A seam-aware longitude/latitude box (east may be less than west across the seam), or anywhere. */
+/** A seam-aware longitude/latitude box, a cap including the pole, or anywhere. */
 export type GeographicFootprint =
   | { kind: 'box'; west: number; east: number; south: number; north: number }
+  | { kind: 'polar-cap'; pole: 1 | -1; colatitude: number }
   | { kind: 'global' };
 
 /** Boxes wider or taller than this are treated as global: the screen-space bound of so large a patch is not worth computing. */
@@ -30,7 +30,11 @@ export function geographicFootprint(positions: Iterable<BodyFixedPosition>): Geo
     south = Math.min(south, p.latDeg); north = Math.max(north, p.latDeg);
   }
   if (!lons.length) return null;
-  // Near a pole every longitude is nearby; a box would be wrong there.
+  // A convex segment or triangle in the polar chart cannot extend farther
+  // from the pole than its farthest vertex.
+  if (south > 80) return { kind: 'polar-cap', pole: 1, colatitude: 90 - south };
+  if (north < -80) return { kind: 'polar-cap', pole: -1, colatitude: 90 + north };
+  // A footprint mixing polar and nonpolar positions cannot use a single cap.
   if (north > 89 || south < -89) return { kind: 'global' };
   lons.sort((a, b) => a - b);
   // The largest gap between consecutive longitudes (round the circle) is what the box leaves out.
@@ -91,11 +95,16 @@ export function meshHeightRange(geometry: THREE.BufferGeometry, localToBody: THR
   // A mesh this large (a whole globe or hemisphere): its box's corners say nothing about the surface.
   const size = bounds.getSize(new THREE.Vector3());
   if (Math.max(size.x, size.y, size.z) > 0.25 * radius || high - low > 0.25 * radius) return null;
+  if (footprint.kind === 'polar-cap' && shape.kind === 'sphere') {
+    // Radial height can attain its minimum inside a box face or edge. At the
+    // pole, using only corner heights would clip part of the draped outline.
+    low = bounds.distanceToPoint(new THREE.Vector3()) - radius;
+  }
   // The box's corners are off the surface (above and below it); the surface lies between.
   if (footprint.kind !== 'box') return { touches: true, low, high };
   // The corners' box can only overstate the mesh's extent, so this never rejects a mesh that touches.
   const extent = geographicFootprint(at);
-  const touches = !extent || extent.kind === 'global' || (overlapsLat(extent, footprint) && overlapsLon(extent, footprint));
+  const touches = !extent || extent.kind !== 'box' || (overlapsLat(extent, footprint) && overlapsLon(extent, footprint));
   return { touches, low, high };
 }
 
@@ -114,19 +123,33 @@ function overlapsLon(a: { west: number; east: number }, b: { west: number; east:
  */
 export function footprintScreenRect(footprint: GeographicFootprint, low: number, high: number, datum: GeographicLayer['datum'],
   bodyToWorld: THREE.Matrix4, camera: THREE.Camera, viewport: THREE.Vector4, paddingPx: number): THREE.Vector4 | 'empty' | null {
-  if (footprint.kind !== 'box') return null;
-  const width = (footprint.east - footprint.west + 360) % 360;
+  if (footprint.kind === 'global') return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, behind = 0, total = 0;
   const v = new THREE.Vector4(), m = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(bodyToWorld);
-  for (let i = 0; i < SAMPLES; i++) for (let j = 0; j < SAMPLES; j++) for (const heightKm of [low, high]) {
-    const lonDeg = footprint.west + width * i / (SAMPLES - 1);
-    const latDeg = footprint.south + (footprint.north - footprint.south) * j / (SAMPLES - 1);
-    const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
-    v.set(p.xKm, p.yKm, p.zKm, 1).applyMatrix4(m);
+  const project = (xKm: number, yKm: number, zKm: number) => {
+    v.set(xKm, yKm, zKm, 1).applyMatrix4(m);
     total++;
-    if (v.w <= 1e-9) { behind++; continue; }
+    if (v.w <= 1e-9) { behind++; return; }
     const x = v.x / v.w, y = v.y / v.w;
     x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  };
+  if (footprint.kind === 'polar-cap') {
+    if (datum.referenceShape.kind !== 'sphere' || low <= -datum.referenceShape.radiusKm) return null;
+    const radius = datum.referenceShape.radiusKm;
+    const angle = THREE.MathUtils.degToRad(footprint.colatitude);
+    const xy = (radius + high) * Math.sin(angle);
+    const z0 = footprint.pole * (radius + low) * Math.cos(angle), z1 = footprint.pole * (radius + high);
+    // All cap positions lie within this box. When the box is wholly in
+    // front of the eye its perspective extrema are attained at corners.
+    for (const x of [-xy, xy]) for (const y of [-xy, xy]) for (const z of [z0, z1]) project(x, y, z);
+  } else {
+    const width = (footprint.east - footprint.west + 360) % 360;
+    for (let i = 0; i < SAMPLES; i++) for (let j = 0; j < SAMPLES; j++) for (const heightKm of [low, high]) {
+      const lonDeg = footprint.west + width * i / (SAMPLES - 1);
+      const latDeg = footprint.south + (footprint.north - footprint.south) * j / (SAMPLES - 1);
+      const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
+      project(p.xKm, p.yKm, p.zKm);
+    }
   }
   // Wholly behind the camera: nothing to draw. Partly behind: the projection is unbounded.
   if (behind === total) return 'empty';
@@ -135,5 +158,6 @@ export function footprintScreenRect(footprint: GeographicFootprint, low: number,
   const left = Math.max(0, (x0 + 1) / 2 * viewport.z - paddingPx), right = Math.min(viewport.z, (x1 + 1) / 2 * viewport.z + paddingPx);
   const bottom = Math.max(0, (y0 + 1) / 2 * viewport.w - paddingPx), top = Math.min(viewport.w, (y1 + 1) / 2 * viewport.w + paddingPx);
   if (right <= left || top <= bottom) return 'empty';
-  return new THREE.Vector4(viewport.x + Math.floor(left), viewport.y + Math.floor(bottom), Math.ceil(right - left) + 1, Math.ceil(top - bottom) + 1);
+  return new THREE.Vector4(viewport.x + Math.floor(left), viewport.y + Math.floor(bottom),
+    Math.ceil(right) - Math.floor(left), Math.ceil(top) - Math.floor(bottom));
 }

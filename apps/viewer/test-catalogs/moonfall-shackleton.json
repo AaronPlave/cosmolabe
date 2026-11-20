@@ -488,7 +488,8 @@
     "base/naif.json",
     "base/lunar-surface.json",
     "places/moon.json",
-    "places/moonfall-sites.json"
+    "places/moonfall-sites.json",
+    "moonfall-science.json"
   ],
   "defaultGeographicNames": [
     "Moon"

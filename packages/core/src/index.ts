@@ -251,3 +251,5 @@ export { assessTrajectoryCoverage, findTrajectoryExtrema, validateTrajectoryExtr
 export type { TrajectoryAnalysisProvider, TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from './geometry/trajectory-extrema.js';
 
 export type { MeasurementDefinition } from './geometry/measurement-definition.js';
+
+export type { SurfaceRasterDefinition } from './catalog/SurfaceRaster.js';

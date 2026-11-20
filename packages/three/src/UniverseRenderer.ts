@@ -1,3 +1,4 @@
+import { SouthPolarRasterLayer } from './surface/SouthPolarRasterLayer.js';
 import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
@@ -345,6 +346,7 @@ export class UniverseRenderer {
   private readonly spatialScene = new THREE.Scene();
   /** Batched geographic rendering, placement, selection and accuracy status. */
   readonly geographicVectors: GeographicVectorLayer;
+  readonly surfaceRasters: SouthPolarRasterLayer;
   readonly placeNames: PlaceNames;
   private hoveredGeographicFeature: GeographicFeatureRef | null = null;
   private lastGeographicHoverMs = -Infinity;
@@ -639,6 +641,7 @@ export class UniverseRenderer {
       name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
+    this.surfaceRasters = new SouthPolarRasterLayer(universe, this.scaleFactor);
     this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor, (feature) => this.events.emit('geographic:select', feature));
     this.placeNames = new PlaceNames(universe, this.labelContainer);
     this.geographicStatus = document.createElement('div');
@@ -1393,6 +1396,7 @@ export class UniverseRenderer {
     }
 
     // --- Multi-pass rendering ---
+    this.surfaceRasters.begin();
     this.geographicVectors.begin();
     this.renderer.autoClear = false;
     this._renderDebugFrame++;
@@ -1409,6 +1413,7 @@ export class UniverseRenderer {
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
 
+    this.surfaceRasters.render(this.renderer, this.camera, this.bodyMeshes.values());
     this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values());
 
     if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.scene);
@@ -1521,6 +1526,7 @@ export class UniverseRenderer {
         for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(savedPos);
         this.renderer.render(this.tileScene, this.camera);
         for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(null);
+        this.surfaceRasters.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
@@ -1536,6 +1542,7 @@ export class UniverseRenderer {
       }
     }
 
+    this.surfaceRasters.end();
     this.geographicVectors.end();
     const vectorText = geographicStatusText(this.geographicVectors.diagnostics.length);
     if (this.geographicStatus.textContent !== vectorText) {
@@ -4193,6 +4200,7 @@ export class UniverseRenderer {
     if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
     this.timeController.dispose();
     this.cameraController.dispose();
+    this.surfaceRasters.dispose();
     this.geographicVectors.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
     for (const [, { ring }] of this.ringMeshes) ring.dispose();

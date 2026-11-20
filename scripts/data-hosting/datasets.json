@@ -2,6 +2,41 @@
   "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... Local-only experiments declare localOnly plus their catalog paths and are omitted from deployment bundles. See docs/data-hosting.md.",
   "version": 1,
   "datasets": {
+    "science-raster/moon-minirf-south-pole": {
+      "kind": "science-raster",
+      "name": "moon-minirf-south-pole",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-south-pole-49f0257b30403126",
+      "catalogPrefix": "data/moon-science/minirf-south-pole-49f0257b30403126/",
+      "build": "m2-49f0257b30403126"
+    },
+    "science-raster/moon-minirf-haworth": {
+      "kind": "science-raster",
+      "name": "moon-minirf-haworth",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-haworth-7109289e364b5297",
+      "catalogPrefix": "data/moon-science/minirf-haworth-7109289e364b5297/",
+      "build": "r1-7109289e364b5297"
+    },
+    "science-raster/moon-minirf-amundsen": {
+      "kind": "science-raster",
+      "name": "moon-minirf-amundsen",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-amundsen-bd39f3a1b49193e9",
+      "catalogPrefix": "data/moon-science/minirf-amundsen-bd39f3a1b49193e9/",
+      "build": "r1-bd39f3a1b49193e9"
+    },
+    "science-raster/moon-diviner-summer-max": {
+      "kind": "science-raster",
+      "name": "moon-diviner-summer-max",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/diviner-90a09af641e79b00",
+      "catalogPrefix": "data/moon-science/diviner-90a09af641e79b00/",
+      "build": "d1-90a09af641e79b00"
+    },
+    "science-raster/moon-psr": {
+      "kind": "science-raster",
+      "name": "moon-psr",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/psr-79496e2f44a49200",
+      "catalogPrefix": "data/moon-science/psr-79496e2f44a49200/",
+      "build": "p2-79496e2f44a49200"
+    },
     "terrain/mars-terrain-fused": {
       "kind": "terrain",
       "name": "mars-terrain-fused",

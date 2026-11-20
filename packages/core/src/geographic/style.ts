@@ -141,7 +141,7 @@ export function resolveGeographicStyle(layer: GeographicLayer, style: Geographic
   return {
     point: { color: pick(p.color), opacity: alpha(p.opacity), sizePx: p.sizePx ?? 7, shape: p.shape ?? 'circle', halo: p.halo ?? false },
     line: { color: pick(l.color), opacity: alpha(l.opacity), widthPx: l.widthPx ?? 2, dashed: l.dashed ?? false, outline: l.outline ?? false },
-    fill: { color: fill, opacity: alpha(g.fillOpacity ?? 0.14), hatch: g.hatch ?? false },
+    fill: { color: fill, opacity: alpha(g.fillOpacity ?? display.fillOpacity ?? 0.14), hatch: g.hatch ?? false },
     // An outline follows the fill unless it has its own colour; a feature override still wins.
     outline: { color: override?.color ?? g.outlineColor ?? fill, opacity: alpha(g.outlineOpacity), widthPx: g.outlineWidthPx ?? 2 },
   };

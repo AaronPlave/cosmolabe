@@ -11,9 +11,10 @@ describe('geographicFootprint', () => {
     expect(geographicFootprint([p(10, 1), p(12, -2), p(11, 3)])).toEqual({ kind: 'box', west: 10, east: 12, south: -2, north: 3 });
     expect(geographicFootprint([p(179, 0), p(-179, 1)])).toEqual({ kind: 'box', west: 179, east: -179, south: 0, north: 1 });
   });
-  it('gives up (global) for wide spans and near the poles, and null for nothing', () => {
+  it('bounds nearby polar positions as a cap and retains the global fallback', () => {
     expect(geographicFootprint([p(0, 0), p(90, 0)])).toEqual({ kind: 'global' });
     expect(geographicFootprint([p(0, 0), p(1, 89.5)])).toEqual({ kind: 'global' });
+    expect(geographicFootprint([p(175, -89.5), p(-175, -89.75), p(0, -89.8)])).toEqual({ kind: 'polar-cap', pole: -1, colatitude: 0.5 });
     expect(geographicFootprint([])).toBeNull();
   });
 });
@@ -58,6 +59,26 @@ describe('footprintScreenRect', () => {
     const a = footprintScreenRect(box, 0, 0, datum, identity, camera, viewport, 0) as THREE.Vector4;
     const b = footprintScreenRect(box, 0, 0, datum, identity, camera, new THREE.Vector4(200, 100, 1000, 800), 0) as THREE.Vector4;
     expect([b.x - a.x, b.y - a.y, b.z, b.w]).toEqual([200, 100, a.z, a.w]);
+  });
+
+  it('clips a small polar cap and includes its whole surface at both height bounds', () => {
+    const polarCamera = camera.clone();
+    polarCamera.position.set(50, 35, -1375);
+    polarCamera.up.set(0, 1, 0);
+    polarCamera.lookAt(0, 0, -1000);
+    polarCamera.updateMatrixWorld(true);
+    const rect = footprintScreenRect({ kind: 'polar-cap', pole: -1, colatitude: 0.5 }, -8, 10, datum, identity, polarCamera, viewport, 4) as THREE.Vector4;
+    expect(rect).toBeInstanceOf(THREE.Vector4);
+    expect(rect.z * rect.w).toBeLessThan(20_000);
+    for (const latDeg of [-90, -89.8, -89.5]) for (let lonDeg = -180; lonDeg <= 180; lonDeg += 5) for (const heightKm of [-8, 10]) {
+      const { xKm, yKm, zKm } = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
+      const ndc = new THREE.Vector3(xKm, yKm, zKm).project(polarCamera);
+      const x = (ndc.x + 1) * viewport.z / 2, y = (ndc.y + 1) * viewport.w / 2;
+      expect(x).toBeGreaterThanOrEqual(rect.x);
+      expect(x).toBeLessThanOrEqual(rect.x + rect.z);
+      expect(y).toBeGreaterThanOrEqual(rect.y);
+      expect(y).toBeLessThanOrEqual(rect.y + rect.w);
+    }
   });
 });
 

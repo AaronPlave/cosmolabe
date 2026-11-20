@@ -1,3 +1,4 @@
+import { SURFACE_DRAPE_VERTEX, SURFACE_DRAPE_FADE } from './SurfaceDrapeShader.js';
 import * as THREE from 'three';
 import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS, VECTOR_PADDING_DEG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from './GeographicIndex.js';
 
@@ -23,13 +24,13 @@ function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.len
 export class GeographicMaterial extends THREE.ShaderMaterial {
   readonly pages: number;
   readonly textures: THREE.DataTexture[];
-  constructor(index: GeographicIndex, equatorialKm: number, polarKm: number) {
-    const packed = index.pack();
+  constructor(index: GeographicIndex, equatorialKm: number, polarKm: number, packed = index.pack()) {
     const records = texture(packed.records), cells = texture(packed.cells), references = texture(packed.references);
     const detailCells = packed.detail ? texture(packed.detail.cells) : cells;
     super({
       transparent: true, depthTest: true, depthWrite: false, depthFunc: THREE.LessEqualDepth,
       side: THREE.FrontSide,
+      defines: equatorialKm === polarKm ? { VECTOR_SPHERE: 1 } : {},
       uniforms: {
         vectorRecords: { value: records }, vectorCells: { value: cells }, vectorReferences: { value: references },
         vectorRecordSize: { value: new THREE.Vector2(records.image.width, records.image.height) },
@@ -52,31 +53,17 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorDetailCellSize: { value: new THREE.Vector2(detailCells.image.width, detailCells.image.height) },
         vectorDetailBounds: { value: detailSlots.map((_, i) => new THREE.Vector4(...(packed.detail?.levels[i]?.bounds ?? [0, 0, 0, 0]))) },
         vectorDetailStep: { value: detailSlots.map((_, i) => new THREE.Vector2(...(packed.detail?.levels[i]?.step ?? [0, 0]))) },
+        vectorDetailChart: { value: detailSlots.map((_, i) => {
+          const chart = packed.detail?.levels[i]?.chart;
+          return chart === 'north-polar' ? 1 : chart === 'south-polar' ? -1 : 0;
+        }) },
         vectorDetailGrid: { value: detailSlots.map((_, i) => {
           const level = packed.detail?.levels[i]; return new THREE.Vector4(level?.size ?? 0, level?.offset ?? 0, level?.pages ?? 0, level?.height ?? level?.size ?? 0);
         }) },
         vectorDisplacement: { value: new THREE.Vector3() },
         vectorDisplacementMap: { value: null }, vectorDisplacementTransform: { value: new THREE.Matrix3() },
       },
-      vertexShader: `
-        #include <common>
-        #include <logdepthbuf_pars_vertex>
-        uniform mat4 vectorLocalToAnchor;
-        uniform vec3 vectorDisplacement;
-        uniform sampler2D vectorDisplacementMap;
-        uniform mat3 vectorDisplacementTransform;
-        varying vec3 vectorOffset;
-        void main() {
-          #include <begin_vertex>
-          if (vectorDisplacement.x > 0.5) {
-            vec2 mapUv = (vectorDisplacementTransform * vec3(uv, 1.0)).xy;
-            transformed += normalize(normal) * (texture2D(vectorDisplacementMap, mapUv).x * vectorDisplacement.y + vectorDisplacement.z);
-          }
-          vectorOffset = (vectorLocalToAnchor * vec4(transformed, 1.0)).xyz;
-          #include <project_vertex>
-          #include <logdepthbuf_vertex>
-        }
-      `,
+      vertexShader: SURFACE_DRAPE_VERTEX,
       fragmentShader: `
         #include <common>
         #include <logdepthbuf_pars_fragment>
@@ -99,6 +86,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform vec2 vectorDetailCellSize;
         uniform vec4 vectorDetailBounds[${DETAIL_LEVELS}];
         uniform vec2 vectorDetailStep[${DETAIL_LEVELS}];
+        uniform float vectorDetailChart[${DETAIL_LEVELS}];
         uniform vec4 vectorDetailGrid[${DETAIL_LEVELS}];
         uniform vec3 vectorAnchor;
         uniform vec4 vectorAnchorLL, vectorAnchorNorth, vectorAnchorSouth;
@@ -121,16 +109,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           float halfSin = sin(0.5 * dLon), mid = lon0 + 0.5 * dLon;
           return dRadius * vec2(cos(lon0 + dLon), sin(lon0 + dLon)) + radius0 * 2.0 * halfSin * vec2(-sin(mid), cos(mid));
         }
-        // During an LOD cross-fade a parent tile and its children both draw,
-        // each keeping complementary pixels of a 4×4 Bayer pattern
-        // (3d-tiles-renderer's TilesFadePlugin, wrapFadeMaterial). A proxy keeps
-        // exactly the pixels its tile kept, so the overlay is blended once.
-        float vectorBayer2(vec2 v) { return mod(3.0 * v.y + 2.0 * v.x, 4.0); }
-        float vectorBayer4(vec2 v) { return 4.0 * vectorBayer2(mod(v, 2.0)) + vectorBayer2(floor(0.5 * mod(v, 4.0))); }
-        bool vectorFadedOut() {
-          float dither = (0.5 + vectorBayer4(floor(mod(gl_FragCoord.xy, 4.0)))) / 16.0;
-          return dither >= vectorFadeIn || dither < vectorFadeOut;
-        }
+        ${SURFACE_DRAPE_FADE}
         // Convert coordinate deltas into framebuffer pixels with the local
         // surface Jacobian. Derivatives are evaluated outside divergent loops.
         vec2 vectorPixel(vec2 delta, vec2 dx, vec2 dy) {
@@ -146,10 +125,13 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           vec3 anchor = vectorAnchor, offset = vectorOffset;
           vec3 body = anchor + offset;
           float equatorial = vectorShape.x, polar = vectorShape.y;
-          float e2 = 1.0 - (polar * polar) / (equatorial * equatorial), ep2 = (equatorial * equatorial) / (polar * polar) - 1.0;
           float dLon = atan(vectorCross(anchor.xy, offset.xy), dot(anchor.xy, anchor.xy) + dot(anchor.xy, offset.xy));
           float p0 = length(anchor.xy), p = length(body.xy);
           float dp = (2.0 * dot(anchor.xy, offset.xy) + dot(offset.xy, offset.xy)) / max(p + p0, 1e-20);
+          #ifdef VECTOR_SPHERE
+          float x0 = p0, y0 = anchor.z, dX = dp, dY = offset.z;
+          #else
+          float e2 = 1.0 - (polar * polar) / (equatorial * equatorial), ep2 = (equatorial * equatorial) / (polar * polar) - 1.0;
           float beta0 = atan(anchor.z * equatorial, p0 * polar);
           float dBeta = atan(equatorial * polar * (p0 * offset.z - anchor.z * dp), p0 * p * polar * polar + anchor.z * body.z * equatorial * equatorial);
           float sb0 = sin(beta0), cb0 = cos(beta0), halfSin = sin(0.5 * dBeta), mid = beta0 + 0.5 * dBeta;
@@ -157,6 +139,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           float x0 = p0 - e2 * equatorial * cb0 * cb0 * cb0, y0 = anchor.z + ep2 * polar * sb0 * sb0 * sb0;
           float dX = dp - e2 * equatorial * dcb * (cb * cb + cb * cb0 + cb0 * cb0);
           float dY = offset.z + ep2 * polar * dsb * (sb * sb + sb * sb0 + sb0 * sb0);
+          #endif
           float dLat = atan(x0 * dY - y0 * dX, x0 * (x0 + dX) + y0 * (y0 + dY));
           vec2 dll = degrees(vec2(dLon, dLat));
           // Coarse absolute coordinates choose index cells and seam shifts only.
@@ -185,19 +168,28 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           float planeX = length(height / dot(up, rayX) * rayX - offset), planeY = length(height / dot(up, rayY) * rayY - offset);
           float kx = min(1.0, ${SILHOUETTE}.0 * planeX / max(length(bx), 1e-30)), ky = min(1.0, ${SILHOUETTE}.0 * planeY / max(length(by), 1e-30));
           dx *= kx; ndx *= kx; sdx *= kx; dy *= ky; ndy *= ky; sdy *= ky;
+          // The same pixels were discarded by the source terrain tile. All
+          // derivatives have been evaluated before the per-pixel branch.
+          if (vectorFadedOut()) discard;
           vec2 northCoarse = vectorAnchorNorth.xy + vectorAnchorNorth.zw + north, southCoarse = vectorAnchorSouth.xy + vectorAnchorSouth.zw + south;
           vec2 cell = clamp(floor((ll + vec2(180.0, 90.0)) / vec2(360.0, 180.0) * vec2(${VECTOR_GRID})), vec2(0.0), vec2(${VECTOR_GRID[0] - 1}.0, ${VECTOR_GRID[1] - 1}.0));
           // The finest grid whose padding covers this fragment's marks, else the coarse one.
           vec4 grid = vec4(${VECTOR_GRID[0]}.0, 0.0, vectorPages, ${VECTOR_GRID[1]}.0);
           vec2 gridCell = cell;
           // The largest styled mark decides how far a candidate can reach this fragment.
-          vec2 footprint = vectorReach * vectorPixelRatio * (abs(dx) + abs(dy));
           bool detailed = false;
+          bool polarDetail = false;
           for (int level = 0; level < ${DETAIL_LEVELS}; level++) {
-            if (vectorDetailStep[level].x <= 0.0 || any(greaterThan(footprint, vectorDetailStep[level]))) continue;
+            if (vectorDetailStep[level].x <= 0.0) continue;
+            float chart = vectorDetailChart[level];
+            vec2 stepX = chart == 0.0 ? dx : (chart > 0.0 ? ndx : sdx);
+            vec2 stepY = chart == 0.0 ? dy : (chart > 0.0 ? ndy : sdy);
+            vec2 footprint = vectorReach * vectorPixelRatio * (abs(stepX) + abs(stepY));
+            if (any(greaterThan(footprint, vectorDetailStep[level]))) continue;
             vec4 bounds = vectorDetailBounds[level], levelGrid = vectorDetailGrid[level];
-            vec2 levelCell = floor((ll - bounds.xy) / vectorDetailStep[level]);
-            if (bounds.z - bounds.x == 360.0) {
+            vec2 point = chart == 0.0 ? ll : (chart > 0.0 ? northCoarse : southCoarse);
+            vec2 levelCell = floor((point - bounds.xy) / vectorDetailStep[level]);
+            if (chart == 0.0 && bounds.z - bounds.x == 360.0) {
               levelCell.x = mod(levelCell.x, levelGrid.x);
               // A global level spanning every latitude holds the poles' rounding;
               // a band (the fine level, clear of polar charts) defers to the next level.
@@ -208,6 +200,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             if (any(lessThan(levelCell, vec2(0.0))) || any(greaterThanEqual(levelCell, vec2(levelGrid.x, levelGrid.w)))) discard;
             grid = levelGrid; gridCell = levelCell;
             detailed = true;
+            polarDetail = chart != 0.0;
             break;
           }
           // Every page in one draw (separate draws re-ran all of the above per
@@ -244,9 +237,11 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               // few-pixel mark (or its triangle). Reject them on coarse coordinates,
               // with a margin over their rounding, before the exact arithmetic.
               vec2 padding = kind < 2.0 ? vectorReach * vectorPixelRatio * (abs(jx) + abs(jy)) : vec2(0.0);
-              // A grazing footprint outside the index padding is unresolved.
-              // Partial MSAA coverage must not stretch a hidden stroke over it.
-              if (any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
+              // At the pole even a small pixel can span several degrees of
+              // longitude. A polar grid already checked the actual footprint
+              // in its own plane. Only lon/lat indexing needs this fallback
+              // cap; applying it to polar grids leaves gaps in visible strokes.
+              if (!polarDetail && any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
               vec2 q = reference.z == 0.0 ? vec2(reference.w + mod(ll.x - reference.w + 180.0, 360.0) - 180.0, ll.y) : (reference.z > 0.0 ? northCoarse : southCoarse);
               vec2 low = min(min(ab.xy, ab.zw), ck.xy) - padding - 1e-4, high = max(max(ab.xy, ab.zw), ck.xy) + padding + 1e-4;
               if (!covered && (any(lessThan(q, low)) || any(greaterThan(q, high)))) continue;
@@ -327,7 +322,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             if (drawn.a == 0.0) continue;
             total = drawn + (1.0 - drawn.a) * total;
           }
-          if (total.a == 0.0 || vectorFadedOut()) discard;
+          if (total.a == 0.0) discard;
           gl_FragColor = vec4(total.rgb / total.a, total.a);
           #include <logdepthbuf_fragment>
           #include <tonemapping_fragment>
@@ -335,7 +330,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         }
       `,
     });
-    this.pages = packed.pages;
+    this.pages = Math.max(packed.pages, ...(packed.detail?.levels.map(level => level.pages) ?? []));
     this.textures = packed.detail ? [records, cells, references, detailCells] : [records, cells, references];
   }
   /** Anchor the shader's coordinates at `bodyKm` (body-fixed, ideally the

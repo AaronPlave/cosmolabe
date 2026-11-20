@@ -57,8 +57,9 @@ interface DetailLevel {
   pages: number;
   bounds: readonly [number, number, number, number];
   step: readonly [number, number];
+  chart?: 'north-polar' | 'south-polar';
 }
-interface PackedGeographicIndex {
+export interface PackedGeographicIndex {
   records: Float32Array;
   cells: Float32Array;
   references: Float32Array;
@@ -230,6 +231,25 @@ function convexMeetsBox(points: readonly GeographicXY[], west: number, south: nu
 const segmentMeetsBox = (a: GeographicXY, b: GeographicXY, w: number, s: number, e: number, n: number) => convexMeetsBox([a, b], w, s, e, n);
 const triangleMeetsBox = (a: GeographicXY, b: GeographicXY, c: GeographicXY, w: number, s: number, e: number, n: number) => convexMeetsBox([a, b, c], w, s, e, n);
 
+/** Index the original longitude/latitude primitive in a polar grid without
+ * changing its edges. Its lon/lat box projects to an annular sector, whose
+ * axis extrema occur on the end rays or on cardinal rays in the sector. */
+function polarBounds(p: VectorPrimitive, chart: 'north-polar' | 'south-polar') {
+  const vertices = [p.a, p.b, p.c];
+  const xs = vertices.map(v => v[0]), ys = vertices.map(v => v[1]);
+  if (p.chart === 'longitude-latitude') {
+    const west = Math.min(...xs), east = Math.max(...xs);
+    const lons = [west, east];
+    for (let lon = Math.ceil(west / 90) * 90; lon < east; lon += 90) lons.push(lon);
+    xs.length = ys.length = 0;
+    for (const lonDeg of lons) for (const latDeg of [Math.min(p.a[1], p.b[1], p.c[1]), Math.max(p.a[1], p.b[1], p.c[1])]) {
+      const [x, y] = projectGeographic({ lonDeg, latDeg }, chart);
+      xs.push(x); ys.push(y);
+    }
+  }
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const;
+}
+
 /** Immutable, bounded spatial index shared by CPU picking and the GPU. Features
  * commit atomically: a budget failure never leaves a polygon without its holes. */
 export class GeographicIndex {
@@ -238,10 +258,13 @@ export class GeographicIndex {
   readonly cells: number[][] = Array.from({ length: VECTOR_GRID[0] * VECTOR_GRID[1] }, () => []);
   readonly diagnostics: GeographicRenderDiagnostic[] = [];
   private references = 0;
+  private polarPicking?: { levels: DetailLevel[]; cells: Float32Array; references: Float32Array };
+  private pickReachPx = 4.5;
+  private coarsePicking = true;
   /** Source of each admitted feature, by `feature - 1`, for restyling without re-triangulating. */
   private readonly sources: { layer: GeographicLayer; feature: GeographicFeature }[] = [];
 
-  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false, private styleOf: GeographicStyleResolver = defaultStyle) {
+  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false, private styleOf: GeographicStyleResolver = defaultStyle, private readonly outlineOnly = false) {
     for (const layer of layers) {
       if (layer.definition.display?.visible === false || layer.definition.display?.opacity === 0) continue;
       for (const feature of layer.features) this.addFeature(layer, feature);
@@ -270,12 +293,14 @@ export class GeographicIndex {
     };
     const polygon = (rings: BodyFixedPosition[][]) => {
       const chart = geographicProjection(rings[0]);
-      const xy = projectGeographicRings(rings, chart).map(r => r.slice(0, -1));
-      const vertices = xy.flat();
-      // ShapeUtils delegates to earcut and respects independent hole rings.
-      const triangles = ShapeUtils.triangulateShape(xy[0].map(p => new Vector2(...p)), xy.slice(1).map(r => r.map(p => new Vector2(...p))));
-      if (!triangles.length) throw new Error('polygon could not be triangulated');
-      for (const [a, b, c] of triangles) emit(2, 'fill', vertices[a], vertices[b], vertices[c], chart);
+      if (!this.outlineOnly) {
+        const xy = projectGeographicRings(rings, chart).map(r => r.slice(0, -1));
+        const vertices = xy.flat();
+        // ShapeUtils delegates to earcut and respects independent hole rings.
+        const triangles = ShapeUtils.triangulateShape(xy[0].map(p => new Vector2(...p)), xy.slice(1).map(r => r.map(p => new Vector2(...p))));
+        if (!triangles.length) throw new Error('polygon could not be triangulated');
+        for (const [a, b, c] of triangles) emit(2, 'fill', vertices[a], vertices[b], vertices[c], chart);
+      }
       for (const ring of rings) line(ring, chart, 'outline');
     };
     try {
@@ -328,6 +353,7 @@ export class GeographicIndex {
       if (!part) { part = primitiveStyle(style, p.role); parts.set(p.role, part); }
       Object.assign(p, part);
     }
+    this.pickReachPx = this.reachPx;
   }
 
   /** The largest CSS-pixel reach of any mark or stroke, halo included, for candidate rejection and grid choice. */
@@ -388,7 +414,7 @@ export class GeographicIndex {
    * cell wholly inside it holds one covered reference instead (`coveredCells`);
    * segments go only in the cells they pass near. The fine level is left out
    * when it would exceed the reference budget or the page count. */
-  private globalGrid(): { grids: number[][][]; level: DetailLevel }[] {
+  private globalGrid(pageLimit = this.renderPages): { grids: number[][][]; level: DetailLevel }[] {
     const result: { grids: number[][][]; level: DetailLevel }[] = [];
     let references = this.references, offset = 0;
     for (const [size, fine] of [[1024, true], [256, false]] as const) {
@@ -423,7 +449,7 @@ export class GeographicIndex {
       // In source order, as everywhere else: the shader composites fills in it.
       if (covered.full.length) for (const ids of bins) ids.sort((x, y) => (x < 0 ? -x - 1 : x) - (y < 0 ? -y - 1 : y));
       if (references + added > VECTOR_REFERENCE_LIMIT) { if (fine) continue; return result; }
-      if (pageCount(bins, this.primitives) > this.renderPages) { if (fine) continue; return result; }
+      if (pageCount(bins, this.primitives) > pageLimit) { if (fine) continue; return result; }
       const grids = pageCells(bins, this.primitives);
       result.push({ grids, level: { size, height: rows, offset, pages: grids.length, bounds: [-180, -90 + first * step[1], 180, -90 + (first + rows) * step[1]], step } });
       references += added; offset += grids.length * size * rows;
@@ -434,39 +460,58 @@ export class GeographicIndex {
   /** Local grids retain every primitive and one cell of padding at each scale.
    * Derivatives select a grid whose padding covers the CSS-pixel mark; wide,
    * seam and polar views retain the bounded global fallback. */
-  private detailGrids(): { grids: number[][][]; level: DetailLevel }[] {
+  private detailGrids(pageLimit = this.renderPages): { grids: number[][][]; level: DetailLevel }[] {
     const result: { grids: number[][][]; level: DetailLevel }[] = [];
     const coarsePages = this.renderPages;
-    if (this.primitives.some(p => p.chart !== 'longitude-latitude')) return this.globalGrid();
+    const inCap = (pole: 1 | -1) => this.primitives.every(p => [p.a, p.b, p.c].every(v =>
+      p.chart === 'longitude-latitude' ? pole * v[1] > 80
+        : p.chart === (pole > 0 ? 'north-polar' : 'south-polar') && Math.hypot(...v) < 10));
+    const polar = inCap(-1) ? 'south-polar' : inCap(1) ? 'north-polar' : undefined;
+    if (!polar && this.primitives.some(p => p.chart !== 'longitude-latitude')) return this.globalGrid(pageLimit);
     let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
-    for (const p of this.primitives) for (const v of [p.a, p.b, p.c]) {
-      west = Math.min(west, v[0]); east = Math.max(east, v[0]); south = Math.min(south, v[1]); north = Math.max(north, v[1]);
+    const bounds = this.primitives.map(p => polar ? polarBounds(p, polar) : [
+      Math.min(p.a[0], p.b[0], p.c[0]), Math.min(p.a[1], p.b[1], p.c[1]),
+      Math.max(p.a[0], p.b[0], p.c[0]), Math.max(p.a[1], p.b[1], p.c[1]),
+    ]);
+    for (const [w, s, e, n] of bounds) {
+      west = Math.min(west, w); east = Math.max(east, e); south = Math.min(south, s); north = Math.max(north, n);
     }
-    if (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
-      || west < -180 || east >= 180 || south < -80 || north > 80) return this.globalGrid();
-    if (coarsePages <= 1) return this.fineSinglePage ? this.globalGrid() : result;
+    if (!polar && (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
+      || west < -180 || east >= 180 || south < -80 || north > 80)) return this.globalGrid(pageLimit);
+    if (coarsePages <= 1 && !polar) return this.fineSinglePage ? this.globalGrid() : result;
     let references = this.references, offset = 0;
     for (const size of VECTOR_DETAIL_GRIDS) {
-      const dx = (east - west) / (size - 4), dy = (north - south) / (size - 4);
+      const dx = Math.max(east - west, polar ? 1e-4 : 0) / (size - 4);
+      const dy = Math.max(north - south, polar ? 1e-4 : 0) / (size - 4);
       const xOrigin = west - 2 * dx, yOrigin = south - 2 * dy;
       // A padded chart may not cross the longitude seam or a pole.
-      if (xOrigin < -180 || xOrigin + size * dx >= 180 || yOrigin < -90 || yOrigin + size * dy > 90) continue;
+      if (!polar && (xOrigin < -180 || xOrigin + size * dx >= 180 || yOrigin < -90 || yOrigin + size * dy > 90)) continue;
       const bins: number[][] = Array.from({ length: size ** 2 }, () => []);
       let added = 0;
       for (const [id, p] of this.primitives.entries()) {
-        const x0 = Math.max(0, Math.floor((Math.min(p.a[0], p.b[0], p.c[0]) - xOrigin) / dx - 1));
-        const x1 = Math.min(size - 1, Math.floor((Math.max(p.a[0], p.b[0], p.c[0]) - xOrigin) / dx + 1));
-        const y0 = Math.max(0, Math.floor((Math.min(p.a[1], p.b[1], p.c[1]) - yOrigin) / dy - 1));
-        const y1 = Math.min(size - 1, Math.floor((Math.max(p.a[1], p.b[1], p.c[1]) - yOrigin) / dy + 1));
+        // Float32 cell selection can round across a boundary. Pad both the
+        // bounding-box walk and the exact cell intersection for that margin.
+        const padX = (polar && p.kind === 2 ? 0 : dx) + (polar ? 1e-5 : 0);
+        const padY = (polar && p.kind === 2 ? 0 : dy) + (polar ? 1e-5 : 0);
+        const [west, south, east, north] = bounds[id];
+        const x0 = Math.max(0, Math.floor((west - xOrigin - padX) / dx));
+        const x1 = Math.min(size - 1, Math.floor((east - xOrigin + padX) / dx));
+        const y0 = Math.max(0, Math.floor((south - yOrigin - padY) / dy));
+        const y1 = Math.min(size - 1, Math.floor((north - yOrigin + padY) / dy));
         for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+          if (p.chart === polar && p.kind !== 0) {
+            const w = xOrigin + x * dx, s = yOrigin + y * dy;
+            const box = [w - padX, s - padY, w + dx + padX, s + dy + padY] as const;
+            if (p.kind === 1 ? !segmentMeetsBox(p.a, p.b, ...box) : !triangleMeetsBox(p.a, p.b, p.c, ...box)) continue;
+          }
           if (references + ++added > VECTOR_REFERENCE_LIMIT) return result;
           bins[y * size + x].push(id);
         }
       }
-      if (pageCount(bins, this.primitives) > coarsePages) continue;
+      if (pageCount(bins, this.primitives) > pageLimit) continue;
       const grids = pageCells(bins, this.primitives);
       result.push({ grids, level: { size, offset, pages: grids.length,
-        bounds: [xOrigin, yOrigin, xOrigin + dx * size, yOrigin + dy * size], step: [dx, dy] } });
+        bounds: [xOrigin, yOrigin, xOrigin + dx * size, yOrigin + dy * size], step: [dx, dy], chart: polar } });
       offset += grids.length * size ** 2; references += added;
     }
     return result;
@@ -480,11 +525,13 @@ export class GeographicIndex {
    * Total pages/references remain bounded by the batch admission budgets. */
   pack(): PackedGeographicIndex {
     const records = this.packRecords();
-    const grids = pageCells(this.cells, this.primitives);
+    const renderPages = this.renderPages;
+    this.coarsePicking = !this.outlineOnly || renderPages <= VECTOR_RENDER_PAGE_LIMIT;
+    const grids = this.coarsePicking ? pageCells(this.cells, this.primitives) : [];
     const cells = new Float32Array(grids.length * this.cells.length * 4);
-    const details = this.detailGrids();
+    const details = this.detailGrids(this.outlineOnly ? Math.min(renderPages, VECTOR_RENDER_PAGE_LIMIT) : renderPages);
     const extraReferences = details.reduce((n, d) => n + d.grids.reduce((m, grid) => m + grid.reduce((sum, ids) => sum + ids.length, 0), 0), 0);
-    const references = new Float32Array((this.references + extraReferences) * 4);
+    const references = new Float32Array(((this.coarsePicking ? this.references : 0) + extraReferences) * 4);
     let offset = 0;
     grids.forEach((grid, page) => grid.forEach((ids, cell) => {
       const at = (page * this.cells.length + cell) * 4;
@@ -508,14 +555,45 @@ export class GeographicIndex {
         }
       }));
       packedDetail = { cells, levels: details.map(d => d.level) };
+      if (packedDetail.levels[0].chart) {
+        this.polarPicking = { ...packedDetail, references };
+        this.pickReachPx = this.reachPx;
+      }
     }
     return { records, cells, references, pages: grids.length, detail: packedDetail };
+  }
+
+  /** Use the same chart and padded cells as the renderer for polar picking. */
+  private polarCandidates(position: BodyFixedPosition, dx: GeographicXY, dy: GeographicXY, reach: number): number[] | undefined {
+    const packed = this.polarPicking;
+    const chart = packed?.levels[0].chart;
+    if (!packed || !chart) return this.coarsePicking ? undefined : [];
+    const q = projectGeographic(position, chart);
+    const step = ([lon, lat]: GeographicXY) =>
+      projectGeographic({ lonDeg: position.lonDeg + lon, latDeg: position.latDeg + lat }, chart);
+    const x = step(dx), y = step(dy);
+    const px = reach * (Math.abs(x[0] - q[0]) + Math.abs(y[0] - q[0]));
+    const py = reach * (Math.abs(x[1] - q[1]) + Math.abs(y[1] - q[1]));
+    const level = packed.levels.find(d => px <= d.step[0] && py <= d.step[1]);
+    if (!level) return this.coarsePicking ? undefined : [];
+    const { size, step: [sx, sy], bounds: [west, south], pages, offset } = level;
+    const col = Math.floor((q[0] - west) / sx), row = Math.floor((q[1] - south) / sy);
+    if (col < 0 || col >= size || row < 0 || row >= size) return [];
+    const ids: number[] = [];
+    for (let page = 0; page < pages; page++) {
+      const cell = 4 * (offset + page * size ** 2 + row * size + col);
+      const first = packed.cells[cell] * 4;
+      const end = first + packed.cells[cell + 1] * 4;
+      for (let i = first; i < end; i += 4) ids.push(packed.references[i]);
+    }
+    return ids.sort((a, b) => a - b);
   }
 
   /** Jacobian columns are the change in degrees for a one-CSS-pixel step. */
   pick(position: BodyFixedPosition, dx: GeographicXY, dy: GeographicXY, minRadiusPx = 4): GeographicFeatureRef | null {
     let best: { feature: number; rank: number; distance: number } | undefined;
-    for (const id of this.cells[geographicCell(position.lonDeg, position.latDeg)]) {
+    const polarIds = this.polarCandidates(position, dx, dy, Math.max(this.pickReachPx, minRadiusPx));
+    for (const id of polarIds ?? this.cells[geographicCell(position.lonDeg, position.latDeg)]) {
       const p = this.primitives[id];
       // Invisible parts are not pick targets; a larger mark or wider stroke is easier to hit.
       if (p.opacity <= 0) continue;
@@ -524,7 +602,7 @@ export class GeographicIndex {
       const x = projectGeographic({ lonDeg: position.lonDeg + dx[0], latDeg: position.latDeg + dx[1] }, p.chart, q[0]);
       const y = projectGeographic({ lonDeg: position.lonDeg + dy[0], latDeg: position.latDeg + dy[1] }, p.chart, q[0]);
       const jx = [x[0] - q[0], x[1] - q[1]], jy = [y[0] - q[0], y[1] - q[1]];
-      if (p.kind !== 2 && [0, 1].some(i => Math.max(4.5, radiusPx) * (Math.abs(jx[i]) + Math.abs(jy[i])) > VECTOR_PADDING_DEG)) continue;
+      if (!polarIds && p.kind !== 2 && [0, 1].some(i => Math.max(4.5, radiusPx) * (Math.abs(jx[i]) + Math.abs(jy[i])) > VECTOR_PADDING_DEG)) continue;
       const determinant = jx[0] * jy[1] - jy[0] * jx[1];
       if (Math.abs(determinant) < 1e-18) continue;
       const pixel = (v: GeographicXY): GeographicXY => {
