@@ -141,6 +141,8 @@ export const vs = $state({
   activityMetadataAvailable: false,
   kernelCount: 0,
   kernelRevision: 0,
+  /** Bumped when host-supplied mission state changes, so views sampled from it resample. */
+  missionStateRevision: 0,
 
   // Display
   showTrajectories: true,
@@ -681,6 +683,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     vs.rate = renderer.timeController.rate;
     vs.rateText = rateLabel(renderer.timeController.rate);
     _timeCause = _hostTimeChange ? 'host' : renderer.timeController.playing ? 'playback' : 'viewer';
+    if (_timeCause === 'playback') keepPlayheadInWindow(newEt);
     notifyPlayback(vs.playing, vs.rate);
     emit('time', newEt);
     _timeCause = 'viewer';
@@ -831,17 +834,27 @@ export function slower() {
 export function setTime(newEt: number) {
   if (!_renderer) return;
   _renderer.timeController.setTime(newEt);
+  keepPlayheadInWindow(newEt);
+}
+
+/**
+ * Move the timeline window to show `et` when it has left it — after a seek,
+ * and as playback runs off either end, so the timeline and the profiles
+ * sampled across it describe the time being shown.
+ */
+function keepPlayheadInWindow(et: number) {
+  if (et >= vs.scrubMin && et <= vs.scrubMax) return;
   const next = windowFollowing(
-    newEt,
+    et,
     { min: vs.scrubMin, max: vs.scrubMax },
     { min: vs.scrubBaseMin, max: vs.scrubBaseMax },
   );
   if (!next) {
     initScrubberRange();
-    // A seek outside everything the scene's data spans (a host following a
+    // A time outside everything the scene's data spans (a host following a
     // live feed, an activity beyond the trajectories) extends the timeline to
     // it rather than leaving the playhead off the end.
-    extendTimelineBase(newEt, newEt);
+    extendTimelineBase(et, et);
     return;
   }
   vs.scrubMin = next.min;

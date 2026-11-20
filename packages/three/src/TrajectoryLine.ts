@@ -13,8 +13,7 @@ import {
 /** Scratch color for emphasis lerp (avoids per-call allocation). */
 const _emphTmp = /* @__PURE__ */ new THREE.Color();
 
-/** A color segment overrides the trail color for a time range. */
-/** Read-only view of the polyline a TrajectoryLine drew this frame. */
+/** Read-only view of a polyline a TrajectoryLine drew this frame. */
 export interface DrawnTrail {
   /** Local-space xyz per vertex; only the first `count` vertices are valid. */
   readonly positions: Float32Array;
@@ -23,6 +22,7 @@ export interface DrawnTrail {
   readonly count: number;
 }
 
+/** A color segment overrides the trail color for a time range. */
 export interface ColorSegment {
   startEt: number;
   endEt: number;
@@ -109,12 +109,25 @@ interface Sample {
   x: number;
   y: number;
   z: number;
+  /** Starts a new run: no data was found between this sample and the previous one. */
+  brk?: boolean;
 }
 
 export class TrajectoryLine extends THREE.Object3D {
   readonly body: Body;
 
   private readonly trailLine: THREE.Line;
+  private readonly trailMaterial: THREE.LineBasicMaterial;
+  /**
+   * First vertex of each unbroken run in the drawn trail. A gap in the data
+   * ends a run; each run is its own geometry group (its own line strip), so
+   * nothing is drawn across the gap.
+   */
+  private trailRunStarts: number[] = [];
+  // Run starts among the window's cache vertices, relative to cacheWindowLo.
+  private cacheRunStarts: number[] = [];
+  // The trajectory's evaluable run last reported to `connected`.
+  private _run: { start: number; end: number } | null = null;
   private trailPositions: Float32Array;
   private trailColors: Float32Array;
   // Epoch of each drawn vertex, parallel to trailPositions (kept in Float64).
@@ -274,7 +287,7 @@ export class TrajectoryLine extends THREE.Object3D {
     );
     trailGeometry.setDrawRange(0, 0);
 
-    const trailMaterial = new THREE.LineBasicMaterial({
+    const trailMaterial = this.trailMaterial = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
       opacity: options.opacity ?? 0.8,
@@ -285,7 +298,9 @@ export class TrajectoryLine extends THREE.Object3D {
       // additive contributes constant brightness on top.
       blending: THREE.AdditiveBlending,
     });
-    this.trailLine = new THREE.Line(trailGeometry, trailMaterial);
+    // A material array makes three.js draw each geometry group (one per run)
+    // as its own strip.
+    this.trailLine = new THREE.Line(trailGeometry, [trailMaterial]);
     this.trailLine.frustumCulled = false;
     this.trailLine.renderOrder = -1;
     this.add(this.trailLine);
@@ -449,14 +464,22 @@ export class TrajectoryLine extends THREE.Object3D {
 
   /**
    * Everything this line drew this frame, as time-tagged polylines in local
-   * space: the trail, then each unbroken run of the lead. The first lead run
-   * starts at the trail's head. The single source for annotations that sit
-   * on the path, past or future. Read-only; do not mutate.
+   * space: each unbroken run of the trail, then each of the lead. A gap in
+   * the trajectory's data separates runs, so nothing that retraces them
+   * crosses it. The first lead run starts at the trail's head. The single
+   * source for annotations that sit on the path, past or future. Read-only;
+   * do not mutate.
    */
   drawnPath(): readonly DrawnTrail[] {
-    const trail = this.drawnTrail();
-    const runs = this.lead.drawnRuns();
-    return trail.count > 0 ? [trail, ...runs] : runs;
+    const { positions, times, count } = this.drawnTrail();
+    const trail: DrawnTrail[] = [];
+    const starts = this.trailRunStarts;
+    for (let r = 0; r < starts.length && starts[r] < count; r++) {
+      const start = starts[r];
+      const end = Math.min(starts[r + 1] ?? count, count);
+      trail.push({ positions: positions.subarray(start * 3, end * 3), times: times.subarray(start, end), count: end - start });
+    }
+    return [...trail, ...this.lead.drawnRuns()];
   }
 
   /** Match the trail's per-vertex fade for an annotation at this epoch. */
@@ -469,8 +492,9 @@ export class TrajectoryLine extends THREE.Object3D {
   }
 
   /**
-   * The polyline drawn this frame, in this object's local space. Read-only
-   * view for screen-space annotation placement; do not mutate.
+   * Every trail vertex drawn this frame, in this object's local space. Where
+   * the data has gaps these are several runs, not one polyline: use
+   * {@link drawnPath} to follow the path. Read-only; do not mutate.
    */
   drawnTrail(): DrawnTrail {
     const count = this.trailLine.visible ? this.trailLine.geometry.drawRange.count : 0;
@@ -484,6 +508,36 @@ export class TrajectoryLine extends THREE.Object3D {
   /** Independent of cached vertices: recheck placement before displaying them. */
   sampleAvailableAt(et: number): boolean {
     try { return this.sampleAvailable?.(et) ?? true; } catch { return false; }
+  }
+
+  /**
+   * Whether samples at `t0` and `t1` lie in one run of available data, by the
+   * trajectory's own coverage report (mission-state runs, SPK windows, state
+   * coverage). Without one, only the samples themselves can reveal a gap.
+   */
+  private connected(t0: number, t1: number): boolean {
+    const lo = Math.min(t0, t1), hi = Math.max(t0, t1);
+    const run = this._run;
+    if (run && lo >= run.start && hi <= run.end) return true;
+    const availability = this.body.trajectory.availabilityAt?.(lo);
+    if (!availability) return true;
+    if (!availability.available) return false;
+    const found = availability.coverage?.find((c) => lo >= c.start && lo <= c.end);
+    if (!found) return true;
+    this._run = found;
+    return hi <= found.end;
+  }
+
+  /** Rebuild the trail's geometry groups: one line strip per run. */
+  private setTrailRuns(starts: number[], count: number): void {
+    this.trailRunStarts = starts;
+    const geometry = this.trailLine.geometry;
+    geometry.clearGroups();
+    for (let r = 0; r < starts.length && starts[r] < count; r++) {
+      const end = Math.min(starts[r + 1] ?? count, count);
+      geometry.addGroup(starts[r], end - starts[r], 0);
+    }
+    geometry.setDrawRange(0, count);
   }
 
   private hideUnavailable(): void {
@@ -657,6 +711,7 @@ export class TrajectoryLine extends THREE.Object3D {
       resolve: (t) => this.resolveAt(t, resolver),
       cache: this.cache,
       sampleAvailable: this.sampleAvailable ? t => this.sampleAvailableAt(t) : undefined,
+      connected: (t0, t1) => this.connected(t0, t1),
       head: tail && tail.t === et ? tail : null,
       coverage: this.coverage(),
       color: this._activeColor,
@@ -689,6 +744,7 @@ export class TrajectoryLine extends THREE.Object3D {
       this.cachedSamples = [];
       this.cacheWindowLo = 0;
       this.cacheWindowHi = 0;
+      this.cacheRunStarts = [];
       return;
     }
 
@@ -700,6 +756,14 @@ export class TrajectoryLine extends THREE.Object3D {
         this.cacheWindowLo = lo;
         this.cacheWindowHi = lo + windowCount;
         this.cachedSamples = [];
+        // Runs from the cache's own gaps. A vertex with no position (placement
+        // unavailable) is a run of its own, which a line strip never draws.
+        const cache = this.cache;
+        const p = cache.positions;
+        this.cacheRunStarts = [0];
+        for (let i = lo + 1; i < lo + windowCount; i++) {
+          if (!cache.connects(i) || isNaN(p[i * 3]) || isNaN(p[(i - 1) * 3])) this.cacheRunStarts.push(i - lo);
+        }
 
         // Fill the gap between the last cache point and endEt with a short
         // live-sampled bridge. Without this, a single tail sample draws a
@@ -710,15 +774,19 @@ export class TrajectoryLine extends THREE.Object3D {
         if (gap > 60 && resolver) {
           // > 1 minute gap
           const BRIDGE_STEP = Math.max(gap / 50, 30); // ~50 points, min 30s apart
+          let missed = false;
           for (
             let t = lastCacheTime + BRIDGE_STEP;
             t < endEt;
             t += BRIDGE_STEP
           ) {
             const pos = this.resolveAt(t, resolver);
-            if (!isNaN(pos[0])) {
-              this._bridgeSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
+            if (isNaN(pos[0])) {
+              missed = true;
+              continue;
             }
+            this._bridgeSamples.push({ t, x: pos[0], y: pos[1], z: pos[2], brk: missed });
+            missed = false;
           }
         }
         return;
@@ -728,6 +796,7 @@ export class TrajectoryLine extends THREE.Object3D {
       // limited time range, or SPICE trajectories when the user scrubs past coverage.
       this.cacheWindowLo = 0;
       this.cacheWindowHi = 0;
+      this.cacheRunStarts = [];
     }
 
     // ── Legacy path: live sampling with adaptive subdivision ──
@@ -736,27 +805,28 @@ export class TrajectoryLine extends THREE.Object3D {
       this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
 
     // Coarse samples anchored to fixed time grid.
-    // NaN positions (from out-of-coverage SPICE queries) are skipped — the trail
-    // automatically clips to the time range with valid kernel data.
+    // NaN positions (no data: outside kernel coverage, a telemetry outage) are
+    // dropped and the next sample starts a new run, so the trail breaks there
+    // instead of drawing a chord across the gap.
     const dt = totalDuration / (Math.min(this.numCoarse, this.maxPoints) - 1);
     const gridStart = Math.ceil(startEt / dt) * dt;
     const coarseSamples: Sample[] = [];
-    {
-      const pos = this.resolveAt(startEt, resolver);
-      if (!isNaN(pos[0]))
-        coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
-    }
+    let missed = false;
+    const coarse = (t: number) => {
+      const pos = this.resolveAt(t, resolver);
+      if (isNaN(pos[0])) {
+        missed = true;
+        return;
+      }
+      coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2], brk: missed });
+      missed = false;
+    };
+    coarse(startEt);
     for (let t = gridStart; t < endEt; t += dt) {
       if (t <= startEt) continue;
-      const pos = this.resolveAt(t, resolver);
-      if (!isNaN(pos[0]))
-        coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
+      coarse(t);
     }
-    {
-      const pos = this.resolveAt(endEt, resolver);
-      if (!isNaN(pos[0]))
-        coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
-    }
+    coarse(endEt);
 
     // Recursive subdivision with per-pair budget cap.
     // Cap live sampling to keep per-frame SPICE calls manageable. The legacy
@@ -779,6 +849,11 @@ export class TrajectoryLine extends THREE.Object3D {
     let pairBudget = 0;
 
     const subdivide = (s0: Sample, s1: Sample, depth: number): void => {
+      if (s1.brk) {
+        // A gap between the two: nothing to refine across.
+        finalSamples.push(s0);
+        return;
+      }
       if (pairBudget >= maxPerPair || finalSamples.length >= liveBudget - 1) {
         finalSamples.push(s0);
         return;
@@ -788,8 +863,9 @@ export class TrajectoryLine extends THREE.Object3D {
         const midT = (s0.t + s1.t) * 0.5;
         const midPos = this.resolveAt(midT, resolver);
         if (isNaN(midPos[0])) {
-          // No data at midpoint — don't subdivide, just emit the segment
+          // No data at the midpoint: a gap, so s1 starts a new run.
           finalSamples.push(s0);
+          s1.brk = true;
           return;
         }
         const linMx = (s0.x + s1.x) * 0.5,
@@ -826,17 +902,27 @@ export class TrajectoryLine extends THREE.Object3D {
 
     if (coarseSamples.length >= 2) {
       // Reserve 1 slot for the endpoint so the trail always reaches current time
+      let i = 0;
       for (
-        let i = 0;
+        ;
         i < coarseSamples.length - 1 && finalSamples.length < liveBudget - 1;
         i++
       ) {
         pairBudget = 0;
         subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
       }
-      finalSamples.push(coarseSamples[coarseSamples.length - 1]);
+      const last = coarseSamples[coarseSamples.length - 1];
+      // Out of budget early: the endpoint must not join across a skipped gap.
+      if (coarseSamples.slice(i + 1).some((c) => c.brk)) last.brk = true;
+      finalSamples.push(last);
     } else if (coarseSamples.length === 1) {
       finalSamples.push(coarseSamples[0]);
+    }
+    // A gap shorter than the sample spacing still shows in the trajectory's
+    // coverage report.
+    for (let i = 1; i < finalSamples.length; i++) {
+      const s = finalSamples[i];
+      if (!s.brk && !this.connected(finalSamples[i - 1].t, s.t)) s.brk = true;
     }
 
     this.cachedSamples = finalSamples;
@@ -1015,6 +1101,9 @@ export class TrajectoryLine extends THREE.Object3D {
       // Append bridge samples + tail — fills the gap to current time with
       // a smooth curve instead of a single straight-line chord.
       let drawCount = count;
+      const runStarts = this.cacheRunStarts.filter((start) => start < count);
+      let prevT = cTimesArr[lo + count - 1];
+      let prevValid = !isNaN(this.cache.positions[(lo + count - 1) * 3]);
       // Bridge samples were generated against the previous resample's endEt and
       // can sit beyond cutoffT after a backward scrub — drop those before drawing.
       const bridgeAndTail = this._bridgeSamples.filter((s) => s.t <= cutoffT);
@@ -1022,6 +1111,9 @@ export class TrajectoryLine extends THREE.Object3D {
       for (const s of bridgeAndTail) {
         if (drawCount >= this.maxPoints) break;
         const i = drawCount;
+        if (s.brk || !prevValid || !this.connected(prevT, s.t)) runStarts.push(i);
+        prevT = s.t;
+        prevValid = true;
         this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
         this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
         this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
@@ -1046,7 +1138,7 @@ export class TrajectoryLine extends THREE.Object3D {
         drawCount++;
       }
 
-      this.trailLine.geometry.setDrawRange(0, drawCount);
+      this.setTrailRuns(runStarts, drawCount);
       // Only flag GPU upload when buffer contents actually changed
       if (needsFullWrite || bridgeAndTail.length > 0) {
         this.trailLine.geometry.attributes.position.needsUpdate = true;
@@ -1106,11 +1198,17 @@ export class TrajectoryLine extends THREE.Object3D {
       this.recordNearestVertex(visibleSampleCount, camera);
     }
 
+    const legacyRunStarts: number[] = [];
+    for (let i = 0; i < visibleSampleCount; i++) {
+      if (i === 0 || samples[i].brk) legacyRunStarts.push(i);
+    }
+
     // Append live tail sample — always updated (6 writes, trivial)
     let legacyDrawCount = visibleSampleCount;
     if (this._tailSample && legacyDrawCount < this.maxPoints) {
       const s = this._tailSample;
       const i = legacyDrawCount;
+      if (i === 0 || !this.connected(samples[i - 1].t, s.t)) legacyRunStarts.push(i);
       this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
       this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
       this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
@@ -1135,7 +1233,7 @@ export class TrajectoryLine extends THREE.Object3D {
       legacyDrawCount++;
     }
 
-    this.trailLine.geometry.setDrawRange(0, legacyDrawCount);
+    this.setTrailRuns(legacyRunStarts, legacyDrawCount);
     if (needsFullWrite || this._tailSample) {
       this.trailLine.geometry.attributes.position.needsUpdate = true;
       this.trailLine.geometry.attributes.color.needsUpdate = true;
@@ -1231,7 +1329,7 @@ export class TrajectoryLine extends THREE.Object3D {
     const rest = TrajectoryLine.REST_OPACITY_SCALE;
     const measurement = this._measurementContextActive ? 0.65 : 1;
     const context = (this._eventContextActive ? 0.35 : 1) * measurement;
-    const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
+    const trailMat = this.trailMaterial;
     trailMat.opacity = THREE.MathUtils.lerp(
       this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount) * context;
     this.lead.setOpacityScale(rest * measurement);
@@ -1249,6 +1347,8 @@ export class TrajectoryLine extends THREE.Object3D {
     this.cachedSamples = [];
     this.cacheWindowLo = 0;
     this.cacheWindowHi = 0;
+    this.cacheRunStarts = [];
+    this._run = null;
     this._tailSample = null;
     this._bridgeSamples = [];
     this._orbitSamples = undefined;
@@ -1257,7 +1357,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
   dispose(): void {
     this.trailLine.geometry.dispose();
-    (this.trailLine.material as THREE.Material).dispose();
+    this.trailMaterial.dispose();
     this.lead.dispose();
     if (this.orbitLine) {
       this.orbitLine.geometry.dispose();

@@ -2031,3 +2031,41 @@ it('presenting a computed result exposes the existing timeline lanes at the sear
     expect(host.getTracked()).toBe('Titan');
   } finally { vi.useRealTimers(); }
 });
+
+describe('the timeline window follows playback', () => {
+  function window(min: number, max: number) {
+    vs.scrubBaseMin = 0; vs.scrubBaseMax = 100_000;
+    vs.scrubMin = min; vs.scrubMax = max;
+  }
+
+  it('pages to keep the playhead in view when playback runs off the end', () => {
+    window(1000, 4600);
+    renderer.timeController.setTime(4500);
+    renderer.timeController.play();
+    renderer.timeController.step(200);
+    expect(vs.scrubMax - vs.scrubMin).toBe(3600);
+    expect(vs.scrubMin).toBeLessThanOrEqual(4700);
+    expect(vs.scrubMax).toBeGreaterThanOrEqual(4700);
+  });
+
+  it('extends the timeline when playback passes everything it spans, as a live feed does', () => {
+    window(96_400, 100_000);
+    renderer.timeController.setTime(99_990);
+    renderer.timeController.play();
+    renderer.timeController.step(600);
+    expect(vs.scrubBaseMax).toBeGreaterThanOrEqual(100_590);
+    expect(vs.scrubMin).toBeLessThanOrEqual(100_590);
+    expect(vs.scrubMax).toBeGreaterThanOrEqual(100_590);
+  });
+
+  it('leaves a window the user framed alone while the playhead is inside it, or paused outside it', () => {
+    window(1000, 4600);
+    renderer.timeController.setTime(2000);
+    renderer.timeController.play();
+    renderer.timeController.step(10);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([1000, 4600]);
+    renderer.timeController.pause();
+    renderer.timeController.step(5000);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([1000, 4600]);
+  });
+});

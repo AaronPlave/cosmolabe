@@ -207,6 +207,11 @@ export interface LeadFrame {
   /** The owning line's cache, when it has one. */
   cache: TrajectoryCache | null;
   sampleAvailable?: (et: number) => boolean;
+  /**
+   * Whether two available epochs lie in one run of data, from the
+   * trajectory's coverage report. Catches gaps shorter than the sampling.
+   */
+  connected?: (t0: number, t1: number) => boolean;
   /** The trail's head sample at `et`, so lead and trail meet exactly. */
   head: { t: number; x: number; y: number; z: number } | null;
   /** Coverage the lead must stay inside. */
@@ -596,9 +601,19 @@ export class TrajectoryLead {
   private sampleWindow(start: number, end: number, frame: LeadFrame): SampledWindow {
     const times: number[] = [];
     const xyz: number[] = [];
-    const push = (t: number, p: [number, number, number]) => {
+    let lastT = NaN;
+    // A gap between two available samples is stored as an unavailable sample
+    // between them, so drawing and interpolation both break there.
+    const push = (t: number, p: [number, number, number], gap = false) => {
+      if (frame.sampleAvailable && !frame.sampleAvailable(t)) p = [NaN, NaN, NaN];
+      const valid = !isNaN(p[0]);
+      if (valid && !isNaN(lastT) && (gap || (frame.connected && !frame.connected(lastT, t)))) {
+        times.push((lastT + t) / 2);
+        xyz.push(NaN, NaN, NaN);
+      }
       times.push(t);
-      xyz.push(...(frame.sampleAvailable && !frame.sampleAvailable(t) ? [NaN, NaN, NaN] : p));
+      xyz.push(p[0], p[1], p[2]);
+      lastT = valid ? t : NaN;
     };
 
     const cache = frame.cache;
@@ -612,7 +627,7 @@ export class TrajectoryLead {
             cache.positions[i * 3],
             cache.positions[i * 3 + 1],
             cache.positions[i * 3 + 2],
-          ]);
+          ], i > 0 && !cache.connects(i));
         }
         if (cache.times[hi - 1] < end) push(end, frame.resolve(end));
         return { start, end, times, xyz };

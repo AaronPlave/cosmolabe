@@ -90,6 +90,14 @@
     if (!bm || !bm.body.parentName) return { aboveTerrain: null, aboveRef: null, parentBmName: null };
     const parentBm = r.getBodyMesh(bm.body.parentName);
     if (!parentBm) return { aboveTerrain: null, aboveRef: null, parentBmName: null };
+    // The mesh keeps its last drawn position when state is missing, so
+    // measuring it would report a height the body does not have now.
+    const parentBmName = bm.body.parentName;
+    const u = getUniverse();
+    if (u && (!u.stateAvailability(vs.selectedBodyName, vs.et).position.available
+      || !u.stateAvailability(parentBmName, vs.et).position.available)) {
+      return { aboveTerrain: null, aboveRef: null, parentBmName };
+    }
     const dist = bm.position.distanceTo(parentBm.position) / r.scaleFactor;
     // Compute the subpoint latitude on the parent body so radii (sphere or
     // oblate) work correctly for both readouts.
@@ -115,7 +123,7 @@
         aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
       }
     }
-    return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
+    return { aboveTerrain, aboveRef, parentBmName };
   });
 
   // Compute live state vector

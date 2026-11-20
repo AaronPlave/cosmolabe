@@ -716,7 +716,7 @@ describe('trajectory-line event placement', () => {
       { trailDuration: 10, numKeySamples: 5 },
     );
     const trail = line.children.find((child): child is THREE.Line => child instanceof THREE.Line)!;
-    const opacity = () => (trail.material as THREE.LineBasicMaterial).opacity;
+    const opacity = () => ([trail.material].flat()[0] as THREE.LineBasicMaterial).opacity;
     const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
     line.update(10, 1, resolve);
     const rest = opacity();

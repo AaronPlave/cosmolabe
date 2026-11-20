@@ -299,7 +299,7 @@ describe('TrajectoryLine lead', () => {
     const line = lineFor(circular(), { leadDuration: 3600 });
     const trail = line.children.find((child) => child.name !== 'lead') as THREE.Line;
     const lead = line.children.find((child) => child.name === 'lead') as THREE.Line;
-    const opacity = () => (trail.material as THREE.LineBasicMaterial).opacity;
+    const opacity = () => ([trail.material].flat()[0] as THREE.LineBasicMaterial).opacity;
     line.update(DAY, 1);
     const rest = opacity();
     line.setEventContext(true);

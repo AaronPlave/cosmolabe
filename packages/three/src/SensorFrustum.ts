@@ -244,7 +244,14 @@ export class SensorFrustum extends THREE.Object3D {
     this.labelSprite.scale.set(labelH * labelAspect, labelH, 1);
     this.labelSprite.center.set(0, 0); // anchor at bottom-left
     this.labelSprite.renderOrder = 999;
+    // A catalog `label: { visible: false }` covers the frustum's own label too.
+    this.labelSprite.visible = this.labelAllowed;
     this.add(this.labelSprite);
+  }
+
+  /** Whether the catalog lets this sensor be labelled at all. */
+  get labelAllowed(): boolean {
+    return this.body.labelVisible !== false;
   }
 
   /** Perimeter drawn by the last update: world-frame unit directions + endpoint distances (km). */

@@ -125,3 +125,14 @@ describe('SensorFrustum physical clipping (reference scene)', () => {
     sf.dispose();
   });
 });
+
+describe('sensor label', () => {
+  it('is hidden when the catalog hides the sensor\'s label, and shown otherwise', () => {
+    const labelled = (labelVisible?: boolean) => new SensorFrustum({
+      name: 'Cam', geometryData: {}, labelVisible, stateAt: () => ({ position: [0, 0, 10000] }),
+    } as unknown as Body);
+    expect(labelled(false).labelSprite.visible).toBe(false);
+    expect(labelled(true).labelSprite.visible).toBe(true);
+    expect(labelled(undefined).labelSprite.visible).toBe(true);
+  });
+});

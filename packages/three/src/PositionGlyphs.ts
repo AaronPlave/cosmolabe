@@ -89,6 +89,8 @@ export function ringWeight(extentPx: number, natural = false): number {
  * bodies are natural only when they are globes.
  */
 export function isNaturalBody(bm: Pick<BodyMesh, 'body'>): boolean {
+  // A Point has no disk to draw at real scale, whatever its class.
+  if (bm.body.geometryType === 'Point') return false;
   switch (bm.body.classification) {
     case 'planet': case 'moon': case 'asteroid': case 'comet': case 'dwarf-planet': case 'dwarf_planet':
       return true;
@@ -116,6 +118,14 @@ export function wantsGlyph(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, hasCustomVi
     default:
       return true;
   }
+}
+
+/**
+ * Whether a body draws a glyph this frame. A Point keeps its glyph with glyphs
+ * turned off: it has no physical shape to fall back on.
+ */
+export function glyphDrawn(bm: Pick<BodyMesh, 'body' | 'sunVisual'>, glyphsEnabled: boolean, hasCustomVisual: boolean): boolean {
+  return (glyphsEnabled || bm.body.geometryType === 'Point') && wantsGlyph(bm, hasCustomVisual);
 }
 
 /**

@@ -164,7 +164,11 @@ try {
       -radius*1.4,0,z-radius-1000, 0,0,z-radius-1000,
       0,0,z+radius+1000, radius*1.4,0,z+radius+1000],3));
     line.geometry.setAttribute('color', new THREE.Float32BufferAttribute([0,0,1, 0,0,1, 0,0,1, 0,0,1],3));
-    line.geometry.setDrawRange(0,4);
+    // Production trails draw one geometry group per run of available state.
+    // Two runs here: the front segment and the one behind the Sun, so the
+    // grouped path is what both depth assertions exercise.
+    trajectory.setTrailRuns([0,2],4);
+    if (line.geometry.groups.length !== 2) throw new Error('trail runs did not become geometry groups');
     trajectory.traverse(o => o.layers.set(2)); v.scene.add(trajectory);
     const withLine = read();
     const changed = (image, left, right, bottom, top) => {

@@ -1,4 +1,5 @@
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
+import type { CoverageInterval, StateAvailability } from '../availability.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 
 export class SpiceTrajectory implements Trajectory {
@@ -6,6 +7,7 @@ export class SpiceTrajectory implements Trajectory {
   private _coverageQueried = false;
   private _startTime: number | undefined;
   private _endTime: number | undefined;
+  private _coverage: CoverageInterval[] = [];
 
   /** True if SPICE calls have failed for this trajectory */
   get failed(): boolean { return this.errorLogged; }
@@ -49,6 +51,7 @@ export class SpiceTrajectory implements Trajectory {
       }
       const windows = this.spice.spkcov(idcode);
       if (windows.length === 0) return;
+      this._coverage = [...windows].sort((a, b) => a.start - b.start);
       // Union all coverage windows to get the overall bounds
       let min = Infinity;
       let max = -Infinity;
@@ -61,6 +64,24 @@ export class SpiceTrajectory implements Trajectory {
     } catch {
       // Coverage query failed — leave times undefined
     }
+  }
+
+  /**
+   * SPK coverage (`spkcov`) is the authoritative answer to where this target
+   * has data, holes between segments included. Inside it, `spkezr` must still
+   * answer: the target's own segments say nothing of the chain to its center.
+   */
+  availabilityAt(et: number): StateAvailability {
+    this.queryCoverage();
+    const coverage = this._coverage;
+    const answers = () => !isNaN(this.stateAt(et).position[0]);
+    if (coverage.length === 0) return { available: answers() };
+    if (coverage.some(c => et >= c.start && et <= c.end)) {
+      return answers()
+        ? { available: true, coverage }
+        : { available: false, coverage, reason: 'error', message: `SPICE has no state for ${this.target} relative to ${this.center} at this epoch.` };
+    }
+    return { available: false, coverage, reason: et < coverage[0].start ? 'before-coverage' : et > coverage[coverage.length - 1].end ? 'after-coverage' : 'gap' };
   }
 
   stateAt(et: number): CartesianState {
