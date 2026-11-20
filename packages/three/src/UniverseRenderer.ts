@@ -2916,7 +2916,7 @@ export class UniverseRenderer {
   setSensorLabelsVisible(visible: boolean): void {
     this._sensorLabelsVisible = visible;
     for (const sf of this.sensorFrustums.values()) {
-      sf.labelSprite.visible = visible;
+      sf.labelSprite.visible = visible && sf.labelAllowed;
     }
   }
 
@@ -4256,6 +4256,7 @@ export class UniverseRenderer {
         // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
         const spiceFov = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
+        sf.labelSprite.visible = this._sensorLabelsVisible && sf.labelAllowed;
         if (spiceFov) {
           sf.spiceFovFrame = spiceFov.frame;
           sf.spiceFovBoundary = spiceFov.boundary;
