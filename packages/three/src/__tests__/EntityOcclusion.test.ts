@@ -12,7 +12,7 @@ const scene = new THREE.Group();
 function body(name: string, position: THREE.Vector3, surfaceLock?: boolean): BodyMesh {
   return {
     body: name === 'Moon'
-      ? { name, geometryType: 'Globe', classification: 'moon' }
+      ? { name, geometryType: 'Globe', classification: 'moon', radii: [100, 100, 100] }
       : { name, parentName: 'Moon', geometryType: 'Point', classification: 'spacecraft', geometryData: { surfaceLock } },
     parent: scene, position, present: true, visible: true,
     mesh: new THREE.Mesh(new THREE.SphereGeometry(100, 64, 64)),
@@ -28,7 +28,7 @@ function surface(z: number, x = 0, width = 20): THREE.Mesh {
   return mesh;
 }
 
-function setup(surfaceLock: boolean) {
+function setup(surfaceLock: boolean, terrainInnerRadius = 94) {
   vi.stubGlobal('document', {
     createElement: () => ({
       width: 96, height: 24,
@@ -45,7 +45,7 @@ function setup(surfaceLock: boolean) {
   const rover = body('Rover', new THREE.Vector3(0, 0, 98), surfaceLock);
   moon.mesh.visible = false;
   const terrain = new THREE.Group();
-  Object.assign(moon, { terrainTileGroup: terrain, terrainInnerRadius: 94 });
+  Object.assign(moon, { terrainTileGroup: terrain, terrainInnerRadius });
   const floor = surface(surfaceLock ? 98 : 97.5);
   terrain.add(floor);
   const bodies = [moon, rover];
@@ -113,8 +113,8 @@ describe('entity anchor visibility', () => {
     expect(rover.position.toArray()).toEqual([0, 0, 98]);
   });
 
-  it('hides a far-side anchor while front terrain is missing, and keeps a visible depression clear', () => {
-    const { camera, rover, terrain, floor, labels, glyphs, step } = setup(false);
+  it.each([94, 0])('handles missing front terrain with interior radius %s', terrainInnerRadius => {
+    const { camera, rover, terrain, floor, labels, glyphs, step } = setup(false, terrainInnerRadius);
     // Terrain is enabled but the only resident tile is off this ray.
     terrain.remove(floor);
     terrain.add(surface(97, 40));
@@ -125,13 +125,27 @@ describe('entity anchor visibility', () => {
     expect(labels.getLabelState('Rover')!.occlusion).toBe(0);
     expect(glyphs.readout()[0].occluded).toBe(true);
 
-    // The near-side anchor is inside the reference sphere and above the validated
-    // interior. Missing triangles in the relief shell cannot establish a hit.
+    // An anchor in a near-side depression remains visible during the tile gap.
     rover.position.z = 98;
     camera.lookAt(rover.position);
     camera.updateMatrixWorld(true);
     step(60);
     expect(labels.getLabelState('Rover')!.occlusion).toBeCloseTo(1);
+    expect(glyphs.readout()[0].visibility).toBeCloseTo(1);
+  });
+
+  it('keeps a grazing anchor visible when terrain has no certified interior', () => {
+    const { camera, rover, terrain, floor, labels, glyphs, step } = setup(false, 0);
+    terrain.remove(floor);
+    terrain.add(surface(97, 40));
+    // The segment grazes inside the nominal sphere, and the anchor is just
+    // across the hemisphere boundary from a distant camera.
+    camera.position.set(0, 0, 1000);
+    rover.position.set(99, 0, -0.01);
+    camera.lookAt(rover.position);
+    camera.updateMatrixWorld(true);
+    step(60);
+    expect(labels.getLabelState('Rover')!.occlusion).toBe(1);
     expect(glyphs.readout()[0].visibility).toBeCloseTo(1);
   });
 

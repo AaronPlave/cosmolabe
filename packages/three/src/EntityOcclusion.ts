@@ -5,6 +5,7 @@ import { tileFade, tileFadeMask } from './geographic/TileFade.js';
 
 const ANCHOR_HEIGHT_TOLERANCE_KM = 0.003;
 const MIN_GRAZING_SINE = 0.03;
+const LIMB_FADE_FRACTION = 0.04;
 
 type OccluderTest = (body: BodyMesh, ray: THREE.Ray, distance: number) => number | null;
 
@@ -47,7 +48,7 @@ export class AnchorOcclusion {
       const halfChord = Math.sqrt(radius * radius - closestSq);
       if (along + halfChord <= 0 || along - halfChord >= distance) continue;
       const depth = radius - Math.sqrt(closestSq);
-      const t = Math.max(0, 1 - depth / (radius * 0.04));
+      const t = Math.max(0, 1 - depth / (radius * LIMB_FADE_FRACTION));
       fade = Math.min(fade, t * t * (3 - 2 * t));
     }
     return fade;
@@ -57,6 +58,7 @@ export class AnchorOcclusion {
 interface Surface {
   meshes: { mesh: THREE.Mesh; sphere: THREE.Sphere; bins: number }[];
   innerRadius: number;
+  farSideRadius: number;
   streamed: boolean;
 }
 
@@ -104,14 +106,20 @@ export class EntityOcclusion {
       const surface = this.surface(body, isParent);
       if (!surface.streamed && surface.meshes.length === 0) return null;
 
-      // With missing tiles, only a chord through the validated terrain
-      // interior certifies blockage. A miss in the relief shell provides no
-      // evidence about unloaded terrain, so it cannot suppress the anchor.
-      if (surface.innerRadius > 0) {
+      if (surface.innerRadius > 0 || surface.farSideRadius > 0) {
         const toCenter = this.offset.subVectors(body.position, ray.origin);
         const along = toCenter.dot(ray.direction);
-        if (along > 0 && along < range &&
-          toCenter.addScaledVector(ray.direction, -along).lengthSq() < surface.innerRadius ** 2) return 0;
+        if (along > 0 && along < range) {
+          const farSide = surface.farSideRadius > 0 &&
+            this.radial.subVectors(owner.position, body.position).dot(toCenter) > 0;
+          const closestSq = toCenter.addScaledVector(ray.direction, -along).lengthSq();
+          if (closestSq < surface.innerRadius ** 2) return 0;
+
+          // Without a certified interior, coverage through the deep far side
+          // is unknown. Suppress the marker there even if no tile is resident.
+          // Leave same-side anchors and grazing paths to the drawn triangles.
+          if (farSide && closestSq < surface.farSideRadius ** 2) return 0;
+        }
       }
 
       // Stop a few metres short along the radial normal so an anchor resting
@@ -159,9 +167,16 @@ export class EntityOcclusion {
     if (!surface) {
       const meshes = body.getDskMeshes();
       if (drawSurface) meshes.push(...this.drawnSurfaceMeshes(body));
+      const innerRadius = streamed ? body.terrainInnerRadius : 0;
+      const radii = body.body.radii;
+      // Use the smaller physical axis and stay outside the analytic limb fade
+      // band when making the fallback display decision for missing terrain.
+      const farSideRadius = streamed && !innerRadius && !body.mesh.visible && radii
+        ? Math.min(...radii) * body.scaleFactor * (1 - LIMB_FADE_FRACTION) : 0;
       surface = {
         streamed,
-        innerRadius: streamed ? body.terrainInnerRadius : 0,
+        innerRadius,
+        farSideRadius: Math.max(0, farSideRadius),
         meshes: meshes.map(mesh => {
           mesh.updateWorldMatrix(true, false);
           const geometry = mesh.geometry;
