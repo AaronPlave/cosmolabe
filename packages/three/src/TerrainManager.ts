@@ -986,6 +986,7 @@ export class TerrainManager {
   readonly sampler: TerrainSampler;
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
   private cubeFrameReady = false;
+  private cubeOcclusionBoundValidated = false;
   private cubeFrameError: string | undefined;
   get frameAvailability(): { kind: 'available' | 'unavailable'; frame?: string; reason?: string } {
     if (this.config.cubeSphere && this.config.frame && !this.cubeFrameReady) return {
@@ -1756,6 +1757,11 @@ export class TerrainManager {
     return this.cube ? this.cube.surface.renderedInnerRadiusKm * 1000 : 0;
   }
 
+  /** Interior radius in kilometres for a validated full globe, independent of draw residency. */
+  get occlusionInnerRadiusKm(): number {
+    return this.cubeOcclusionBoundValidated ? this.cube?.surface.renderedInnerRadiusKm ?? 0 : 0;
+  }
+
   /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
   setCubeSkirts(visible: boolean): void {
     if (visible === this.cubeSkirts) return;
@@ -1947,6 +1953,12 @@ export class TerrainManager {
           (!geometry || geometry.referenceRadiusKm === shape.radiusKm) &&
           (source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere' ||
             source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius');
+        // A local product can bound its own triangles but cannot certify an
+        // interior across uncovered faces. Require the matched globe product.
+        const rootFaces = new Set(source.manifest.tiles.filter(([, level, x, y]) => level === 0 && x === 0 && y === 0).map(([face]) => face));
+        const faces: CubeFace[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+        this.cubeOcclusionBoundValidated = !!version && version === source.manifest.source.version &&
+          knownBuilder && knownSphere && faces.every(face => rootFaces.has(face));
         const generator = (source.manifest.source as typeof source.manifest.source & { generator?: { script?: string; sha256?: string } }).generator;
         const ellipsoidBuilderKnown = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(generator?.script ?? '') && /^[a-f0-9]{64}$/.test(generator?.sha256 ?? '');
         const normalEllipsoid = shape.kind === 'ellipsoid' && shape.radiiKm.every(r => Number.isFinite(r) && r > 0) &&

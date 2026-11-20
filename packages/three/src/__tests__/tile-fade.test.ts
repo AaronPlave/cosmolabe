@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { TilesFadePlugin } from '3d-tiles-renderer/three/plugins';
 // @ts-expect-error -- the library's own fade wrapper, which ships no type declarations
 import { wrapFadeMaterial } from '3d-tiles-renderer/src/three/plugins/fade/wrapFadeMaterial.js';
-import { tileFade, TILE_FADE_TESTED_VERSION } from '../geographic/TileFade.js';
+import { tileFade, tileFadeMask, TILE_FADE_TESTED_VERSION } from '../geographic/TileFade.js';
 
 describe('tileFade', () => {
   it('reads the cross-fade TilesFadePlugin set on a tile material, only while it fades', () => {
@@ -26,6 +26,17 @@ describe('tileFade', () => {
     const material = new THREE.MeshBasicMaterial();
     material.defines = { FEATURE_FADE: 1 };
     expect(tileFade(material)).toBe('unreadable');
+  });
+
+  it('maps complementary fades to disjoint shader bins with full combined coverage', () => {
+    for (const t of [0, 1 / 32, 0.24, 0.5, 0.93, 1]) {
+      const incoming = tileFadeMask({ fadeIn: t, fadeOut: 0 });
+      const outgoing = tileFadeMask({ fadeIn: 1, fadeOut: t });
+      expect(incoming & outgoing).toBe(0);
+      expect(incoming | outgoing).toBe(0xffff);
+    }
+    expect(tileFadeMask({ fadeIn: 0.375, fadeOut: 0 })).toBe(0x003f);
+    expect(tileFadeMask({ fadeIn: 1, fadeOut: 0.625 })).toBe(0xfc00);
   });
 
   // The contract as the app uses it: the bundled TilesFadePlugin (the build TerrainManager

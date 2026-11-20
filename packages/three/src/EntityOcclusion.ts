@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import type { BodyMesh } from './BodyMesh.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
+import { tileFade, tileFadeMask } from './geographic/TileFade.js';
 
 const ANCHOR_HEIGHT_TOLERANCE_KM = 0.003;
 const MIN_GRAZING_SINE = 0.03;
 
-type OccluderTest = (body: BodyMesh, ray: THREE.Ray, distance: number) => boolean | null;
+type OccluderTest = (body: BodyMesh, ray: THREE.Ray, distance: number) => number | null;
 
 /** Analytic limb fade for bodies without a triangle test for this anchor. */
 export class AnchorOcclusion {
@@ -25,9 +26,11 @@ export class AnchorOcclusion {
     let fade = 1;
     for (const body of bodies) {
       if (body === owner || !body.present) continue;
-      const hidden = test ? test(body, ray, distance) : body.dskOccludes(eye, point);
-      if (hidden !== null) {
-        if (hidden) return 0;
+      const plates = test ? null : body.dskOccludes(eye, point);
+      const visibility = test ? test(body, ray, distance) : plates === null ? null : Number(!plates);
+      if (visibility !== null) {
+        if (visibility === 0) return 0;
+        fade = Math.min(fade, visibility);
         continue;
       }
 
@@ -51,6 +54,12 @@ export class AnchorOcclusion {
   }
 }
 
+interface Surface {
+  meshes: { mesh: THREE.Mesh; sphere: THREE.Sphere; bins: number }[];
+  innerRadius: number;
+  streamed: boolean;
+}
+
 interface Visibility {
   frame: number;
   value: number;
@@ -64,8 +73,9 @@ export class EntityOcclusion {
   private readonly triangles = new ContourOcclusion();
   private readonly radial = new THREE.Vector3();
   private readonly view = new THREE.Vector3();
-  private readonly surfaces = new Map<BodyMesh, THREE.Mesh[]>();
-  private readonly plates = new Map<BodyMesh, THREE.Mesh[]>();
+  private readonly surfaces = new Map<BodyMesh, Surface>();
+  private readonly plates = new Map<BodyMesh, Surface>();
+  private readonly offset = new THREE.Vector3();
   private readonly states = new WeakMap<BodyMesh, Visibility>();
   private frame = 0;
 
@@ -89,23 +99,44 @@ export class EntityOcclusion {
 
     const distance = camera.position.distanceTo(owner.position);
     const raw = this.analytic.fade(camera.position, owner.position, distance, bodies, owner, (body, ray, range) => {
-      if (!body.visible) return false;
+      if (!body.visible) return 1;
       const isParent = body.body.name === owner.body.parentName;
-      const streamed = body.terrainTileGroup?.visible;
-      const drawGlobe = isParent && body.body.geometryType === 'Globe' && body.mesh.visible;
-      const drawSurface = !!streamed || drawGlobe;
-      const meshes = this.meshes(body, drawSurface);
-      // While terrain streams, a missing tile is a gap in the drawn surface.
-      // The reference globe has been hidden and cannot fill that gap.
-      if (!drawSurface && meshes.length === 0) return null;
+      const surface = this.surface(body, isParent);
+      if (!surface.streamed && surface.meshes.length === 0) return null;
 
-      // End a few metres above the anchor along the local radial normal. This
-      // covers floating-point error and a landmark resting on a triangle. Cap
-      // the grazing allowance so the ray still sees intervening relief.
+      // With missing tiles, only a chord through the validated terrain
+      // interior certifies blockage. A miss in the relief shell provides no
+      // evidence about unloaded terrain, so it cannot suppress the anchor.
+      if (surface.innerRadius > 0) {
+        const toCenter = this.offset.subVectors(body.position, ray.origin);
+        const along = toCenter.dot(ray.direction);
+        if (along > 0 && along < range &&
+          toCenter.addScaledVector(ray.direction, -along).lengthSq() < surface.innerRadius ** 2) return 0;
+      }
+
+      // Stop a few metres short along the radial normal so an anchor resting
+      // on a triangle doesn't occlude itself. Cap the grazing allowance.
       const radial = this.radial.subVectors(owner.position, body.position).normalize();
       const sine = Math.max(MIN_GRAZING_SINE, Math.abs(radial.dot(ray.direction)));
       const far = range - ANCHOR_HEIGHT_TOLERANCE_KM * body.scaleFactor / sine;
-      return far > 0 && meshes.some(mesh => this.triangles.intersects(mesh, ray, far));
+      if (far <= 0) return 1;
+
+      let blocked = 0;
+      for (const { mesh, sphere, bins } of surface.meshes) {
+        if ((bins & ~blocked) === 0) continue;
+        const offset = this.offset.subVectors(sphere.center, ray.origin);
+        const along = THREE.MathUtils.clamp(offset.dot(ray.direction), 0, far);
+        if (offset.addScaledVector(ray.direction, -along).lengthSq() > sphere.radius ** 2) continue;
+        if (!this.triangles.intersects(mesh, ray, far)) continue;
+        blocked |= bins;
+        if (blocked === 0xffff) return 0;
+      }
+
+      // Resolve the whole Bayer cell so sliding across individual pixels
+      // during a camera move doesn't flicker an entire label or glyph.
+      let count = 0;
+      for (; blocked; blocked &= blocked - 1) count++;
+      return 1 - count / 16;
     });
 
     // Ignore a single frame of disagreement at a tile boundary. Both
@@ -120,14 +151,27 @@ export class EntityOcclusion {
     return value;
   }
 
-  private meshes(body: BodyMesh, drawSurface: boolean): THREE.Mesh[] {
+  private surface(body: BodyMesh, isParent: boolean): Surface {
+    const streamed = !!body.terrainTileGroup?.visible;
+    const drawSurface = streamed || (isParent && body.body.geometryType === 'Globe' && body.mesh.visible);
     const cache = drawSurface ? this.surfaces : this.plates;
-    let meshes = cache.get(body);
-    if (!meshes) {
-      meshes = drawSurface ? [...this.drawnSurfaceMeshes(body), ...body.getDskMeshes()] : body.getDskMeshes();
-      for (const mesh of meshes) mesh.updateWorldMatrix(true, false);
-      cache.set(body, meshes);
+    let surface = cache.get(body);
+    if (!surface) {
+      const meshes = body.getDskMeshes();
+      if (drawSurface) meshes.push(...this.drawnSurfaceMeshes(body));
+      surface = {
+        streamed,
+        innerRadius: streamed ? body.terrainInnerRadius : 0,
+        meshes: meshes.map(mesh => {
+          mesh.updateWorldMatrix(true, false);
+          const geometry = mesh.geometry;
+          if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+          const sphere = geometry.boundingSphere!.clone().applyMatrix4(mesh.matrixWorld);
+          return { mesh, sphere, bins: tileFadeMask(tileFade(mesh.material)) };
+        }),
+      };
+      cache.set(body, surface);
     }
-    return meshes;
+    return surface;
   }
 }

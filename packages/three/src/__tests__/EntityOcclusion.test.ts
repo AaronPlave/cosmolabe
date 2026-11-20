@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { TilesFadePlugin } from '3d-tiles-renderer/three/plugins';
 import type { BodyMesh } from '../BodyMesh.js';
 import { EntityOcclusion } from '../EntityOcclusion.js';
 import { LabelManager } from '../LabelManager.js';
@@ -44,7 +45,7 @@ function setup(surfaceLock: boolean) {
   const rover = body('Rover', new THREE.Vector3(0, 0, 98), surfaceLock);
   moon.mesh.visible = false;
   const terrain = new THREE.Group();
-  Object.assign(moon, { terrainTileGroup: terrain });
+  Object.assign(moon, { terrainTileGroup: terrain, terrainInnerRadius: 94 });
   const floor = surface(surfaceLock ? 98 : 97.5);
   terrain.add(floor);
   const bodies = [moon, rover];
@@ -110,6 +111,64 @@ describe('entity anchor visibility', () => {
     expect(label()).toBeCloseTo(1);
     expect(ring()).toBeCloseTo(1);
     expect(rover.position.toArray()).toEqual([0, 0, 98]);
+  });
+
+  it('hides a far-side anchor while front terrain is missing, and keeps a visible depression clear', () => {
+    const { camera, rover, terrain, floor, labels, glyphs, step } = setup(false);
+    // Terrain is enabled but the only resident tile is off this ray.
+    terrain.remove(floor);
+    terrain.add(surface(97, 40));
+    rover.position.z = -101;
+    camera.lookAt(rover.position);
+    camera.updateMatrixWorld(true);
+    step(60);
+    expect(labels.getLabelState('Rover')!.occlusion).toBe(0);
+    expect(glyphs.readout()[0].occluded).toBe(true);
+
+    // The near-side anchor is inside the reference sphere and above the validated
+    // interior. Missing triangles in the relief shell cannot establish a hit.
+    rover.position.z = 98;
+    camera.lookAt(rover.position);
+    camera.updateMatrixWorld(true);
+    step(60);
+    expect(labels.getLabelState('Rover')!.occlusion).toBeCloseTo(1);
+    expect(glyphs.readout()[0].visibility).toBeCloseTo(1);
+  });
+
+  it('shares a monotonic fade as a blocking parent gives way to clear relief while the camera moves', () => {
+    const { camera, rover, terrain, floor, labels, glyphs, step } = setup(false);
+    const parent = surface(100);
+    terrain.add(parent);
+    const plugin = new TilesFadePlugin() as unknown as {
+      _fadeMaterialManager: {
+        prepareScene(scene: THREE.Object3D): void;
+        setFade(scene: THREE.Object3D, fadeIn: number, fadeOut: number): void;
+      };
+    };
+    const manager = plugin._fadeMaterialManager;
+    manager.prepareScene(parent);
+    manager.prepareScene(floor);
+    step(60);
+    expect(labels.getLabelState('Rover')!.occlusion).toBe(0);
+    let previous = 0;
+    for (let i = 1; i < 18; i++) {
+      const t = i / 18;
+      manager.setFade(parent, 1, t);
+      manager.setFade(floor, t, 0);
+      camera.position.set(i / 5, 0.3, 104 + t);
+      camera.lookAt(rover.position);
+      camera.updateMatrixWorld(true);
+      step();
+      const visibility = labels.getLabelState('Rover')!.occlusion;
+      expect(visibility).toBeGreaterThan(previous);
+      expect(visibility - previous).toBeLessThan(0.1);
+      expect(glyphs.readout()[0].visibility).toBeCloseTo(visibility, 6);
+      previous = visibility;
+    }
+    terrain.remove(parent);
+    manager.setFade(floor, 1, 0);
+    step(60);
+    expect(glyphs.readout()[0].visibility).toBeCloseTo(1);
   });
 
   it('uses the drawn globe when there is no streamed surface and hides a far-side anchor', () => {
