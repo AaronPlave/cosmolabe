@@ -2851,9 +2851,9 @@ export class UniverseRenderer {
     return this.labelManager?.isLabelVisible(name) ?? null;
   }
 
-  /** Show or hide **one object's** label. Silent when the object has none. */
+  /** Show or hide **one object's** label, creating it when the catalog hid it. */
   setLabelVisible(name: string, visible: boolean): void {
-    this.labelManager?.setLabelVisible(name, visible);
+    this.labelManager?.setLabelVisible(name, visible, this.bodyMeshes.get(name));
   }
 
   /** Show or hide all body labels. */

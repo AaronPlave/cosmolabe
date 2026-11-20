@@ -222,7 +222,12 @@ export class LabelManager {
     });
   }
 
-  setLabelVisible(name: string, visible: boolean): void {
+  /**
+   * Show or hide one label. A label the catalog hid at load was never created,
+   * so showing it creates it from `bodyMesh` when one is given.
+   */
+  setLabelVisible(name: string, visible: boolean, bodyMesh?: BodyMesh): void {
+    if (visible && !this.labels.has(name) && bodyMesh) this.addLabel(bodyMesh);
     const entry = this.labels.get(name);
     if (entry) entry.sprite.visible = visible && this._globalVisible;
   }
