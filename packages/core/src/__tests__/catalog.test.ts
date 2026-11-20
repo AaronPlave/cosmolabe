@@ -9,6 +9,16 @@ describe('CatalogLoader', () => {
     expect(result.bodies[0].frame).toBe('BODY_FIXED');
   });
 
+  it('refuses a length unit for a plot duration, lead or sampling interval', () => {
+    // "10m" is ten metres: read as 0.01 s it silently drew no trail at all.
+    for (const plot of [{ duration: '10m' }, { lead: '5m' }, { sampleInterval: '2km' }]) {
+      expect(() => new CatalogLoader().load({ items: [{ name: 'Hop', trajectory: { type: 'FixedPoint', position: [1, 2, 3] }, trajectoryPlot: plot }] }))
+        .toThrow(/is a length, not a time/);
+    }
+    const ok = new CatalogLoader().load({ items: [{ name: 'Hop', trajectory: { type: 'FixedPoint', position: [1, 2, 3] }, trajectoryPlot: { duration: '20min', lead: '10 min', sampleInterval: '2s' } }] });
+    expect(ok.bodies[0].trajectoryPlot).toMatchObject({ duration: 1200, lead: 600, sampleInterval: 2 });
+  });
+
   it('loads simple FixedPoint bodies', () => {
     const loader = new CatalogLoader();
     const result = loader.load({

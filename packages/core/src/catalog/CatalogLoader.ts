@@ -402,6 +402,15 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
   }
 }
 
+/** A time span (seconds). A length unit is refused rather than scaled: "10m"
+ *  is ten metres, and a plot "duration" of 0.01 s draws nothing at all. */
+function parseDuration(val: number | string, what: string): number {
+  if (typeof val === 'string' && /^[+-]?[\d.eE+-]+\s*(au|km|m|cm|mm)$/i.test(val.trim())) {
+    throw new Error(`${what} ${JSON.stringify(val)} is a length, not a time; use s, min, h, d or y`);
+  }
+  return parseValueWithUnit(val, 0);
+}
+
 // Well-known GM values (km³/s²) for Keplerian orbit propagation without SPICE
 const BODY_GM: Record<string, number> = {
   Sun: 132712440041.94, Earth: 398600.4418, Moon: 4902.8,
@@ -1714,12 +1723,12 @@ export class CatalogLoader {
     if (spec.frame != null) config.frame = spec.frame;
     if (spec.timelineLabel != null) config.timelineLabel = spec.timelineLabel;
     if (spec.sampleInterval != null) {
-      const interval = parseValueWithUnit(spec.sampleInterval, 0);
+      const interval = parseDuration(spec.sampleInterval, 'trajectoryPlot.sampleInterval');
       if (!(interval > 0) || !Number.isFinite(interval)) throw new Error('trajectoryPlot.sampleInterval must be finite and positive');
       config.sampleInterval = interval;
     }
-    if (spec.duration != null) config.duration = parseValueWithUnit(spec.duration, 0);
-    if (spec.lead != null) config.lead = parseValueWithUnit(spec.lead, 0);
+    if (spec.duration != null) config.duration = parseDuration(spec.duration, 'trajectoryPlot.duration');
+    if (spec.lead != null) config.lead = parseDuration(spec.lead, 'trajectoryPlot.lead');
     if (spec.fade != null) config.fade = Math.max(0, Math.min(1, spec.fade));
     if (spec.color != null) config.color = spec.color;
     if (spec.opacity != null) config.opacity = Math.max(0, Math.min(1, spec.opacity));
