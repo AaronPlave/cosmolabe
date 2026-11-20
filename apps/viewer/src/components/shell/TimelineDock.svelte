@@ -32,7 +32,7 @@
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import MissionActivityTimeline from './MissionActivityTimeline.svelte';
-  import { activitySeries } from '../../lib/mission-activities';
+  import { activitySeries, summaryActivities } from '../../lib/mission-activities';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -776,7 +776,7 @@
   </div>
 
   {#if !expanded && vs.activities.length}
-    <MissionActivityTimeline items={vs.activities} label="activity" {expanded} wide={wideLanes} {axis} />
+    <MissionActivityTimeline items={summaryActivities(vs.activities)} label="activity" {expanded} wide={wideLanes} {axis} />
   {/if}
 
   {#if expanded}

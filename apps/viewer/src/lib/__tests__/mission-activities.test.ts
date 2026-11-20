@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseMissionActivities, adjacentActivity } from '@cosmolabe/core';
 import { readFileSync } from 'node:fs';
 import { eventCalloutLines, eventSceneAnnotationLines } from '../event-query';
-import { activityEvent, activitySeries, activityLayout, visibleActivityMarks } from '../mission-activities';
+import { activityEvent, activitySeries, activityLayout, laneColor, summaryActivities, visibleActivityMarks } from '../mission-activities';
 const catalog = (name: string) => JSON.parse(readFileSync(new URL(`../../../test-catalogs/${name}.json`, import.meta.url), 'utf8'));
 
 describe('mission activities independent of trajectory storage', () => {
@@ -71,5 +71,26 @@ describe('mission activities independent of trajectory storage', () => {
     expect(marks.at(-1)).toMatchObject({windowStart:19900, windowEnd:20000});
     expect(Math.max(...layout.map(m=>m.row))).toBe(3);
     console.info(`Activity benchmark: 10000 records, layout+density+10000 binary seeks ${elapsed.toFixed(1)} ms`);
+  });
+  it('lays out host-grouped lanes, summarizes operations without phases, and targets the referenced object', () => {
+    const at = (id: string, kind: string, group: string | undefined, start: number, objects?: string[]) => ({
+      version: 1, id, name: id, vehicle: 'SC-01', body: 'Earth', kind, group, temporality: 'interval', timeSystem: 'ET', start, end: start + 60,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+      ...(objects ? { references: { objects } } : {}),
+    });
+    const records = parseMissionActivities([
+      at('nadir', 'phase', 'Attitude', 0), at('image', 'other', 'Payload', 10, ['SC-01', 'Nile Delta']),
+      at('downlink', 'other', 'Comms', 100, ['Weilheim']), at('sun', 'phase', 'Attitude', 200), at('legacy', 'phase', undefined, 300),
+    ]);
+    expect(activitySeries(records).map(s => s.label)).toEqual(['Attitude', 'Payload', 'Comms', 'phase']);
+    expect(summaryActivities(records).map(a => a.id)).toEqual(['image', 'downlink']);
+    expect(summaryActivities(records.filter(a => a.kind === 'phase')).map(a => a.id)).toEqual(['nadir', 'sun', 'legacy']);
+    expect(activityEvent(records[1]).bodies).toEqual({ observer: 'SC-01', target: 'Nile Delta' });
+    expect(activityEvent(records[0]).bodies).toEqual({ observer: 'SC-01' });
+    const [attitude, payload, comms] = activitySeries(records);
+    expect(laneColor(attitude.items, attitude.label)).toBe('#8a96a8');
+    expect(laneColor(payload.items, payload.label)).not.toBe(laneColor(attitude.items, attitude.label));
+    expect(laneColor(payload.items, payload.label)).toBe(laneColor(payload.items, 'Payload'));
+    expect(laneColor(comms.items, comms.label)).not.toBe(laneColor(payload.items, payload.label));
   });
 });
