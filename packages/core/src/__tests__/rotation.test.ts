@@ -82,3 +82,20 @@ describe('UniformRotation', () => {
     expect(dot).toBeCloseTo(-1, 3);
   });
 });
+
+describe('EarthOrientationRotation', () => {
+  it('places an Earth-fixed position where Vallado example 3-15 has it in J2000', async () => {
+    const { EarthOrientationRotation } = await import('../rotations/EarthOrientationRotation.js');
+    const { etFromCalendarString } = await import('../time.js');
+    const et = etFromCalendarString('2004-04-06T07:51:28.386009Z');
+    const itrf: [number, number, number] = [-1033.4793830, 7901.2952754, 6380.3565958];
+    const gcrf: [number, number, number] = [5102.508958, 6123.011401, 6378.136928];
+    const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    const r = rotateByConjugate(new EarthOrientationRotation().rotationAt(et) as [number, number, number, number], itrf);
+    // UT1-UTC (-0.44 s that day) and polar motion are not modeled: ~0.3 km.
+    expect(dist(r, gcrf)).toBeLessThan(0.5);
+    // The constant-rate IAU model it replaces is already kilometers off in 2004, and the gap grows with precession.
+    const iau = new UniformRotation(86164.0905, 0, 190.147 * Math.PI / 180, 0, Math.PI / 2);
+    expect(dist(rotateByConjugate(iau.rotationAt(et) as [number, number, number, number], itrf), gcrf)).toBeGreaterThan(2);
+  });
+});
