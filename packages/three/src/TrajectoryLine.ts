@@ -135,6 +135,8 @@ export class TrajectoryLine extends THREE.Object3D {
   private maxPoints: number;
   private readonly numCoarse: number;
   private readonly trailDuration: number;
+  /** Live (uncached) resample interval when the catalog declares one. */
+  private readonly liveResampleInterval?: number;
   private readonly leadDuration: number;
   private readonly baseColor: THREE.Color;
   // Color the trail vertices are written with — equals baseColor at rest, lerped
@@ -231,6 +233,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this.name = `${body.name}_trajectory`;
     this.cache = options.cache ?? null;
     this.cacheResampleInterval = Math.max(0, options.cacheResampleInterval ?? 300);
+    this.liveResampleInterval = options.cacheResampleInterval;
     // When a cache is provided, default buffer size to cache count (ensures the
     // full pre-computed dataset can be displayed). Explicit maxPoints still overrides.
     this.maxPoints =
@@ -655,7 +658,9 @@ export class TrajectoryLine extends THREE.Object3D {
       // staticOrbit bodies (closed periodic orbits) sample once and never resample —
       // the spatial extent of the orbit doesn't change with time, and the body's
       // own mesh already marks the current position so no tail line is needed.
-      const LEGACY_RESAMPLE = Math.min(
+      // A declared plot sampling interval wins: a minutes-long surface hop
+      // would otherwise chord across up to a minute of its path.
+      const LEGACY_RESAMPLE = this.liveResampleInterval ?? Math.min(
         Math.max(this.trailDuration * 0.01, 60),
         3600,
       );

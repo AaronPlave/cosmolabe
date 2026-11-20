@@ -4567,7 +4567,7 @@ export class UniverseRenderer {
             trajOpts.staticOrbit = true;
           }
 
-          const plotFrame = plotCfg?.frame ? new TrajectoryPlotFrame(this.universe, body.frame, plotCfg.frame,
+          const plotFrame = plotCfg?.frame ? new TrajectoryPlotFrame(this.universe, () => body.frame, plotCfg.frame,
             body.parentName, t => body.stateAt(t).position, body.trajectory.startTime ?? this.timeController.et) : null;
           if (plotFrame) trajOpts.fixedResolver = plotFrame.resolve;
           if (plotCfg?.sampleInterval) trajOpts.cacheResampleInterval = plotCfg.sampleInterval;
