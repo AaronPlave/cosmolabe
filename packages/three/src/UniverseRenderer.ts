@@ -65,7 +65,7 @@ import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
-import { PositionGlyphs, wantsGlyph, wantsPointMarker, glyphReplacesPlaceholder, isNaturalBody, placeholderMeshScale, type PositionGlyphReadout } from './PositionGlyphs.js';
+import { PositionGlyphs, glyphDrawn, wantsPointMarker, glyphReplacesPlaceholder, isNaturalBody, placeholderMeshScale, type PositionGlyphReadout } from './PositionGlyphs.js';
 import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
@@ -1318,20 +1318,20 @@ export class UniverseRenderer {
     // Position glyphs read the same final camera and the label manager's stable
     // label decisions, so a marker is shown only while its label explains it
     // (selected/tracked entities always keep both) and shares its anchor.
-    if (this._positionGlyphsEnabled) {
+    {
       const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this._terrainOccluders = null;
       this.positionGlyphs.update(bodyMeshArr, this.camera, {
         viewport: { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
         device: { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
-        isEligible: (bm) => wantsGlyph(bm, this._customVisuals.has(bm.body.name)),
+        isEligible: (bm) => glyphDrawn(bm, this._positionGlyphsEnabled, this._customVisuals.has(bm.body.name)),
         isPinned: (name) => this.labelManager?.isLabelPinnedByHost(name) ?? false,
         trackedName: this.cameraController.trackedBody?.body.name ?? null,
         hoveredName: this._hoveredBody,
         labelState: (name) => this.labelManager?.getLabelState(name) ?? null,
         terrainOccluded: (bm) => this._glyphTerrainOccluded(bm),
       });
-    } else this.positionGlyphs.group.visible = false;
+    }
 
     // Solar optics use the final camera, physical body radius, and the same
     // transmittance LUT/profile as the visible atmosphere shell.
@@ -2882,13 +2882,12 @@ export class UniverseRenderer {
    * callers must not read a listed entity as proof its pixels are visible.
    */
   getPositionGlyphReadout(): PositionGlyphReadout[] {
-    return this._positionGlyphsEnabled ? this.positionGlyphs.readout() : [];
+    return this.positionGlyphs.readout();
   }
 
   /** Turn position glyphs on or off at runtime. */
   setPositionGlyphsEnabled(enabled: boolean): void {
     this._positionGlyphsEnabled = enabled;
-    this.positionGlyphs.group.visible = enabled;
   }
 
   /** Unpin all labels (e.g. on selection clear). */

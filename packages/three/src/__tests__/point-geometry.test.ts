@@ -5,12 +5,12 @@
 import { describe, expect, it } from 'vitest';
 import { Body, validateCatalog } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
-import { glyphReplacesPlaceholder, isNaturalBody, wantsPointMarker } from '../PositionGlyphs.js';
+import { glyphDrawn, glyphReplacesPlaceholder, isNaturalBody, wantsPointMarker } from '../PositionGlyphs.js';
 import { CameraController } from '../controls/CameraController.js';
 
 const fixedPoint = { stateAt: () => ({ position: [0, 0, 0], velocity: [0, 0, 0] }) } as never;
-const station = () => new BodyMesh(new Body({
-  name: 'Goldstone', classification: 'other', trajectory: fixedPoint, geometryType: 'Point', geometryData: { type: 'Point', surfaceLock: true },
+const station = (classification = 'other') => new BodyMesh(new Body({
+  name: 'Goldstone', classification, trajectory: fixedPoint, geometryType: 'Point', geometryData: { type: 'Point', surfaceLock: true },
 }));
 
 describe('Point geometry', () => {
@@ -22,6 +22,17 @@ describe('Point geometry', () => {
     expect(wantsPointMarker(bm, false)).toBe(true);
     // Projected radius is 0 px however near the camera is.
     expect(glyphReplacesPlaceholder(true, true, 0)).toBe(true);
+  });
+
+  it('keeps its glyph when glyphs are turned off, and whatever its class', () => {
+    expect(glyphDrawn(station(), false, false)).toBe(true);
+    const moonClassed = station('moon');
+    expect(isNaturalBody(moonClassed)).toBe(false);
+    expect(glyphDrawn(moonClassed, false, false)).toBe(true);
+    // A body with physical extent still follows the switch.
+    const globe = new BodyMesh(new Body({ name: 'Probe', classification: 'spacecraft', trajectory: fixedPoint }));
+    expect(glyphDrawn(globe, false, false)).toBe(false);
+    expect(glyphDrawn(globe, true, false)).toBe(true);
   });
 
   it('is framed at a nominal radius rather than from inside it', () => {
