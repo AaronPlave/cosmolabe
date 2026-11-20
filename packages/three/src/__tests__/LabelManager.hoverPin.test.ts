@@ -47,4 +47,16 @@ describe('LabelManager.isLabelPinnedByHost', () => {
     expect(labels.isLabelPinnedByHost('Clipper')).toBe(false);
     expect(labels.isLabelPinnedByHost('Other')).toBe(false);
   });
+
+  it('shows a label the catalog hid at load, creating it on demand', () => {
+    stubCanvas();
+    const labels = new LabelManager(undefined as unknown as HTMLElement);
+    expect(labels.isLabelVisible('Site')).toBeNull();
+    labels.setLabelVisible('Site', true);
+    expect(labels.isLabelVisible('Site')).toBeNull();
+    labels.setLabelVisible('Site', true, body('Site'));
+    expect(labels.isLabelVisible('Site')).toBe(true);
+    labels.setLabelVisible('Site', false, body('Site'));
+    expect(labels.isLabelVisible('Site')).toBe(false);
+  });
 });

@@ -2,27 +2,55 @@ import type { GeometryEvent, MissionActivity } from '@cosmolabe/core';
 
 /** Shared event inspector vocabulary; activity metadata remains authoritative. */
 export function activityEvent(a: MissionActivity): GeometryEvent {
+  // The first object the activity names besides its vehicle (an imaged site, a
+  // ground station) is what it is about, so the scene highlights both.
+  const target = a.references?.objects?.find(o => o !== a.vehicle);
   const base = { id: a.id, queryId: `activity:${a.vehicle}:${a.kind}`, kind: 'mission-activity',
-    label: `${a.vehicle} ${a.name}`, state: a.provenance.timing, bodies: { observer: a.vehicle }, primaryRole: 'observer' as const };
+    label: `${a.vehicle} ${a.name}`, state: a.provenance.timing, bodies: { observer: a.vehicle, ...(target ? { target } : {}) }, primaryRole: 'observer' as const };
   return a.temporality === 'instant' ? { ...base, temporality: 'instant', et: a.start } :
     { ...base, temporality: 'interval', start: a.start, end: a.end };
 }
 
+/** The lane an activity belongs to: its group when it names one, else its kind. */
+export const activityLane = (a: MissionActivity) => a.group ?? a.kind;
+
+/** One lane per vehicle and group (or kind): each vehicle's lanes together, both in order of first appearance. */
 export function activitySeries(records: readonly MissionActivity[]) {
   const groups = new Map<string, { body: string; label: string; items: MissionActivity[] }>();
+  const vehicles: string[] = [];
   for (const a of records) {
-    const key = `${a.vehicle}:${a.kind}`;
-    if (!groups.has(key)) groups.set(key, { body: a.vehicle, label: a.kind, items: [] });
+    const key = `${a.vehicle}:${activityLane(a)}`;
+    if (!vehicles.includes(a.vehicle)) vehicles.push(a.vehicle);
+    if (!groups.has(key)) groups.set(key, { body: a.vehicle, label: activityLane(a), items: [] });
     groups.get(key)!.items.push(a);
   }
-  return [...groups.values()];
+  return [...groups.values()].sort((x, y) => vehicles.indexOf(x.body) - vehicles.indexOf(y.body));
+}
+
+/**
+ * The activities a one-row summary shows: operations, leaving out continuous
+ * phases (an attitude mode covering every moment) unless they are all there is.
+ */
+export function summaryActivities(records: readonly MissionActivity[]): MissionActivity[] {
+  const operations = records.filter(a => a.kind !== 'phase');
+  return operations.length ? operations : [...records];
+}
+
+const LANE_COLORS = ['#b69bd3', '#72b7d8', '#e0b86a', '#71b896', '#d88c72'];
+/** Continuous phases read as muted context; each operations lane keeps one color wherever it appears. */
+export function laneColor(items: readonly MissionActivity[], label: string): string {
+  if (items.length && items.every(a => a.kind === 'phase')) return '#8a96a8';
+  let h = 0;
+  for (const c of label) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return LANE_COLORS[h % LANE_COLORS.length];
 }
 
 /** Greedy overlap rows, bounded to 4 for density; chooser retains every record. */
 export function activityLayout(items: readonly MissionActivity[]) {
   const ends: number[] = [];
   return items.map(item => {
-    let row = ends.findIndex(end => end < item.start);
+    // Intervals that only touch (one ends as the next starts) share a row.
+    let row = ends.findIndex(end => end <= item.start && end < item.end);
     if (row < 0) row = ends.length;
     row = Math.min(3, row);
     ends[row] = Math.max(ends[row] ?? -Infinity, item.end);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseMissionActivities, adjacentActivity } from '@cosmolabe/core';
 import { readFileSync } from 'node:fs';
 import { eventCalloutLines, eventSceneAnnotationLines } from '../event-query';
-import { activityEvent, activitySeries, activityLayout, visibleActivityMarks } from '../mission-activities';
+import { activityEvent, activitySeries, activityLayout, laneColor, summaryActivities, visibleActivityMarks } from '../mission-activities';
 const catalog = (name: string) => JSON.parse(readFileSync(new URL(`../../../test-catalogs/${name}.json`, import.meta.url), 'utf8'));
 
 describe('mission activities independent of trajectory storage', () => {
@@ -71,5 +71,44 @@ describe('mission activities independent of trajectory storage', () => {
     expect(marks.at(-1)).toMatchObject({windowStart:19900, windowEnd:20000});
     expect(Math.max(...layout.map(m=>m.row))).toBe(3);
     console.info(`Activity benchmark: 10000 records, layout+density+10000 binary seeks ${elapsed.toFixed(1)} ms`);
+  });
+  it('lays out host-grouped lanes, summarizes operations without phases, and targets the referenced object', () => {
+    const at = (id: string, kind: string, group: string | undefined, start: number, objects?: string[]) => ({
+      version: 1, id, name: id, vehicle: 'SC-01', body: 'Earth', kind, group, temporality: 'interval', timeSystem: 'ET', start, end: start + 60,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+      ...(objects ? { references: { objects } } : {}),
+    });
+    const records = parseMissionActivities([
+      at('nadir', 'phase', 'Attitude', 0), at('image', 'other', 'Payload', 10, ['SC-01', 'Nile Delta']),
+      at('downlink', 'other', 'Comms', 100, ['Weilheim']), at('sun', 'phase', 'Attitude', 200), at('legacy', 'phase', undefined, 300),
+    ]);
+    expect(activitySeries(records).map(s => s.label)).toEqual(['Attitude', 'Payload', 'Comms', 'phase']);
+    expect(summaryActivities(records).map(a => a.id)).toEqual(['image', 'downlink']);
+    expect(summaryActivities(records.filter(a => a.kind === 'phase')).map(a => a.id)).toEqual(['nadir', 'sun', 'legacy']);
+    expect(activityEvent(records[1]).bodies).toEqual({ observer: 'SC-01', target: 'Nile Delta' });
+    expect(activityEvent(records[0]).bodies).toEqual({ observer: 'SC-01' });
+    const [attitude, payload, comms] = activitySeries(records);
+    expect(laneColor(attitude.items, attitude.label)).toBe('#8a96a8');
+    expect(laneColor(payload.items, payload.label)).not.toBe(laneColor(attitude.items, attitude.label));
+    expect(laneColor(payload.items, payload.label)).toBe(laneColor(payload.items, 'Payload'));
+    expect(laneColor(comms.items, comms.label)).not.toBe(laneColor(payload.items, payload.label));
+  });
+  it('keeps touching intervals on one row, and coincident instants apart', () => {
+    const span = (id: string, start: number, end: number) => ({
+      version: 1, id, name: id, vehicle: 'SC-01', body: 'Earth', kind: 'phase', temporality: start === end ? 'instant' : 'interval', timeSystem: 'ET', start, end,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+    });
+    const rows = (specs: ReturnType<typeof span>[]) => activityLayout(parseMissionActivities(specs)).map(m => m.row);
+    expect(rows([span('nadir', 0, 100), span('gap', 100, 228), span('nadir2', 228, 300)])).toEqual([0, 0, 0]);
+    expect(rows([span('a', 0, 100), span('b', 50, 150)])).toEqual([0, 1]);
+    expect(rows([span('x', 10, 10), span('y', 10, 10)])).toEqual([0, 1]);
+  });
+  it('keeps each vehicle\'s lanes together', () => {
+    const at = (id: string, vehicle: string, group: string, start: number) => ({
+      version: 1, id, name: id, vehicle, body: 'Earth', kind: 'other', group, temporality: 'interval', timeSystem: 'ET', start, end: start + 1,
+      provenance: { source: 'test', version: '1', authority: 'observed', timing: 'estimated', limitations: 'test' },
+    });
+    const records = parseMissionActivities([at('a', 'SC-01', 'Attitude', 0), at('b', 'SC-02', 'Attitude', 1), at('c', 'SC-02', 'Payload', 2), at('d', 'SC-01', 'Payload', 3)]);
+    expect(activitySeries(records).map(s => `${s.body} ${s.label}`)).toEqual(['SC-01 Attitude', 'SC-01 Payload', 'SC-02 Attitude', 'SC-02 Payload']);
   });
 });
