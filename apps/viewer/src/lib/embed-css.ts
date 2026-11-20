@@ -46,3 +46,28 @@ function topLevelRuleEnd(css: string, i: number): number {
   }
   return css.length;
 }
+
+/**
+ * Keep Svelte's component styles inside the shadow root. Svelte injects a
+ * component's CSS beside the component's first render, and a component first
+ * rendered in a detached fragment has no shadow host to find, so its styles
+ * land in `document.head` instead, where nothing in the shadow root sees them.
+ * Copies them in as they appear; the hash-scoped originals cannot style the
+ * host page. Returns a disposer.
+ */
+export function mirrorComponentStyles(shadow: ShadowRoot, head: HTMLElement = document.head): () => void {
+  const copy = (node: Node) => {
+    if (!(node instanceof HTMLStyleElement) || !node.id.startsWith('svelte-')) return;
+    if (shadow.getElementById(node.id)) return;
+    const clone = document.createElement('style');
+    clone.id = node.id;
+    clone.textContent = node.textContent;
+    shadow.append(clone);
+  };
+  head.querySelectorAll('style[id^="svelte-"]').forEach(copy);
+  const observer = new MutationObserver((records) => {
+    for (const r of records) r.addedNodes.forEach(copy);
+  });
+  observer.observe(head, { childList: true });
+  return () => observer.disconnect();
+}

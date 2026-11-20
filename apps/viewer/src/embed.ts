@@ -31,7 +31,7 @@ import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse,
 import { disposeAsk, setHostAskTransport } from './lib/ask/ask.svelte';
 import { createHttpTransport } from './lib/ask/http-transport';
 import { resetStores } from './lib/session.svelte';
-import { splitShadowCss } from './lib/embed-css';
+import { mirrorComponentStyles, splitShadowCss } from './lib/embed-css';
 
 /** How often profiles resample while a host's mission state is changing. */
 const MISSION_STATE_RESAMPLE_MS = 1000;
@@ -84,6 +84,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     globals.dataset.cosmolabe = '';
     globals.textContent = styles.document;
     document.head.append(globals);
+    undo.push(mirrorComponentStyles(shadow));
     const target = document.createElement('div');
     target.className = 'cosmolabe-mount';
     shadow.append(target);

@@ -206,6 +206,37 @@ try {
     });
     assert(s.bg !== 'rgb(255, 105, 180)' && !/Georgia/.test(s.font) && s.sizing === 'border-box', JSON.stringify(s));
   });
+  await check('component styles reach the shadow root, a profile row\'s included', async () => {
+    const viewer = page.locator('#viewer');
+    const btn = (label) => viewer.locator(`button[aria-label="${label}"]`);
+    const collapsed = await btn('Expand timeline').count();
+    if (collapsed) await btn('Expand timeline').click();
+    let r;
+    try {
+      await btn('Add profile').click();
+      await page.waitForTimeout(300);
+      await page.locator('label.cfg-field', { has: page.locator('span', { hasText: /^To$/ }) }).locator('select').selectOption({ label: 'SC-1' });
+      await page.getByRole('button', { name: 'Add', exact: true }).click();
+      await page.waitForTimeout(800);
+      r = await inPage(() => {
+        const shadow = document.getElementById('viewer').shadowRoot;
+        const hashes = new Set();
+        shadow.querySelectorAll('[class*="svelte-"]').forEach((el) => {
+          for (const c of el.classList) if (/^svelte-[a-z0-9]+$/.test(c)) hashes.add(c);
+        });
+        const missing = [...hashes].filter((h) => !shadow.getElementById(h));
+        const trace = shadow.querySelector('path.trace');
+        const cs = trace && getComputedStyle(trace);
+        return { missing, trace: cs ? { fill: cs.fill, stroke: cs.stroke } : null };
+      });
+    } finally {
+      // Leave the workspace as the later checks expect it.
+      if (await btn('Remove profile').count()) await btn('Remove profile').click();
+      if (collapsed && await btn('Collapse timeline').count()) await btn('Collapse timeline').click();
+    }
+    assert(r.missing.length === 0, `component styles outside the shadow root: ${r.missing.join(', ')}`);
+    assert(r.trace && r.trace.fill === 'none' && r.trace.stroke !== 'none', `profile trace ${JSON.stringify(r.trace)}`);
+  });
   await check('no globals written into the host window', async () => {
     const g = await inPage(() => ({ cosmo: 'cosmo' in window, renderer: 'renderer' in window }));
     assert(!g.cosmo && !g.renderer, JSON.stringify(g));
