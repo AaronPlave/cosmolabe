@@ -140,8 +140,9 @@ export class SpiceCacheWorker {
    * Accepts either a URL pointing at the worker script or an already-
    * instantiated Worker. The instance form is required for Vite's `?worker`
    * import to bundle the worker as a separate chunk in production.
+   * An absolute WASM URL lets a host resolve the asset when it rebundles the viewer.
    */
-  constructor(workerOrUrl: URL | Worker) {
+  constructor(workerOrUrl: URL | Worker, wasmUrl?: string) {
     this.worker = workerOrUrl instanceof Worker
       ? workerOrUrl
       : new Worker(workerOrUrl, { type: 'module' });
@@ -162,7 +163,7 @@ export class SpiceCacheWorker {
     };
 
     // Kick off initialization
-    this.worker.postMessage({ type: 'init' });
+    this.worker.postMessage({ type: 'init', wasmUrl });
   }
 
   private handleMessage(msg: Record<string, unknown>): void {

@@ -97,6 +97,50 @@ so the engine never reads kernel files directly. The tier above it is `@cosmolab
 package for bessel-heritage imports. That facade existed only to bridge two federated
 trees during the merge and was not harvested — there is one tree here.)
 
+## Rebuilding the WebAssembly runtime
+
+The build uses the official [NAIF N0067 Linux/GCC 64-bit archive](https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z),
+SHA-256 `60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce`.
+It verifies the cached download in `vendor/cspice-N0067.tar.Z` on every build
+and compiles only `cspice/src/cspice/*.c` with the archive's headers. The generated
+ES module and WASM are checked in under `wasm/`. See the [NAIF distribution rules](https://naif.jpl.nasa.gov/naif/rules.html).
+
+With Bash, curl, shasum, tar with `.Z` support, patch, and Emscripten SDK installed,
+activate the pinned toolchain and run from the repository root:
+
+```sh
+/path/to/emsdk/emsdk install 6.0.9
+/path/to/emsdk/emsdk activate --embedded 6.0.9
+source /path/to/emsdk/emsdk_env.sh
+bash packages/cspice-wasm/scripts/build-cspice.sh
+shasum -a 256 packages/cspice-wasm/wasm/cspice.{mjs,wasm}
+```
+
+Each build extracts a fresh source tree and compiles into a temporary directory.
+The link step preserves the export lists, filesystem, memory and stack
+configuration, and compiles `native/gf-report.c` against the N0067 headers.
+
+The old fork's main WASM changes were its Emscripten build and f2c compatibility
+edits. [wasm-abi.patch](native/wasm-abi.patch) retains the three required C
+signature fixes. `zzsetnnread_`, `s_cat`, and `s_copy` now return the integer
+status expected by their f2c-generated callers. Their existing operations
+are unchanged. The build uses the official archive layout and ships Cosmolabe's
+generated runtime. The fork's platform files and embedded-kernel examples
+aren't needed.
+
+The N0067 WASM is 1,448,188 bytes, up 36,245 bytes (2.6%) from N0066. The rebuilt
+76,290-byte JavaScript module is byte-for-byte identical to the N0066 module.
+Two clean compilations with the pinned SDK on macOS arm64 produced identical
+artifacts.
+
+A local Node 24 comparison on Apple M4 Max used the same LSK, trimmed SPK and
+PCK for both releases. Median startup was 2.26 ms in both and median kernel
+furnishing was 15.3 ms on N0066 and 10.5 ms on N0067. A warmed batch of 30,000
+calls (Saturn `spkpos`, Moon `pxform`, Earth `sxform`) took 35.4 ms and 35.2 ms,
+respectively, with 160 MiB of WASM linear memory in both cases. Sampled outputs
+were identical. The Mars-system tests use the native N0067 reference because
+NAIF warns against querying those orientations from this PCK on N0066.
+
 ## Tests
 
 Tests live in `packages/cspice-wasm/src/*.test.ts` (spice, batch, dsk, geometry, geodetic,
@@ -111,12 +155,36 @@ test (`spice.test.ts`) loads
 `naif0012.tls` plus a de440s SPK and asserts `spkpos` of Saturn barycenter (6) relative
 to the Sun (10) in J2000 at 2004-07-01 against a NAIF reference pinned from de440s,
 agreeing well within 1 metre, and checks that unresolved bodies raise a typed `SpiceError`.
+It also pins the toolkit version and ISO UTC with a trailing `Z`. Mars, Phobos,
+and Deimos position and state transforms are checked against NAIF's native
+N0067 macOS arm64 build using the same `pck00011.tpc`. For the reference
+calculation, apply `pxform_c("J2000", frame, 730000000, ...)` to the position
+`[1, -2, 3]` and `sxform_c` to the state `[1, -2, 3, 0, 0, 0]`. The CK suite
+also exercises interleaved SCLK conversions and a switch frame across a CK gap.
+The installed viewer smoke test runs a SPICE trajectory and furnishes the
+kernels in a worker after an ordinary Vite host rebundles the package.
+
+## N0067 follow-up
+
+Switch frames can support mission-authored CK fallbacks where both coverage and
+priority are documented. Product frames can compose calibrated mission frames
+when an FK uses them. Both already work through the existing frame transforms.
+Tangent points and target separation warrant separate work when a limb or
+apparent-disk consumer needs them. Ground-observer angles belong with the
+[surface azimuth/elevation work](https://github.com/AaronPlave/cosmolabe/issues/217).
+The existing instrument IDs and satellite.js TLE path have no new requirement
+for `getfvn_c` or `evsgp4_c`.
 
 ## Status / limitations
 
 All calls are async even in-process. Geometry-event finders (`gfoclt`, `gfdist`)
 require a search `step` shorter than the briefest event or they can miss intervals;
 correctness follows CSPICE semantics.
+
+NAIF's [N0067 known bugs](https://naif.jpl.nasa.gov/naif/bugs.html) include
+incorrect orientation derivatives for custom text PCKs that use third-degree
+phase-angle polynomials. NAIF's published PCKs, including `pck00011.tpc`, are
+unaffected.
 
 Interrupting a search through `cancelFlag` needs `SharedArrayBuffer`, and so a
 cross-origin-isolated page. Without it a search run through these bindings goes to

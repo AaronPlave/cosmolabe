@@ -1,20 +1,10 @@
 /**
  * ISO-8601 → SPICE calendar normalisation for the tier's one epoch authority.
  *
- * `str2et_c` does not speak ISO-8601. It accepts a *subset* of ISO forms with
- * no designator at all — `'2004-07-01T02:00:00'` parses, `'…Z'` and
- * `'…+02:00'` are both rejected outright with SPICE(UNPARSEDTIME) — and it
- * reads such a bare string as UTC by default rather than because the string
- * said so. What it does take an explicit time-system token on is the *calendar*
- * form, the one with a space where ISO puts the `T`:
+ * `str2et_c` accepts a subset of ISO forms. A bare timestamp defaults to
+ * UTC and N0067 accepts a trailing `Z`. Numeric UTC offsets still need
+ * conversion. The SPICE calendar form allows an explicit time-system token:
  * `'2004-07-01 02:00:00 UTC'`.
- *
- * The tier used to bridge that gap by stripping one trailing `Z` and handing
- * the rest to `str2et_c` (issue #8). That worked for exactly the strings the
- * catalogs happened to carry, and misread everything else: an offset epoch
- * (`'…T02:00:00+02:00'`) threw an unparseable-time error two frames below the
- * caller, `'…Z '` with a stray space threw as well, and a UTC reading was
- * never stated anywhere — it was CSPICE's default, inherited silently.
  *
  * So: recognise the ISO-8601 forms properly, resolve any offset the string
  * carries, and emit the calendar form with `UTC` spelled out. Anything that is

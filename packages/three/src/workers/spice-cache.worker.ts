@@ -17,9 +17,8 @@
  * brought its own instance would re-fetch and re-load every kernel in the
  * catalog before it could answer.
  *
- * The `?url` import is how the WASM binary gets found: only the host's bundler
- * knows where the asset lands, so Vite hands us the emitted URL and we pass it
- * through as locateFile.
+ * The worker uses its Vite asset URL by default. A bundled viewer can supply
+ * its host's resolved URL if the host relocates the worker and WASM separately.
  */
 
 import { createHeritageSpice, kernelNameFromUrl, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
@@ -125,7 +124,7 @@ self.onmessage = async (event: MessageEvent) => {
   switch (msg.type) {
     case 'init': {
       try {
-        spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
+        spice = await createHeritageSpice({ locateFile: () => msg.wasmUrl ?? cspiceWasmUrl });
         (self as unknown as Worker).postMessage({ type: 'ready' });
       } catch (e) {
         (self as unknown as Worker).postMessage({

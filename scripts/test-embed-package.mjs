@@ -10,7 +10,7 @@
  * workers, WASM and data assets. Run after `npm run build:embed`.
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -31,6 +31,11 @@ try {
   const shipped = readdirSync(path.join(target, 'dist-embed'));
   if (!shipped.includes('cosmolabe.js') || !shipped.includes('cosmolabe.d.ts')) throw new Error(`tarball lacks the build: ${shipped}`);
 
+  const kernels = ['naif0012.tls', 'de440s-inner-cassini.bsp'];
+  const publicDir = path.join(dir, 'public');
+  mkdirSync(publicDir);
+  for (const kernel of kernels) copyFileSync(path.join(ROOT, 'kernels/fixtures', kernel), path.join(publicDir, kernel));
+
   writeFileSync(path.join(dir, 'index.html'), '<!doctype html><html><body><h1>Consumer</h1><div id="v" style="width:800px;height:500px"></div><script type="module" src="./main.ts"></script></body></html>');
   writeFileSync(path.join(dir, 'main.ts'), `
 import { mountCosmolabe, HostDataAdapter, type MissionStateSource } from '@cosmolabe/viewer';
@@ -47,14 +52,22 @@ const source: MissionStateSource = {
   },
 };
 const viewer = await mountCosmolabe(document.getElementById('v')!, { missionState: [source] });
-await viewer.loadCatalog({ json: { name: 'Consumer', defaultTime: '2026-01-01T00:00:00Z', items: [
+await viewer.loadCatalog({ json: { name: 'Consumer', defaultTime: '2004-07-01T00:00:00Z',
+  spiceKernels: ${JSON.stringify(kernels)}, items: [
   { name: 'Sun', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
   { name: 'Earth', center: 'Sun', trajectory: { type: 'FixedPoint', position: [1.5e8, 0, 0] }, geometry: { type: 'Globe', radius: 6378 } },
   { name: 'Probe', center: 'Earth', class: 'spacecraft', trajectory: { type: 'MissionState', source: 'probe' } },
+  { name: 'Saturn barycenter', center: 'Sun', trajectoryFrame: 'J2000',
+    trajectory: { type: 'Spice', target: '6', center: '10' } },
 ] } });
 viewer.control.setPlaying(false);
 for (let i = 0; i < 100 && !viewer.control.getObjectState('Probe')?.position; i++) await new Promise((r) => setTimeout(r, 25));
-(window as unknown as { result: unknown }).result = viewer.control.getObjectState('Probe', { frame: 'J2000', center: 'Earth' });
+(window as unknown as { result: unknown }).result = {
+  probe: viewer.control.getObjectState('Probe', { frame: 'J2000', center: 'Earth' }),
+  saturn: viewer.control.getObjectState('Saturn barycenter', {
+    frame: 'J2000', center: 'Sun', time: { kind: 'calendar', text: '2004-183T00:00:00Z' },
+  }),
+};
 `);
   writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({
     compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler', lib: ['ES2022', 'DOM', 'DOM.Iterable'], strict: true, noEmit: true, skipLibCheck: false, types: [] },
@@ -76,15 +89,39 @@ for (let i = 0; i < 100 && !viewer.control.getObjectState('Probe')?.position; i+
     const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
     try {
       const page = await browser.newPage();
+      await page.addInitScript(() => {
+        window.spiceWorkerKernelCount = 0;
+        const BrowserWorker = window.Worker;
+        window.Worker = class extends BrowserWorker {
+          constructor(...args) {
+            super(...args);
+            this.addEventListener('message', (event) => {
+              if (event.data?.type === 'kernelLoaded') window.spiceWorkerKernelCount++;
+            });
+          }
+        };
+      });
       const errors = [];
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
       page.on('pageerror', (e) => errors.push(e.message));
       page.on('requestfailed', (r) => errors.push(`request failed: ${r.url()}`));
+      const wasmResponse = page.waitForResponse(response => response.ok()
+        && new URL(response.url()).pathname.endsWith('.wasm')
+        && new URL(response.url()).pathname.includes('cspice'));
       await page.goto(`http://localhost:${PORT}/`);
+      const wasm = await (await wasmResponse).body();
+      if (!wasm.equals(readFileSync(path.join(ROOT, 'packages/cspice-wasm/wasm/cspice.wasm')))) {
+        throw new Error('the consumer served different CSPICE WASM bytes');
+      }
       await page.waitForFunction(() => window.result !== undefined, null, { timeout: 60_000 });
+      await page.waitForFunction(count => window.spiceWorkerKernelCount === count, kernels.length, { timeout: 30_000 });
       const result = await page.evaluate(() => window.result);
-      const p = result?.position;
+      const p = result?.probe?.position;
       if (!p || Math.hypot(p[0] - 7000, p[1], p[2]) > 1e-9) throw new Error(`state ${JSON.stringify(result)}`);
+      // de440s reference at 2004-07-01T00:00:00 UTC, as in spice.test.ts.
+      const saturn = result?.saturn?.position;
+      if (!saturn || Math.hypot(saturn[0] + 384016039.3242731, saturn[1] - 1192912618.287345,
+        saturn[2] - 509243085.7438889) > 1e-3) throw new Error(`SPICE state ${JSON.stringify(result?.saturn)}`);
       const fonts = await page.evaluate(() => [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family));
       if (!fonts.some((f) => /Public Sans/.test(f))) throw new Error(`workspace fonts not loaded: ${fonts}`);
       if (errors.length) throw new Error(errors.join('\n'));
