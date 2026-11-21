@@ -24,8 +24,13 @@
 import { etFromCalendarString } from '../time.js';
 import type { DataProvenance } from '../plugins/PluginData.js';
 
-/** `[longitude east, latitude]`, planetocentric degrees. */
-export type LonLat = readonly [number, number];
+/**
+ * `[longitude east, latitude]`, planetocentric degrees, optionally with a
+ * third element: the point's height in km above the observation's
+ * `heightDatum`. A ring is all 2D (draped by the renderer) or all 3D (placed
+ * exactly where its producer computed it).
+ */
+export type LonLat = readonly [lon: number, lat: number, heightKm?: number];
 
 /** One observation window. Times are ET seconds past J2000 TDB. */
 export interface ObservationGroup {
@@ -109,6 +114,14 @@ export interface Observation {
    * footprints (outlined), with an optional host-written `label`.
    */
   readonly requestedRegion?: { readonly name?: string; readonly label?: string; readonly polygonLonLat: readonly LonLat[] };
+  /**
+   * What a vertex's third element (`[lon, lat, heightKm]`) is measured from.
+   * Required when any vertex has one: a producer that already knows where its
+   * footprint lies on the terrain (a simulation's own terrain model) supplies
+   * it, and the renderer then places it exactly — independent of which
+   * terrain LOD happens to be streamed for the camera.
+   */
+  readonly heightDatum?: { readonly kind: 'sphere'; readonly radiusKm: number };
 
   /** sincpt/ilumin shape method for computed coverage (cosmolabe extension):
    *  `ELLIPSOID`, or `DSK/UNPRIORITIZED` for an irregular body. Usually left
@@ -255,10 +268,20 @@ export function observationFromCosmographia(
       throw new ObservationError(`${where}: requestedRegion.polygonLonLat must be a ring of [lon, lat] (at least 3 vertices)`);
     }
     out.requestedRegion = {
-      polygonLonLat: (ring as LonLat[]).map((q) => [q[0], q[1]] as const),
+      polygonLonLat: readRing(ring as LonLat[], `${where}: requestedRegion`),
       ...(typeof r.name === 'string' ? { name: r.name } : {}),
       ...(typeof r.label === 'string' ? { label: r.label } : {}),
     };
+  }
+  if (geometry.heightDatum !== undefined) {
+    const d = geometry.heightDatum as Record<string, unknown>;
+    if (d?.kind !== 'sphere' || typeof d.radiusKm !== 'number' || !(d.radiusKm > 0)) {
+      throw new ObservationError(`${where}: heightDatum must be { kind: 'sphere', radiusKm > 0 }`);
+    }
+    out.heightDatum = { kind: 'sphere', radiusKm: d.radiusKm };
+  }
+  if (hasHeights(out) && !out.heightDatum) {
+    throw new ObservationError(`${where}: vertices with heights need a heightDatum saying what they are measured from`);
   }
   const color = geometry.footprintColor;
   if (color !== undefined) {
@@ -285,6 +308,23 @@ export function observationFromCosmographia(
   return out as unknown as Observation;
 }
 
+/** A ring's vertices, heights kept; all 2D or all 3D. */
+function readRing(r: readonly LonLat[], where: string): LonLat[] {
+  const withHeight = r.filter((p) => typeof p[2] === 'number' && Number.isFinite(p[2])).length;
+  if (withHeight !== 0 && withHeight !== r.length) throw new ObservationError(`${where}: a ring's vertices must all have a height or none`);
+  return r.map((p) => (withHeight ? [p[0], p[1], p[2]!] as const : [p[0], p[1]] as const));
+}
+
+/** Whether any given vertex (footprints, holes, requested region) carries a height. */
+function hasHeights(o: Record<string, unknown>): boolean {
+  const c = o.coverage as ObservationCoverage;
+  const rings: (readonly LonLat[])[] = [
+    ...(c.kind === 'footprint' ? [...c.polygonLonLat, ...(c.holesLonLat ?? []).flat()] : []),
+    ...((o.requestedRegion as Observation['requestedRegion'])?.polygonLonLat ? [(o.requestedRegion as NonNullable<Observation['requestedRegion']>).polygonLonLat] : []),
+  ];
+  return rings.some((r) => r[0]?.length === 3);
+}
+
 function isLonLat(v: unknown): v is LonLat {
   return Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number';
 }
@@ -295,7 +335,7 @@ function parseGivenCoverage(c: Record<string, unknown>, where: string): Observat
     if (!Array.isArray(polys) || !polys.every((ring) => Array.isArray(ring) && ring.length >= 3 && ring.every(isLonLat))) {
       throw new ObservationError(`${where}: coverage.polygonLonLat must be rings of [lon, lat] (at least 3 vertices each)`);
     }
-    const ring = (r: LonLat[]) => r.map((p) => [p[0], p[1]] as const);
+    const ring = (r: LonLat[]) => readRing(r, `${where}: coverage`);
     const holes = c.holesLonLat;
     if (holes !== undefined) {
       const ok = Array.isArray(holes) && holes.length === polys.length && holes.every(

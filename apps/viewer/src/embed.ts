@@ -25,12 +25,15 @@ import {
   type CatalogJson, type MissionActivity, type Observation,
 } from '@cosmolabe/core';
 import { createAgentTools, createCapabilityTools, type ViewerControl } from '@cosmolabe/control';
-import type { ActivityConflict, CosmolabeViewer, HostObservationPick, MountOptions, WorkspaceUi } from './embed-api';
+import type { ActivityConflict, CosmolabeViewer, HostObservationPick, HostSensorStateSpec, MountOptions, WorkspaceUi } from './embed-api';
+import type { SensorActivityInterval } from '@cosmolabe/three';
+
+const SENSOR_STATES = ['off', 'standby', 'acquiring'] as const;
 import type * as Declared from './embed-types';
 import { workspace, ALL_UI } from './lib/workspace.svelte';
 import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
 import { createViewerControl } from './lib/viewer-control';
-import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent, vs } from './lib/viewer-state.svelte';
+import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent, setScrubberWindow, vs } from './lib/viewer-state.svelte';
 import { disposeAsk, setHostAskTransport } from './lib/ask/ask.svelte';
 import { createHttpTransport } from './lib/ask/http-transport';
 import { resetStores } from './lib/session.svelte';
@@ -152,6 +155,25 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
       applyHostObservations();
     });
     undo.push(offObservationLoad, () => offObservationClick?.());
+
+    // Host sensor activity (what a simulation says each instrument is doing):
+    // per owner, merged per sensor, re-applied to every scene's renderer.
+    const hostSensorStates = new Map<string, Map<string, SensorActivityInterval[]>>();
+    let idleSensorsShown = false;
+    const appliedSensors = new Set<string>();
+    const applySensorStates = () => {
+      const r = getRenderer();
+      if (!r) return;
+      const merged = new Map<string, SensorActivityInterval[]>();
+      for (const bySensor of hostSensorStates.values()) {
+        for (const [sensor, list] of bySensor) merged.set(sensor, [...(merged.get(sensor) ?? []), ...list]);
+      }
+      for (const sensor of appliedSensors) if (!merged.has(sensor)) r.setSensorActivity(sensor, null);
+      appliedSensors.clear();
+      for (const [sensor, list] of merged) { r.setSensorActivity(sensor, list); appliedSensors.add(sensor); }
+      r.setIdleSensorsVisible(idleSensorsShown);
+    };
+    undo.push(onViewerEvent('load', () => { appliedSensors.clear(); applySensorStates(); }));
     // Sources whose coverage grows (a live feed) grow the navigable timeline.
     // Views sampled from the state (profiles) resample at most once per interval:
     // a live feed changes it several times a second.
@@ -231,6 +253,42 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
         },
         owners: () => [...hostActivities.keys()],
       }),
+      sensors: guarded({
+        replace: (owner, specs) => {
+          if (typeof owner !== 'string' || !owner.trim()) throw new Error('sensor state owner is required');
+          if (!Array.isArray(specs)) throw new TypeError('sensors.replace takes a list of sensor states');
+          const parseTime = (v: string | number, where: string) => {
+            const et = typeof v === 'number' ? v : etFromCalendarString(v);
+            if (!Number.isFinite(et)) throw new Error(`${where}: ${JSON.stringify(v)} is not a readable time`);
+            return et;
+          };
+          const bySensor = new Map<string, SensorActivityInterval[]>();
+          for (const spec of specs) {
+            if (typeof spec?.sensor !== 'string' || !spec.sensor) throw new Error('each sensor state needs a sensor name');
+            if (!Array.isArray(spec.intervals)) throw new Error(`sensor "${spec.sensor}": intervals must be a list`);
+            const list = spec.intervals.map((i: HostSensorStateSpec['intervals'][number], k: number) => {
+              const where = `sensor "${spec.sensor}" interval ${k}`;
+              if (!SENSOR_STATES.includes(i?.state)) throw new Error(`${where}: state must be one of ${SENSOR_STATES.join(', ')}`);
+              const startEt = parseTime(i.start, where), endEt = parseTime(i.end, where);
+              if (endEt < startEt) throw new Error(`${where} ends before it starts`);
+              return { startEt, endEt, state: i.state };
+            });
+            bySensor.set(spec.sensor, [...(bySensor.get(spec.sensor) ?? []), ...list]);
+          }
+          hostSensorStates.set(owner, bySensor);
+          applySensorStates();
+        },
+        remove: (owner) => {
+          if (!hostSensorStates.delete(owner)) return false;
+          applySensorStates();
+          return true;
+        },
+        showIdle: (shown) => {
+          idleSensorsShown = !!shown;
+          applySensorStates();
+        },
+        stateAt: (sensor) => getRenderer()?.sensorActivityAt(sensor) ?? null,
+      }),
       observations: guarded({
         replace: (owner, specs) => {
           if (typeof owner !== 'string' || !owner.trim()) throw new Error('observation owner is required');
@@ -263,6 +321,22 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
           return () => { observationListeners.delete(listener); };
         },
       }),
+      setUi: (partial) => {
+        live();
+        for (const [k, v] of Object.entries(partial ?? {})) {
+          if (!(k in workspace.ui) || typeof v !== 'boolean') throw new Error(`setUi: unknown option or non-boolean value "${k}"`);
+        }
+        Object.assign(workspace.ui, partial);
+      },
+      setTimeWindow: ({ start, end }) => {
+        live();
+        const read = (v: string | number) => (typeof v === 'number' ? v : etFromCalendarString(v));
+        const s0 = read(start), e0 = read(end);
+        if (!Number.isFinite(s0) || !Number.isFinite(e0) || !(e0 > s0)) throw new Error('setTimeWindow needs start < end');
+        // The host's window is shown as given: the navigable range grows to include it, never shrinks.
+        extendTimelineBase(s0, e0);
+        setScrubberWindow(s0, e0);
+      },
       loadCatalog: async (catalog) => {
         live();
         const load = async (entry: string, name: string, fetcher?: (url: string) => Promise<CatalogJson>) => {

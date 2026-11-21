@@ -201,3 +201,60 @@ describe('host observations (given footprints on streamed terrain)', () => {
     expect(s.obj.children.every((c) => c instanceof THREE.Mesh || c instanceof THREE.LineSegments)).toBe(true);
   });
 });
+
+describe('host observations with heights (placed by their producer)', () => {
+  /** A footprint whose producer put every vertex on its own terrain: heights vary, km above the 1737.4 km sphere. */
+  const withHeights = (lon: number, lat: number, h0: number): [number, number, number][] =>
+    square(lon, lat).map(([lo, la], i) => [lo, la, h0 - 0.01 * i]);
+  function exactScene(mesh: ReturnType<typeof terrain>) {
+    const obs = observationFromCosmographia('Exact', 'Moon', {
+      groups: [{ startTime: 0, endTime: 0 }, { startTime: 2, endTime: 2 }],
+      coverage: { kind: 'footprint', polygonLonLat: [withHeights(-40, -89.70, -1.2), withHeights(-40, -89.69, -1.25)] },
+      requestedRegion: { polygonLonLat: withHeights(-70, -89.68, -1.3) },
+      heightDatum: { kind: 'sphere', radiusKm: R },
+    }, (v) => Number(v));
+    const ctx = { universe: { getBody: () => ({ radii: [R, R, R] }), bodyToWorldQuat: () => [1, 0, 0, 0] }, scaleFactor: 1, getBodyMesh: () => mesh } as unknown as RendererContext;
+    const vis = new ObservationsVisualizer();
+    const obj = vis.createVisualForObservation(obs, ctx, 'Exact', { always: true });
+    vis.updateObservation(obj, 0, ctx);
+    const [fill, outline, , , regionOutline] = obj.children as THREE.Mesh[];
+    return { vis, obj, ctx, fill: fill!, outline: outline!, regionOutline: regionOutline! };
+  }
+
+  it('draws them exactly where given in one build, reading no terrain', () => {
+    const mesh = terrain();
+    const s = exactScene(mesh);
+    expect(mesh.rays).toBe(0);
+    expect(s.vis.placementOf(s.obj)).toBe('given');
+    const want = new Set([-1.2, -1.21, -1.22, -1.23, -1.25, -1.26, -1.27, -1.28].map((h) => (R + h + 0.002).toFixed(6)));
+    for (const x of radii(s.outline)) expect(want.has(x.toFixed(6))).toBe(true);
+    for (const x of radii(s.regionOutline)) expect(Math.abs(x - (R - 1.3 + 0.002))).toBeLessThan(0.04);
+  });
+
+  it('never rebuilds as the terrain streams or the camera moves', () => {
+    const mesh = terrain();
+    const s = exactScene(mesh);
+    const geometry = s.outline.geometry.getAttribute('position');
+    let t = performance.now();
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => t);
+    for (let i = 0; i < 20; i++) { mesh.bump(); t += 2_000; s.vis.updateObservation(s.obj, 0, s.ctx); }
+    now.mockRestore();
+    expect(mesh.rays).toBe(0);
+    expect(s.outline.geometry.getAttribute('position')).toBe(geometry);
+  });
+
+  it('still picks one exposure', () => {
+    const s = exactScene(terrain());
+    const lo = (-40 * Math.PI) / 180, la = (-89.69 * Math.PI) / 180;
+    const d = new THREE.Vector3(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
+    s.obj.updateMatrixWorld(true);
+    expect(s.vis.pickGiven(s.obj, new THREE.Raycaster(d.clone().multiplyScalar(R + 5), d.clone().negate()))).toMatchObject({ footprint: 1, et: 2 });
+  });
+
+  it('refuses heights without a datum, and rings that mix 2D and 3D vertices', () => {
+    const groups = [{ startTime: 0, endTime: 0 }];
+    expect(() => observationFromCosmographia('x', 'Moon', { groups, coverage: { kind: 'footprint', polygonLonLat: [withHeights(0, -89, 0)] } }, Number)).toThrow(/heightDatum/);
+    const mixed = [...square(0, -89).slice(0, 3), [0, -89, 0]];
+    expect(() => observationFromCosmographia('x', 'Moon', { groups, heightDatum: { kind: 'sphere', radiusKm: R }, coverage: { kind: 'footprint', polygonLonLat: [mixed] } }, Number)).toThrow(/all have a height or none/);
+  });
+});

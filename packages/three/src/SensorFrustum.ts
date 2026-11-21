@@ -166,17 +166,30 @@ export class SensorFrustum extends THREE.Object3D {
   private readonly sensorOrientation: THREE.Quaternion;
   private _userVisible = true;
   private _present = true;
+  private _activityShown = true;
 
   /** The user's show/hide choice for this sensor. */
   get userVisible(): boolean { return this._userVisible; }
-  set userVisible(v: boolean) { this._userVisible = v; this.visible = v && this._present; }
+  set userVisible(v: boolean) { this._userVisible = v; this.updateVisible(); }
   /** Whether the sensor's body is in the scene now; drawn only when present and user-visible. */
   get present(): boolean { return this._present; }
   set present(v: boolean) {
     if (v === this._present) return;
     this._present = v;
-    this.visible = v && this._userVisible;
+    this.updateVisible();
   }
+  /**
+   * The host's activity gate (renderer `setSensorActivity`): false while a
+   * host-reported sensor is not acquiring and nobody is inspecting it. Always
+   * true for sensors no host reports on.
+   */
+  get activityShown(): boolean { return this._activityShown; }
+  set activityShown(v: boolean) {
+    if (v === this._activityShown) return;
+    this._activityShown = v;
+    this.updateVisible();
+  }
+  private updateVisible(): void { this.visible = this._present && this._userVisible && this._activityShown; }
   private readonly segments: number;
   private readonly catalogBoundary: FovBoundaryShape;
   /** Mesh-local (X horizontal, -Y boresight, Z vertical) → world rotation. */

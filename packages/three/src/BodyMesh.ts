@@ -1262,6 +1262,11 @@ export class BodyMesh extends THREE.Object3D {
     this.terrainManager?.setViewCamera(camera);
   }
 
+  /** See TerrainManager.setDetailAnchor. */
+  setTerrainDetailAnchor(world: THREE.Vector3 | null): void {
+    this.terrainManager?.setDetailAnchor(world);
+  }
+
   /** Restore the main camera's terrain draw cull (after `showCulledTerrainTiles`). */
   recullTerrainTiles(): void {
     this.terrainManager?.recullToMainView();

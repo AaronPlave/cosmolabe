@@ -80,6 +80,16 @@ const _savedViewport = new THREE.Vector4();
 const _savedScissor = new THREE.Vector4();
 const _savedClearColor = new THREE.Color();
 const _lookTarget = new THREE.Vector3();
+/**
+ * The instrument camera's near plane, km. The renderer's log depth patch makes
+ * precision independent of `near`, so it only decides what is clipped: an
+ * aperture a few metres off the ground must still see the ground at its feet.
+ * (It was 1e-4 of the distance to a look target placed 0.001 scene units
+ * ahead — ≈100 m at the default scale — which cut away the nearest terrain
+ * below a low drone.) The carrying vehicle's own model is left out of the
+ * pass by the renderer, not by this plane.
+ */
+export const INSTRUMENT_NEAR_KM = 1e-5;
 
 /** Margin around a SPICE FOV boundary so its outline sits just inside the image. */
 const FOV_PADDING = 1.05;
@@ -108,6 +118,8 @@ export class InstrumentView {
   private outline: FovOutline | null = null;
   private color: string;
   private layout: { surface: Rect; fit: Rect; image: Rect; clip: Rect } | null = null;
+  /** Near plane in scene units, from INSTRUMENT_NEAR_KM at the current scale. */
+  private nearScene = INSTRUMENT_NEAR_KM * 1e-6;
   private _pointing: InstrumentPointing = 'none';
   private _unavailableReason: string | null = null;
   private _fov: [number, number] = [0, 0];
@@ -408,6 +420,7 @@ export class InstrumentView {
   ): void {
     if (!this.sensor || !this._active) return;
     this._unavailableReason = null;
+    this.nearScene = INSTRUMENT_NEAR_KM * scaleFactor;
 
     // Position: same as the sensor frustum (already in scene coordinates)
     this.camera.position.copy(this.sensor.position);
@@ -536,13 +549,12 @@ export class InstrumentView {
       renderer.setScissor(x0 / pr, (canvas.height - y1) / pr, (x1 - x0) / pr, (y1 - y0) / pr);
       renderer.clear(true, true, true);
 
-      // Dynamic near/far for the instrument camera
+      // Near is metric (see INSTRUMENT_NEAR_KM); far reaches a pointed-at
+      // target body however distant.
       const camDist = _lookTarget.distanceTo(this.camera.position);
-      if (camDist > 0) {
-        this.camera.near = Math.max(1e-12, camDist * 1e-4);
-        this.camera.far = Math.max(1e3, camDist * 1e4);
-        this.camera.updateProjectionMatrix();
-      }
+      this.camera.near = this.nearScene;
+      this.camera.far = Math.max(1e3, camDist * 1e4);
+      this.camera.updateProjectionMatrix();
 
       // Render only bodies + models (layers 0, 1). Layer 2 = overlays
       // (trajectory lines, sensor frustums, event markers) are excluded.

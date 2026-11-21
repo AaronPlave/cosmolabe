@@ -86,15 +86,45 @@ export interface HostObservationSpec {
   /** The observed body (its body-fixed frame is the polygons' frame). */
   target: string;
   groups: readonly { startTime: string | number; endTime: string | number; obsRate?: number }[];
-  coverage: { kind: 'footprint'; polygonLonLat: readonly (readonly (readonly [number, number])[])[] };
+  /** Vertices are `[lon, lat]` (draped on streamed terrain) or `[lon, lat, heightKm]` above `heightDatum` (placed exactly, never re-draped). */
+  coverage: { kind: 'footprint'; polygonLonLat: readonly (readonly (readonly [number, number] | readonly [number, number, number])[])[] };
   instrument?: string;
   observer?: string;
   campaign?: string;
   provenance?: import('@cosmolabe/core').DataProvenance;
-  requestedRegion?: { name?: string; label?: string; polygonLonLat: readonly (readonly [number, number])[] };
+  requestedRegion?: { name?: string; label?: string; polygonLonLat: readonly (readonly [number, number] | readonly [number, number, number])[] };
+  /** Required with heights: the sphere they are measured from (e.g. the producer's terrain reference radius). */
+  heightDatum?: { kind: 'sphere'; radiusKm: number };
   footprintColor?: readonly [number, number, number];
   footprintOpacity?: number;
   fillInObservations?: boolean;
+}
+
+/**
+ * What a host's simulation says an instrument is doing: `acquiring`
+ * (exposing / collecting), `standby` (powered, not acquiring) or `off`, over
+ * [start, end) intervals (ISO UTC ending in Z, or ET seconds). A time no
+ * interval covers is unknown — never treated as acquiring.
+ */
+export interface HostSensorStateSpec {
+  /** The catalog's Sensor body name. */
+  sensor: string;
+  intervals: readonly { start: string | number; end: string | number; state: 'off' | 'standby' | 'acquiring' }[];
+}
+
+/**
+ * Host-owned sensor activity. A sensor with host state shows its FOV while
+ * acquiring, while inspected (instrument view open, or selected), or when
+ * `showIdle(true)`; a sensor no host reports on keeps the catalog behaviour.
+ */
+export interface HostSensors {
+  /** Validate (all or nothing) and set `owner`'s sensor states, replacing its previous ones. Throws on invalid input. */
+  replace(owner: string, specs: readonly HostSensorStateSpec[]): void;
+  remove(owner: string): boolean;
+  /** "Show FOV": draw host-reported sensors' FOVs whatever their state. */
+  showIdle(shown: boolean): void;
+  /** The state now: null when no host reports on the sensor, 'unknown' outside every interval. */
+  stateAt(sensor: string): 'off' | 'standby' | 'acquiring' | 'unknown' | null;
 }
 
 /** What the operator clicked: one footprint of a host observation, or its requested region. */
@@ -144,6 +174,18 @@ export interface CosmolabeViewer {
   readonly missionState: MissionStateApi;
   readonly activities: HostActivities;
   readonly observations: HostObservations;
+  readonly sensors: HostSensors;
+  /**
+   * Change workspace features after mount (e.g. show the native timeline when
+   * the host expands the viewer). Only the given keys change.
+   */
+  setUi(partial: Partial<WorkspaceUi>): void;
+  /**
+   * Show exactly [start, end] (ISO UTC ending in Z, or ET seconds) on the
+   * native timeline — the host's own view window — without moving the clock.
+   * The timeline's navigable range grows to include it.
+   */
+  setTimeWindow(window: { start: string | number; end: string | number }): void;
   /**
    * Load a catalog (URL, or data), replacing the scene. Resolves when the
    * scene's initial assets have settled; rejects — leaving the previous scene

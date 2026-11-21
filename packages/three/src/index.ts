@@ -2,7 +2,7 @@ export type { SolarExposurePolicy } from './SolarRadiometry.js';
 
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
-export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';
+export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary, SensorActivityInterval, SensorActivityState } from './UniverseRenderer.js';
 export {
   PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, pointerResolution, formatLatitude, formatLongitude, formatHeight,
   describeDatum, describeSource, surfacePointToText,

@@ -194,9 +194,16 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     // Down onto the first footprint vertex from far outside Titan.
     s.obj.updateMatrixWorld(true);
     const pos = (targets[0] as THREE.Mesh).geometry.getAttribute('position');
-    const p = new THREE.Vector3(pos.getX(0), pos.getY(0), pos.getZ(0)).applyMatrix4(s.obj.matrixWorld);
+    // Through the middle of the first fill triangle (a ray exactly through a vertex can slip between triangles).
+    const p = new THREE.Vector3(
+      (pos.getX(0) + pos.getX(1) + pos.getX(2)) / 3, (pos.getY(0) + pos.getY(1) + pos.getY(2)) / 3, (pos.getZ(0) + pos.getZ(1) + pos.getZ(2)) / 3,
+    ).applyMatrix4(s.obj.matrixWorld);
     const ray = new THREE.Raycaster(p.clone().multiplyScalar(3), p.clone().negate().normalize());
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(2575e-6, 64, 32));
+    // Titan drawn as its ellipsoid (the footprints sit metres above it, not 0.2 % of the radius).
+    const [ra, rb, rc] = spice.bodvcd(606, 'RADII');
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(1e-6, 64, 32));
+    globe.scale.set(ra!, rb!, rc!);
+    globe.updateMatrixWorld(true);
     const hits = ray.intersectObjects([globe, ...targets], true);
     expect(hits[0]!.object).toBe(targets[0]);
     // Hidden observations are not pickable.
@@ -363,26 +370,43 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     expect(vertexCount(r.outline)).toBeLessThanOrEqual(budget.maxLineVertices);
   });
 
+  /** Titan's ellipsoid radius along a direction (km). */
+  const titanSurface = () => {
+    const [a, b, c] = spice.bodvcd(606, 'RADII');
+    return (x: number, y: number, z: number) => { const n = Math.hypot(x, y, z); return 1 / Math.hypot(x / n / a!, y / n / b!, z / n / c!); };
+  };
+
   it('every fill triangle sits above Titan, its centre included — not on a chord under it', () => {
     const { fill } = scene({ sensor: 'ISS NAC', groups: groups(120), sideDivisions: 4, fillInObservations: true }).at(endEt);
-    const radius = spice.bodvcd(606, 'RADII')[0]!;
+    const surface = titanSurface();
     const pos = fill.geometry.getAttribute('position');
     for (let i = 0; i < pos.count; i += 3) {
       let x = 0, y = 0, z = 0;
       for (let k = 0; k < 3; k++) { x += pos.getX(i + k) / 3; y += pos.getY(i + k) / 3; z += pos.getZ(i + k) / 3; }
-      expect(Math.hypot(x, y, z)).toBeGreaterThan(radius * 1.001);
+      expect(Math.hypot(x, y, z)).toBeGreaterThan(surface(x, y, z));
     }
   });
 
+  // Lifted only as far as each flat piece's chord sags (metres for small ones), not 0.2 % of
+  // the radius (≈3.5 km on the Moon): the depth pull keeps footprints over a coarser globe.
   it('every drawn vertex, fill included, sits just above Titan — not on a chord under it', () => {
     const { outline, fill } = scene({ sensor: 'ISS NAC', groups: groups(120), sideDivisions: 4, fillInObservations: true }).at(endEt);
-    const radius = spice.bodvcd(606, 'RADII')[0]!;
+    const surface = titanSurface();
     for (const m of [outline, fill]) {
       const pos = m.geometry.getAttribute('position');
       for (let i = 0; i < pos.count; i++) {
-        const r = Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i));
-        expect(r).toBeGreaterThan(radius * 1.001);
-        expect(r).toBeLessThan(radius * 1.003);
+        const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+        const r = Math.hypot(x, y, z), ground = surface(x, y, z);
+        expect(r).toBeGreaterThan(ground);
+        if (m === fill) expect(r - ground).toBeLessThan(ground * 0.0005);
+      }
+      // An outline segment is lifted only as far as its own chord sags, and its middle stays above the ground.
+      if (m === outline) for (let i = 0; i < pos.count; i += 2) {
+        const a = new THREE.Vector3().fromBufferAttribute(pos, i), b = new THREE.Vector3().fromBufferAttribute(pos, i + 1);
+        const mid = a.clone().add(b).multiplyScalar(0.5);
+        expect(mid.length()).toBeGreaterThan(surface(mid.x, mid.y, mid.z));
+        const L = a.distanceTo(b), ground = surface(a.x, a.y, a.z);
+        expect(a.length() - ground).toBeLessThan(Math.max(0.0025, 1.2 * L * L / (8 * ground)) + 0.01);
       }
     }
   });

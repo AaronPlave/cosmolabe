@@ -39,6 +39,7 @@
     if (!name || body?.geometryType !== 'Sensor' || body.classification !== 'instrument') return null;
     return getRenderer()?.getSensorInspection(name) ?? null;
   });
+  const ACTIVITY_TEXT = { acquiring: 'Acquiring', standby: 'Powered, not acquiring', off: 'Off', unknown: 'Unknown (no host state at this time)' } as const;
   const POINTING_TEXT = { spice: 'SPICE attitude (CK)', attitude: 'Host attitude × mounting', target: 'Aimed at target (no attitude)' } as const;
   const SURFACE_TEXT: Record<string, string> = { terrain: 'terrain', reference: 'reference shape', mesh: 'shape model' };
   const vec = (v: number[]) => `[${v.map((x) => +x.toFixed(3)).join(', ')}]`;
@@ -301,6 +302,14 @@
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Instrument</div>
       <div class="flex flex-col gap-0.5" data-sensor-inspection>
         <div class="ui-data-row"><span class="ui-label">Host</span><span class="ui-readout">{sensor.host ?? '—'}</span></div>
+        {#if sensor.activity}
+          <div class="ui-data-row" data-sensor-activity={sensor.activity}>
+            <span class="ui-label">Activity (host)</span>
+            <span class="ui-readout {sensor.activity === 'unknown' ? 'text-warning' : ''}" title="Reported by the host's simulation. The FOV is drawn while acquiring, while inspected, or with Show FOV.">
+              {ACTIVITY_TEXT[sensor.activity]}{sensor.drawn && sensor.activity !== 'acquiring' ? ' · FOV shown for inspection' : ''}
+            </span>
+          </div>
+        {/if}
         <div class="ui-data-row" data-pointing={sensor.pointing ?? 'none'}>
           <span class="ui-label">Pointing</span>
           <span class="ui-readout {sensor.pointing === 'spice' || sensor.pointing === 'attitude' ? '' : 'text-warning'}" title={sensor.pointingUnavailable ?? undefined}>

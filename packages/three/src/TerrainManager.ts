@@ -777,6 +777,16 @@ export class TerrainManager {
    * camera's, another camera's pass computes every fragment's local "up" from
    * the wrong origin and gates the baked imagery to its night floor (black).
    */
+  /**
+   * Refine the terrain around a second point (world/scene position), as it is
+   * around the camera when the camera is near the surface: an instrument's
+   * aperture low over the ground must not look out from inside a coarse tile
+   * the main camera, far away, is content with. Null clears it.
+   */
+  setDetailAnchor(world: THREE.Vector3 | null): void {
+    this.detailAnchorWorld = world ? (this.detailAnchorWorld ?? new THREE.Vector3()).copy(world) : null;
+  }
+
   setViewCamera(camera: THREE.Camera): void {
     if (!this.gateBodyWorldPos) return;
     camera.updateMatrixWorld();
@@ -1014,6 +1024,9 @@ export class TerrainManager {
 
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
   private nearSurfaceDetail: NearSurfaceDetail | null = null;
+  /** A second near-surface neighbourhood, around `setDetailAnchor`'s point (e.g. an instrument's aperture). */
+  private anchorDetail: NearSurfaceDetail | null = null;
+  private detailAnchorWorld: THREE.Vector3 | null = null;
   private nearSurfacePolicy = { radiusM: 500, maxErrorM: 0.5, altitudeM: 5000 };
   private readonly cubeConfigured: boolean;
   private cubeSkirts = true;
@@ -1163,10 +1176,12 @@ export class TerrainManager {
         name: 'COSMOLABE_NEAR_SURFACE',
         calculateTileViewError: (tile: { geometricError: number; engineData?: { boundingVolume?: { distanceToPoint(p: THREE.Vector3): number } } },
           target: { inView: boolean; error: number; distance: number }) => {
-          if (!this.cube || !needsNearSurfaceDetail(tile.engineData?.boundingVolume, tile.geometricError, this.nearSurfaceDetail)) return false;
+          const volume = tile.engineData?.boundingVolume;
+          const near = [this.nearSurfaceDetail, this.anchorDetail].filter((d) => needsNearSurfaceDetail(volume, tile.geometricError, d));
+          if (!this.cube || !near.length) return false;
           target.inView = true;
           target.error = Infinity;
-          target.distance = tile.engineData!.boundingVolume!.distanceToPoint(this.nearSurfaceDetail!.eye);
+          target.distance = Math.min(...near.map((d) => volume!.distanceToPoint(d!.eye)));
           return true;
         },
       } as never);
@@ -1616,10 +1631,15 @@ export class TerrainManager {
     // actual origin/scale instead of a maximum display radius or a camera FOV.
     // Coarse neighbours under and around the camera refine even behind it.
     const cubeManifest = this.cube?.source.manifest;
-    const offsetM = mv.eye.length()-(cubeManifest?.geometry?.referenceRadiusKm ?? this.bodyRadiusKm)*1000;
-    this.nearSurfaceDetail = cubeManifest && offsetM >= cubeManifest.heightRangeKm[0]*1000-this.nearSurfacePolicy.altitudeM &&
-      offsetM <= cubeManifest.heightRangeKm[1]*1000+this.nearSurfacePolicy.altitudeM
-      ? { eye: mv.eye.clone(), radiusM: this.nearSurfacePolicy.radiusM, maxErrorM: this.nearSurfacePolicy.maxErrorM } : null;
+    const nearDetail = (eye: THREE.Vector3): NearSurfaceDetail | null => {
+      const offsetM = eye.length()-(cubeManifest?.geometry?.referenceRadiusKm ?? this.bodyRadiusKm)*1000;
+      return cubeManifest && offsetM >= cubeManifest.heightRangeKm[0]*1000-this.nearSurfacePolicy.altitudeM &&
+        offsetM <= cubeManifest.heightRangeKm[1]*1000+this.nearSurfacePolicy.altitudeM
+        ? { eye: eye.clone(), radiusM: this.nearSurfacePolicy.radiusM, maxErrorM: this.nearSurfacePolicy.maxErrorM } : null;
+    };
+    this.nearSurfaceDetail = nearDetail(mv.eye);
+    this.anchorDetail = this.detailAnchorWorld
+      ? nearDetail(this.detailAnchorWorld.clone().applyMatrix4(_viewMat.copy(group.matrixWorld).invert())) : null;
 
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from

@@ -29,7 +29,10 @@
  *    grid samples is its own small mesh, cached by ET, so a paused clock does
  *    no work and a moving one rebuilds only that.
  *  - `footprint` — given (ODE, or a host's simulation): lon/lat polygons,
- *    holes kept. On a target with streamed cube-sphere terrain they are draped
+ *    holes kept. A ring whose vertices carry heights (`[lon, lat, heightKm]`
+ *    above the observation's `heightDatum`) was placed on the terrain by its
+ *    producer: it is drawn exactly there, once — never re-draped, so camera
+ *    motion and terrain streaming cannot move it. Other rings: on a target with streamed cube-sphere terrain they are draped
  *    on that terrain (body-fixed ray queries, a couple of metres above it, re-
  *    draped as finer terrain arrives) and drawn relative to their own centre so
  *    metre-scale footprints keep their precision; elsewhere they lie on the
@@ -73,10 +76,9 @@ import type { BodyVisualizer } from './BodyVisualizer.js';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { RendererContext } from './RendererContext.js';
 
-/** Radial lift off the surface, as a fraction of the radius: enough to clear
- *  the globe under logarithmic depth without visibly floating. */
-const LIFT = 1.002;
-/** Draped (terrain) geometry sits this far above the surface it was placed on, km. */
+/** Given and draped geometry sits this far above the surface it was placed on, km.
+ *  Metric, not a fraction of the radius (0.2 % was ≈3.5 km on the Moon): the
+ *  depth pull, not the lift, keeps it on top of a coarser rendered surface. */
 const DRAPE_LIFT_KM = 0.002;
 /** Longest straight outline step laid on terrain, km, and most steps per edge. */
 const DRAPE_LINE_STEP_KM = 0.025;
@@ -192,8 +194,8 @@ interface ObservationState {
   /** The emphasized footprint (a polygon index), or the region. */
   highlight: THREE.LineSegments;
   selected: number | 'region' | null;
-  /** How the given geometry was placed: draped on terrain, partly, or on the reference shape. */
-  placement: 'terrain' | 'partial-terrain' | 'reference';
+  /** How the given geometry was placed: where its producer said (heights), draped on terrain, partly, or on the reference shape. */
+  placement: 'given' | 'terrain' | 'partial-terrain' | 'reference';
   /** Draped vertices by direction, kept across builds: only unsettled ones are cast again. */
   drapeMemo: Map<string, { p: Vec3; settled: boolean; cast?: boolean; onTerrain?: boolean }>;
   /** Vertices of the last build not yet on sufficiently detailed terrain (budget, unloaded or coarse). */
@@ -418,11 +420,11 @@ export class ObservationsVisualizer implements BodyVisualizer {
     // Draped on the target's terrain when it has streamed cube terrain: rebuilt
     // (throttled) as finer terrain arrives, so the footprints follow the ground
     // that is actually drawn. Otherwise built once on the reference ellipsoid.
-    const drape = terrainOf(targetMesh);
+    const drape = needsDrape(obs) ? terrainOf(targetMesh) : null;
     // Settled (every vertex on sufficiently detailed terrain): nothing to redo
     // until the terrain itself is replaced. Pending: retried as terrain loads.
     // Budget-limited: keep going (throttled) until every vertex has had its ray.
-    const signature = !drape ? 'given:reference'
+    const signature = !drape ? 'given:fixed'
       : state.drapeMore ? `given:terrain:more:${state.builtAt}`
         : state.drapePending === 0 && state.signature.startsWith('given:terrain') ? state.signature
           : `given:terrain:${drape.terrainRevision ?? 0}:${state.drapePending}`;
@@ -691,7 +693,10 @@ export class ObservationsVisualizer implements BodyVisualizer {
     state.drapeRevision = revision;
     const cov = obs.coverage;
     const rings: LonLat[] = cov.kind === 'footprint' ? cov.polygonLonLat.flat() : [...(obs.requestedRegion?.polygonLonLat ?? [])];
-    const origin: Vec3 = place && rings.length ? place.at(blend(rings.map(() => 1), rings.map(unitDir))) : [0, 0, 0];
+    const datum = obs.heightDatum;
+    const exact = datum ? rings.filter((p) => p.length === 3).map((p) => exactPoint(p, datum.radiusKm)) : [];
+    const origin: Vec3 = exact.length ? centroid(exact)
+      : place && rings.length ? place.at(blend(rings.map(() => 1), rings.map(unitDir))) : [0, 0, 0];
     const lines = new VertexBuffer(this.maxLine, origin);
     const tris = new VertexBuffer(this.maxFill, origin);
     const owner: number[] = [];
@@ -701,7 +706,7 @@ export class ObservationsVisualizer implements BodyVisualizer {
       cov.polygonLonLat.forEach((outer, i) => {
         const l0 = lines.count;
         const t0 = tris.count;
-        addPolygon(outer, cov.holesLonLat?.[i] ?? [], radii, lines, tris, place, fillMax);
+        addPolygon(outer, cov.holesLonLat?.[i] ?? [], radii, lines, tris, place, fillMax, datum);
         ranges.push({ start: l0, count: lines.count - l0 });
         const c = new THREE.Vector3();
         const ring = lines.slice(l0, lines.count - l0);
@@ -730,13 +735,13 @@ export class ObservationsVisualizer implements BodyVisualizer {
     state.centers = centers;
     const regionLines = new VertexBuffer(this.maxLine, origin);
     const regionTris = new VertexBuffer(this.maxFill, origin);
-    if (obs.requestedRegion) addPolygon(obs.requestedRegion.polygonLonLat, [], radii, regionLines, regionTris, place, DRAPE_PICK_FILL_MAX_STEPS);
+    if (obs.requestedRegion) addPolygon(obs.requestedRegion.polygonLonLat, [], radii, regionLines, regionTris, place, DRAPE_PICK_FILL_MAX_STEPS, datum);
     regionLines.writeTo(state.regionOutline.geometry);
     regionTris.writeTo(state.regionFill.geometry);
     for (const m of [state.fill, state.outline, state.regionOutline, state.regionFill, state.highlight]) {
       m.position.set(origin[0], origin[1], origin[2]);
     }
-    state.placement = !place ? 'reference' : place.fallbacks() === 0 ? 'terrain' : 'partial-terrain';
+    state.placement = !place ? (exact.length && !needsDrape(obs) ? 'given' : 'reference') : place.fallbacks() === 0 ? 'terrain' : 'partial-terrain';
     state.drapePending = place?.unsettled() ?? 0;
     state.drapeMore = !!place && place.budgetLeft() === 0;
     if (place && place.fallbacks() > 0 && place.budgetLeft() > 0) {
@@ -756,8 +761,19 @@ export class ObservationsVisualizer implements BodyVisualizer {
 
 // ── geometry helpers (body-fixed km in, lifted off the surface) ─────────────
 
-function lift(p: Vec3): Vec3 {
-  return [p[0] * LIFT, p[1] * LIFT, p[2] * LIFT];
+/**
+ * `p` raised radially by `liftKm`. Callers pass the metric lift, or — for a
+ * straight edge or flat triangle `chordKm` across — enough to keep its middle
+ * above the surface: a chord of length L on radius R sags L²/8R at its middle,
+ * and a flat triangle's centre L²/6R below its corners.
+ */
+function lift(p: Vec3, liftKm = DRAPE_LIFT_KM): Vec3 {
+  const k = 1 + liftKm / Math.hypot(p[0], p[1], p[2]);
+  return [p[0] * k, p[1] * k, p[2] * k];
+}
+/** The lift a flat piece `chordKm` across needs on a surface of radius `radiusKm` (×1.1 margin), at least the metric one. */
+function chordLift(chordKm: number, radiusKm: number, sagPerL2R = 1 / 6): number {
+  return Math.max(DRAPE_LIFT_KM, 1.1 * sagPerL2R * chordKm * chordKm / radiusKm);
 }
 
 /**
@@ -797,9 +813,9 @@ class VertexBuffer {
   }
 }
 
-function push(out: VertexBuffer, ...pts: Vec3[]): void {
+function push(out: VertexBuffer, liftKm: number, ...pts: Vec3[]): void {
   for (const p of pts) {
-    const q = lift(p);
+    const q = lift(p, liftKm);
     out.push(q[0], q[1], q[2]);
   }
 }
@@ -826,6 +842,7 @@ function pushSurfaceTri(out: VertexBuffer, a: Vec3, b: Vec3, c: Vec3): void {
   // on Titan is a few steps, a frame's worth of swath strip usually one.
   const edge = Math.max(dist(a, b), dist(b, c), dist(c, a));
   const n = Math.min(FILL_STEPS, Math.max(1, Math.ceil(edge / (FLAT_EDGE * Math.min(ra, rb, rc)))));
+  const l = chordLift(edge / n, Math.min(ra, rb, rc));
   const at = (i: number, j: number): Vec3 => {
     const wb = i / n;
     const wc = j / n;
@@ -841,8 +858,8 @@ function pushSurfaceTri(out: VertexBuffer, a: Vec3, b: Vec3, c: Vec3): void {
   };
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n - i; j++) {
-      push(out, at(i, j), at(i + 1, j), at(i, j + 1));
-      if (j < n - i - 1) push(out, at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+      push(out, l, at(i, j), at(i + 1, j), at(i, j + 1));
+      if (j < n - i - 1) push(out, l, at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
     }
   }
 }
@@ -906,7 +923,7 @@ function addFootprint(fp: Footprint, lines: VertexBuffer, tris: VertexBuffer | n
   for (let i = 0; i < b.length; i++) {
     const p = b[i];
     const q = b[(i + 1) % b.length];
-    if (p && q) push(lines, p, q);
+    if (p && q) push(lines, chordLift(dist(p, q), Math.hypot(...p), 1 / 8), p, q);
   }
   if (!tris) return;
   const centre = fp.boresight ?? centroid(hits);
@@ -958,10 +975,15 @@ function addPolygon(
   tris: VertexBuffer,
   place: DrapedPlacement | null = null,
   fillMax = DRAPE_FILL_MAX_STEPS,
+  datum?: Observation['heightDatum'],
 ): void {
   const outer = openRing(outerRing);
   const holes = holeRings.map(openRing).filter((h) => h.length >= 3);
   if (outer.length < 3) return;
+  if (datum && outer[0]!.length === 3) {
+    addExactPolygon(outer, holes, datum.radiusKm, lines, tris);
+    return;
+  }
   if (place) {
     addDrapedPolygon(outer, holes, radii, place, lines, tris, fillMax);
     return;
@@ -972,7 +994,10 @@ function addPolygon(
   const surface = ([lon, lat]: LonLat) => lonLatToBodyFixed(lon, lat, radii);
 
   for (const ring of [outer, ...holes]) {
-    for (let i = 0; i < ring.length; i++) push(lines, surface(ring[i]!), surface(ring[(i + 1) % ring.length]!));
+    for (let i = 0; i < ring.length; i++) {
+      const p = surface(ring[i]!), q = surface(ring[(i + 1) % ring.length]!);
+      push(lines, chordLift(dist(p, q), Math.hypot(...p), 1 / 8), p, q);
+    }
   }
   const all = [outer, ...holes].flat();
   const faces = THREE.ShapeUtils.triangulateShape(outer.map(flat), holes.map((h) => h.map(flat)));
@@ -1136,6 +1161,47 @@ function addDrapedPolygon(
   }
 }
 
+/** Whether any given ring lacks heights, so has to be draped. */
+function needsDrape(obs: Observation): boolean {
+  const c = obs.coverage;
+  const rings = [...(c.kind === 'footprint' ? [...c.polygonLonLat, ...(c.holesLonLat ?? []).flat()] : c.kind === 'disk' ? [[]] : []),
+    ...(obs.requestedRegion ? [obs.requestedRegion.polygonLonLat] : [])];
+  return !obs.heightDatum || rings.some((r) => r[0]?.length !== 3);
+}
+
+/** A `[lon, lat, heightKm]` vertex in body-fixed km, lifted like draped ones. */
+function exactPoint(p: LonLat, radiusKm: number): Vec3 {
+  const d = unitDir(p);
+  const r = radiusKm + p[2]! + DRAPE_LIFT_KM;
+  return [d[0] * r, d[1] * r, d[2] * r];
+}
+
+/**
+ * A polygon whose producer already placed every vertex on its terrain (and
+ * densified its edges as far as it needed): outlined vertex to vertex, filled
+ * by triangulating in the plane tangent at its centre. No terrain is read, so
+ * nothing here depends on what the camera has streamed.
+ */
+function addExactPolygon(outer: readonly LonLat[], holes: readonly (readonly LonLat[])[], radiusKm: number, lines: VertexBuffer, tris: VertexBuffer): void {
+  const rings = [outer, ...holes];
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i++) pushRaw(lines, exactPoint(ring[i]!, radiusKm), exactPoint(ring[(i + 1) % ring.length]!, radiusKm));
+  }
+  const all = rings.flat();
+  const dirs = all.map(unitDir);
+  const c = blend(dirs.map(() => 1), dirs);
+  const e1 = normalize3(Math.abs(c[2]) < 0.9 ? cross3([0, 0, 1], c) : cross3([1, 0, 0], c));
+  const e2 = cross3(c, e1);
+  const flat = (p: LonLat) => {
+    const v = unitDir(p);
+    const s = 1 / (v[0] * c[0] + v[1] * c[1] + v[2] * c[2]);
+    return new THREE.Vector2((v[0] * e1[0] + v[1] * e1[1] + v[2] * e1[2]) * s, (v[0] * e2[0] + v[1] * e2[1] + v[2] * e2[2]) * s);
+  };
+  for (const [a, b, cc] of THREE.ShapeUtils.triangulateShape(outer.map(flat), holes.map((h) => h.map(flat)))) {
+    pushRaw(tris, exactPoint(all[a]!, radiusKm), exactPoint(all[b]!, radiusKm), exactPoint(all[cc]!, radiusKm));
+  }
+}
+
 function cross3(a: Vec3, b: Vec3): Vec3 {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
@@ -1176,7 +1242,7 @@ function centroid(pts: Vec3[]): Vec3 {
 }
 
 /** Mean of a ring's vertices in lon/lat, unwrapping across the ±180° seam. */
-function meanLonLat(ring: readonly (readonly [number, number])[]): [number, number] {
+function meanLonLat(ring: readonly LonLat[]): [number, number] {
   let x = 0;
   let y = 0;
   let lat = 0;

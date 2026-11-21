@@ -136,6 +136,10 @@ export type PhysicalPickSummary =
       normal: readonly [number, number, number]; renderedOffsetKm: number; sourceVersion?: string }
   | { kind: 'miss' | 'unavailable'; reason?: string };
 
+/** A host-reported sensor state over [startEt, endEt). */
+export type SensorActivityState = 'off' | 'standby' | 'acquiring';
+export interface SensorActivityInterval { readonly startEt: number; readonly endEt: number; readonly state: SensorActivityState }
+
 export interface UniverseRendererOptions {
   /** km → scene units. Default 1e-6 (1 km = 0.000001 scene units) for solar system scale */
   scaleFactor?: number;
@@ -496,6 +500,10 @@ export class UniverseRenderer {
   private solarExposurePolicy: SolarExposurePolicy = DEFAULT_SOLAR_EXPOSURE_POLICY;
   /** Current global show-sensors state — applied to every sensor frustum. */
   private _sensorsVisible = true;
+  /** Host-reported sensor activity (`setSensorActivity`), by sensor name. */
+  private readonly _sensorActivity = new Map<string, readonly SensorActivityInterval[]>();
+  /** Draw host-reported sensors' FOVs even while they are not acquiring. */
+  private _idleSensorsVisible = false;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
   private _sensorLabelsVisible = true;
   /** Physical-surface FOV clipping (issue #27); null when disabled. */
@@ -819,12 +827,19 @@ export class UniverseRenderer {
    * previous set; an empty list clears it.
    */
   setHostObservations(list: readonly Observation[]): void {
-    for (const visual of this._hostObservations.values()) {
+    // An unchanged observation (the same record) keeps its built geometry:
+    // re-supplying the list, e.g. on a selection change, must not rebuild it.
+    const keep = new Set(list);
+    for (const [name, visual] of this._hostObservations) {
+      if (keep.has(visual.userData.observation?.obs)) continue;
       this.scene.remove(visual);
       this._observations.dispose(visual);
+      this._hostObservations.delete(name);
     }
-    this._hostObservations.clear();
     for (const obs of list) {
+      if (this._hostObservations.get(obs.name)?.userData.observation?.obs === obs) continue;
+      const old = this._hostObservations.get(obs.name);
+      if (old) { this.scene.remove(old); this._observations.dispose(old); }
       const visual = this._observations.createVisualForObservation(obs, this._ctx, obs.name, { always: true });
       // Analysis overlay, like sensor frustums: depth-tested against the
       // terrain in the overlay pass, and never part of a synthetic instrument image.
@@ -848,7 +863,7 @@ export class UniverseRenderer {
   }
 
   /** How a host observation's footprints are placed: on terrain, partly, or on the reference shape. */
-  getHostObservationPlacement(name: string): 'terrain' | 'partial-terrain' | 'reference' | null {
+  getHostObservationPlacement(name: string): 'given' | 'terrain' | 'partial-terrain' | 'reference' | null {
     const visual = this._hostObservations.get(name);
     return visual ? this._observations.placementOf(visual) : null;
   }
@@ -1231,6 +1246,7 @@ export class UniverseRenderer {
       // Nor is a sensor drawn while its spacecraft's supplied attitude is missing.
       const carrier = sf.body.parentName ? this.bodyMeshes.get(sf.body.parentName) : undefined;
       sf.present = (sensorBody?.present ?? true) && sensorBody?.attitudeAvailable !== false && carrier?.attitudeAvailable !== false;
+      sf.activityShown = this.sensorActivityShown(sf.body.name, et);
       if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       const pointing = sensorPointing(this.universe, sf, et, spiceInst);
@@ -1344,9 +1360,13 @@ export class UniverseRenderer {
     // Streaming can expose a coarse triangle above the previous selection.
     // Account for that newly selected surface before this frame is drawn, and
     // before view-dependent transport/labels consume the final camera.
+    // An open instrument feed refines the terrain under its aperture too.
+    const ivSensor = this.instrumentView?.active && this.instrumentView.sensorName ? this.sensorFrustums.get(this.instrumentView.sensorName) : undefined;
+    const anchor = ivSensor?.present ? ivSensor.position : null;
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
+        if (bm.hasTerrain) bm.setTerrainDetailAnchor(anchor);
         const dist = bm.position.distanceTo(this.camera.position);
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
@@ -1823,9 +1843,15 @@ export class UniverseRenderer {
       }
       // The instrument has its own observer position and may be inside a
       // different shell. Refresh its sky lookup and surface transport too.
+      // The instrument looks out from its vehicle: the vehicle's model (drawn
+      // about its centre, not the aperture) is not part of its image.
+      const host = sf.body.parentName ? this.bodyMeshes.get(sf.body.parentName) : undefined;
+      const hostModel = host?.isModelVisible ? host.modelContainer : null;
+      if (hostModel) hostModel.visible = false;
       try {
         this.renderInstrumentScene();
       } finally {
+        if (hostModel) hostModel.visible = true;
         // A failed feed must also restore the main camera's terrain cull and shading.
         for (const bm of this.bodyMeshes.values()) {
           bm.setTerrainViewCamera(this.camera);
@@ -2735,6 +2761,10 @@ export class UniverseRenderer {
     slantRangeKm: number | null;
     surface: { body: string; source: string; coarse: boolean; fallback: boolean } | null;
     clipped: boolean;
+    /** Host-reported activity now (`setSensorActivity`); null when no host reports on this sensor. */
+    activity: SensorActivityState | 'unknown' | null;
+    /** Whether its FOV is drawn now (activity, inspection, the user's choices and presence together). */
+    drawn: boolean;
   } | null {
     const sf = this.sensorFrustums.get(name);
     if (!sf) return null;
@@ -2757,6 +2787,8 @@ export class UniverseRenderer {
       slantRangeKm: hit?.distanceKm ?? null,
       surface: hit ? { body: hit.body, source: hit.source, coarse: hit.coarse, fallback: hit.fallback } : null,
       clipped: summary?.clipped ?? false,
+      activity: this.sensorActivityAt(name),
+      drawn: sf.visible,
     };
   }
 
@@ -3047,6 +3079,41 @@ export class UniverseRenderer {
    */
   setLabelOpacityMultiplier(name: string, multiplier: number): void {
     this.labelManager?.setLabelOpacityMultiplier(name, multiplier);
+  }
+
+  /**
+   * What a host (a mission simulation) says a sensor is doing over time.
+   * Once a sensor has intervals, its FOV is drawn only while it is
+   * `acquiring` — or while it is being inspected (its instrument view is open,
+   * or it is the selected body), or `setIdleSensorsVisible(true)`. A time no
+   * interval covers is `unknown`, never taken as acquiring. Null (or an empty
+   * list) returns the sensor to the catalog behaviour: always drawn.
+   */
+  setSensorActivity(sensorName: string, intervals: readonly SensorActivityInterval[] | null): void {
+    if (intervals?.length) this._sensorActivity.set(sensorName, [...intervals].sort((a, b) => a.startEt - b.startEt));
+    else this._sensorActivity.delete(sensorName);
+  }
+
+  /** The host-reported state of a sensor at `et`: null when no host reports on it. */
+  sensorActivityAt(sensorName: string, et = this.universe.time): SensorActivityState | 'unknown' | null {
+    const list = this._sensorActivity.get(sensorName);
+    if (!list) return null;
+    for (const i of list) {
+      if (i.startEt > et) break;
+      if (et < i.endEt || (et === i.endEt && i.startEt === i.endEt)) return i.state;
+    }
+    return 'unknown';
+  }
+
+  /** "Show FOV": draw host-reported sensors whatever they are doing. */
+  setIdleSensorsVisible(visible: boolean): void { this._idleSensorsVisible = visible; }
+  get idleSensorsVisible(): boolean { return this._idleSensorsVisible; }
+
+  private sensorActivityShown(name: string, et: number): boolean {
+    const state = this.sensorActivityAt(name, et);
+    if (state === null || state === 'acquiring' || this._idleSensorsVisible) return true;
+    const iv = this.instrumentView;
+    return (!!iv?.active && iv.sensorName === name) || this.universe.state.get('selectedBody') === name;
   }
 
   /** Show or hide all sensor frustums (and their labels). */
