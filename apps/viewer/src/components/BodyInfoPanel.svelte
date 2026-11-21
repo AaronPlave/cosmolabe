@@ -151,6 +151,8 @@
    */
   let stateStatus = $derived.by(() => {
     void vs.et;
+    // Paused, state that arrives (or falls back to another source) changes nothing else the panel reads.
+    void vs.missionStateRevision;
     const u = getUniverse();
     const name = vs.selectedBodyName;
     const body = name ? u?.getBody(name) : undefined;

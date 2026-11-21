@@ -275,7 +275,7 @@ export { ActivityConflictError };
 export { createHttpTransport };
 export { AgentTransportError } from '@cosmolabe/control';
 export {
-  HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
+  HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError, tlePredictionSource,
 } from '@cosmolabe/core';
 export type * from './embed-types';
 

@@ -227,6 +227,24 @@ through `Universe.stateAvailability`:
 | `error` | The source was rejected against the catalog, or a request failed (retried after 2 s) |
 | `dependency` | This body is fine; a body or frame it is placed relative to is not |
 
+### Fallback sources: a prediction beneath observations
+
+A trajectory may name fallback sources, tried in order only where the ones
+before them have no state:
+
+```json
+"trajectory": { "type": "MissionState", "source": "sc1", "fallback": ["sc1-predicted"] }
+```
+
+Each is an ordinary source with its own coverage, cache and reasons; the
+fallback is not written into the primary, so the primary still reports its gap
+(`viewer.missionState` / `m.availability('sc1', …)`) while the body is drawn from
+the prediction. `stateAvailability` names the source that answered (`sourceId`)
+and its classification, so a prediction marked `planned` is shown as
+*Predicted*. Fallbacks must share the primary's frame and center; outside every
+source's state the primary's reason is reported. Only position falls back: a
+prediction says nothing about where the spacecraft was pointed.
+
 Without position the body, label, sensors and its trail segment are absent;
 without attitude (position valid) the model is replaced by its position marker,
 body axes and sensors are hidden, and body-locked camera modes have no frame. The

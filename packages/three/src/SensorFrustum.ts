@@ -142,6 +142,8 @@ export class SensorFrustum extends THREE.Object3D {
   spiceFovBoundary: FovBoundaryShape | undefined;
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
+  /** The ground footprint: perimeter edges whose both ends land on a surface. */
+  private readonly footprint: THREE.LineSegments;
   readonly labelSprite: THREE.Sprite;
   private readonly hFov: number; // full angle in radians
   private readonly vFov: number; // full angle in radians
@@ -228,6 +230,10 @@ export class SensorFrustum extends THREE.Object3D {
     });
     this.wireframe = new THREE.LineSegments(new THREE.BufferGeometry(), wireMat);
     this.add(this.wireframe);
+
+    // Opaque, so the area on the ground reads even where the fill is faint.
+    this.footprint = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color }));
+    this.add(this.footprint);
 
     // Label sprite at the far end of the frustum
     const labelTexture = createTextTexture(body.name, color);
@@ -403,6 +409,7 @@ export class SensorFrustum extends THREE.Object3D {
 
     setPositions(this.frustumMesh.geometry, fill);
     setPositions(this.wireframe.geometry, lines);
+    setPositions(this.footprint.geometry, footprintSegments(perimeter, scaleFactor));
   }
 
   dispose(): void {
@@ -410,9 +417,35 @@ export class SensorFrustum extends THREE.Object3D {
     (this.frustumMesh.material as THREE.Material).dispose();
     this.wireframe.geometry.dispose();
     (this.wireframe.material as THREE.Material).dispose();
+    this.footprint.geometry.dispose();
+    (this.footprint.material as THREE.Material).dispose();
     (this.labelSprite.material as THREE.SpriteMaterial).map?.dispose();
     (this.labelSprite.material as THREE.Material).dispose();
   }
+}
+
+/** Lifted toward the sensor by this much, so the outline is not hidden in the surface it lies on. */
+const FOOTPRINT_LIFT_KM = 0.5;
+
+/**
+ * The ground outline: each perimeter edge whose two ends both hit a surface.
+ * A partial intersection (the FOV over the limb) draws only the part on the
+ * ground, and a FOV that misses entirely draws nothing — never a closed shape
+ * the geometry does not support.
+ */
+export function footprintSegments(perimeter: readonly FovPerimeterSample[], scaleFactor: number): Float32Array {
+  const n = perimeter.length;
+  const out: number[] = [];
+  const end = (s: FovPerimeterSample) => {
+    const k = Math.max(0, s.distanceKm - FOOTPRINT_LIFT_KM) * scaleFactor;
+    out.push(s.direction[0] * k, s.direction[1] * k, s.direction[2] * k);
+  };
+  for (let i = 0; i < n; i++) {
+    const a = perimeter[i], b = perimeter[(i + 1) % n];
+    if (n < 2 || !a.hit || !b.hit) continue;
+    end(a); end(b);
+  }
+  return new Float32Array(out);
 }
 
 /** Replace a geometry's positions, reusing the attribute when the size matches. */

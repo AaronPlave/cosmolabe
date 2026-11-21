@@ -46,13 +46,13 @@ export declare class AgentTransportError extends Error {
 }
 
 export {
-  HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
+  HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError, tlePredictionSource,
 } from '@cosmolabe/core';
 export type {
   CatalogJson, MissionActivity, MissionActivitySpec, MissionStateSource, MissionStateSink, MissionStateChannel, MissionStateChange,
   PositionConvention, AttitudeConvention, PositionSample, AttitudeSample, StateBatch, PositionBatch, AttitudeBatch, SuppliedBatch,
   SampleTime, SourceStatus, ChannelCoverage, CoverageInterval, StateAvailability, UnavailableReason, DataProvenance, HostData,
-  ExploratoryData, PluginData,
+  ExploratoryData, PluginData, TlePredictionOptions, TlePredictionSource,
 } from '@cosmolabe/core';
 export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,

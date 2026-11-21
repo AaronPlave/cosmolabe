@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Body } from '@cosmolabe/core';
-import { SensorFrustum, type SensorFovClipper } from '../SensorFrustum.js';
+import { SensorFrustum, footprintSegments, type SensorFovClipper } from '../SensorFrustum.js';
 import { clipFovPerimeter, type FovSurfaceCandidate, type Vec3 } from '../surface/FovClipper.js';
 import { ReferenceEllipsoidSurface } from '../surface/ReferenceEllipsoidSurface.js';
 
@@ -134,5 +134,21 @@ describe('sensor label', () => {
     expect(labelled(false).labelSprite.visible).toBe(false);
     expect(labelled(true).labelSprite.visible).toBe(true);
     expect(labelled(undefined).labelSprite.visible).toBe(true);
+  });
+});
+
+describe('footprintSegments', () => {
+  const hit = { candidateId: 'Earth' } as never;
+  const sample = (t: number, onGround: boolean) => ({ t, direction: [0, 0, 1] as [number, number, number], distanceKm: onGround ? 500 : 2000, hit: onGround ? hit : null, base: true });
+
+  it('outlines a FOV wholly on the ground as a closed loop, lifted off the surface', () => {
+    const seg = footprintSegments([0, 0.25, 0.5, 0.75].map((t) => sample(t, true)), 1);
+    expect(seg.length / 6).toBe(4);
+    expect(seg[2]).toBeCloseTo(499.5);
+  });
+
+  it('draws only the edges on the ground when the FOV crosses the limb, and nothing when it misses', () => {
+    expect(footprintSegments([sample(0, true), sample(0.25, true), sample(0.5, false), sample(0.75, false)], 1).length / 6).toBe(1);
+    expect(footprintSegments([0, 0.5].map((t) => sample(t, false)), 1).length).toBe(0);
   });
 });
