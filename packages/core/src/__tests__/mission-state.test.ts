@@ -542,3 +542,68 @@ describe('request orchestration', () => {
     }
   });
 });
+
+describe('fallback sources', () => {
+  /** Observed sc1 with a live feed, and a predicted source answering any window from a slightly different orbit. */
+  function observedOverPredicted(validity: CoverageInterval = { start: -86400, end: 86400 }) {
+    const m = new MissionStateManager();
+    const u = scene(m, { trajectory: { type: 'MissionState', source: 'sc1', fallback: ['sc1-predicted'] } });
+    let sink!: MissionStateSink;
+    m.addSource({ id: 'sc1', position: J2000_POS, staleAfterMs: 1000, subscribe: (s) => { sink = s; return () => {}; } });
+    const offset = (t: number) => { const s = orbit(t); return { ...s, position: s.position.map((x) => x + 0.5) }; };
+    m.addSource({
+      id: 'sc1-predicted', position: J2000_POS,
+      coverage: { position: validity },
+      request: async (_c, w) => adapter.supply(positionBatch(Math.ceil(w.start / 60) * 60, w.end, 60, offset), prov('planned')),
+    });
+    return { m, u, sink: () => sink };
+  }
+
+  it('answers each epoch from the first source that has state, and says which', async () => {
+    const { m, u, sink } = observedOverPredicted();
+    sink().setConnection('live');
+    sink().push('position', adapter.supply(positionBatch(0, 600), prov()));
+    // Observed again after a two-minute outage.
+    sink().push('position', adapter.supply(positionBatch(780, 1200), prov()));
+    m.focus(700);
+    await flush();
+    const at = (et: number) => u.stateAvailability('SC-1', et).position;
+    expect(at(300)).toMatchObject({ available: true, sourceId: 'sc1', classification: 'authoritative' });
+    expect(at(700)).toMatchObject({ available: true, sourceId: 'sc1-predicted', classification: 'planned' });
+    expect(at(900)).toMatchObject({ available: true, sourceId: 'sc1' });
+    expect(u.getBody('SC-1')!.stateAt(300).position[0]).toBeCloseTo(orbit(300).position[0], 2);
+    // The outage reads the predicted orbit, not an extrapolation of the observed one.
+    expect(u.getBody('SC-1')!.stateAt(720).position[0]).toBeCloseTo(orbit(720).position[0] + 0.5, 2);
+    // Each source keeps its own account of the outage.
+    expect(m.availability('sc1', 'position', 700).available).toBe(false);
+  });
+
+  it('does not extend past the predicted validity, and reports the primary source\'s reason there', async () => {
+    const { m, u } = observedOverPredicted({ start: 0, end: 3600 });
+    m.focus(4000);
+    await flush();
+    expect(u.stateAvailability('SC-1', 4000).position).toMatchObject({ available: false, sourceId: 'sc1' });
+    expect(isNaN(u.getBody('SC-1')!.stateAt(4000).position[0])).toBe(true);
+    m.focus(3000);
+    await flush();
+    expect(u.stateAvailability('SC-1', 3000).position).toMatchObject({ available: true, sourceId: 'sc1-predicted' });
+  });
+
+  it('rejects a fallback in another frame instead of mixing frames', () => {
+    const m = new MissionStateManager();
+    const u = scene(m, { trajectory: { type: 'MissionState', source: 'sc1', fallback: 'sc1-predicted' } });
+    m.addSource({ id: 'sc1', position: J2000_POS });
+    m.addSource({ id: 'sc1-predicted', position: { ...J2000_POS, frame: 'ECLIPJ2000' } });
+    expect(m.availability('sc1-predicted', 'position', 0)).toMatchObject({ reason: 'error', message: expect.stringMatching(/fallback must share its frame/) });
+    expect(u.stateAvailability('SC-1', 0).position.available).toBe(false);
+  });
+
+  it('survives replacing either source', async () => {
+    const { m, u, sink } = observedOverPredicted();
+    sink().push('position', adapter.supply(positionBatch(0, 600), prov()));
+    m.replaceSource({ id: 'sc1', position: J2000_POS });
+    m.focus(300);
+    await flush();
+    expect(u.stateAvailability('SC-1', 300).position.sourceId).toBe('sc1-predicted');
+  });
+});

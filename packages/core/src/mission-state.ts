@@ -274,6 +274,16 @@ class SourceEntry {
   constructor(readonly source: MissionStateSource, readonly generation: number) {}
 }
 
+function fallbackIdsOf(spec: unknown, what: string): string[] {
+  const fallback = (spec as { fallback?: unknown }).fallback;
+  if (fallback === undefined) return [];
+  const ids = typeof fallback === 'string' ? [fallback] : fallback;
+  if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string' && id.trim())) {
+    throw new Error(`${what} MissionState "fallback" must be a source id or a list of them`);
+  }
+  return ids;
+}
+
 function sourceIdOf(spec: unknown, what: string): string {
   const source = (spec as { source?: unknown }).source;
   if (typeof source !== 'string' || !source.trim()) throw new Error(`${what} MissionState requires a "source" naming the host's mission-state source`);
@@ -302,9 +312,15 @@ export class MissionStateManager {
     this.invalidateDelayMs = options.invalidateDelayMs ?? 200;
   }
 
-  /** `UniverseOptions.trajectoryFactories` entry: `{ "type": "MissionState", "source": id }`. */
+  /**
+   * `UniverseOptions.trajectoryFactories` entry: `{ "type": "MissionState", "source": id }`,
+   * optionally with `"fallback": [id, …]`: sources evaluated, in order, only
+   * where the ones before them have no state (e.g. a predicted ephemeris
+   * beneath observed telemetry). Each stays its own source, so availability
+   * names which one answered and its classification.
+   */
   readonly trajectoryFactories: Record<string, TrajectoryFactory> = {
-    MissionState: ({ spec, item }) => new MissionStateTrajectory(this, sourceIdOf(spec, `${item.name} trajectory`)),
+    MissionState: ({ spec, item }) => new MissionStateTrajectory(this, sourceIdOf(spec, `${item.name} trajectory`), fallbackIdsOf(spec, `${item.name} trajectory`)),
   };
   readonly rotationFactories: Record<string, RotationFactory> = {
     MissionState: ({ spec, item }) => new MissionStateRotation(this, sourceIdOf(spec, `${item.name} rotation`)),
@@ -733,9 +749,11 @@ export class MissionStateManager {
     const pos = entry.channels.position, att = entry.channels.attitude;
     const resolvable = (frame: string) => u.frames.get(frame) !== undefined && u.frames.isResolvable(frame, u.time);
     for (const body of u.getAllBodies()) {
-      if (pos && body.trajectory instanceof MissionStateTrajectory && body.trajectory.sourceId === id) {
+      if (pos && body.trajectory instanceof MissionStateTrajectory && body.trajectory.sourceIds.includes(id)) {
         const c = pos.convention as PositionConvention;
-        if (body.parentName !== c.center) pos.error = `Source "${id}" positions are relative to ${c.center}, but ${body.name}'s catalog center is ${body.parentName ?? 'none'}.`;
+        const primary = body.trajectory.sourceId !== id ? this.positionConvention(body.trajectory.sourceId) : undefined;
+        if (primary && !u.frames.sameFrame(primary.frame, c.frame)) pos.error = `Source "${id}" positions are in ${c.frame}, but ${body.name}'s primary source "${body.trajectory.sourceId}" is in ${primary.frame}; a fallback must share its frame.`;
+        else if (body.parentName !== c.center) pos.error = `Source "${id}" positions are relative to ${c.center}, but ${body.name}'s catalog center is ${body.parentName ?? 'none'}.`;
         else if (body.declaredFrame && !u.frames.sameFrame(body.declaredFrame, c.frame)) pos.error = `Source "${id}" positions are in ${c.frame}, but ${body.name} declares trajectoryFrame ${body.declaredFrame}.`;
         else if (!resolvable(c.frame)) pos.error = `Frame ${c.frame} (source "${id}") cannot be resolved in this scene.`;
       }
@@ -763,7 +781,7 @@ export class MissionStateManager {
   /** Re-announce the bound bodies' trajectories so trail caches for those bodies alone are rebuilt. */
   private invalidateBodies(id: string): void {
     for (const body of this.universe?.getAllBodies() ?? []) {
-      if (body.trajectory instanceof MissionStateTrajectory && body.trajectory.sourceId === id) body.setTrajectory(body.trajectory);
+      if (body.trajectory instanceof MissionStateTrajectory && body.trajectory.sourceIds.includes(id)) body.setTrajectory(body.trajectory);
     }
   }
 
@@ -831,14 +849,38 @@ function nearestRuns(ch: Channel, et: number): CoverageInterval[] {
   return out;
 }
 
-/** A body trajectory read from a host mission-state source. */
+/**
+ * A body trajectory read from a host mission-state source, then from its
+ * fallback sources in order where the earlier ones have no state. Samples of
+ * two sources are never blended: each epoch is answered by exactly one.
+ */
 export class MissionStateTrajectory implements Trajectory {
-  constructor(private readonly manager: MissionStateManager, readonly sourceId: string) {}
+  readonly sourceIds: readonly string[];
+  constructor(private readonly manager: MissionStateManager, readonly sourceId: string, readonly fallback: readonly string[] = []) {
+    this.sourceIds = [sourceId, ...fallback];
+  }
   get frame(): string | undefined { return this.manager.positionConvention(this.sourceId)?.frame; }
-  get startTime(): number | undefined { return this.manager.extent(this.sourceId, 'position')?.start; }
-  get endTime(): number | undefined { return this.manager.extent(this.sourceId, 'position')?.end; }
-  stateAt(et: number): CartesianState { return this.manager.evaluatePosition(this.sourceId, et); }
-  availabilityAt(et: number): StateAvailability { return this.manager.availability(this.sourceId, 'position', et); }
+  get startTime(): number | undefined { return this.extremum('start'); }
+  get endTime(): number | undefined { return this.extremum('end'); }
+  stateAt(et: number): CartesianState { return this.manager.evaluatePosition(this.answering(et).sourceId ?? this.sourceId, et); }
+  /** The first source with state at `et`, else the primary source's reason it has none. */
+  availabilityAt(et: number): StateAvailability { return this.answering(et); }
+
+  private answering(et: number): StateAvailability {
+    const primary = this.manager.availability(this.sourceId, 'position', et);
+    if (primary.available) return primary;
+    for (const id of this.fallback) {
+      const a = this.manager.availability(id, 'position', et);
+      if (a.available) return a;
+    }
+    return primary;
+  }
+
+  private extremum(edge: 'start' | 'end'): number | undefined {
+    const values = this.sourceIds.map((id) => this.manager.extent(id, 'position')?.[edge]).filter((v): v is number => v !== undefined);
+    if (!values.length) return undefined;
+    return edge === 'start' ? Math.min(...values) : Math.max(...values);
+  }
 }
 
 /** A body attitude read from a host mission-state source; throws `StateUnavailableError` outside its data. */
