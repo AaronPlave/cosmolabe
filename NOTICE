@@ -6,9 +6,9 @@ projects. Their original licenses and copyrights are retained per their
 respective terms.
 
 This software is not approved or endorsed by the National Aeronautics and
-Space Administration (NASA) or the Jet Propulsion Laboratory (JPL). It
-uses NASA-released open-source components (CSPICE via cspice-wasm,
-3DTilesRendererJS) but is independently developed and maintained.
+Space Administration (NASA) or the Jet Propulsion Laboratory (JPL).
+Cosmolabe is independently developed and uses NASA-released software,
+including CSPICE via cspice-wasm and 3DTilesRendererJS.
 
 ================================================================================
 
@@ -93,9 +93,14 @@ https://naif.jpl.nasa.gov/naif/toolkit.html
 
   SPICE kernels and documentation are produced by the Navigation and
   Ancillary Information Facility (NAIF) at NASA's Jet Propulsion Laboratory.
-  CSPICE is distributed as the WebAssembly module bundled at
-  packages/cspice-wasm/wasm/cspice.wasm. CSPICE itself is provided under
-  NAIF's own terms; see https://naif.jpl.nasa.gov/naif/rules.html
+  NAIF CSPICE N0067 is distributed as the WebAssembly module bundled at
+  packages/cspice-wasm/wasm/cspice.wasm. The official source archive is
+  https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z
+  SHA-256: 60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce
+  Cosmolabe builds it with Emscripten 6.0.9 and applies three ABI fixes in
+  packages/cspice-wasm/native/wasm-abi.patch. Build instructions are in
+  packages/cspice-wasm/README.md.
+  NAIF's terms are at https://naif.jpl.nasa.gov/naif/rules.html
   SPICE test kernels under kernels/fixtures/ and kernels/test-data/ are NAIF
   products (test_instruments.ti is a synthetic test definition).
 

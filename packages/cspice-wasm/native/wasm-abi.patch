@@ -1,0 +1,31 @@
+--- a/cspice/src/cspice/rsfe.c
++++ b/cspice/src/cspice/rsfe.c
+@@ -60 +60 @@
+-void    zzsetnnread_( logical * on );
++int     zzsetnnread_( logical * on );
+@@ -420 +420,2 @@
+-void zzsetnnread_( logical * on )
++/* Cosmolabe WASM port: match the f2c caller declaration in rdker.c. */
++int zzsetnnread_( logical * on )
+@@ -422,0 +424 @@
++   return 0;
+--- a/cspice/src/cspice/s_cat.c
++++ b/cspice/src/cspice/s_cat.c
+@@ -23 +23,2 @@
+- VOID
++/* Cosmolabe WASM port: match f2c-generated integer-return declarations. */
++ int
+@@ -74,0 +76 @@
++	return 0;
+--- a/cspice/src/cspice/s_copy.c
++++ b/cspice/src/cspice/s_copy.c
+@@ -9,0 +10 @@
++/* Cosmolabe WASM port: match f2c-generated integer-return declarations. */
+@@ -12 +13 @@
+-VOID s_copy(a, b, la, lb) register char *a, *b; ftnlen la, lb;
++int s_copy(a, b, la, lb) register char *a, *b; ftnlen la, lb;
+@@ -14 +15 @@
+-void s_copy(register char *a, register char *b, ftnlen la, ftnlen lb)
++int s_copy(register char *a, register char *b, ftnlen la, ftnlen lb)
+@@ -50,0 +52 @@
++	return 0;

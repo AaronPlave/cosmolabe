@@ -35,9 +35,9 @@
 //                on every form heritage accepted — measured, see the
 //                reference regression suite — and additionally accepts the ISO forms
 //                heritage threw on (an offset epoch, a designator on a
-//                date-only string). utc2et still passes the string verbatim,
-//                exactly as heritage does, so a Z-suffixed input fails loudly
-//                on that path as it always did.
+//                date-only string). utc2et passes the string verbatim and
+//                uses CSPICE's UTC grammar, which accepts ISO timestamps
+//                ending in Z as of N0067.
 //   shapes       sub-point results carry planetocentric longitude
 //                atan2(y, x), latitude atan2(z, hypot(x, y)), and altitude
 //                |srfvec|, the heritage reclat semantics; matrices stay
@@ -522,8 +522,7 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
       return bindings.et2utc(et, format, precision);
     },
     utc2et(utcString) {
-      // Verbatim, per the charter: heritage utc2et does not strip a trailing
-      // Z (only str2et does), so a Z-suffixed input fails loudly here too.
+      // CSPICE owns parsing on this path, including ISO UTC with a trailing Z.
       return bindings.utc2et(utcString);
     },
     et2lst(et, bodyId, longitude, type) {

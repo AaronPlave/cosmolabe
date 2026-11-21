@@ -46,14 +46,13 @@ describe('cspice-wasm DSK type-2 reader', () => {
   });
 
   it('reports the segment centre and frame from the descriptor', () => {
-    // 2486958 is (486958) Arrokoth. Its body-fixed frame id is not a built-in,
-    // and no FK is loaded here, so the name is empty rather than invented.
+    // N0067 resolves 10111 to IAU_ARROKOTH even with no FK loaded.
     expect(shape.centerId).toBe(2486958);
     expect(shape.segments).toHaveLength(1);
     expect(shape.segments[0]).toMatchObject({
       centerId: 2486958,
       frameId: 10111,
-      frame: '',
+      frame: 'IAU_ARROKOTH',
       vertexCount: shape.vertices.length / 3,
       plateCount: shape.plates.length / 3,
     });

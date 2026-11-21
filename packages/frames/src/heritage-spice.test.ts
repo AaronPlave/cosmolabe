@@ -257,9 +257,9 @@ describe('@cosmolabe/frames heritage adapter', () => {
         oracle.str2et('1996-12-18 12:00:00.331 TDB'),
       );
     });
-    it('utc2et passes verbatim, so a trailing Z fails loudly as heritage does', () => {
+    it('utc2et passes ISO UTC verbatim, including the trailing Z CSPICE now accepts', () => {
       expect(spice.utc2et('2004-07-01T02:00:00')).toBe(oracle.utc2et('2004-07-01T02:00:00'));
-      expect(() => spice.utc2et('2004-07-01T02:00:00Z')).toThrow(SpiceError);
+      expect(spice.utc2et('2004-07-01T02:00:00Z')).toBe(oracle.utc2et('2004-07-01T02:00:00'));
     });
   });
 

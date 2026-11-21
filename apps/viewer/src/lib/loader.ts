@@ -558,7 +558,7 @@ function startSceneWorkers(): void {
   if (TEST_MODE || workerKernels(furnished).length === 0) return;
 
   try {
-    cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
+    cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker(), hooks.cspiceWasmUrl);
     const worker = cacheWorker;
     void currentWorkerKernels()
       .then((sources) => worker.loadKernels(sources))
@@ -570,6 +570,7 @@ function startSceneWorkers(): void {
     // cancellation that had to terminate it.
     geometryWorker = new GeometrySearchWorker({
       createWorker: () => new SpiceCacheRelayWorker(),
+      wasmUrl: hooks.cspiceWasmUrl,
       kernels: currentWorkerKernels,
       idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
     });
@@ -1078,6 +1079,7 @@ async function syncWorkersWithDroppedKernels(added: readonly FurnishedKernel[]):
   if (!TEST_MODE && cacheWorker) {
     geometryWorker = new GeometrySearchWorker({
       createWorker: () => new SpiceCacheRelayWorker(),
+      wasmUrl: hooks.cspiceWasmUrl,
       kernels: currentWorkerKernels,
       idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
     });

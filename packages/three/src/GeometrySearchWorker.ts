@@ -90,6 +90,8 @@ export interface GeometrySearchWorkerOptions {
    * so it must be able to produce more than one.
    */
   createWorker: () => Worker;
+  /** Absolute WASM URL from the host when it serves the worker's assets. */
+  wasmUrl?: string;
   /**
    * The kernels to furnish, in furnish order — precedence has to match the main
    * thread's. Re-read on every start, so whatever backs them (a URL, a dropped
@@ -164,7 +166,7 @@ export class GeometrySearchWorker {
 
     const generation = this.generation;
     const attempt = (async (): Promise<SpiceCacheWorker> => {
-      const worker = new SpiceCacheWorker(this.options.createWorker());
+      const worker = new SpiceCacheWorker(this.options.createWorker(), this.options.wasmUrl);
       try {
         await worker.waitUntilReady();
         await worker.loadKernels(await this.options.kernels(scope));

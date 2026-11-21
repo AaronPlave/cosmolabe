@@ -172,11 +172,12 @@ describe('spiceUtcFromIso against CSPICE', () => {
     }
   });
 
-  it('makes CSPICE accept the offset and stray-whitespace forms it used to reject', () => {
+  it('resolves numeric UTC offsets before handing the epoch to CSPICE', () => {
     const noon = spice.str2et('2004-07-01T12:00:00');
-    for (const s of ['2004-07-01T14:00:00+02:00', '2004-07-01T07:00:00-05:00', ' 2004-07-01T12:00:00Z ']) {
+    for (const s of ['2004-07-01T14:00:00+02:00', '2004-07-01T07:00:00-05:00']) {
       expect(() => spice.str2et(s), s).toThrow(SpiceError);
       expect(spice.str2et(spiceUtcFromIso(s)), s).toBe(noon);
     }
+    expect(spice.str2et(spiceUtcFromIso(' 2004-07-01T12:00:00Z '))).toBe(noon);
   });
 });

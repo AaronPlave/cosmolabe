@@ -2,25 +2,16 @@
 #
 # Reproducible CSPICE-WASM build for cspice-wasm.
 #
-# Vendors NASA/JPL CSPICE via the arturania/cspice fork (ADR-0004), compiles it
-# to a static library with Emscripten, then links the SPICE surface Bessel needs
-# -- plus this package's own native/gf-report.c -- into an ES module plus a .wasm
-# payload. Kernels are never embedded: they arrive at runtime through the PAL
-# KernelSource and are written into the Emscripten FS.
+# Builds the official NAIF CSPICE sources with Emscripten, then links the
+# exported SPICE functions and native/gf-report.c into an ES module and WASM.
+# Kernels arrive at runtime through KernelSource and the Emscripten filesystem.
 #
 # The vendored source lands in vendor/ (gitignored); the two artifacts in wasm/
 # are committed, so this only needs running when the export list, the native
 # shim, or the CSPICE version changes.
 #
-# "Reproducible" is meant literally, and is pinned rather than hoped for: both
-# inputs that decide the output bytes are fixed here. CSPICE_REV pins the source
-# (the fork is dormant -- its HEAD has not moved since 2021 -- but a floating
-# HEAD is still a floating input), and EMSDK_VERSION pins the compiler, which
-# matters more: Emscripten regenerates the whole JS glue on every release, so a
-# different emcc rewrites cspice.mjs wholesale and changes the .wasm. Building
-# with another version is possible (ALLOW_EMCC_MISMATCH=1) but it is a toolchain
-# upgrade, and belongs in its own commit rather than riding along with a change
-# to the export list.
+# The archive checksum pins the source. The SDK version pins both the compiler
+# and the Emscripten runtime that generates cspice.mjs.
 #
 # Usage: bash packages/cspice-wasm/scripts/build-cspice.sh
 # Requires: emscripten (emcc) on PATH at EMSDK_VERSION; run from the repository root.
@@ -28,18 +19,17 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-VENDOR="$REPO_ROOT/vendor/cspice"
+VENDOR="$REPO_ROOT/vendor"
 OUT="$REPO_ROOT/packages/cspice-wasm/wasm"
 NATIVE="$REPO_ROOT/packages/cspice-wasm/native"
-CSPICE_REMOTE="https://github.com/arturania/cspice.git"
-# The exact commit the committed artifacts were built from.
-CSPICE_REV="53bce326267dd2d6d567de92b15869c9ed7d0629"
+CSPICE_RELEASE="N0067"
+CSPICE_URL="https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z"
+CSPICE_SHA256="60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce"
+ARCHIVE="$VENDOR/cspice-$CSPICE_RELEASE.tar.Z"
 # The exact Emscripten the committed artifacts were built with.
 EMSDK_VERSION="6.0.9"
 
-mkdir -p "$OUT"
-
-ACTUAL_EMCC="$(emcc --version | head -1 | sed -E 's/.* ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+ACTUAL_EMCC="$(emcc --version | sed -nE '1s/.* ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')"
 if [ "$ACTUAL_EMCC" != "$EMSDK_VERSION" ]; then
   if [ "${ALLOW_EMCC_MISMATCH:-0}" != "1" ]; then
     echo "emcc is $ACTUAL_EMCC, but the committed artifacts were built with $EMSDK_VERSION." >&2
@@ -51,28 +41,40 @@ if [ "$ACTUAL_EMCC" != "$EMSDK_VERSION" ]; then
   echo "WARNING: building with emcc $ACTUAL_EMCC, not the pinned $EMSDK_VERSION."
 fi
 
-# Fetch the pinned commit itself rather than whatever HEAD happens to be: one
-# object, no history, and the revision is the one recorded above.
-if [ ! -d "$VENDOR/src" ]; then
-  echo "Fetching CSPICE $CSPICE_REV into vendor/cspice ..."
-  mkdir -p "$VENDOR"
-  git -C "$VENDOR" init -q
-  git -C "$VENDOR" remote add origin "$CSPICE_REMOTE" 2>/dev/null || true
-  git -C "$VENDOR" fetch -q --depth 1 origin "$CSPICE_REV"
-  git -C "$VENDOR" checkout -q FETCH_HEAD
+mkdir -p "$OUT" "$VENDOR"
+BUILD="$(mktemp -d "$VENDOR/cspice-build.XXXXXXXX")"
+trap 'rm -rf "$BUILD"' EXIT
+
+verify_archive() {
+  if ! printf '%s  %s\n' "$CSPICE_SHA256" "$1" | shasum -a 256 -c; then
+    echo "CSPICE $CSPICE_RELEASE archive failed verification. Remove $ARCHIVE if cached and retry." >&2
+    return 1
+  fi
+}
+
+if [ -f "$ARCHIVE" ]; then
+  verify_archive "$ARCHIVE"
+else
+  echo "Downloading official NAIF CSPICE $CSPICE_RELEASE ..."
+  curl --fail --location --retry 2 --output "$BUILD/cspice.tar.Z" "$CSPICE_URL"
+  verify_archive "$BUILD/cspice.tar.Z"
+  mv "$BUILD/cspice.tar.Z" "$ARCHIVE"
 fi
 
-VENDOR_REV="$(git -C "$VENDOR" rev-parse HEAD 2>/dev/null || echo unknown)"
-if [ "$VENDOR_REV" != "$CSPICE_REV" ]; then
-  echo "vendor/cspice is at $VENDOR_REV, not the pinned $CSPICE_REV." >&2
-  echo "Remove vendor/cspice and re-run to fetch the pinned revision." >&2
-  exit 1
-fi
-
-if [ ! -f "$VENDOR/lib/libcspice_wasm.a" ]; then
-  echo "Building libcspice_wasm.a (this compiles ~2000 C files) ..."
-  ( cd "$VENDOR/src" && csh ./mk_wasm.csh )
-fi
+# Extract the library sources and public headers only. NAIF also ships native
+# libraries and executables in this archive for the host named in the URL.
+tar -xf "$ARCHIVE" -C "$BUILD" cspice/src/cspice cspice/include
+patch -d "$BUILD" -p1 < "$NATIVE/wasm-abi.patch"
+INCLUDE="$BUILD/cspice/include"
+LIBRARY="$BUILD/libcspice_wasm.a"
+echo "Compiling CSPICE $CSPICE_RELEASE ..."
+(
+  cd "$BUILD/cspice/src/cspice"
+  export LC_ALL=C
+  printf '%s\n' *.c | xargs -n 64 -P 8 emcc -c -O2 -I "$INCLUDE" \
+    -Wno-parentheses -Wno-dangling-else -Wno-format -Wno-implicit-int
+  emar rcs "$LIBRARY" *.o
+)
 
 # The SPICE surface the renderer and geometry layers call. Extend deliberately;
 # every symbol here is reachable from cspice-wasm's typed API.
@@ -123,9 +125,10 @@ RUNTIME_METHODS='["FS","ccall","cwrap","getValue","setValue","UTF8ToString","str
 # ALLOW_TABLE_GROWTH entirely, keeping the handler signatures in C where CSPICE
 # declares them.
 echo "Linking cspice.mjs + cspice.wasm ..."
-emcc "$NATIVE/gf-report.c" "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
+emcc "$NATIVE/gf-report.c" "$LIBRARY" -o "$BUILD/cspice.mjs" \
   -O2 \
-  -I "$VENDOR/include" \
+  -Wl,--fatal-warnings \
+  -I "$INCLUDE" \
   -s MODULARIZE=1 \
   -s EXPORT_ES6=1 \
   -s EXPORT_NAME=CSpice \
@@ -137,9 +140,10 @@ emcc "$NATIVE/gf-report.c" "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
   -s EXPORTED_RUNTIME_METHODS="$RUNTIME_METHODS" \
   -s EXPORTED_FUNCTIONS="$EXPORTS"
 
-# Mark the generated glue as not lintable; it is a build artifact.
-sed -i.bak '1s;^;/* eslint-disable */\n// @ts-nocheck\n;' "$OUT/cspice.mjs"
-rm -f "$OUT/cspice.mjs.bak"
+# Mark the generated glue as a build artifact, portably across BSD and GNU sed.
+{ printf '/* eslint-disable */\n// @ts-nocheck\n'; cat "$BUILD/cspice.mjs"; } > "$BUILD/glue.mjs"
+mv "$BUILD/glue.mjs" "$OUT/cspice.mjs"
+mv "$BUILD/cspice.wasm" "$OUT/cspice.wasm"
 
 echo "Done. Artifacts in packages/cspice-wasm/wasm:"
 ls -la "$OUT"
