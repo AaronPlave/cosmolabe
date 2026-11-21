@@ -66,6 +66,7 @@ export {
 export { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 export type { TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 export { TLETrajectory } from './trajectories/TLETrajectory.js';
+export { tlePredictionSource, type TlePredictionOptions, type TlePredictionSource } from './tle-prediction-source.js';
 export type { TLEData, TLETrajectoryOptions } from './trajectories/TLETrajectory.js';
 export { WaypointTrajectory } from './trajectories/WaypointTrajectory.js';
 export type { Waypoint } from './trajectories/WaypointTrajectory.js';
