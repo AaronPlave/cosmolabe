@@ -23,6 +23,23 @@ export interface BodyVisualizer {
     ctx: RendererContext,
   ): void;
 
+  /**
+   * Whether a click that landed on `bodyName`'s surface at `worldPoint` hit
+   * this visual — for visuals drawn on another body's surface (observation
+   * footprints). Optional; without it the visual is not pickable. A
+   * containment test on the surface point, so a click never raycasts the
+   * visual's own geometry.
+   */
+  pickOnSurface?(object: THREE.Object3D, bodyName: string, worldPoint: THREE.Vector3): boolean;
+
+  /**
+   * Whether the visual should still be updated (and decide its own visibility)
+   * while its body is outside its existence window. Optional; absent means no
+   * — the renderer hides it, as it does every other body. Observations use it
+   * so a selected one stays drawn after its window closes.
+   */
+  showsWhenAbsent?(object: THREE.Object3D): boolean;
+
   /** Clean up GPU resources. */
   dispose?(object: THREE.Object3D): void;
 }

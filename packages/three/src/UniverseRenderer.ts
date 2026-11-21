@@ -19,6 +19,9 @@ import {
   eventMidpoint,
   eventStart,
   focusForEvent,
+  catalogTimeParser,
+  observationFromSensorActive,
+  type Observation,
   type Universe,
   type Body,
   type GeometryEvent,
@@ -80,6 +83,7 @@ import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+import { ObservationsVisualizer } from './plugins/ObservationsVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
@@ -516,6 +520,10 @@ export class UniverseRenderer {
 
   // Body visualizer registry (Pattern D)
   private readonly _visualizers = new Map<string, BodyVisualizer>();
+  /** The built-in observation footprint renderer: Cosmographia `Observations`
+   *  items, and sensors' `active` windows (`_sensorObservations`). */
+  private readonly _observations = new ObservationsVisualizer();
+  private readonly _sensorObservations = new Map<string, THREE.Object3D>();
   private readonly _customVisuals = new Map<string, THREE.Object3D>();
 
   // Attached visuals (Pattern F)
@@ -709,6 +717,9 @@ export class UniverseRenderer {
 
     // Register custom-geometry visualizers BEFORE buildScene so matching
     // bodies are routed to the visualizer instead of getting a default mesh.
+    // `Observations` is a Cosmographia geometry type, so it is built in; a
+    // host's own visualizer for it replaces this one.
+    this._visualizers.set('Observations', this._observations);
     if (options.visualizers) {
       for (const vis of options.visualizers) {
         this._visualizers.set(vis.geometryType, vis);
@@ -793,6 +804,12 @@ export class UniverseRenderer {
   /** Get the renderer context (for plugin UI slot execution). */
   getContext(): RendererContext {
     return this._ctx;
+  }
+
+  /** The built-in observation footprint renderer — for focusing the selected
+   *  observation or showing them all (`setFocus`, `setShowAll`). */
+  getObservationsVisualizer(): ObservationsVisualizer {
+    return this._observations;
   }
 
   /** Register a custom geometry type visualizer. */
@@ -4169,14 +4186,18 @@ export class UniverseRenderer {
 
   /** Update custom body visuals from the BodyVisualizer registry. */
   private updateCustomVisuals(et: number): void {
+    for (const visual of this._sensorObservations.values()) this._observations.updateObservation(visual, et, this._ctx);
     for (const [bodyName, obj] of this._customVisuals) {
       const body = this.universe.getBody(bodyName);
       if (!body) continue;
       const vis = this._visualizers.get(body.geometryType ?? '');
       if (!vis) continue;
       const bm = this.bodyMeshes.get(bodyName);
-      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly.
-      obj.visible = bm ? bm.present && bm.userVisible : this.universe.isPresentAt(bodyName, et);
+      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly —
+      // unless the visualizer keeps this one while it is absent (a selected observation).
+      const present = bm ? bm.present : this.universe.isPresentAt(bodyName, et);
+      const userVisible = bm ? bm.userVisible : true;
+      obj.visible = userVisible && (present || vis.showsWhenAbsent?.(obj) === true);
       if (!obj.visible) continue;
       const pos: [number, number, number] = bm
         ? [bm.position.x, bm.position.y, bm.position.z]
@@ -4230,6 +4251,8 @@ export class UniverseRenderer {
       vis?.dispose?.(obj);
     }
     this._customVisuals.clear();
+    for (const visual of this._sensorObservations.values()) this._observations.dispose(visual);
+    this._sensorObservations.clear();
     // Clean up attached visuals
     for (const av of this._attachedVisuals) {
       this.scene.remove(av.object);
@@ -4283,6 +4306,26 @@ export class UniverseRenderer {
         sf.traverse(c => c.layers.set(OVERLAY_LAYER));
         this.sensorFrustums.set(body.name, sf);
         this.scene.add(sf);
+
+        // A sensor's ROADMAP `active: [{ start, end }]` windows are an
+        // observation of its target: footprints painted inside the windows,
+        // through the same model and renderer as an `Observations` item.
+        if (body.geometryData?.active !== undefined) {
+          let obs: Observation | undefined;
+          try {
+            const spice = this.universe.spiceInstance;
+            obs = observationFromSensorActive(
+              body.name, body.geometryData, catalogTimeParser(spice ? (t) => spice.str2et(t) : undefined),
+            );
+          } catch (err) {
+            console.warn(`[Cosmolabe] sensor "${body.name}": ${(err as Error).message}`);
+          }
+          if (obs) {
+            const visual = this._observations.createVisualForObservation(obs, this._ctx, `${body.name} (active)`);
+            this._sensorObservations.set(body.name, visual);
+            this.scene.add(visual);
+          }
+        }
       }
 
       // Rings get an annulus mesh attached to the parent body
@@ -5269,11 +5312,29 @@ export class UniverseRenderer {
     // Walk up from hit to find owning BodyMesh: either via terrainOwner map
     // (terrain hits) or via the placeholder sphere ancestry chain.
     let obj: THREE.Object3D | null = hits[0].object;
-    while (obj) {
-      if (this.bodyMeshes.has(obj.name)) return obj.name;
-      const owner = terrainOwner.get(obj);
-      if (owner) return owner.body.name;
+    let bodyName: string | null = null;
+    while (obj && !bodyName) {
+      if (this.bodyMeshes.has(obj.name)) bodyName = obj.name;
+      else bodyName = terrainOwner.get(obj)?.body.name ?? null;
       obj = obj.parent;
+    }
+    if (!bodyName) return null;
+    // A footprint drawn on that body at the hit point selects its observation
+    // rather than the ground under it.
+    return this._surfaceVisualAt(bodyName, hits[0].point) ?? bodyName;
+  }
+
+  /**
+   * The custom visual (an observation's footprints) drawn on `bodyName` at a
+   * surface point, if any. Asked of the visualizer as a containment test on
+   * the surface the raycast already found — not by raycasting the visual's own
+   * triangles, whose count is the drawing budget's, not a click's.
+   */
+  private _surfaceVisualAt(bodyName: string, worldPoint: THREE.Vector3): string | null {
+    for (const [name, visual] of this._customVisuals) {
+      if (!visual.visible) continue;
+      const vis = this._visualizers.get(this.universe.getBody(name)?.geometryType ?? '');
+      if (vis?.pickOnSurface?.(visual, bodyName, worldPoint)) return name;
     }
     return null;
   }

@@ -7,7 +7,8 @@ a catalog is data, names no module, and loads fine without the plugin (#296).
 ## How the viewer installs them
 
 1. A mission lives in its own package, `packages/mission-<name>/`, outside `@cosmolabe/core`, `@cosmolabe/three` and the
-   viewer app. Example: [`packages/mission-iss`](../packages/mission-iss/README.md).
+   viewer app. Examples: [`packages/mission-iss`](../packages/mission-iss/README.md),
+   [`packages/mission-cassini`](../packages/mission-cassini/README.md).
 2. It exports a registration from `src/registration.ts` (type `MissionPluginRegistration` in `@cosmolabe/three`):
    - `id`: stable name;
    - `appliesTo(universe)`: does this loaded scene have what the plugin works on (for ISS, a body drawing the ISS model)?

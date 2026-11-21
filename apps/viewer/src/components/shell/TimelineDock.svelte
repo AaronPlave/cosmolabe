@@ -21,7 +21,7 @@
     vs, togglePlay, reverse, faster, slower,
     stepForward, stepBackward, scrubTo, setTime,
     resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
-    setScrubberWindow, panScrubberBy,
+    setScrubberWindow, panScrubberBy, getRenderer,
   } from '../../lib/viewer-state.svelte';
   import {
     timeline, timelineSurface, ghostEt, timelineFraction, clockLines,
@@ -31,6 +31,8 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import PluginTrackLane from './PluginTrackLane.svelte';
+  import { resolvePluginTracks } from '../../lib/plugin-tracks';
   import MissionActivityTimeline from './MissionActivityTimeline.svelte';
   import { activitySeries } from '../../lib/mission-activities';
   import AddProfile from './AddProfile.svelte';
@@ -126,6 +128,14 @@
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
   const missionActivitySeries = $derived.by(() => {
     return activitySeries(vs.activities);
+  });
+
+  // Plugin-contributed tracks (`ui.timelineTracks`), re-asked whenever the
+  // window or the scene changes — the slot's contract is "called when the
+  // timeline range changes".
+  let pluginTracks = $derived.by(() => {
+    if (!vs.sceneLoaded) return [];
+    return resolvePluginTracks(getRenderer(), vs.scrubMin, vs.scrubMax);
   });
 
   // ── Transport overview ──
@@ -788,6 +798,9 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
+      {#each pluginTracks as resolved (resolved.track.id)}
+        <PluginTrackLane {resolved} wide={wideLanes} />
+      {/each}
       {#if !vs.activities.length}<p class="px-2 py-1 text-xs text-text-secondary">{vs.activityMetadataAvailable ? 'No activities in supplied metadata' : 'No activity records supplied · operation state unknown'}</p>{/if}
       {#each missionActivitySeries as series (series.body + series.label)}
         <MissionActivityTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
@@ -795,7 +808,7 @@
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}
-      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} afterLanes={eventLanes.length > 0} />
+      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} afterLanes={eventLanes.length + pluginTracks.length > 0} />
     </div>
 
     <!-- One ghost line and one playhead through every row, so they cannot

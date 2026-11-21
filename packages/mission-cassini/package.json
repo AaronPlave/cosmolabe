@@ -1,0 +1,27 @@
+{
+  "name": "@cosmolabe/mission-cassini",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Cassini mission plugin: archive-campaign timeline lanes and observation context for Cassini ISS observations",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/mission-cassini"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./registration": "./src/registration.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "@cosmolabe/core": "*",
+    "@cosmolabe/three": "*"
+  }
+}

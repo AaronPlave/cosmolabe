@@ -41,3 +41,28 @@ export { parseCdm, CdmError, type Cdm, type CdmObject } from './cdm.js';
 export { parseAem, AemError, type Aem, type AemMetadata, type AemRecord } from './aem.js';
 export { writeAem } from './aem-write.js';
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisFault, TrajectoryAnalysisSource, TrajectoryAnalysisOptions, TrajectoryAnalysisProgress } from './trajectory-analysis.js';
+
+// Planetary archives (issue #28, Phase 2): OPUS and ODE responses mapped onto
+// one `ArchiveObservation` record, plus the WKT reader ODE footprints need.
+// Times stay archive strings; core's observations/ArchiveAdapter turns them
+// into an `Observation` in ET.
+export {
+  parseWktPolygons,
+  WktError,
+  ArchiveError,
+  opus,
+  opusColumns,
+  OPUS_API,
+  ode,
+  ODE_API,
+  type LonLat,
+  type WktPolygon,
+  type ArchiveObservation,
+  type ArchiveDiskGeometry,
+  type ArchiveIllumination,
+  type FetchLike,
+  type ObservationArchive,
+  type OpusQuery,
+  type OpusDiskColumns,
+  type OdeQuery,
+} from './pds/index.js';

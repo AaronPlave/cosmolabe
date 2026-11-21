@@ -314,6 +314,13 @@
       "description": "Synthetic Jezero science/traverse/regions and lunar polar regions on reference globes. Coordinates are validation fixtures, not surveyed geology or terrain measurements. The surface status identifies the reference-globe fallback."
     },
     {
+      "id": "cassini-observations",
+      "name": "Cassini ISS Observations",
+      "catalog": "./cassini-observations.json",
+      "group": "Advanced examples",
+      "description": "Real Cassini ISS footprints on Titan and Saturn during SOI, from the PDS archive, as a Cosmographia observation catalog (requires cassini-soi.json's kernels)."
+    },
+    {
       "id": "io-volcanos",
       "name": "Io Volcanic Features (FixedSpherical + ParticleSystem Demo)",
       "catalog": "./io-volcanos.json",
