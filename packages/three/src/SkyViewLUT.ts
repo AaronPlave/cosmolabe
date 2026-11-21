@@ -153,9 +153,7 @@ export class SkyViewLUT {
           }
           vec3 transmission = exp(-depth);
           float alpha = dot(transmission, vec3(0.3333333));
-          float glare = pow(max(0.0, cosTheta), 256.0);
-          radiance = lightColor * (radiance + glare * 0.15 * (1.0 - alpha));
-          gl_FragColor = vec4(radiance, alpha);
+          gl_FragColor = vec4(lightColor * radiance, alpha);
         }
       `,
       depthTest: false,
