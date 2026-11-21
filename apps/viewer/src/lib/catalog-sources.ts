@@ -137,8 +137,8 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
   if (!Array.isArray(json.catalogs)) throw new Error('Catalog index is missing a "catalogs" array');
 
   const warnings: string[] = [];
-  const catalogs: CatalogEntry[] = [];
   const ids = new Set<string>();
+  const catalogs: CatalogEntry[] = [];
   json.catalogs.forEach((e, i) => {
     if (!isObject(e) || !isNonEmptyString(e.id) || !isNonEmptyString(e.catalog)) {
       warnings.push(`Entry #${i + 1} needs a string "id" and "catalog"; skipped`);
@@ -171,7 +171,6 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
     }
     catalogs.push(entry);
   });
-
   const index: CatalogIndex = { version: json.version, catalogs };
   if (isNonEmptyString(json.name)) index.name = json.name;
   if (isNonEmptyString(json.description)) index.description = json.description;

@@ -1,0 +1,30 @@
+{
+  "name": "@cosmolabe/mission-iss",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "ISS mission plugin: Sun-tracking solar-array articulation of the NASA ISS model, and an optional, gated live-telemetry adapter",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/mission-iss"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./registration": "./src/registration.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "@cosmolabe/core": "*",
+    "@cosmolabe/three": "*"
+  },
+  "peerDependencies": {
+    "three": "^0.183.2"
+  }
+}

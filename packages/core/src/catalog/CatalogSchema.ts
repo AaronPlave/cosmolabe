@@ -56,15 +56,16 @@ const keys = (...k: string[]): KeySet => new Set(k);
 // ── Catalog and item level ──────────────────────────────────────────────────
 
 const CATALOG_KEYS = keys(
-  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport',
-  'defaultTime', 'defaultViewpoint', 'frames', 'geographicLayers', 'geographicCoordinates',
+  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport', 'displayNote',
+  'activities', 'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates', 'surfaceRasters',
   // Free text for whoever reads the file; no code interprets it.
   'description',
 );
 
 const ITEM_KEYS = keys(
+  'description',
   'name', 'type', 'class', 'center', 'trajectoryFrame', 'trajectory', 'trajectoryPlot',
-  'rotationModel', 'bodyFrame', 'geometry', 'label', 'naifId', 'mass', 'radii',
+  'rotationModel', 'bodyFrame', 'geometry', 'label', 'naifId', 'mass', 'radii', 'surfaceTrajectory',
   'startTime', 'endTime', 'items', 'arcs', 'spiceKernels',
 );
 
@@ -82,6 +83,7 @@ const ARC_KEYS = keys(
 
 const TRAJECTORY_PLOT_KEYS = keys(
   'duration', 'lead', 'fade', 'color', 'opacity', 'visible', 'sampleCount',
+  'frame', 'sampleInterval', 'timelineLabel',
 );
 
 const LABEL_KEYS = keys('color', 'visible');
@@ -137,7 +139,7 @@ const ROTATION_KEYS: Record<string, KeySet> = {
     'type', 'period', 'epoch', 'meridianAngle', 'inclination', 'ascendingNode',
     'ascension', 'declination', 'inertialFrame',
   ),
-  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame'),
+  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame', 'bodyFixedFrame'),
   FixedEuler: keys('type', 'sequence', 'angles', 'inertialFrame'),
   Interpolated: keys('type', 'source', 'records', 'inertialFrame'),
   Spice: keys('type', 'bodyFrame', 'inertialFrame', 'fallbackFrame'),
@@ -210,8 +212,13 @@ const IMAGERY: NestedSpec = {
     'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
-    'attribution', 'description', 'resolutionMeters', 'visible',
+    'attribution', 'description', 'resolutionMeters', 'visible', 'temporal', 'illumination',
   ),
+  children: {
+    temporal: {
+      keys: keys('semantics', 'cadence', 'policy', 'date', 'start', 'end', 'latencyDays', 'outOfRange', 'illumination'),
+    },
+  },
 };
 
 const SURFACE_LOCK: NestedSpec = { keys: keys('mode') };
@@ -234,21 +241,25 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'type', 'url', 'cesiumIonAssetId', 'cesiumIonToken', 'imagery', 'errorTarget',
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
-        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere',
+        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere', 'frame', 'bodyId',
+        'illumination', 'solarShadows', 'orbitalSolarShadows',
       ),
       children: {
+        solarShadows: { keys: keys('levels', 'budgetMs', 'biasKm', 'maxAltitudeKm', 'quality', 'unknownReliefKm'), children: { levels: { keys: keys('halfKm', 'size') } } },
+        orbitalSolarShadows: { keys: keys('halfKm', 'size', 'maxAltitudeKm') },
         imagery: IMAGERY,
         cubeSphere: {
           keys: keys(
-            'cpuGrids', 'residentLevel', 'maxDetailTiles', 'imagery', 'skirts',
+            'cpuGrids', 'residentLevel', 'maxDetailTiles', 'imagery', 'skirts', 'nearSurface',
             // Spread into the CPU grid source's options (CubeSphereGrids.ts).
             'maxConcurrentRequests', 'retryFailedMs', 'retryBaseMs',
           ),
           children: {
+            nearSurface: { keys: keys('radiusM', 'maxErrorM', 'altitudeM') },
             // A cube-face imagery config (CubeImageryLayer), not a layer like the others.
             imagery: {
               keys: keys(
-                'url', 'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
+                'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
                 'residentLevel', 'maxBlocksPerTile', 'retryFailedMs', 'maxLevel',
               ),
             },
@@ -260,7 +271,12 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
     },
     imagery: IMAGERY,
     surfaceTiles: {
-      keys: keys('name', 'url', 'lat', 'lon', 'altitudeOffset', 'errorTarget', 'maxCacheBytes'),
+      keys: keys('name', 'url', 'sourceVersion', 'registration', 'coverage',
+        'physicalQueryPolicy', 'overlapPolicy', 'priority', 'errorTarget', 'maxCacheBytes'),
+      children: {
+        registration: { keys: keys('version', 'bodyFixedFrame', 'bodyFixedKmFromLocalMeters', 'status', 'provenance', 'uncertaintyKm') },
+        coverage: { keys: keys('min', 'max') },
+      },
     },
     surfaceLock: SURFACE_LOCK,
   },
@@ -272,20 +288,25 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
 // ── Geographic layers (core/geographic) ─────────────────────────────────────
 
 const GEOGRAPHIC_COORDINATES: NestedSpec = {
-  keys: keys('latitude', 'longitudeDirection', 'longitudeDomain', 'referenceShape', 'height'),
+  keys: keys('latitude', 'longitudeDirection', 'longitudeDomain', 'referenceShape', 'height', 'frame'),
   children: {
     referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
     height: { keys: keys('unit', 'datum', 'convention') },
   },
 };
 
+const SURFACE_RASTER: NestedSpec = {
+  keys: keys('id', 'name', 'body', 'source', 'description', 'quantity', 'unit', 'opacity', 'colorScale', 'observation'),
+  children: { colorScale: { keys: keys('value', 'color') }, observation: { keys: keys('latDeg', 'lonDeg') } },
+};
+
 /** `geographicLayers[]` entries. `provenance` is free-form by design and is
  *  not checked. */
 const GEOGRAPHIC_LAYER: NestedSpec = {
-  keys: keys('id', 'name', 'body', 'source', 'coordinates', 'display', 'provenance'),
+  keys: keys('id', 'name', 'body', 'source', 'coordinates', 'display', 'provenance', 'loadOnDemand'),
   children: {
     coordinates: GEOGRAPHIC_COORDINATES,
-    display: { keys: keys('visible', 'color', 'opacity') },
+    display: { keys: keys('visible', 'color', 'opacity', 'fillOpacity') },
   },
 };
 
@@ -623,6 +644,12 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     }
     if (typeof item.type === 'string' && SKIPPED_ITEM_TYPES.has(item.type)) return;
     checkKeys(item, ITEM_KEYS, path, `item ${owner}`, 'item', [['a Viewpoint', VIEWPOINT_KEYS]]);
+    checkNested(item, { surfaceTrajectory: {
+      keys: keys('frame', 'positionUnits', 'datum', 'purpose', 'terrainRevision'),
+      children: { datum: { keys: keys('referenceShape', 'verticalDatum', 'heightConvention'), children: {
+        referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
+      } } },
+    } }, path, `item ${owner}`, 'item');
     checkTrajectory(item.trajectory, `${path}.trajectory`, owner);
     checkRotation(item.rotationModel, `${path}.rotationModel`, owner);
     checkGeometry(item.geometry, `${path}.geometry`, owner);
@@ -640,7 +667,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
 
   checkKeys(json, CATALOG_KEYS, '$', 'the catalog', 'catalog');
   checkKernelRefs(json.spiceKernels, '$.spiceKernels', 'the catalog');
-  checkNested(json, { geographicLayers: GEOGRAPHIC_LAYER, geographicCoordinates: GEOGRAPHIC_COORDINATES }, '$', 'the catalog', 'catalog');
+  checkNested(json, { geographicLayers: GEOGRAPHIC_LAYER, geographicCoordinates: GEOGRAPHIC_COORDINATES, surfaceRasters: SURFACE_RASTER }, '$', 'the catalog', 'catalog');
   if (Array.isArray(json.items)) json.items.forEach((item, i) => checkItem(item, `$.items[${i}]`));
   if (Array.isArray(json.frames)) {
     json.frames.forEach((f, i) => {

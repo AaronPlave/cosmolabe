@@ -1,0 +1,48 @@
+name: Prepare Node and SPICE test data
+description: Checkout, restore sparse LFS test kernels when needed, and install Node dependencies
+inputs:
+  test-kernels:
+    description: Fetch the sparse LFS kernel set used by Vitest and viewer smoke
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Use reachable Ubuntu package mirrors
+      if: runner.os == 'Linux'
+      shell: bash
+      # Some hosted images select the Azure HTTP mirror through a mirror list.
+      # Preserve the surface pilot's workaround before Playwright invokes apt.
+      run: |
+        for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+          if [[ -f "$apt_source" ]]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+          fi
+        done
+
+    - name: Cache LFS test kernels
+      if: inputs.test-kernels == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .git/lfs
+        key: lfs-test-kernels-${{ hashFiles('apps/viewer/test-catalogs/kernels/de440s.bsp', 'kernels/test-data/de425s.bsp', 'kernels/test-data/cassini/04183_04185ra.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
+
+    - name: Smudge sparse test-kernel LFS files
+      if: inputs.test-kernels == 'true'
+      shell: bash
+      # Shared DE440s, two scientific oracles, and the place smoke Mars texture.
+      # Small fixtures are ordinary Git blobs; demos use fetch scripts / R2.
+      run: |
+        git lfs install --local
+        git lfs fetch --include "apps/viewer/test-catalogs/kernels/de440s.bsp,kernels/test-data/de425s.bsp,kernels/test-data/cassini/04183_04185ra.bc,apps/viewer/test-catalogs/textures/mars.dds"
+        git lfs checkout "apps/viewer/test-catalogs/kernels/de440s.bsp" "kernels/test-data/de425s.bsp" "kernels/test-data/cassini/04183_04185ra.bc" "apps/viewer/test-catalogs/textures/mars.dds"
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci

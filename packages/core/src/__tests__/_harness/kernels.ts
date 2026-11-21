@@ -15,7 +15,7 @@ import type { SpiceInstance } from '../../spice-injection.js';
 
 /** Bundled, always-present generic + Cassini kernels (`kernels/test-data`). */
 export const SPICE_TEST_KERNELS = join(__dirname, '../../../../../kernels/test-data');
-/** Larger mission kernels shipped with the viewer (LRO, de440s, MSL, ...). */
+/** Shared DE440s, fetched mission kernels (LRO), and catalog text kernels. */
 export const VIEWER_KERNELS = join(__dirname, '../../../../../apps/viewer/test-catalogs/kernels');
 
 const LFS_POINTER_MAGIC = 'version https://git-lfs.github.com/spec/v1';
@@ -32,7 +32,7 @@ function assertNotLfsPointer(buf: Buffer, full: string): Buffer {
   if (buf.length < 1024 && buf.subarray(0, LFS_POINTER_MAGIC.length).toString('utf8') === LFS_POINTER_MAGIC) {
     throw new Error(
       `${full} is a git-lfs pointer, not a kernel. Run \`git lfs pull\` (or, in CI, ` +
-        `add this path to the sparse fetch in .github/workflows/ci.yml).`,
+        `add this path to the sparse fetch in .github/actions/ci-setup/action.yml).`,
     );
   }
   return buf;

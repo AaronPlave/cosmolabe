@@ -10,10 +10,9 @@
  * numeric layers can't see — ring-plane tilt, triaxial-ellipsoid (oblateness)
  * scaling, texture/material orientation.
  *
- * NOT run in CI (`.github/workflows/ci.yml`), deliberately: it needs a browser,
- * a full package + viewer build, and the scenes' LFS-backed SPICE kernels. So
- * this gate has exactly the authority of whoever last ran it by hand. If that
- * changes, delete this paragraph.
+ * Nightly CI runs a curated VR_SCENES subset with committed goldens, a
+ * full package + viewer build, and sparse LFS-backed SPICE test kernels.
+ * Broader scenes can still be run manually; CI never rewrites goldens.
  *
  * Usage:
  *   npx playwright install chromium              # once, fetches the browser
@@ -29,6 +28,7 @@
  * Env:
  *   CL_VIEWER_URL             use an already-running server instead of building + spawning `vite preview`
  *   VR_SKIP_BUILD=1           trust the existing build (fast iteration only — see above)
+ *   VR_SCENES                comma-separated catalog names to select a curated subset
  *   UPDATE_VISUAL_GOLDENS=1   rewrite goldens that already exist
  *   CREATE_VISUAL_GOLDENS=1   write goldens that do not exist yet (separate flag on purpose:
  *                             a renamed scene or viewpoint must not self-baseline)
@@ -38,8 +38,14 @@
  *                             streams in later (terrain tiles) — NOT a stand-in for asset loading,
  *                             which is now awaited explicitly (default 500)
  *   VR_ASSET_TIMEOUT_MS       how long to wait for the initial models + textures (default 180000)
+ *   VR_SOLAR_EXPOSURE=fixed|paired  opt-in reference suite, namespaced goldens; legacy suite unchanged
+ *   VR_CAPTURE_ONLY=1        save checked PNG/JSON smoke evidence without comparing/creating goldens
+ *   VR_OUTPUT_DIR            capture evidence directory
+ *   VR_HARDWARE=1            use native GPU instead of SwiftShader (recorded in metadata)
+ *   CL_CHROMIUM              optional browser executable path
  *   VR_INK_LEVEL              luminance above which a pixel counts as drawn, 0-255 (default 24)
  */
+import { checkExposureMetadata } from './lib/exposure-capture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -48,8 +54,11 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, '..');
 const VIEWER = join(REPO, 'apps/viewer');
+const EXPOSURE = process.env.VR_SOLAR_EXPOSURE;
+if (EXPOSURE && !['fixed', 'paired'].includes(EXPOSURE)) throw new Error('VR_SOLAR_EXPOSURE must be fixed or paired');
+const CAPTURE_ONLY = process.env.VR_CAPTURE_ONLY === '1';
 const GOLDEN_DIR = join(VIEWER, 'test-screenshots/__goldens__');
-const OUT_DIR = join(VIEWER, 'test-screenshots');
+const OUT_DIR = process.env.VR_OUTPUT_DIR ?? join(VIEWER, 'test-screenshots');
 const DIST_HTML = join(VIEWER, 'dist/index.html');
 
 const UPDATE = process.env.UPDATE_VISUAL_GOLDENS === '1';
@@ -121,9 +130,23 @@ const SCENES = [
   // Here that shows up as the cyan arc vanishing.
   { catalog: 'oem-ingest', viewpoints: [] },
 ];
-const selectedScenes = process.env.VR_SCENES
-  ? SCENES.filter((scene) => process.env.VR_SCENES.split(',').includes(scene.catalog))
-  : SCENES;
+// Deliberately separate from the established legacy regression suite.
+const referenceScenes = [
+  { catalog: 'atmosphere-earth', viewpoints: ['Surface horizon', 'Orbit 400 km'] },
+  { catalog: 'atmosphere-mars-twilight', viewpoints: ['Sunward horizon'] },
+  { catalog: 'atmosphere-titan', viewpoints: ['Whole disc', 'Surface horizon'] },
+];
+const availableScenes = EXPOSURE ? referenceScenes : SCENES;
+const requestedScenes = process.env.VR_SCENES?.split(',').map((name) => name.trim());
+const selectedScenes = requestedScenes
+  ? availableScenes.filter((scene) => requestedScenes.includes(scene.catalog))
+  : availableScenes;
+const unknownScenes = requestedScenes?.filter((name) => !availableScenes.some((scene) => scene.catalog === name)) ?? [];
+if (unknownScenes.length || selectedScenes.length === 0) {
+  console.error(`[visual-regression] Invalid VR_SCENES: ${unknownScenes.join(', ') || '(empty selection)'}.`);
+  console.error(`[visual-regression] Available scenes: ${availableScenes.map((scene) => scene.catalog).join(', ')}`);
+  process.exit(2);
+}
 
 async function loadPlaywright() {
   try {
@@ -274,6 +297,7 @@ async function main() {
   const { pixelmatch, PNG } = await loadDiffers();
 
   mkdirSync(GOLDEN_DIR, { recursive: true });
+  mkdirSync(OUT_DIR, { recursive: true });
 
   let server = null;
   let baseUrl = process.env.CL_VIEWER_URL;
@@ -289,7 +313,8 @@ async function main() {
     await waitForServer(baseUrl + basePath.slice(1));
   }
 
-  const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM,
+    args: process.env.VR_HARDWARE === '1' ? [] : ['--use-gl=swiftshader', '--ignore-gpu-blocklist'] });
   const failures = [];
   const warnings = [];
   try {
@@ -323,12 +348,13 @@ async function main() {
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(String(err)));
 
-    for (const scene of selectedScenes) {
+    for (const { scene, mode } of selectedScenes.flatMap(scene =>
+      (EXPOSURE === 'paired' ? ['legacy', 'fixed'] : [EXPOSURE ?? 'legacy']).map(mode => ({ scene, mode })))) {
       console.log(`\n[scene] ${scene.catalog}`);
       httpFailures = [];
       pageErrors.length = 0;
 
-      const sceneUrl = `${baseUrl}${basePath}?catalog=${encodeURIComponent(`test-catalogs/${scene.catalog}`)}&test=1`;
+      const sceneUrl = `${baseUrl}${basePath}?catalog=${encodeURIComponent(`test-catalogs/${scene.catalog}`)}&test=1${mode === 'fixed' ? '&solarExposure=fixed' : ''}`;
 
       // Armed BEFORE `goto`, not after. The failure this exists to catch — the
       // entry script answered with 404 or with the SPA fallback — happens during
@@ -354,7 +380,7 @@ async function main() {
         await Promise.race([
           page
             .goto(sceneUrl, { waitUntil: 'load' })
-            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, { timeout: 120000 })),
+            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, null, { timeout: 120000 })),
           fatalHttp,
         ]);
       } catch (err) {
@@ -393,7 +419,7 @@ async function main() {
       // to outlast.
       let assetSummary = null;
       try {
-        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, {
+        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, {
           timeout: ASSET_TIMEOUT_MS,
         });
         assetSummary = await page.evaluate(() => window.__cosmolabe.assetSummary);
@@ -407,14 +433,24 @@ async function main() {
         );
         continue;
       }
+      // A nightly golden is not valid if the scene rendered without all its
+      // initial models/textures. Preserve the old warning for local exploration,
+      // but fail closed when GitHub Actions uses the harness as a correctness gate.
+      const strictAssets = process.env.CI === 'true';
+      if (strictAssets && !assetSummary) {
+        failures.push(`${scene.catalog}: missing initial asset summary in CI`);
+        continue;
+      }
       if (assetSummary && (assetSummary.failed > 0 || assetSummary.timedOut)) {
-        // Not fatal — a scene missing a texture still captures — but it changes
-        // pixels, so say so rather than let it self-baseline as the new normal.
-        warnings.push(
+        const message =
           `${scene.catalog}: ${assetSummary.failed} initial asset(s) failed` +
-            (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
-            `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`,
-        );
+          (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
+          `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`;
+        if (strictAssets) {
+          failures.push(message);
+          continue;
+        }
+        warnings.push(message);
       }
       await page.waitForTimeout(STREAM_SETTLE_MS);
 
@@ -441,7 +477,7 @@ async function main() {
 
       const viewpoints = scene.viewpoints.length ? scene.viewpoints : [null];
       for (const vp of viewpoints) {
-        const label = `${scene.label ?? scene.catalog}${vp ? `--${vp}` : ''}`.replace(/[^\w.-]+/g, '_');
+        const label = `${EXPOSURE ? `${mode}--` : ''}${scene.label ?? scene.catalog}${vp ? `--${vp}` : ''}`.replace(/[^\w.-]+/g, '_');
         let dataUrl;
         try {
           const result = await page.evaluate(([name, profile]) => {
@@ -452,8 +488,22 @@ async function main() {
               png = window.__cosmolabe.capture(name ?? undefined);
               times.push(performance.now() - start);
             }
-            return { png, times };
+            const gl = window.renderer.renderer.getContext();
+            const debug = gl.getExtension('WEBGL_debug_renderer_info');
+            return { png, times, metadata: window.__cosmolabe.getExposureMetadata(),
+              gpu: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) };
           }, [vp, PROFILE]);
+          checkExposureMetadata(result.metadata, mode);
+          if (EXPOSURE && (assetSummary?.failed > 0 || assetSummary?.timedOut)) {
+            throw new Error('Reference capture requires all initial assets');
+          }
+          if (EXPOSURE || CAPTURE_ONLY) {
+            writeFileSync(join(OUT_DIR, `${label}.json`), JSON.stringify({
+              catalog: scene.catalog, viewpoint: vp, viewport: VIEWPORT, deviceScaleFactor: 1,
+              exposure: result.metadata, gpu: result.gpu, captureReadbackMs: result.times,
+              assets: assetSummary,
+            }, null, 2) + '\n');
+          }
           dataUrl = result.png;
           if (PROFILE) {
             const samples = result.times.slice(1).sort((a, b) => a - b);
@@ -470,6 +520,16 @@ async function main() {
         }
         const actual = dataUrlToPng(PNG, dataUrl);
         const actualInk = inkFrac(actual);
+        if (CAPTURE_ONLY) {
+          // Smoke evidence is explicitly not a newly accepted golden.
+          if (actualInk <= MAX_DIFF_FRAC) {
+            failures.push(`${label}: empty/powerless smoke capture (${actualInk})`);
+          } else {
+            writeFileSync(join(OUT_DIR, `${label}.png`), PNG.sync.write(actual));
+            console.log(`  captured ${label} (${(actualInk * 100).toFixed(2)}% ink)`);
+          }
+          continue;
+        }
         const goldenPath = join(GOLDEN_DIR, `${label}.png`);
         const exists = existsSync(goldenPath);
 
@@ -559,6 +619,7 @@ async function main() {
           console.log(`  ok ${label} (${(frac * 100).toFixed(3)}% diff, ${inkNote})`);
         }
       }
+      if (pageErrors.length) failures.push(`${scene.catalog}: browser errors: ${pageErrors.join(' | ')}`);
     }
   } finally {
     await browser.close();
@@ -572,7 +633,7 @@ async function main() {
     console.error('\n[visual-regression] FAILED:\n' + failures.map((f) => '  - ' + f).join('\n'));
     process.exit(1);
   }
-  console.log(`\n[visual-regression] ${UPDATE || CREATE ? 'goldens written' : 'all scenes match'}.`);
+  console.log(`\n[visual-regression] ${CAPTURE_ONLY ? 'smoke captures passed (no golden comparison)' : UPDATE || CREATE ? 'goldens written' : 'all scenes match'}.`);
 }
 
 main().catch((err) => {

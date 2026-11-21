@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "moonFallNavigatorAbsent": true,
+  "errors": [],
+  "f12": {
+    "et": 682390499.7,
+    "min": 682390482.7499988,
+    "max": 682390686.1500133,
+    "playing": false,
+    "option": "Ingenuity:11",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "glError": 0
+  },
+  "options": 72,
+  "overviewMarks": 72,
+  "compactSelect": {
+    "x": 101.3125,
+    "y": 730.875,
+    "width": 199.546875,
+    "height": 20
+  }
+}

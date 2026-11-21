@@ -1,0 +1,1640 @@
+{
+  "status": "hosted candidate accepted; merge and public deployment pending",
+  "reviewedHead": "0b37f6ce22292642b03692334620613fcef55791",
+  "publicationIdentity": "63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1",
+  "receiptIdentity": "06a6853700130f9abd5ef7a7cf2dbeacd9964bdc84988a21a18df834cc1e9136",
+  "scientificBuildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "scientificBuildIdentityUnchanged": true,
+  "scientificDataChanged": false,
+  "unitTests": {
+    "focusedPassed": 95,
+    "hostingIncluded": 28,
+    "interruptedBodyRecoveryAndBoundedFailure": true
+  },
+  "staticChecks": [
+    "package build",
+    "test typecheck",
+    "viewer typecheck",
+    "Svelte check: zero errors/warnings",
+    "changed renderer file lint",
+    "script syntax",
+    "git diff --check"
+  ],
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "mission": {
+    "passed": true,
+    "corridors": 15,
+    "renderedCorridorFrames": 2216,
+    "flightPlaybackSamples": 15,
+    "maxSettledDiscrepancyM": 4.247340257279575e-07,
+    "sourceHoleAndGlobalCoverage": [
+      {
+        "name": "jezero-overhead",
+        "lat": 18.44486301,
+        "lon": 77.45101915,
+        "altitudeKm": 500,
+        "center": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 0,
+            "pixelRGBA": [
+              40,
+              32,
+              43,
+              255
+            ],
+            "coveredByOpaqueUpper": true
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 5,
+            "pixelRGBA": [
+              100,
+              100,
+              100,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 1,
+            "level": 5,
+            "pixelRGBA": [
+              135,
+              135,
+              135,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 1,
+            "level": 5,
+            "pixelRGBA": [
+              102,
+              102,
+              102,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          }
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "ready": true,
+          "textures": 183,
+          "pinnedTextures": 6,
+          "textureBytes": 1008876399,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 1006632960,
+          "requests": 255,
+          "bytes": 207701647,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 16,
+          "splitTiles": 0,
+          "blocks": 111,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "0": 10,
+            "1": 12,
+            "2": 38,
+            "3": 16,
+            "4": 15,
+            "5": 3
+          },
+          "wantedLevels": {
+            "0": 6,
+            "1": 18,
+            "2": 26,
+            "3": 12,
+            "4": 13
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 5,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 1.300000011920929,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 22544724,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 1025801326,
+          "uploadMs": 494.2000000476837,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "staticVisible": false
+      },
+      {
+        "name": "distant-mars",
+        "lat": 0,
+        "lon": -60,
+        "altitudeKm": 3000,
+        "center": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 1,
+            "pixelRGBA": [
+              85,
+              56,
+              48,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 1,
+            "pixelRGBA": [
+              98,
+              98,
+              98,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 0,
+            "level": 0,
+            "pixelRGBA": null,
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 0,
+            "level": 0,
+            "pixelRGBA": null,
+            "coveredByOpaqueUpper": false
+          }
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "ready": true,
+          "textures": 186,
+          "pinnedTextures": 6,
+          "textureBytes": 1003240218,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 1006632960,
+          "requests": 285,
+          "bytes": 252008062,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 27,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 6,
+          "splitTiles": 0,
+          "blocks": 62,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "0": 8,
+            "1": 32
+          },
+          "wantedLevels": {
+            "0": 22,
+            "1": 28
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 1,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 0.800000011920929,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 22544724,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 1025801326,
+          "uploadMs": 549.3000000119209,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "staticVisible": false
+      },
+      {
+        "name": "ctx-original-unavailable",
+        "lat": -2.8125,
+        "lon": 2.8125,
+        "altitudeKm": 500,
+        "center": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 2,
+            "pixelRGBA": [
+              103,
+              87,
+              93,
+              255
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 2,
+            "pixelRGBA": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 0,
+            "level": 0,
+            "pixelRGBA": null,
+            "coveredByOpaqueUpper": false
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 0,
+            "level": 0,
+            "pixelRGBA": null,
+            "coveredByOpaqueUpper": false
+          }
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "ready": true,
+          "textures": 186,
+          "pinnedTextures": 6,
+          "textureBytes": 1003240218,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 1006632960,
+          "requests": 307,
+          "bytes": 285100681,
+          "failures": 0,
+          "aborted": 2,
+          "evicted": 47,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 9,
+          "splitTiles": 0,
+          "blocks": 60,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "0": 6,
+            "1": 4,
+            "2": 28
+          },
+          "wantedLevels": {
+            "0": 6,
+            "1": 22,
+            "2": 14
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 2,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 0.800000011920929,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 22544724,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 1025801326,
+          "uploadMs": 590.3000000715256,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "staticVisible": false
+      }
+    ],
+    "controlsRestored": [
+      {
+        "id": "viking",
+        "visible": true,
+        "opacity": 1
+      },
+      {
+        "id": "ctx-global",
+        "visible": true,
+        "opacity": 1
+      },
+      {
+        "id": "jezero-ctx",
+        "visible": true,
+        "opacity": 1
+      },
+      {
+        "id": "jezero-hirise",
+        "visible": true,
+        "opacity": 1
+      }
+    ],
+    "optionalOutageRecoveryPassed": true,
+    "mandatoryBaseOutageAndRecoveryPassed": true,
+    "cold48MiB": {
+      "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+      "ready": true,
+      "textures": 16,
+      "pinnedTextures": 6,
+      "textureBytes": 67634172,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "maxTextureBytes": 50331648,
+      "requests": 16,
+      "bytes": 17268198,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 0,
+      "count": 10,
+      "budgetLimited": true,
+      "queued": 10,
+      "tiles": 20,
+      "splitTiles": 0,
+      "blocks": 26,
+      "extraDraws": 0,
+      "displayedLevels": {
+        "0": 10,
+        "1": 1
+      },
+      "wantedLevels": {
+        "0": 4,
+        "2": 8,
+        "4": 2,
+        "7": 1,
+        "11": 3,
+        "13": 1,
+        "14": 6
+      },
+      "fallbackBlocks": 21,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 1,
+      "committedGroups": 0,
+      "waitingGroups": 6,
+      "updateMs": 0.5,
+      "blockGeometryBytes": 0,
+      "transitionTextureBytes": 22544724,
+      "protectedOverBudgetBytes": 0,
+      "gpuAllocatedBytes": 67650556,
+      "uploadMs": 23.800000071525574,
+      "gpuError": null,
+      "inheritedGlErrors": []
+    },
+    "maximumReportedLayerGpuAllocatedBytes": 1025801326,
+    "maximumReportedProtectedOverBudgetBytes": 39847248
+  },
+  "coldProductionBuild": {
+    "passed": true,
+    "browserCacheDisabled": true,
+    "serviceWorkersBlocked": true,
+    "flights": [
+      {
+        "number": 1,
+        "et": 672089519.3000168
+      },
+      {
+        "number": 2,
+        "et": 672355850.3000021
+      },
+      {
+        "number": 3,
+        "et": 672622174.1
+      },
+      {
+        "number": 4,
+        "et": 673066047.7
+      },
+      {
+        "number": 5,
+        "et": 673687471.0000143
+      },
+      {
+        "number": 6,
+        "et": 675019097.7
+      },
+      {
+        "number": 7,
+        "et": 676439486.8
+      },
+      {
+        "number": 8,
+        "et": 677593534.6000046
+      },
+      {
+        "number": 9,
+        "et": 678747608.3000153
+      },
+      {
+        "number": 10,
+        "et": 680432530.8000147
+      },
+      {
+        "number": 11,
+        "et": 681410895.3
+      },
+      {
+        "number": 12,
+        "et": 682390499.7
+      },
+      {
+        "number": 13,
+        "et": 684072284.100008
+      },
+      {
+        "number": 14,
+        "et": 688335309.30001
+      },
+      {
+        "number": 15,
+        "et": 689487530.3
+      },
+      {
+        "number": 16,
+        "et": 690732221.2
+      },
+      {
+        "number": 17,
+        "et": 691978766.6
+      },
+      {
+        "number": 18,
+        "et": 692860878.9000168
+      },
+      {
+        "number": 19,
+        "et": 697565969.7000191
+      },
+      {
+        "number": 20,
+        "et": 699067706.6
+      },
+      {
+        "number": 21,
+        "et": 700221776.500015
+      },
+      {
+        "number": 22,
+        "et": 701020744.7
+      },
+      {
+        "number": 23,
+        "et": 701375843.3000028
+      },
+      {
+        "number": 24,
+        "et": 702261741.3
+      },
+      {
+        "number": 25,
+        "et": 702707478.2000184
+      },
+      {
+        "number": 26,
+        "et": 703689840.1000009
+      },
+      {
+        "number": 27,
+        "et": 704044936.3
+      },
+      {
+        "number": 28,
+        "et": 704489736.2
+      },
+      {
+        "number": 29,
+        "et": 708231530.8000133
+      },
+      {
+        "number": 30,
+        "et": 714270670.5000132
+      },
+      {
+        "number": 31,
+        "et": 715778608.3
+      },
+      {
+        "number": 32,
+        "et": 716755125.1000017
+      },
+      {
+        "number": 33,
+        "et": 717289624.6000037
+      },
+      {
+        "number": 34,
+        "et": 722439881.1
+      },
+      {
+        "number": 35,
+        "et": 723327427.6
+      },
+      {
+        "number": 36,
+        "et": 723948539.9000063
+      },
+      {
+        "number": 37,
+        "et": 724569964.0000194
+      },
+      {
+        "number": 38,
+        "et": 726167906.8000048
+      },
+      {
+        "number": 39,
+        "et": 726702920.7
+      },
+      {
+        "number": 40,
+        "et": 727411984.3
+      },
+      {
+        "number": 41,
+        "et": 728119071.0000112
+      },
+      {
+        "number": 42,
+        "et": 728829662.5
+      },
+      {
+        "number": 43,
+        "et": 729805931.3000009
+      },
+      {
+        "number": 44,
+        "et": 730072379.1
+      },
+      {
+        "number": 45,
+        "et": 730342461.3
+      },
+      {
+        "number": 46,
+        "et": 730605087.8000154
+      },
+      {
+        "number": 47,
+        "et": 731670382
+      },
+      {
+        "number": 48,
+        "et": 732732409.096
+      },
+      {
+        "number": 49,
+        "et": 733708437.3470082
+      },
+      {
+        "number": 50,
+        "et": 734684956.5490097
+      },
+      {
+        "number": 51,
+        "et": 735484935.615
+      },
+      {
+        "number": 52,
+        "et": 735839954.155013
+      },
+      {
+        "number": 53,
+        "et": 743642557.12
+      },
+      {
+        "number": 54,
+        "et": 744361844.475
+      },
+      {
+        "number": 55,
+        "et": 745152956.8090171
+      },
+      {
+        "number": 56,
+        "et": 746299630.069
+      },
+      {
+        "number": 57,
+        "et": 747017223.645
+      },
+      {
+        "number": 58,
+        "et": 747720820.0360134
+      },
+      {
+        "number": 59,
+        "et": 748163897.7090194
+      },
+      {
+        "number": 60,
+        "et": 748962868.0400178
+      },
+      {
+        "number": 61,
+        "et": 749765537.3970196
+      },
+      {
+        "number": 62,
+        "et": 750380659.8970145
+      },
+      {
+        "number": 63,
+        "et": 751002831.535
+      },
+      {
+        "number": 64,
+        "et": 751711673.557
+      },
+      {
+        "number": 65,
+        "et": 752245538.2710145
+      },
+      {
+        "number": 66,
+        "et": 752333090.6380087
+      },
+      {
+        "number": 67,
+        "et": 754819212.221
+      },
+      {
+        "number": 68,
+        "et": 755972851.7250047
+      },
+      {
+        "number": 69,
+        "et": 756327948.73
+      },
+      {
+        "number": 70,
+        "et": 756505495.263
+      },
+      {
+        "number": 71,
+        "et": 757837146.984002
+      },
+      {
+        "number": 72,
+        "et": 758898091.2130103
+      }
+    ],
+    "products": {
+      "terrain-3846907d293e9e5d0b0243ce": {
+        "requests": 345,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-terrain/terrain-3846907d293e9e5d0b0243ce/3846907d293e9e5d0b0243cefc2ed446/cpu-grids.json",
+          "status": 200,
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5176",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51352151e0c2628-DFW",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Tue, 27 Oct 2026 17:11:34 GMT",
+            "etag": "W/\"f02867c0e56be39ff469d10cdeeeb14a\"",
+            "last-modified": "Tue, 27 Oct 2026 16:18:19 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=MSHxtJUsAyhiIBruTli2iYHSs1a6B2EliyKGUdSqf2MK0oBrrhD0GS%2Bw1tSUB7jKt94Upca0KAV3YoJIY1rJFvPbnGh7ZDpuNFCM2rqXKY3VI897869CQBEB1NRpWrlewxqzaw8b\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-04513d4681559e949e39e30f": {
+        "requests": 43,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/imagery.json",
+          "status": 200,
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5176",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51352151e2d2628-DFW",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Tue, 27 Oct 2026 17:11:34 GMT",
+            "etag": "W/\"f4bc53b64e39f9a97f48503b1b094ea5\"",
+            "last-modified": "Tue, 27 Oct 2026 16:22:31 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=h9RbIAp1S6gnpCAntOg9INTuriYEkJ8a9SwYo5915WfloHuNLoOjwFcBYBuQW62VuvZhxVUubHmUfpmK30jH4sIX4Z8i6f4pOv2uVXNmjRb2v95ByPkQOMCFscdmlNtRI5rxpSM3\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-11f675fe48a13579126bb3cd": {
+        "requests": 102,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-11f675fe48a13579126bb3cd/11f675fe48a13579126bb3cd85c3cb42/imagery.json",
+          "status": 200,
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5176",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51352151e2b2628-DFW",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Tue, 27 Oct 2026 17:11:34 GMT",
+            "etag": "W/\"b06662fdad0ec081501dbd412e5b012b\"",
+            "last-modified": "Tue, 27 Oct 2026 16:23:12 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=ZrDqeqwVkZCeoErtnPGa3GTcYIfAwQK4uSl5%2BcKGiK8sKVYK7MAYdOAhHNurY7eYeEXggyi%2FVge4cARG4IGdUIaYKKnt7U4zRCHWdfcs%2FkwrGEbolLUuQQ5QESvZJDCm54Gm5NHe\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-ab90c8bd749d673d3f786918": {
+        "requests": 19,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-ab90c8bd749d673d3f786918/ab90c8bd749d673d3f7869185cbf5040/imagery.json",
+          "status": 200,
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5176",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51352151e302628-DFW",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Tue, 27 Oct 2026 17:11:34 GMT",
+            "etag": "W/\"e7bebfe8a1698253e513e23c2b6d11de\"",
+            "last-modified": "Tue, 27 Oct 2026 16:23:38 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=tdzyWMzisHRl4pJlK0qYuyzo8LElbeeZzYvSaGQuIZaYv4zxuER4twfkmORZp4lSEzqBk0LxIVhOcyJY1sekHT6SMjlg61B5hioKKo9BcvJYCfEfrzMnEeyCT7sfGqt1BuVijie7\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-4992e13935cc9898d6522634": {
+        "requests": 15,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-4992e13935cc9898d6522634/4992e13935cc9898d65226349f2cf222/imagery.json",
+          "status": 200,
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5176",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51352151e172628-DFW",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Tue, 27 Oct 2026 17:11:34 GMT",
+            "etag": "W/\"b10e76de4fae777c766d2e98bc988d26\"",
+            "last-modified": "Tue, 27 Oct 2026 16:24:22 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=nL6l7rCHA4QwjG6%2B%2BCw9yFQT44Tr5s%2BK6xJSUQkKoGxsRssRsNWe5tf67QQv8ugluznn7oOSFWMbcj6O91cHhsJQnoFfz4CFxaPynRHYu6Pohnv3Xat%2FfFtYPKaG1YVhrR%2BZQpz5\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      }
+    },
+    "performance": {
+      "frameCpuMs": {
+        "count": 120,
+        "p50": 2.199999988079071,
+        "p95": 2.300000011920929
+      },
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 70,
+        "pinnedTextures": 6,
+        "textureBytes": 371987946,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 175,
+        "bytes": 210473259,
+        "failures": 0,
+        "aborted": 2,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 12,
+        "splitTiles": 0,
+        "blocks": 48,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 4,
+          "1": 3,
+          "2": 28
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 10,
+          "2": 22
+        },
+        "fallbackBlocks": 1,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 2,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.40000003576278687,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 331.39999997615814,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      },
+      "cpu": {
+        "residentTiles": 126,
+        "detailTiles": 160,
+        "requests": 286,
+        "bytes": 4833400,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "gpuTiming": "not measured; CPU frame timings and imagery allocation are reported separately"
+    }
+  },
+  "physicalTrajectoryOcclusion": {
+    "passed": true,
+    "samples": [
+      {
+        "flight": 1,
+        "fraction": 0.02,
+        "below": false,
+        "changedPixels": 0
+      },
+      {
+        "flight": 1,
+        "fraction": 0.5,
+        "below": false,
+        "changedPixels": 40
+      },
+      {
+        "flight": 1,
+        "fraction": 0.5,
+        "below": true,
+        "changedPixels": 0
+      },
+      {
+        "flight": 1,
+        "fraction": 0.98,
+        "below": false,
+        "changedPixels": 38
+      },
+      {
+        "flight": 1,
+        "fraction": 2,
+        "below": false,
+        "changedPixels": 0
+      },
+      {
+        "flight": 12,
+        "fraction": 0.02,
+        "below": false,
+        "changedPixels": 8
+      },
+      {
+        "flight": 12,
+        "fraction": 0.5,
+        "below": false,
+        "changedPixels": 1247
+      },
+      {
+        "flight": 12,
+        "fraction": 0.5,
+        "below": true,
+        "changedPixels": 0
+      },
+      {
+        "flight": 12,
+        "fraction": 0.98,
+        "below": false,
+        "changedPixels": 2953
+      },
+      {
+        "flight": 12,
+        "fraction": 2,
+        "below": false,
+        "changedPixels": 0
+      },
+      {
+        "flight": 72,
+        "fraction": 0.02,
+        "below": false,
+        "changedPixels": 1
+      },
+      {
+        "flight": 72,
+        "fraction": 0.5,
+        "below": false,
+        "changedPixels": 106
+      },
+      {
+        "flight": 72,
+        "fraction": 0.5,
+        "below": true,
+        "changedPixels": 0
+      },
+      {
+        "flight": 72,
+        "fraction": 0.98,
+        "below": false,
+        "changedPixels": 327
+      },
+      {
+        "flight": 72,
+        "fraction": 2,
+        "below": false,
+        "changedPixels": 0
+      }
+    ]
+  },
+  "moonfall": {
+    "passed": true,
+    "views": [
+      "close",
+      "far",
+      "lit"
+    ],
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 8,
+      "settled": 8,
+      "loaded": 8,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 2622.300000011921
+    }
+  },
+  "navigationPerformance": {
+    "version": 1,
+    "scenarios": [
+      {
+        "body": "Mars",
+        "scenario": "stationary-ground",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 134,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.30000001192092896,
+          "p95": 0.5,
+          "p99": 0.699999988079071,
+          "max": 1.300000011920929
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5,
+          "p95": 1,
+          "p99": 1.2999999523162842,
+          "max": 1.800000011920929
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1610,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.5
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 6.800000011920929,
+          "p95": 12.899999976158142,
+          "p99": 14.699999988079071,
+          "max": 16.899999976158142
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.699999999999818,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1610,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 0.7711490047768166,
+          "p95": 0.7711490047768166,
+          "p99": 0.7711490047768166,
+          "max": 0.7711490047768166
+        },
+        "minimumQueriedClearanceM": 49.999999904684955,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "moving-ground",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 134,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.5,
+          "p95": 0.699999988079071,
+          "p99": 0.7999999523162842,
+          "max": 0.800000011920929
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.9000000357627869,
+          "p95": 1.2999999523162842,
+          "p99": 1.399999976158142,
+          "max": 1.4000000357627869
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1560,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 8.800000011920929,
+          "p95": 11.300000011920929,
+          "p99": 13.299999952316284,
+          "max": 13.800000011920929
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1560,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 2.937667886726558e-07,
+          "p95": 1.0049916454590857e-06,
+          "p99": 1.1646079656202346e-06,
+          "max": 1.323769538430497e-06
+        },
+        "minimumQueriedClearanceM": 49.43751470273128,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "flight-follow",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 143,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.5,
+          "p95": 0.6000000238418579,
+          "p99": 0.6000000238418579,
+          "max": 1.300000011920929
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.8999999761581421,
+          "p95": 1.100000023841858,
+          "p99": 1.5999999642372131,
+          "max": 1.699999988079071
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1463,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.30000001192092896
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 11.200000047683716,
+          "p95": 14.5,
+          "p99": 17,
+          "max": 18.5
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000291,
+          "max": 16.80000000000291
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1463,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 5.466063157655299e-07,
+          "p95": 1.3537828635890037e-06,
+          "p99": 0.006154008133307798,
+          "max": 0.006875030521769077
+        },
+        "minimumQueriedClearanceM": 47.97419482929399,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 39,
+          "requests": 165,
+          "bytes": 2788500,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      {
+        "body": "Mars",
+        "scenario": "orbit-to-surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 134,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.3999999761581421,
+          "p95": 0.6000000238418579,
+          "p99": 0.6000000238418579,
+          "max": 1.4000000357627869
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.800000011920929,
+          "p95": 1.199999988079071,
+          "p99": 1.300000011920929,
+          "max": 1.9000000357627869
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1990,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 10.5,
+          "p95": 13.200000047683716,
+          "p99": 15.5,
+          "max": 16.80000001192093
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.700000000000728,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000291,
+          "max": 16.80000000000291
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1990,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 1.1951238675464992,
+          "p95": 1.5408345302603266,
+          "p99": 1.5409358197757683,
+          "max": 1.5409662100864807
+        },
+        "minimumQueriedClearanceM": 49.99007827564128,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 39,
+          "requests": 165,
+          "bytes": 2788500,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 39,
+          "requests": 165,
+          "bytes": 2788500,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "stationary-ground",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 66,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.30000001192092896,
+          "p95": 0.3999999761581421,
+          "p99": 0.40000003576278687,
+          "max": 0.699999988079071
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5000000596046448,
+          "p95": 0.699999988079071,
+          "p99": 0.7000000476837158,
+          "max": 1.0999999642372131
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1184,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 5.099999964237213,
+          "p95": 6.899999976158142,
+          "p99": 7.400000035762787,
+          "max": 8.199999988079071
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000109
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1184,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 6.538584784721024e-05,
+          "p95": 6.538584784721024e-05,
+          "p99": 6.538584784721024e-05,
+          "max": 6.538584784721024e-05
+        },
+        "minimumQueriedClearanceM": 49.99993461365193,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 66,
+          "requests": 192,
+          "bytes": 3244800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 66,
+          "requests": 192,
+          "bytes": 3244800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "moving-ground",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 66,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.30000001192092896,
+          "p95": 0.40000003576278687,
+          "p99": 0.40000003576278687,
+          "max": 0.699999988079071
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5999999642372131,
+          "p95": 0.7000000476837158,
+          "p99": 0.800000011920929,
+          "max": 1.0999999642372131
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1228,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 5.300000011920929,
+          "p95": 6.899999976158142,
+          "p99": 7.200000047683716,
+          "max": 7.5
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "p99": 16.80000000000109,
+          "max": 16.80000000000291
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1228,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 5.667902769346256e-05,
+          "p95": 7.186281436588615e-05,
+          "p99": 7.209177965705749e-05,
+          "max": 7.210155672510155e-05
+        },
+        "minimumQueriedClearanceM": 47.80197243144357,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 66,
+          "requests": 192,
+          "bytes": 3244800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 66,
+          "requests": 192,
+          "bytes": 3244800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "flight-follow",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 135,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.30000001192092896,
+          "p95": 0.40000003576278687,
+          "p99": 0.5,
+          "max": 0.7000000476837158
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.6000000238418579,
+          "p95": 0.800000011920929,
+          "p99": 0.9000000357627869,
+          "max": 1.100000023841858
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1152,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.699999988079071
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 8,
+          "p95": 10.899999976158142,
+          "p99": 13.099999964237213,
+          "max": 15.800000011920929
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "p99": 16.799999999999272,
+          "max": 16.80000000000291
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1152,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 3.455647856753785e-05,
+          "p95": 0.04869096460424771,
+          "p99": 0.14885383666296548,
+          "max": 0.1728524182453839
+        },
+        "minimumQueriedClearanceM": 49.65876426103932,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 66,
+          "requests": 192,
+          "bytes": 3244800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 82,
+          "requests": 208,
+          "bytes": 3515200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        }
+      },
+      {
+        "body": "Moon",
+        "scenario": "orbit-to-surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "frames": 360,
+        "visibleTiles": 66,
+        "navigationMs": {
+          "count": 720,
+          "p50": 0.30000001192092896,
+          "p95": 0.5,
+          "p99": 0.6000000238418579,
+          "max": 0.800000011920929
+        },
+        "frameNavigationMs": {
+          "count": 360,
+          "p50": 0.5999999642372131,
+          "p95": 1,
+          "p99": 1.100000023841858,
+          "max": 1.300000011920929
+        },
+        "physicalRayMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "coordinateMs": {
+          "count": 1553,
+          "p50": 0,
+          "p95": 0.09999996423721313,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "frameMs": {
+          "count": 360,
+          "p50": 6.599999964237213,
+          "p95": 8.5,
+          "p99": 10.699999988079071,
+          "max": 12.899999976158142
+        },
+        "frameIntervalsMs": {
+          "count": 359,
+          "p50": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "p99": 16.80000000000291,
+          "max": 16.80000000000291
+        },
+        "rayCalls": 0,
+        "coverageCalls": 0,
+        "coordinateCalls": 1553,
+        "maxCallsPerFrame": 2,
+        "discrepanciesM": {
+          "count": 720,
+          "p50": 0.05044174122303957,
+          "p95": 5.941629480048505,
+          "p99": 5.941666262970102,
+          "max": 5.941677277405688
+        },
+        "minimumQueriedClearanceM": 49.98419786238628,
+        "networkBefore": {
+          "residentTiles": 126,
+          "detailTiles": 82,
+          "requests": 208,
+          "bytes": 3515200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        },
+        "networkAfter": {
+          "residentTiles": 126,
+          "detailTiles": 82,
+          "requests": 208,
+          "bytes": 3515200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        }
+      }
+    ],
+    "errors": [],
+    "passed": true
+  },
+  "limitations": [
+    "Chrome/Metal on Apple M4 Max only; other browsers and devices untested.",
+    "GPU allocation counters describe the imagery layer; they are not whole-process VRAM measurements.",
+    "Frame timings report CPU work; separate GPU frame timing was not measured.",
+    "The 960 MiB imagery target is not a hard VRAM ceiling; protected references and transition reservation are reported.",
+    "Absolute source accuracy and complete observed 3D flight telemetry remain unknown."
+  ]
+}

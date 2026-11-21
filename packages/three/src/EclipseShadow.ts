@@ -51,8 +51,10 @@ float computeEclipseVisibility(vec3 worldPos) {
 
 export const SHADOW_FRAG_PARS = /* glsl */`
 varying vec3 vShadowWorldPos;
+// Sun fraction a body's terrain leaves this object (#205): 1 except for vehicles near terrain with solar shadows.
+uniform float uTerrainSunVisibility;
 ${ECLIPSE_VISIBILITY_GLSL}
-float computeEclipseShadow() { return computeEclipseVisibility(vShadowWorldPos); }
+float computeEclipseShadow() { return computeEclipseVisibility(vShadowWorldPos) * uTerrainSunVisibility; }
 `;
 
 export type ShadowUniforms = {
@@ -61,6 +63,7 @@ export type ShadowUniforms = {
   uShadowOccluderPos:    { value: THREE.Vector3[] };
   uShadowOccluderRadius: { value: Float32Array };
   uShadowOccluderCount:  { value: number };
+  uTerrainSunVisibility: { value: number };
 };
 
 export function makeShadowUniforms(): ShadowUniforms {
@@ -70,6 +73,7 @@ export function makeShadowUniforms(): ShadowUniforms {
     uShadowOccluderPos:    { value: Array.from({ length: MAX_SHADOW_OCCLUDERS }, () => new THREE.Vector3()) },
     uShadowOccluderRadius: { value: new Float32Array(MAX_SHADOW_OCCLUDERS) },
     uShadowOccluderCount:  { value: 0.0 },
+    uTerrainSunVisibility: { value: 1 },
   };
 }
 

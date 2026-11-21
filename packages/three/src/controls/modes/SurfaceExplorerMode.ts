@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
+import { attachPointerInput, keyEventInScope, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 import {
   bodyFixedToGeodeticRad, clipRayToFloor, dollyAlongView, headingPitchOf, localFrame, moveAlongSurface, viewDirection,
@@ -196,6 +196,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     if (canvas && !this.handlers) {
       this.handlers = {
         keydown: (e: KeyboardEvent) => {
+          if (!keyEventInScope(e, canvas)) return;
           const tag = (e.target as HTMLElement)?.tagName;
           if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
           this.keys.add(e.code);

@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
-import { composeBodyToWorldQuat } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, StateUnavailableError } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 
 /** SPICE-like interface for frame transforms — matches SpiceFrames + SpiceState */
@@ -117,7 +117,14 @@ export function bodyWorldOrientation(
 ): THREE.Quaternion | null {
   const rotation = bm.body.rotation;
   if (!rotation) return null;
-  const q = bm.body.rotationAt(et);
+  let q;
+  try {
+    q = bm.body.rotationAt(et);
+  } catch (err) {
+    // No attitude at this epoch: the mode has no body frame to lock to.
+    if (err instanceof StateUnavailableError) return null;
+    throw err;
+  }
   if (!q) return null;
   const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et, bm.frames);
   return out.set(bw[1], bw[2], bw[3], bw[0]);

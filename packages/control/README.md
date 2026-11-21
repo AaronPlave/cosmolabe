@@ -3,7 +3,7 @@
 `ViewerControl` — the port a Cosmolabe viewer exposes for control and
 observation — plus the no-eval `verb arg…` script language written against it.
 
-Zero dependencies, no DOM. This package names no renderer, no framework and no
+Zero runtime imports, no DOM. This package names no renderer, no framework and no
 global; the viewer implements the port, and everything else programs against it.
 
 ```

@@ -149,3 +149,15 @@ describe('isCurrentEntry', () => {
     expect(isCurrentEntry({ catalogUrl: scene }, null, null)).toBe(false);
   });
 });
+
+describe('developer scripted entry', () => {
+  it('resolves the tour only through its configured developer source', () => {
+    const tour = entry('ingenuity-analysis-tour', 'https://x/ingenuity.json', { scriptUrl: 'https://x/tour.cosmo' });
+    const states = [ready('examples', 'Examples', [entry('visible', 'https://x/a.json')]),
+      ready('developer', 'Developer examples', [tour])];
+    expect(findEntry(states, 'examples/ingenuity-analysis-tour')).toBeNull();
+    expect(findEntry(states.slice(0, 1), 'developer/ingenuity-analysis-tour')).toBeNull();
+    expect(catalogLocation(findEntry(states, 'developer/ingenuity-analysis-tour')!, PAGE))
+      .toEqual({ entry: 'developer/ingenuity-analysis-tour' });
+  });
+});

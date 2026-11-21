@@ -59,10 +59,17 @@ try {
     const { THREE, Universe, UniverseRenderer } = await import('/bundle.js');
     console.log('[solar-test] viewer modules loaded');
     const universe = new Universe();
+    // Explicit synthetic ECLIPJ2000 -> body orientation, not mission SPICE.
+    const site = { name: 'regression-site', url: '/site.json', sourceVersion: 'synthetic-v1',
+      registration: { version: 'enu-v1', bodyFixedFrame: 'SYNTHETIC_FIXED', status: 'controlled',
+        bodyFixedKmFromLocalMeters: [0,.001,0,0, 0,0,.001,0, .001,0,0,0, 6371,0,0,1],
+        provenance: 'Synthetic ENU solar fixture only', uncertaintyKm: 0 },
+      coverage: { min: [-6000,-800,-10], max: [-1500,800,10] },
+      physicalQueryPolicy: 'visual-only', overlapPolicy: 'composite' };
     universe.loadCatalog({ name: 'solar integration', items: [
-      { name: 'Earth', class: 'planet', trajectory: { type: 'FixedPoint', position: [0,0,0] },
+      { name: 'Earth', rotationModel: { type: 'Fixed', quaternion: [Math.SQRT1_2,Math.SQRT1_2,0,0], inertialFrame: 'ECLIPJ2000', bodyFixedFrame: 'SYNTHETIC_FIXED' }, class: 'planet', trajectory: { type: 'FixedPoint', position: [0,0,0] },
         geometry: { type: 'Globe', radius: 6371, atmosphere: 'Earth',
-          surfaceTiles: [{ name: 'regression-site', url: '/site.json', lat: 0, lon: 0 }] } },
+          surfaceTiles: [site] } },
       { name: 'Sun', class: 'star', trajectory: { type: 'FixedPoint', position: [0,0,149597870] }, geometry: { type: 'Globe', radius: 695000 } },
       { name: 'Heavy model', class: 'spacecraft', trajectory: { type: 'FixedPoint', position: [6371.7,0,3] },
         geometry: { type: 'Mesh', source: '/model.gltf', size: 0.2 } },
@@ -171,10 +178,14 @@ try {
     // Looking along +Z makes negative world X appear on the right of the canvas.
     const frontLine = changed(withLine,395,438,253,260), behindLine = changed(withLine,330,375,253,260);
     trajectory.visible = false;
-    const cone = new SensorFrustum(sun.body, { color: 0x0000ff, opacity: 0.8 });
+    const cone = new SensorFrustum(sun.body, { color: 0x0000ff, opacity: 0.8, length: 1 });
+    // Production frustums now populate dynamic geometry on update.
+    cone.update(v.timeController.et, 1);
     cone.labelSprite.visible = false;
     const mesh = cone.children.find(o => o.isMesh);
-    mesh.scale.set(250,400,250);
+    // Keep the former cone's 250-unit base radius with the current 10-degree FOV.
+    const width = 250 / Math.tan(5 * Math.PI / 180);
+    mesh.scale.set(width,400,width);
     cone.children.filter(o=>o.isLine).forEach(o=>o.visible=false);
     cone.rotation.x = -Math.PI/2; cone.position.set(0,300,z-radius-1000);
     cone.traverse(o=>o.layers.set(2)); v.scene.add(cone);

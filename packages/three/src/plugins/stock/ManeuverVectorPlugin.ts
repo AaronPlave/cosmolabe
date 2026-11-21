@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PLUGIN_DATA_COLORS } from '@cosmolabe/core';
 import type { RendererPlugin } from '../RendererPlugin.js';
 import type { RendererContext } from '../RendererContext.js';
 import type { AttachedVisual } from '../AttachedVisual.js';
@@ -12,7 +13,7 @@ export interface ManeuverEvent {
   endEt?: number;
   /** Delta-v vector in km/s [dx, dy, dz] in the body's trajectory frame. */
   deltaV: [number, number, number];
-  /** Arrow color. Default: 0xff4400. */
+  /** Arrow color. Default: neutral gray (externally supplied event). */
   color?: number | string;
   /** Label text shown above the arrow. */
   label?: string;
@@ -78,7 +79,7 @@ export class ManeuverVectorPlugin implements RendererPlugin {
       const length = mag * 1000 * this.ctx.scaleFactor; // visual scale
       const headLength = length * 0.3;
       const headWidth = length * 0.15;
-      const color = event.color ?? 0xff4400;
+      const color = event.color ?? PLUGIN_DATA_COLORS.host;
 
       const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(), length, color, headLength, headWidth);
       const visual = this.ctx.attachToBody(event.bodyName, arrow);

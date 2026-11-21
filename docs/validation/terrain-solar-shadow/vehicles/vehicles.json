@@ -1,0 +1,357 @@
+{
+ "generator": "scripts/check-terrain-shadow-vehicles.mjs",
+ "created": "2026-11-10T19:26:18.339Z",
+ "results": [
+  {
+   "vehicle": "Polaris-A",
+   "start": "2028-12-15T10:00:00Z",
+   "end": "2028-12-15T10:07:10.000Z",
+   "topS": 245,
+   "samples": 44,
+   "comparedSamples": 44,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-A",
+   "start": "2028-12-17T22:00:00Z",
+   "end": "2028-12-17T22:09:00.000Z",
+   "topS": 347.44186,
+   "samples": 55,
+   "comparedSamples": 55,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-A",
+   "start": "2028-12-22T14:00:00Z",
+   "end": "2028-12-22T14:08:10.000Z",
+   "topS": 168.271605,
+   "samples": 50,
+   "comparedSamples": 50,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-B",
+   "start": "2028-12-15T10:00:00Z",
+   "end": "2028-12-15T10:08:10.000Z",
+   "topS": 291.538462,
+   "samples": 50,
+   "comparedSamples": 50,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-B",
+   "start": "2028-12-19T06:00:00Z",
+   "end": "2028-12-19T06:07:10.000Z",
+   "topS": 278.59375,
+   "samples": 44,
+   "comparedSamples": 44,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-B",
+   "start": "2028-12-26T11:00:00Z",
+   "end": "2028-12-26T11:07:00.000Z",
+   "topS": 373.700787,
+   "samples": 43,
+   "comparedSamples": 43,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-C",
+   "start": "2028-12-15T10:00:00Z",
+   "end": "2028-12-15T10:08:20.000Z",
+   "topS": 346.363636,
+   "samples": 51,
+   "comparedSamples": 51,
+   "maxAbsDiffVsReference": 0.089,
+   "shots": {
+    "landed-high": {
+     "file": "Polaris-C-2028-12-15-landed-on.png",
+     "et": 913759268.184,
+     "latDeg": -89.78000000001472,
+     "lonDeg": 89.99999999370534,
+     "altAboveGroundKm": 0.0009999993752612957,
+     "sunElevationDeg": 0.4665467627971238,
+     "fraction": 0,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 6.699671081898744
+     }
+    },
+    "landed-off": {
+     "file": "Polaris-C-2028-12-15-landed-off.png",
+     "et": 913759268.184,
+     "latDeg": -89.78000000001472,
+     "lonDeg": 89.99999999370534,
+     "altAboveGroundKm": 0.0009999993752612957,
+     "sunElevationDeg": 0.4665467627971238,
+     "fraction": 1,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 6.699671081898744
+     }
+    },
+    "flying-high": {
+     "file": "Polaris-C-2028-12-15-flying-on.png",
+     "et": 913759615.547636,
+     "latDeg": -89.74216453613863,
+     "lonDeg": 60.116956951816746,
+     "altAboveGroundKm": 0.11039976436444876,
+     "sunElevationDeg": 0.3407335285858186,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -0.9904983050831335
+     }
+    },
+    "flying-off": {
+     "file": "Polaris-C-2028-12-15-flying-off.png",
+     "et": 913759615.547636,
+     "latDeg": -89.74216453613863,
+     "lonDeg": 60.116956951816746,
+     "altAboveGroundKm": 0.11039976436444876,
+     "sunElevationDeg": 0.3407335285858186,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -0.9904983050831335
+     }
+    }
+   }
+  },
+  {
+   "vehicle": "Polaris-C",
+   "start": "2028-12-20T15:00:00Z",
+   "end": "2028-12-20T15:08:30.000Z",
+   "topS": 396.842105,
+   "samples": 52,
+   "comparedSamples": 52,
+   "maxAbsDiffVsReference": 0,
+   "shots": {
+    "landed-high": {
+     "file": "Polaris-C-2028-12-20-landed-on.png",
+     "et": 914209268.184,
+     "latDeg": -89.77999999954754,
+     "lonDeg": 90.00000010528586,
+     "altAboveGroundKm": 0.0010000102285595558,
+     "sunElevationDeg": 0.5743049295524986,
+     "fraction": 0,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 7.200906251260552
+     }
+    },
+    "landed-off": {
+     "file": "Polaris-C-2028-12-20-landed-off.png",
+     "et": 914209268.184,
+     "latDeg": -89.77999999954754,
+     "lonDeg": 90.00000010528586,
+     "altAboveGroundKm": 0.0010000102285595558,
+     "sunElevationDeg": 0.5743049295524986,
+     "fraction": 1,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 7.200906251260552
+     }
+    },
+    "flying-high": {
+     "file": "Polaris-C-2028-12-20-flying-on.png",
+     "et": 914209666.026105,
+     "latDeg": -89.74903229992752,
+     "lonDeg": 58.84018094245358,
+     "altAboveGroundKm": 0.09163149709392893,
+     "sunElevationDeg": 0.4874118845773248,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.2453607171148635
+     }
+    },
+    "flying-off": {
+     "file": "Polaris-C-2028-12-20-flying-off.png",
+     "et": 914209666.026105,
+     "latDeg": -89.74903229992752,
+     "lonDeg": 58.84018094245358,
+     "altAboveGroundKm": 0.09163149709392893,
+     "sunElevationDeg": 0.4874118845773248,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.2453607171148635
+     }
+    }
+   }
+  },
+  {
+   "vehicle": "Polaris-C",
+   "start": "2028-12-25T02:00:00Z",
+   "end": "2028-12-25T02:10:10.000Z",
+   "topS": 340.487805,
+   "samples": 62,
+   "comparedSamples": 62,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-D",
+   "start": "2028-12-15T10:00:00Z",
+   "end": "2028-12-15T10:13:00.000Z",
+   "topS": 64.878049,
+   "samples": 79,
+   "comparedSamples": 79,
+   "maxAbsDiffVsReference": 0,
+   "shots": {
+    "landed-high": {
+     "file": "Polaris-D-2028-12-15-landed-on.png",
+     "et": 913759268.184,
+     "latDeg": -89.49999999941043,
+     "lonDeg": -135.00000002579316,
+     "altAboveGroundKm": 0.0009999981961044124,
+     "sunElevationDeg": 0.9417966808412379,
+     "fraction": 0,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 13.433237006521933
+     }
+    },
+    "landed-off": {
+     "file": "Polaris-D-2028-12-15-landed-off.png",
+     "et": 913759268.184,
+     "latDeg": -89.49999999941043,
+     "lonDeg": -135.00000002579316,
+     "altAboveGroundKm": 0.0009999981961044124,
+     "sunElevationDeg": 0.9417966808412379,
+     "fraction": 1,
+     "reference": {
+      "state": "shadowed",
+      "fraction": 0,
+      "horizonDeg": 13.433237006521933
+     }
+    },
+    "flying-high": {
+     "file": "Polaris-D-2028-12-15-flying-on.png",
+     "et": 913759334.062049,
+     "latDeg": -89.48055124054392,
+     "lonDeg": -139.159805209666,
+     "altAboveGroundKm": 0.13369636098928894,
+     "sunElevationDeg": 0.9769584620040377,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -2.2701437804895948
+     }
+    },
+    "flying-off": {
+     "file": "Polaris-D-2028-12-15-flying-off.png",
+     "et": 913759334.062049,
+     "latDeg": -89.48055124054392,
+     "lonDeg": -139.159805209666,
+     "altAboveGroundKm": 0.13369636098928894,
+     "sunElevationDeg": 0.9769584620040377,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -2.2701437804895948
+     }
+    }
+   }
+  },
+  {
+   "vehicle": "Polaris-D",
+   "start": "2028-12-21T07:30:00Z",
+   "end": "2028-12-21T07:39:20.000Z",
+   "topS": 25.2,
+   "samples": 57,
+   "comparedSamples": 57,
+   "maxAbsDiffVsReference": 0,
+   "shots": {}
+  },
+  {
+   "vehicle": "Polaris-D",
+   "start": "2028-12-27T18:00:00Z",
+   "end": "2028-12-27T18:15:10.000Z",
+   "topS": 30.721154,
+   "samples": 92,
+   "comparedSamples": 92,
+   "maxAbsDiffVsReference": 0,
+   "shots": {
+    "landed-high": {
+     "file": "Polaris-D-2028-12-27-landed-on.png",
+     "et": 914824868.184,
+     "latDeg": -89.50000000015832,
+     "lonDeg": -134.9999999989736,
+     "altAboveGroundKm": 0.001000000667668477,
+     "sunElevationDeg": -0.24106887764383708,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.1856124918836903
+     }
+    },
+    "landed-off": {
+     "file": "Polaris-D-2028-12-27-landed-off.png",
+     "et": 914824868.184,
+     "latDeg": -89.50000000015832,
+     "lonDeg": -134.9999999989736,
+     "altAboveGroundKm": 0.001000000667668477,
+     "sunElevationDeg": -0.24106887764383708,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.1856124918836903
+     }
+    },
+    "flying-high": {
+     "file": "Polaris-D-2028-12-27-flying-on.png",
+     "et": 914824899.905154,
+     "latDeg": -89.49924111231857,
+     "lonDeg": -134.94445168900816,
+     "altAboveGroundKm": 0.12386774240458776,
+     "sunElevationDeg": -0.2418196043377746,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.2376187867645059
+     }
+    },
+    "flying-off": {
+     "file": "Polaris-D-2028-12-27-flying-off.png",
+     "et": 914824899.905154,
+     "latDeg": -89.49924111231857,
+     "lonDeg": -134.94445168900816,
+     "altAboveGroundKm": 0.12386774240458776,
+     "sunElevationDeg": -0.2418196043377746,
+     "fraction": 1,
+     "reference": {
+      "state": "lit",
+      "fraction": 1,
+      "horizonDeg": -1.2376187867645059
+     }
+    }
+   }
+  },
+  {
+   "errors": []
+  }
+ ]
+}

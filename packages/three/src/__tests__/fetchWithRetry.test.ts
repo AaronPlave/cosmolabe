@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchWithRetry } from '../fetchWithRetry.js';
+import { fetchWithRetry, fetchCompleteResponse } from '../fetchWithRetry.js';
 import { CubeSphereGridSource, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
 import { TerrainManager } from '../TerrainManager.js';
 import { CubeImageryLayer } from '../CubeImageryLayer.js';
@@ -79,6 +79,49 @@ function gridManifest(): CubeGridManifest {
 
 describe('recovery after the retries run out (#233 review)', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('retries a resident grid when its 200 response body is interrupted', async () => {
+    let bodyAttempts = 0;
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('grids.json')) return new Response(JSON.stringify(gridManifest()));
+      if (url.endsWith('h/px/0/0/0.f32') && ++bodyAttempts === 1) {
+        return new Response(new ReadableStream({ start(controller) {
+          controller.error(new TypeError('connection reset after headers'));
+        } }));
+      }
+      return new Response(new Float32Array(4).buffer);
+    }) as unknown as typeof fetch;
+    const source = await CubeSphereGridSource.fromUrl('https://example.invalid/grids.json',
+      { fetch: (input, init) => fetchCompleteResponse(input, init, fetchImpl), residentLevel: 0, retryBaseMs: 1 });
+    await source.ready;
+    expect(bodyAttempts).toBe(2);
+    expect(source.stats).toMatchObject({ residentTiles: 6, failed: 0, inFlight: 0 });
+    expect(source.coverage(0, 0).state).toBe('finest');
+    source.dispose();
+  });
+
+  it('bounds interrupted-body retries and keeps missing resident grids unavailable', async () => {
+    let bodyAttempts = 0;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('grids.json')) return new Response(JSON.stringify(gridManifest()));
+      if (url.endsWith('h/px/0/0/0.f32')) {
+        bodyAttempts++;
+        return new Response(new ReadableStream({ start(controller) {
+          controller.error(new TypeError('connection reset after headers'));
+        } }));
+      }
+      return new Response(new Float32Array(4).buffer);
+    }) as unknown as typeof fetch;
+    const source = await CubeSphereGridSource.fromUrl('https://example.invalid/grids.json',
+      { fetch: (input, init) => fetchCompleteResponse(input, init, fetchImpl), residentLevel: 0, retryBaseMs: 1 });
+    await expect(source.ready).rejects.toThrow('resident levels failed');
+    expect(bodyAttempts).toBe(4);
+    expect(source.coverage(0, 0).state).toBe('unloaded');
+    expect(source.stats).toMatchObject({ residentTiles: 5, failed: 1, inFlight: 0 });
+    source.dispose();
+    vi.restoreAllMocks();
+  });
 
   it('requests a CPU grid again once the host recovers: four 503s, then the fifth request succeeds', async () => {
     const down = new Set(['h/nz/1/1/1.f32', 'h/px/0/0/0.f32']); // a detail grid and a resident one

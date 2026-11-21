@@ -64,6 +64,14 @@ export class CpuMeshSurface implements PhysicalSurface {
   }
 
   intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
+    const work = this.intersectRaySteps(ray, options);
+    let step = work.next();
+    while (!step.done) step = work.next();
+    return step.value;
+  }
+
+  /** Same intersector, incrementally consumed by analytical hosts. */
+  *intersectRaySteps(ray: SurfaceRay, options: SurfaceQueryOptions): Generator<void, SurfaceIntersection> {
     this.trianglesTested = 0;
     const direction = normalizedRay(ray, options);
     const metadata = this.metadata;
@@ -78,6 +86,7 @@ export class CpuMeshSurface implements PhysicalSurface {
     // cheap enough for renderer consumers that cast many rays per frame.
     const groupCount = this.groupBounds.length > 0 ? this.groupBounds.length / 6 : 1;
     for (let group = 0; group < groupCount; group++) {
+      if (group % 32 === 0) yield;
       if (this.groupBounds.length > 0) {
         const b = group * 6;
         let near = ray.nearKm, far = nearest;
@@ -101,6 +110,7 @@ export class CpuMeshSurface implements PhysicalSurface {
       }
       const end = this.groupBounds.length > 0 ? Math.min(indices.length, (group + 1) * this.trianglesPerGroup * 3) : indices.length;
       for (let t = group * this.trianglesPerGroup * 3; t < end; t += 3) {
+        if (t % 384 === 0) yield;
         this.trianglesTested++;
         const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
         const ax = positionsKm[ia], ay = positionsKm[ia + 1], az = positionsKm[ia + 2];

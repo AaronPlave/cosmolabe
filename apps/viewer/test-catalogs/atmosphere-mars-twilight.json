@@ -1,0 +1,78 @@
+{
+  "name": "Exposure reference: Mars",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Sunward horizon",
+  "items": [
+    {
+      "name": "Sunward horizon",
+      "type": "Viewpoint",
+      "eye": [
+        3391,
+        0,
+        0
+      ],
+      "target": [
+        3391,
+        0,
+        1000
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Whole disc",
+      "type": "Viewpoint",
+      "eye": [
+        13556,
+        0,
+        0
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          11900608.319103582,
+          0,
+          227077134.00393033
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 3389,
+        "atmosphere": "Mars"
+      }
+    }
+  ]
+}

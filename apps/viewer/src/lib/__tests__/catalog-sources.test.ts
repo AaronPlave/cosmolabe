@@ -314,6 +314,16 @@ describe('the repository Examples index', () => {
   });
 });
 
+describe('developer fixture discovery', () => {
+  it('uses the same index parser without warnings or public featured rows', () => {
+    const url = new URL('../../../test-catalogs/dev-index.json', import.meta.url);
+    const { index, warnings } = parseCatalogIndex(JSON.parse(readFileSync(url, 'utf8')), url.href);
+    expect(warnings).toEqual([]);
+    expect(index.catalogs.length).toBeGreaterThan(0);
+    expect(index.catalogs.some(e => e.featured)).toBe(false);
+  });
+});
+
 describe('runtime-added sources survive a reload', () => {
   const env = {
     VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"}]',

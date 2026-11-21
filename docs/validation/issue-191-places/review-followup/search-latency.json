@@ -1,0 +1,44 @@
+[
+  {
+    "name": "all-name",
+    "count": 11139,
+    "p95Ms": 4.800000011920929,
+    "maxMs": 4.900000035762787
+  },
+  {
+    "name": "all-name-desc",
+    "count": 11139,
+    "p95Ms": 5.300000011920929,
+    "maxMs": 5.300000011920929
+  },
+  {
+    "name": "all-diameter",
+    "count": 11139,
+    "p95Ms": 4.100000023841858,
+    "maxMs": 4.299999952316284
+  },
+  {
+    "name": "all-smallest",
+    "count": 11139,
+    "p95Ms": 4.5,
+    "maxMs": 4.5
+  },
+  {
+    "name": "all-relevance",
+    "count": 11139,
+    "p95Ms": 5.5,
+    "maxMs": 5.5
+  },
+  {
+    "name": "moon-craters",
+    "count": 1615,
+    "p95Ms": 0.800000011920929,
+    "maxMs": 0.800000011920929
+  },
+  {
+    "name": "prefix",
+    "count": 142,
+    "p95Ms": 0.10000002384185791,
+    "maxMs": 0.10000002384185791
+  }
+]

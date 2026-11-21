@@ -14,6 +14,8 @@ import type {
 
 /** What a kind's `run` is handed: the GF boundary plus result-id minting. */
 export interface EventKindContext {
+  trajectoryAnalysis?: (query: EventQuery) => Promise<import('@cosmolabe/interop').TrajectoryExtremaResponse>;
+  reportFault?(fault: EventSearchFault): void;
   provider: GeometryFinderProvider;
   /**
    * Mints an id unique within this search result. Ids are positional, so the
@@ -33,6 +35,11 @@ export interface EventKindContext {
  * change rather than a new subsystem.
  */
 export interface EventKind<P = Record<string, unknown>> {
+  /** Result-wide interpretation/limits, displayed alongside the normal list. */
+  resultNotice?: string;
+  /** Numerical trajectories use the catalog/state/physical-surface service,
+   * independent of SPICE GF kernel availability. */
+  engine?: 'trajectory-analysis';
   /** Stable identifier used in `EventQuery.kind`. */
   kind: string;
   /** Human label for pickers and result grouping. */

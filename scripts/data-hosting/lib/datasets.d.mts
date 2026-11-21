@@ -13,3 +13,5 @@ export interface Dataset {
   build: string | null;
 }
 export function loadDatasets(path?: string): { version: number; datasets: Record<string, Dataset> };
+
+export function remotePrefix(dataset: Dataset, build?: string): string;

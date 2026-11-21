@@ -3,7 +3,7 @@
 #
 # Why: large SPICE kernels (de440s.bsp, mar099s.bsp, ref_trj_scpse.bsp, etc.)
 # live behind fetch scripts instead of in git so the repo stays thin. CI
-# should run this before `vite build` for the deployed viewer.
+# runs this only for deployment / demo setup, never for the normal test suite.
 #
 # Usage: ./scripts/fetch-all.sh
 

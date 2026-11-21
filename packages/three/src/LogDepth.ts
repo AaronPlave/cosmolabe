@@ -24,6 +24,32 @@ export const LOG_DEPTH_PATCH = {
 
 type Chunks = Record<string, unknown>;
 
+export const LOG_DEPTH_COVERAGE_PATCH = 'centroid varying float vFragDepth;';
+
+/**
+ * At a partially covered MSAA pixel, the centre can lie outside the triangle.
+ * Interpolating depth there extrapolates across terrain edges and can let a
+ * back face win the depth test. Centroid interpolation keeps the value inside
+ * the covered primitive. It changes neither the depth mapping nor geometry.
+ * This does not provide independent fragment-written depth for every sample.
+ */
+export function patchLogDepthCoverage(chunks: Chunks = ShaderChunk as unknown as Chunks): boolean {
+  const keys = ['logdepthbuf_pars_vertex', 'logdepthbuf_pars_fragment'] as const;
+  const original = 'varying float vFragDepth;';
+  const states = keys.map(key => {
+    const source = chunks[key];
+    return typeof source !== 'string' ? 'missing' : source.includes(LOG_DEPTH_COVERAGE_PATCH) ? 'patched' : source.includes(original) ? 'original' : 'unknown';
+  });
+  if (states.some(state => state === 'missing' || state === 'unknown')) {
+    console.warn('[LogDepth] three.js log depth declarations not recognised; coverage interpolation is not patched');
+    return false;
+  }
+  keys.forEach((key, index) => {
+    if (states[index] === 'original') chunks[key] = (chunks[key] as string).replace(original, LOG_DEPTH_COVERAGE_PATCH);
+  });
+  return true;
+}
+
 /**
  * Patch three's shared log-depth chunks, so every log-depth material (and
  * renderer) agrees. Both chunks must be three's text or already patched; a

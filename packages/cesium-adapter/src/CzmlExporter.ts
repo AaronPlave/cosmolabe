@@ -1,4 +1,4 @@
-import { composeBodyToWorldQuat, type Universe, type Body } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, StateUnavailableError, type Universe, type Body } from '@cosmolabe/core';
 import { etToIso, etIntervalToIso } from './TimeConversions.js';
 import { positionForCesium } from './CoordinateTransforms.js';
 import { getModelInfo, type CesiumModelInfo } from './ModelAdapter.js';
@@ -226,7 +226,8 @@ function sampleOrientations(
   let hasValidSample = false;
 
   for (let et = startEt; et <= endEt; et += interval) {
-    const q = body.rotationAt(et);
+    let q;
+    try { q = body.rotationAt(et); } catch (err) { if (err instanceof StateUnavailableError) continue; throw err; }
     if (!q || isNaN(q[0])) continue;
 
     // Cesium orients an entity relative to Earth-fixed axes (Entity.orientation

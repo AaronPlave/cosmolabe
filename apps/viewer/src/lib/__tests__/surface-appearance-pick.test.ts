@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { DEFAULT_SURFACE_APPEARANCE } from '@cosmolabe/three';
-import { setProbeActive, vs } from '../viewer-state.svelte';
+import { setProbeActive, vs, onViewerEvent } from '../viewer-state.svelte';
 import { measurements, startMeasurementPick } from '../spatial-measurements.svelte';
 import { appearancePick, cancelAppearancePick, handleAppearancePick, startAppearancePick, validAppearanceBound } from '../surface-appearance-pick.svelte';
 
@@ -12,7 +12,7 @@ function renderer() {
   let settings = { ...DEFAULT_SURFACE_APPEARANCE, baseColor: 'elevation' as const, minKm: -10, maxKm: 10 };
   const setSurfaceAppearance = vi.fn(next => { settings = next; });
   const pickSurfaceTintHeight = vi.fn((): { bodyName: string; altKm: number; heightKm?: number; bodyFixedHitKm: number[] } | null => ({ bodyName: 'Mars', altKm: 999, heightKm: -3, bodyFixedHitKm: [1, 2, 3] }));
-  const mesh = { get surfaceAppearance() { return settings; }, setSurfaceAppearance };
+  const mesh = { body: { name: 'Mars' }, get surfaceAppearance() { return settings; }, setSurfaceAppearance };
   const r = { renderer: { domElement: { clientWidth: 800, clientHeight: 600 } }, pickSurfaceTintHeight, getBodyMesh: () => mesh } as unknown as UniverseRenderer;
   return { r, mesh, pickSurfaceTintHeight, setSurfaceAppearance };
 }
@@ -41,12 +41,15 @@ describe('independent surface appearance range picks', () => {
   });
   it('uses the rendered intersection height, consumes the gesture, and changes only minimum', () => {
     const { r, mesh, pickSurfaceTintHeight } = renderer();
+    const events: string[] = [];
+    const off = onViewerEvent('surface', e => events.push(e.body));
     startAppearancePick('Mars', 'minKm');
     expect(handleAppearancePick(r, 400, 300)).toBe(true);
     expect(pickSurfaceTintHeight).toHaveBeenCalledWith(400, 300);
     expect(mesh.surfaceAppearance).toMatchObject({ minKm: -3, maxKm: 10 });
     expect(appearancePick.bound).toBeNull();
     expect(appearancePick.feedback).toContain('Minimum set');
+    expect(events).toEqual(['Mars']); off();
   });
   it('changes only maximum and leaves the other endpoint intact', () => {
     const { r, mesh } = renderer();

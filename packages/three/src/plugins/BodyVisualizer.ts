@@ -24,12 +24,13 @@ export interface BodyVisualizer {
   ): void;
 
   /**
-   * The parts of the visual a click should hit, for picking. Optional: a
-   * visualizer without it is not pickable (its body's hidden placeholder
-   * sphere is not raycast). Lines are best left out — a raycaster's line
-   * threshold is in world units and catches everything at scene scale.
+   * Whether a click that landed on `bodyName`'s surface at `worldPoint` hit
+   * this visual — for visuals drawn on another body's surface (observation
+   * footprints). Optional; without it the visual is not pickable. A
+   * containment test on the surface point, so a click never raycasts the
+   * visual's own geometry.
    */
-  pickTargets?(object: THREE.Object3D): THREE.Object3D[];
+  pickOnSurface?(object: THREE.Object3D, bodyName: string, worldPoint: THREE.Vector3): boolean;
 
   /**
    * Whether the visual should still be updated (and decide its own visibility)

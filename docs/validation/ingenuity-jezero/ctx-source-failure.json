@@ -1,0 +1,41 @@
+{
+  "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/23/96",
+  "httpStatus": 200,
+  "bytes": 92426,
+  "sha256": "defae444708463b72b90ceea174104ce3ae9af0d0914c82b7d691a96d366176a",
+  "chunks": [
+    "IHDR",
+    "tRNS",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT",
+    "IDAT"
+  ],
+  "pngErrors": [
+    {
+      "chunk": "IDAT",
+      "declaredBytes": 8192,
+      "remainingBytes": 2123
+    }
+  ],
+  "zlib": {
+    "error": "Error -5 while decompressing data: incomplete or truncated stream"
+  },
+  "gdal": "512x512x1 header readable; pixel decode raises RuntimeError",
+  "sharp": "pngload: libspng read error",
+  "syntheticOrParentSubstitution": false,
+  "cacheBypassRecheck": {
+    "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/23/96?f=image",
+    "requestCacheControl": "no-cache",
+    "bytes": 92426,
+    "sha256": "defae444708463b72b90ceea174104ce3ae9af0d0914c82b7d691a96d366176a",
+    "result": "same truncated original PNG"
+  }
+}

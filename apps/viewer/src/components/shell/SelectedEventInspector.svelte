@@ -13,6 +13,7 @@
    * page-level layer (fixed, viewport coordinates), clamped by its measured
    * width.
    */
+  import { getActivity, seekActivity } from '../../lib/activity-control';
   import type { GeometryEvent } from '@cosmolabe/core';
   import { eventDuration, eventEnd, eventStart, focusForEvent, isIntervalEvent } from '@cosmolabe/core';
   import { etToUtcString, flyToBody, hasBody } from '../../lib/viewer-state.svelte';
@@ -22,6 +23,7 @@
   import { openTool } from '../../lib/shell.svelte';
   import { ChevronDown, ChevronUp, X } from 'lucide-svelte';
   import EventDetails from '../EventDetails.svelte';
+  import { layerRoot, workspaceSize } from '../../lib/workspace.svelte';
 
   interface Props {
     event: GeometryEvent;
@@ -36,6 +38,7 @@
   let open = $state(false);
   let width = $state(0);
 
+  const activity = $derived(event.kind === 'mission-activity' ? getActivity(event.id) : undefined);
   const title = $derived(eventCalloutTitle(event));
   const headline = $derived(headlineMetric(event));
   const search = $derived(configuredItem(event.queryId)?.label);
@@ -49,7 +52,7 @@
   const bare = (et: number) => etToUtcString(et).replace(' UTC', '');
   const left = $derived.by(() => {
     const half = (width || 280) / 2;
-    return Math.max(half + 8, Math.min(window.innerWidth - half - 8, x));
+    return Math.max(half + 8, Math.min(workspaceSize().width - half - 8, x));
   });
 
   function edit() {
@@ -58,7 +61,7 @@
   }
 
   function portal(node: HTMLElement) {
-    document.body.appendChild(node);
+    layerRoot().appendChild(node);
     return { destroy: () => node.remove() };
   }
 </script>
@@ -89,24 +92,37 @@
     {#if isIntervalEvent(event)}
       <span class="stamp">{bare(eventStart(event))}</span>
       <span class="arrow">→</span>
-      <button class="stamp end" onclick={() => selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
+      <button class="stamp end" onclick={() => activity ? seekActivity(activity.id, 'end') : selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
     {:else}
       <span class="stamp">{utc(eventStart(event))}</span>
     {/if}
   </div>
-  {#if isIntervalEvent(event) && !open}
-    <div class="when">Duration {formatSeconds(eventDuration(event))}</div>
+  {#if isIntervalEvent(event) && (!open || activity)}
+    <div class="when">{activity?.provenance.timing === 'bounded' ? 'Actual duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`}</div>
   {/if}
+  {#if activity}<div class="when">{activity.provenance.timing === 'bounded' ? 'Reported dates · exact timing unknown' : activity.provenance.authority === 'authored' ? 'Authored activity' : activity.provenance.authority === 'estimated' ? 'Estimated activity' : activity.provenance.authority === 'inferred' ? 'Inferred activity' : 'Observed activity'}
+    {#if /^https?:/.test(activity.provenance.source)} · <a class="link" href={activity.provenance.source} target="_blank" rel="noreferrer">Source</a>{/if}
+  </div>{/if}
   {#if open}
-    <div class="details"><EventDetails {event} showEnd={false} /></div>
+    <div class="details">
+      {#if activity}
+        <div class="technical">
+          <p>{activity.provenance.limitations}</p>
+          <p>{activity.provenance.authority} · {activity.provenance.timing} timing</p>
+          <p>{activity.provenance.source} · version {activity.provenance.version}</p>
+        </div>
+      {:else}<EventDetails {event} showEnd={false} />{/if}
+    </div>
   {/if}
   <div class="actions">
     <button class="link" onclick={() => open = !open} aria-expanded={open}>
       {#if open}<ChevronUp size={11} /> Less{:else}<ChevronDown size={11} /> Details{/if}
     </button>
-    <button class="link" onclick={edit} title={search ? `Edit “${search}” in Event Finder` : 'Open in Event Finder'}>
-      Edit search
-    </button>
+    {#if search}
+      <button class="link" onclick={edit} title={`Edit “${search}” in Event Finder`}>
+        Edit search
+      </button>
+    {/if}
     {#if primary}
       <button class="link" onclick={() => flyToBody(primary)} title="Fly the camera to {primary}">
         Fly to {primary}
@@ -116,12 +132,13 @@
 </div>
 
 <style>
+  .technical { max-height:160px; overflow:auto; overflow-wrap:anywhere; }
   .inspector {
     position: fixed;
     z-index: calc(var(--tl-z-callout) - 1);
     width: max-content;
     min-width: 220px;
-    max-width: min(420px, calc(100vw - 16px));
+    max-width: min(420px, calc(100cqw - 16px));
     padding: 7px 9px 5px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 5px;

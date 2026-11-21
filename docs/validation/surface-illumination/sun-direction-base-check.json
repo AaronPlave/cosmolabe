@@ -1,0 +1,25 @@
+{
+  "what": "Same scene run on a real build of origin/main (de0a04cd) and on this PR. main has no receiver aiming, so its two captures are identical and equal to this PR's forced origin-aimed \"before\".",
+  "baseCommit": "de0a04cd9e9b62f22cb4aa14c8350faf3008dc7e",
+  "baseLightDirection": [
+    -0.7229580592503292,
+    -0.6908919195970431,
+    -7.145107296260304e-07
+  ],
+  "baseBeforeEqualsBaseAfter": {
+    "direction": true,
+    "lightTarget": true,
+    "lightPosition": true
+  },
+  "prBeforeEqualsBase": {
+    "direction": true,
+    "lightTarget": true,
+    "lightPosition": true
+  },
+  "sha256": {
+    "prBefore": "1082002a4dc0928c1113c5b3f5d957332cbac975bff8b5a83486721c92398298",
+    "baseBefore": "1082002a4dc0928c1113c5b3f5d957332cbac975bff8b5a83486721c92398298",
+    "baseAfter": "1082002a4dc0928c1113c5b3f5d957332cbac975bff8b5a83486721c92398298",
+    "prAfter": "e04c79f8cb3e8de0ac006c094644386b69c83fffab83bc7ff86e9e26d7495549"
+  }
+}

@@ -1,3 +1,6 @@
+import { applyGraticuleToScene, type GraticuleUniforms } from './GraticuleShader.js';
+import { lunarProductFrame } from '@cosmolabe/core';
+
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { TerrainContourLabels } from './TerrainContourLabels.js';
@@ -7,18 +10,36 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
+import { combineImageryIllumination, createSurfaceAsIsUniforms, DEFAULT_IMAGERY_ILLUMINATION, imageryAsIsWeight, injectAsIsDisplayIntoShader, injectOverlayAsIsIntoShader, LIGHTING_MODES, LUNAR_NATURAL_NIGHT_FLOOR, type ImageryIllumination, type ImageryLightingMode, type LightingMode, type SurfaceIlluminationSummary } from './SurfaceIllumination.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { TerrainSampler, bodyFixedToGeodetic, geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
 import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
-import type { CubeFace } from './surface/CubeSphere.js';
-import { fetchWithRetry } from './fetchWithRetry.js';
+import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
+import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
+import { dayNumber, parseTimeExtent, resolveImageryTime, ImageryTimeFollower, type ImageryAvailability, type ImageryLayerTime, type ImageryTemporalConfig, type ImageryTimePolicy, type ResolvedImageryTime } from './ImageryTime.js';
+import { SolarShadowClipmap, injectSolarShadowIntoShader, type ClipmapLevelConfig, type ClipmapSource, type SolarShadowConfig, type SolarShadowFrame, type SolarShadowQuality, type SolarShadowStatus, type SolarShadowDebugMode, type SolarShadowUniforms } from './SolarShadowClipmap.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
+import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
 export interface TerrainImageryConfig {
+  /** Whether this image may be relit by the simulated Sun (#204).
+   *
+   *  - `'reflectance'`: approximately photometrically normalized albedo; the
+   *    Sun lights it physically in natural mode.
+   *  - `'baked'`: shading/shadows are already in the pixels; shown as-is, never
+   *    relit, so it is not double-lit and its source albedo is not misrepresented.
+   *  - `'unknown'` (default when omitted): legacy path, relit as before and not
+   *    asserted to be physically relightable.
+   *
+   *  Applied per pixel, weighted by the layer's own alpha: a baked overlay is shown
+   *  as-is inside its footprint, and the layers beneath it keep their own behaviour
+   *  outside it. This is not `temporal.illumination` (#214), which only records that a
+   *  dated image carries its acquisition-time Sun and changes nothing here. */
+  illumination?: ImageryIllumination;
   /** Imagery source type. Default 'xyz'.
    *
    *  - `'cube'`: preprocessed cube-face imagery.json; requires cubeSphere terrain.
@@ -89,6 +110,13 @@ export interface TerrainImageryConfig {
    *  VIIRS/MODIS true-color reflectance. When set, the resolved date replaces
    *  the `default` time segment in the WMTS tile URL path. */
   time?: string | 'yesterday';
+  /** Time-indexed imagery (#214): what day the layer depicts and how it is chosen.
+   *  `time` above is the same thing as a fixed date and keeps working; when both
+   *  are given, `temporal.date` wins. Supported for the overlay layers of
+   *  `xyz`, `tms`, `wmts` and `wmts-capabilities` sources, whose URLs carry the
+   *  date as a `/default/YYYY-MM-DD/` segment or a `{Time}` dimension. The bottom
+   *  (base) layer may only be fixed: put a daily layer above a static backdrop. */
+  temporal?: ImageryTemporalConfig;
   /** Stable id for viewer controls. Defaults to `layer-<index>`. */
   id?: string;
   /** Display name for viewer controls. Defaults to the product name in the URL path. */
@@ -106,6 +134,19 @@ export interface TerrainImageryConfig {
 }
 
 export interface TerrainConfig {
+  /** Illumination provenance of the tileset's own textures (#204); used only when no
+   *  `imagery` is configured. See {@link TerrainImageryConfig.illumination}. Default:
+   *  `'reflectance'` for an untextured quantized mesh, otherwise `'unknown'`. */
+  illumination?: ImageryIllumination;
+  /**
+   * Terrain-cast solar shadows and horizon occlusion (#205), off by default.
+   * `true` uses the default clipmap (8 / 24 / 80 / 320 km); an object tunes it. A visual aid
+   * driven by the resident source terrain, not a certified illumination product; see
+   * docs/terrain-solar-visibility.md.
+   */
+  solarShadows?: boolean | SolarShadowConfig;
+  /** Optional coarse single-level clipmap above the ordinary shadow range. Does not enable shadows by default. */
+  orbitalSolarShadows?: ClipmapLevelConfig & { maxAltitudeKm: number };
   /** Terrain source type. 'imagery' uses XYZ image tiles projected onto an ellipsoid (no terrain mesh needed). */
   type: 'quantized-mesh' | 'cesium-ion' | '3dtiles' | 'imagery';
   /** Base URL for quantized-mesh or 3dtiles tileset.json */
@@ -147,6 +188,9 @@ export interface TerrainConfig {
   datum?: Partial<Omit<TerrainDatum, 'referenceShape'>>;
   /** Provenance and stated vertical uncertainty for terrain samples. */
   sourceMetadata?: Partial<TerrainSourceMetadata>;
+  /** Physical frame shared by rendering and CPU queries. */
+  frame?: string;
+  bodyId?: string;
   /** Maximum number of decoded CPU terrain tiles retained for sampling. */
   samplerMaxTiles?: number;
   /** Quantized-mesh tile skirt length (m). Each tile edge gets a vertical
@@ -203,15 +247,21 @@ export interface TerrainConfig {
     residentLevel?: number;
     /** Finer grids retained (LRU). Default 2048. */
     maxDetailTiles?: number;
+    /** Physical refinement neighbourhood, independent of screen error. Metres;
+     * defaults: 500 m radius, 0.5 m declared geometric error, active within
+     * 5 km of the product's declared radial relief shell.
+     * This is a representation target, never a source-accuracy claim. */
+    nearSurface?: { radiusM?: number; maxErrorM?: number; altitudeM?: number };
     /**
      * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
      * draped at its own levels, independently of this product's geometry LOD; see
-     * `CubeImageryLayer`. Legacy single product, or shared budget/selection options
-     * for `Globe.imagery` layers of type `cube`. The geographic overlay plugin
-     * maps through per-vertex longitude/latitude, which cannot
-     * register the tiles meeting at each pole (both are face centres).
+     * `CubeImageryLayer`. Shared budget/selection options for the `type: 'cube'`
+     * layers of `terrain.imagery` (the products themselves are declared there, with
+     * their provenance). The geographic overlay plugin maps through per-vertex
+     * longitude/latitude, which cannot register the tiles meeting at each pole
+     * (both are face centres).
      */
-    imagery?: Omit<CubeImageryConfig, 'url'> & { url?: string };
+    imagery?: Omit<CubeImageryConfig, 'url' | 'layers'>;
     /**
      * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
      * surface triangles first (glTF primitive extras `surfaceTriangles`); false
@@ -283,11 +333,11 @@ export interface TerrainPerformanceMetrics {
   /** CPU height queries. Independent of rendered vertex count by construction. */
   sample: { count: number; lastMicros: number; meanMicros: number };
   /** `visible`: selected by any streaming camera; `drawn`: of those, left visible by the main-view draw cull. */
-  tiles: { active: number; visible: number; drawn: number; inCache: number; cpu: number };
+  tiles: { active: number; visible: number; drawn: number; loaded: number; inCache: number; cpu: number };
   network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
   memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
   /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
-  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number };
+  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number; cube?: CubeImageryStats };
 }
 
 /** Accumulates per-event wall time; `window` > 0 keeps only the most recent samples. */
@@ -372,21 +422,44 @@ function resolveTime(spec: string | undefined): string | undefined {
  *  `default`. Match that ISO-date segment between style and TMS and swap
  *  it for the user-requested date. Services with a custom style or a
  *  non-date time format fall through unchanged. */
+const DATED_SEGMENT = /\/default\/\d{4}-\d{2}-\d{2}\//;
 function timeSubstitutedURL(url: string, resolvedTime: string): string {
-  return url.replace(/\/default\/\d{4}-\d{2}-\d{2}\//, `/default/${resolvedTime}/`);
+  return url.replace(DATED_SEGMENT, `/default/${resolvedTime}/`);
 }
 
-/** Build a `preprocessURL` callback for a WMTS overlay that does time
- *  substitution. Returns undefined if no time substitution is needed.
- *  (For XYZ overlays, the equivalent helper in `createImageryOverlay` also
- *  enforces minZoom-skipping; for WMTS overlays minZoom semantics live on
- *  `calculateLevel` instead — clamping the requested level so the data is
- *  *up*-sampled rather than skipped.) */
-function buildWmtsOverlayPreprocessURL(
-  time: string | undefined,
-): ((url: string) => string) | undefined {
-  if (!time) return undefined;
-  return (url: string) => timeSubstitutedURL(url, time);
+/** The capabilities layer a source config names (the first when it names none). */
+function capabilitiesLayer(capabilities: WMTSCapabilitiesResult, layerId: string | undefined) {
+  return layerId ? capabilities.layers.find((l) => l.identifier === layerId) : capabilities.layers[0];
+}
+
+/** A layer's WMTS time dimension, if the provider declares one. */
+function timeDimension(capabilities: WMTSCapabilitiesResult, layerId: string | undefined) {
+  return capabilitiesLayer(capabilities, layerId)?.dimensions?.find((d) => /^time$/i.test(d.identifier));
+}
+
+/** The dimension name a date is substituted under; `Time` when the provider names none. */
+function timeDimensionId(capabilities: WMTSCapabilitiesResult, layerId: string | undefined): string {
+  return timeDimension(capabilities, layerId)?.identifier ?? 'Time';
+}
+
+/** The days a provider says a layer has, from its time dimension; null when it declares none readable. */
+function capabilitiesExtent(capabilities: WMTSCapabilitiesResult, layerId: string | undefined): ImageryAvailability | null {
+  const dim = timeDimension(capabilities, layerId);
+  return dim ? parseTimeExtent([...dim.values, dim.defaultValue]) : null;
+}
+
+/** Source-time bookkeeping of one time-indexed imagery layer (#214). */
+interface TemporalRuntime {
+  readonly config: ImageryTemporalConfig;
+  readonly base: boolean;
+  policy: ImageryTimePolicy;
+  fixedDate: string | null;
+  /** What the catalog declared; the provider's capabilities fill the rest. */
+  readonly declared: ImageryAvailability;
+  availability: ImageryAvailability;
+  rangeSource: 'catalog' | 'provider' | 'clock';
+  readonly follower: ImageryTimeFollower;
+  switches: number;
 }
 
 /** Clamp a WMTS overlay's `calculateLevel` to a minimum, so far-out zooms
@@ -416,7 +489,7 @@ type ImageryOverlay = XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMS
 interface PreparedOverlay { id: string; overlay: ImageryOverlay; generation: number }
 
 /** Upstream overlay members the shipped typings leave out. */
-type OverlayInternals = { opacity: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
+type OverlayInternals = { opacity: number; asIs: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
 /** Upstream tile loading states (`3d-tiles-renderer/core` constants, missing from its typings). */
 const FAILED = -1, LOADED = 4;
 type CoverageTile = {
@@ -514,7 +587,7 @@ const SHOW_GRACE_MS = 1500;
 const STREAM_STALL_MS = 3000;
 
 /** Create the appropriate imagery overlay based on config type. */
-function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
+function createImageryOverlay(img: TerrainImageryConfig, date?: string): ImageryOverlay {
   const type = img.type ?? 'xyz';
   switch (type) {
     case 'wms':
@@ -532,7 +605,6 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
         opacity: clampOpacity(img.opacity ?? 1),
       });
     case 'wmts': {
-      const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
       // The 3d-tiles-renderer 0.4.24 TS defs made `tileMatrices` required even
       // for the url-only overlay shape — the JS constructor still accepts the
       // old form (it derives matrices from the WMTS URL pattern), so cast
@@ -541,7 +613,9 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
         url: img.url,
         color: img.color ?? 0xffffff,
         opacity: clampOpacity(img.opacity ?? 1),
-        ...(preprocessURL ? { preprocessURL } : {}),
+        // A `{Time}` template takes its date here; a baked `/default/<date>/`
+        // segment is rewritten where the layer's fetches are gated.
+        ...(date ? { dimensions: { Time: date } } : {}),
       } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
       if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
       return overlay;
@@ -613,7 +687,13 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
 const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
+const _viewInverse = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
+
+export interface SurfaceAppearanceStatus {
+  state: 'ready' | 'loading' | 'unsupported-product' | 'unsupported-reference' | 'validation-failed';
+  message: string;
+}
 
 export class TerrainManager {
   private readonly contourLabels = new TerrainContourLabels();
@@ -621,7 +701,13 @@ export class TerrainManager {
   private readonly cubeScenes = new Set<THREE.Object3D>();
   private readonly cubeStyleCandidate: boolean;
   private cubeStyleHeightRange: readonly [number, number] | null = null;
+  private cubeStyleReferenceRadiusKm: number | null = null;
+  private appearanceStatus: SurfaceAppearanceStatus = { state: 'unsupported-product', message: 'Relief styles require a known planetary terrain product. Generic 3D Tiles and imagery-only surfaces are unsupported.' };
 
+  get surfaceAppearanceStatus(): SurfaceAppearanceStatus {
+    if (this.appearanceStatus.state === 'loading' && this.rootFailed) return { state: 'validation-failed', message: 'Terrain product metadata could not be loaded. Relief styles are unavailable.' };
+    return { ...this.appearanceStatus };
+  }
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.surfaceStyle?.contourIntervalKm ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
@@ -630,6 +716,223 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
+  /** What a pixel no imagery draws is (#204): the tileset's own texture. */
+  private readonly noImageryIllumination: ImageryIllumination;
+  /**
+   * Shared by every tile program. `surfaceAsIs` is the weight of a pixel no imagery
+   * layer covers (1 shows it as-is, 0 relights it with the Sun); each layer then blends
+   * its own weight over it by alpha in the shader.
+   */
+  private readonly asIs = createSurfaceAsIsUniforms();
+  /** The lighting mode's `bakedNightFloor`; the shader sees 1 (no gate) on frames without a body centre. */
+  private bakedNightFloor = LIGHTING_MODES.natural.bakedNightFloor;
+  private lightingMode: LightingMode = 'natural';
+  private imageryLightingMode: ImageryLightingMode = 'original';
+
+  private get lunarMatte(): boolean {
+    return this.config.bodyId === 'Moon' && (this.config.frame === 'IAU_MOON' || this.config.frame?.startsWith('MOON_') === true);
+  }
+
+  get hasAcquiredImagery(): boolean {
+    return this.config.illumination === 'baked' || (this.cubeImagery?.hasAcquiredImagery
+      ?? this.layers.some(l => l.visible && l.opacity > 0 && l.illumination === 'baked'));
+  }
+
+  /** What the body's imagery is lit as: the shared provenance, or `mixed` when layers differ (#204). */
+  get surfaceIllumination(): SurfaceIlluminationSummary {
+    const layers = this.cubeImagery ? this.cubeImagery.imageryLayers : this.layers;
+    const visible = layers.filter(l => l.visible && l.opacity > 0);
+    return visible.length > 0
+      ? combineImageryIllumination(visible.map(l => l.illumination))
+      : this.noImageryIllumination;
+  }
+
+  /** Weight of a pixel no layer draws: the base map of an imagery-only body, else the tileset's own texture. */
+  private refreshIllumination(): void {
+    // A bare height mesh has no measured colour; preserve its shared Flood material.
+    const uncovered = this.isImageryOnly ? this.layers[0]?.illumination : this.config.illumination;
+    this.asIs.surfaceAsIs.value = imageryAsIsWeight(uncovered, this.lightingMode, this.imageryLightingMode);
+  }
+
+  /**
+   * Body centre in the view space the tile shaders see, for baked imagery's terminator
+   * gate. Without a centre the local horizon is unknown, so there is no gate.
+   */
+  private updateTerminatorGate(camera: THREE.Camera, bodyWorldPos?: THREE.Vector3): void {
+    if (bodyWorldPos) {
+      this.asIs.centerView.value.copy(bodyWorldPos).applyMatrix4(_viewInverse.copy(camera.matrixWorld).invert());
+      this.asIs.nightFloor.value = this.bakedNightFloor;
+    } else this.asIs.nightFloor.value = 1;
+  }
+
+  /** The scene's lighting mode, for the night floor of baked imagery and the Sun-less `flood` mode (#205). */
+  setLightingMode(mode: LightingMode): void {
+    this.lightingMode = mode;
+    this.bakedNightFloor = this.lunarMatte && mode === 'natural' ? LUNAR_NATURAL_NIGHT_FLOOR : LIGHTING_MODES[mode].bakedNightFloor;
+    this.asIs.natural.value = mode === 'natural';
+    this.refreshImageryLighting();
+    this.lightingModeAllowsShadow = mode !== 'flood';
+    this.setSolarShadowActive();
+  }
+
+  setImageryLightingMode(mode: ImageryLightingMode): void {
+    this.imageryLightingMode = mode;
+    this.refreshImageryLighting();
+  }
+
+  private refreshImageryLighting(): void {
+    this.refreshIllumination();
+    if (this.cubeImagery) {
+      this.cubeImagery.lightingMode = this.lightingMode;
+      this.cubeImagery.imageryLightingMode = this.imageryLightingMode;
+    }
+    for (const [id, overlay] of this.activeOverlays) {
+      (overlay as unknown as OverlayInternals).asIs = imageryAsIsWeight(this.layer(id)?.illumination, this.lightingMode, this.imageryLightingMode);
+    }
+  }
+
+  /** Terrain-cast solar shadows (#205); null until the catalog configures them or the viewer turns them on. */
+  private solarShadow: SolarShadowClipmap | null = null;
+  private orbitalSolarShadow: SolarShadowClipmap | null = null;
+  private drawingSolarShadow: SolarShadowClipmap | null = null;
+  private solarMaterialUniforms: SolarShadowUniforms | undefined;
+  private solarQuality: SolarShadowQuality = 'high';
+  private floatLinear = false;
+  private glRenderer: THREE.WebGLRenderer | null = null;
+  private lightingModeAllowsShadow = true;
+  private solarShadowsOn = true;
+
+  /** Whether this terrain has CPU heights a shadow can be built from: cube-sphere grids or decoded quantized-mesh tiles. */
+  get supportsSolarShadow(): boolean {
+    return !this.isImageryOnly && (this.cubeConfigured || this.config.type === 'quantized-mesh');
+  }
+
+  private createSolarShadow(config: SolarShadowConfig): void {
+    const datum = this.sampler.datum;
+    const revision = () => this.cpuRevision;
+    // One product level per clipmap level, the coarsest whose cell is no wider than the texel: a mosaic of resident
+    // LODs would put steps (walls, to a low Sun) at its tile seams.
+    const levelFor = (texelKm: number) => Math.max(0, Math.ceil(Math.log2(2 * this.bodyRadiusKm / ((this.cube!.source!.manifest.grid.width - 1) * texelKm))));
+    const source: ClipmapSource = {
+      datum,
+      elevationKm: (latDeg, lonDeg, texelKm) => {
+        const cube = this.cube?.source;
+        if (!this.cubeConfigured) return this.sampleResident(latDeg, lonDeg)?.elevationKm ?? null;
+        if (!cube) return null;
+        const radius = cube.radiusAtLevel(latDeg, lonDeg, levelFor(texelKm));
+        if (radius === null) return null;
+        const shape = datum.referenceShape;
+        const zero = shape.kind === 'sphere' ? shape.radiusKm
+          : Math.hypot(...Object.values(geodeticToBodyFixed({ latDeg, lonDeg, heightKm: 0 }, datum)));
+        return radius - zero;
+      },
+      // The product's finest tile spacing there (at a face centre).
+      cellKm: (latDeg, lonDeg) => {
+        const cube = this.cube?.source;
+        if (!cube) return 0;
+        const level = cube.availableAt(cube.sampler.faceCoordinate(latDeg, lonDeg)).level;
+        return 2 * this.bodyRadiusKm / (2 ** level * (cube.manifest.grid.width - 1));
+      },
+      get revision() { return revision(); },
+    };
+    this.solarQuality = config.quality ?? 'high';
+    this.solarShadow = new SolarShadowClipmap(source, config, this.floatLinear);
+    this.drawingSolarShadow = this.solarShadow;
+    this.solarMaterialUniforms = this.solarShadow.uniforms;
+    const orbital = this.config.orbitalSolarShadows;
+    if (this.cubeConfigured && orbital && orbital.maxAltitudeKm > this.solarShadow.maxAltitudeKm) {
+      this.orbitalSolarShadow = new SolarShadowClipmap(source, {
+        ...config, levels: [{ halfKm: orbital.halfKm, size: orbital.size }], maxAltitudeKm: orbital.maxAltitudeKm,
+      }, this.floatLinear);
+      // Tile programs keep these uniform objects across altitude tiers.
+      this.solarMaterialUniforms = Object.fromEntries(Object.entries(this.solarShadow.uniforms)
+        .map(([name, u]) => [name, typeof u === 'boolean' ? u : { value: u.value }])) as unknown as SolarShadowUniforms;
+    }
+  }
+
+  /**
+   * The viewer's choice (#205), applied on top of the catalog: `null` follows the catalog (on at its quality when it sets
+   * `solarShadows`, else absent); `'off'` disables it; a quality turns it on, **creating the clipmap and adding it to tiles
+   * already loaded** when the catalog did not configure one. A no-op where there are no CPU heights to build from.
+   */
+  applySolarShadowMode(mode: 'off' | SolarShadowQuality | null): void {
+    this.solarShadowsOn = mode !== 'off';
+    if (mode === null || mode === 'off') {
+      if (mode === null) this.solarShadow?.setQuality(this.solarQuality);
+      if (mode === null) this.orbitalSolarShadow?.setQuality(this.solarQuality);
+      this.setSolarShadowActive();
+      return;
+    }
+    if (!this.solarShadow) {
+      if (!this.supportsSolarShadow) return;
+      this.createSolarShadow({});
+      this.addSolarShadowToLoadedTiles();
+    }
+    this.solarShadow!.setQuality(mode);
+    this.orbitalSolarShadow?.setQuality(mode);
+    this.setSolarShadowActive();
+  }
+
+  /** Tiles customized before the clipmap existed get the hook appended to their shader chain (new tiles get it on load). */
+  private addSolarShadowToLoadedTiles(): void {
+    const solar = this.solarMaterialUniforms!;
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => scene.traverse((child) => {
+      if (!isMesh(child) || !child.material) return;
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) {
+        if (!this.customizedMaterials.has(mat)) continue; // not yet customized: customizeTileMaterial will include it
+        const previous = mat.onBeforeCompile, key = (mat.customProgramCacheKey?.() ?? '') + '_ss_v1';
+        mat.onBeforeCompile = (shader, renderer) => { previous?.call(mat, shader, renderer); injectSolarShadowIntoShader(shader, solar); };
+        mat.customProgramCacheKey = () => key;
+        mat.needsUpdate = true;
+      }
+    }));
+  }
+
+  /** Every frame, after the camera is final: refresh the clipmap, its uniforms and (when stale) its horizon maps. */
+  updateSolarShadow(frame: SolarShadowFrame): void {
+    if (!this.solarShadow) return;
+    const near = this.solarShadow;
+    const orbital = this.orbitalSolarShadow;
+    if (orbital) {
+      const altitude = frame.camera.position.distanceTo(frame.bodyPosition) / frame.scaleFactor - this.bodyRadiusKm;
+      const nearLimit = near.maxAltitudeKm;
+      const blendKm = Math.max(1e-6, Math.min(24, Math.abs(nearLimit) / 2, (orbital.maxAltitudeKm - nearLimit) / 2));
+      this.drawingSolarShadow = altitude > nearLimit ? orbital : near;
+      this.setSolarShadowActive();
+      // Fade through the stable reference horizon where the two resolutions exchange ownership.
+      this.drawingSolarShadow.uniforms.strength.value = THREE.MathUtils.clamp(
+        Math.min(Math.abs(altitude - nearLimit), orbital.maxAltitudeKm - altitude) / blendKm, 0, 1);
+    }
+    const shadow = this.drawingSolarShadow!;
+    shadow.update(frame);
+    if (this.glRenderer) shadow.renderHorizons(this.glRenderer);
+    if (orbital) this.syncSolarMaterialUniforms();
+  }
+  private setSolarShadowActive(): void {
+    const active = this.lightingModeAllowsShadow && this.solarShadowsOn;
+    this.solarShadow?.setActive(active && this.drawingSolarShadow === this.solarShadow);
+    this.orbitalSolarShadow?.setActive(active && this.drawingSolarShadow === this.orbitalSolarShadow);
+    if (!active && this.solarMaterialUniforms) this.solarMaterialUniforms.enabled.value = 0;
+  }
+  private syncSolarMaterialUniforms(): void {
+    const from = this.drawingSolarShadow!.uniforms;
+    for (const key of Object.keys(from) as (keyof SolarShadowUniforms)[]) {
+      const source = from[key], dest = this.solarMaterialUniforms![key];
+      if (typeof source !== 'boolean' && typeof dest !== 'boolean') (dest as { value: unknown }).value = source.value;
+    }
+  }
+  get hasSolarShadow(): boolean { return this.solarShadow !== null; }
+  /** See `SolarShadowClipmap.sunFractionAt`. */
+  solarSunFractionAt(scenePos: THREE.Vector3): number { return this.solarShadow?.sunFractionAt(scenePos) ?? 1; }
+  /** The effective mode, for the viewer's control. */
+  get solarShadowMode(): 'off' | SolarShadowQuality {
+    return this.solarShadow && this.solarShadowsOn ? this.solarShadow.quality : 'off';
+  }
+  get solarShadowStatus(): SolarShadowStatus | null { return this.drawingSolarShadow?.status ?? null; }
+  setSolarShadowDebug(mode: SolarShadowDebugMode): void {
+    this.solarShadow?.setDebug(mode);
+    this.orbitalSolarShadow?.setDebug(mode);
+  }
   /** Imagery draped on the body ellipsoid, with no physical terrain. */
   get imageryOnly(): boolean { return this.isImageryOnly; }
   /** Composites imagery overlays per tile; null when no overlay layer is configured. */
@@ -653,9 +956,15 @@ export class TerrainManager {
   /** Per layer, source tiles (`level/x/y`) that failed and are drawn from a parent. */
   private readonly degradedTiles = new Map<string, Set<string>>();
   private readonly capabilitiesCache = new Map<string, Promise<WMTSCapabilitiesResult>>();
+  /** Time-indexed layers (#214), by layer id. A layer's displayed day is its follower's committed one. */
+  private readonly temporal = new Map<string, TemporalRuntime>();
+  /** The simulation instant (UTC ms) last offered; null before the first frame. */
+  private simulationMs: number | null = null;
+  private _imageryTimeRevision = 0;
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
   private loadedModels = 0;
+  private residentModels = new Set<THREE.Object3D>();
   /** Tile materials already customized. A virtual (split) tile hands back the
    *  same scene each time it reloads, and chaining the shader injections onto
    *  it again redefines every injected symbol, so the program fails to compile. */
@@ -676,7 +985,19 @@ export class TerrainManager {
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
+  private cubeFrameReady = false;
+  private cubeOcclusionBoundValidated = false;
+  private cubeFrameError: string | undefined;
+  get frameAvailability(): { kind: 'available' | 'unavailable'; frame?: string; reason?: string } {
+    if (this.config.cubeSphere && this.config.frame && !this.cubeFrameReady) return {
+      kind: 'unavailable', frame: this.config.frame, reason: this.cubeFrameError ?? 'Awaiting declared cube frame metadata',
+    };
+    return { kind: 'available', frame: this.config.frame };
+  }
+
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
+  private nearSurfaceDetail: NearSurfaceDetail | null = null;
+  private nearSurfacePolicy = { radiusM: 500, maxErrorM: 0.5, altitudeM: 5000 };
   private readonly cubeConfigured: boolean;
   private cubeSkirts = true;
   private drawCulling = false;
@@ -738,7 +1059,7 @@ export class TerrainManager {
   readonly showAtPixels: number;
 
   constructor(
-    config: TerrainConfig,
+    private readonly config: TerrainConfig,
     bodyRadii: number | [number, number, number],
     renderer: THREE.WebGLRenderer,
   ) {
@@ -765,6 +1086,9 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
+    this.floatLinear = renderer?.extensions?.has('OES_texture_float_linear') ?? false;
+    this.glRenderer = renderer ?? null;
+    if (config.solarShadows) this.createSolarShadow(config.solarShadows === true ? {} : config.solarShadows);
     // Other tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.
     this.surfaceStyle = config.type === 'quantized-mesh' &&
@@ -777,23 +1101,32 @@ export class TerrainManager {
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
     this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
+    if (this.surfaceStyle) this.appearanceStatus = { state: 'ready', message: '' };
+    else if (this.cubeStyleCandidate) this.appearanceStatus = { state: 'loading', message: 'Loading and validating terrain product metadata for relief styles…' };
+    else if (config.type === 'quantized-mesh') this.appearanceStatus = { state: 'unsupported-reference', message: 'This terrain product’s elevation reference is not supported by relief styles.' };
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
+    // What a pixel no imagery draws is: the tileset's own texture, never the imagery's declaration.
+    this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
-    if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
-      throw new Error('Legacy cube imagery cannot be combined with geographic imagery; use an entirely cube imagery stack or remove cubeSphere.imagery.url');
-    }
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
-    if (config.cubeSphere?.imagery?.url || cubeSources) {
-      const cubeConfig = config.cubeSphere?.imagery ?? {};
-      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm });
+    if (cubeSources) {
+      this.cubeImagery = new CubeImageryLayer({ ...config.cubeSphere!.imagery, url: imageryConfigs[0].url, layers: imageryConfigs }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
+        const manifest = this.cube?.source.manifest;
+        // The new ellipsoidal imagery cull needs an emitted-mesh rounding
+        // bound as well as the explicit radial payload. Unknown means no cull.
+        if (manifest?.datum.referenceShape.kind === 'ellipsoid' && manifest.renderedLatticeRoundingBoundKm == null) return 0;
+        return this.cube?.surface.radialRenderedInnerRadiusKm ?? 0;
+      } });
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
     }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
+    this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
+    this.initTemporal(imageryConfigs);
     this._overlayResolution = config.overlayResolution ?? 256;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
     this.showAtPixels = config.showAtPixels ?? 80;
@@ -804,6 +1137,23 @@ export class TerrainManager {
     // the tileset's layer.json / tileset.json.
     const constructWithoutUrl = this.isImageryOnly || config.type === 'cesium-ion';
     this.tiles = new TilesRenderer(constructWithoutUrl ? undefined : config.url);
+    if (this.cubeConfigured) {
+      this.nearSurfacePolicy = { ...this.nearSurfacePolicy, ...config.cubeSphere?.nearSurface };
+      if (Object.values(this.nearSurfacePolicy).some(v => !Number.isFinite(v) || v <= 0)) {
+        throw new Error('Cube near-surface policy requires positive finite metre values');
+      }
+      this.tiles.registerPlugin({
+        name: 'COSMOLABE_NEAR_SURFACE',
+        calculateTileViewError: (tile: { geometricError: number; engineData?: { boundingVolume?: { distanceToPoint(p: THREE.Vector3): number } } },
+          target: { inView: boolean; error: number; distance: number }) => {
+          if (!this.cube || !needsNearSurfaceDetail(tile.engineData?.boundingVolume, tile.geometricError, this.nearSurfaceDetail)) return false;
+          target.inView = true;
+          target.error = Infinity;
+          target.distance = tile.engineData!.boundingVolume!.distanceToPoint(this.nearSurfaceDetail!.eye);
+          return true;
+        },
+      } as never);
+    }
 
     // Upstream bug guard: multiple plugins (QuantizedMeshPlugin, ImageOverlayPlugin)
     // access tile.children.length in disposeTile without null checks. During LRU cache
@@ -877,7 +1227,7 @@ export class TerrainManager {
       // tile URLs — so registering a plain plugin object with a preprocessURL
       // is enough. ImageOverlayPlugin uses its OWN per-overlay preprocessURL
       // (not this chain), so this hook never affects overlay URLs.
-      const baseTime = resolveTime(baseImg.time);
+      const baseTime = this.temporal.get(this.layers[0].id)?.follower.current?.date ?? undefined;
       if (baseTime) {
         this.tiles.registerPlugin({
           preprocessURL: (url: string) => timeSubstitutedURL(url, baseTime),
@@ -1024,6 +1374,7 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.loadedModels++;
+      this.residentModels.add(event.scene);
       this.customizeTileMaterial(event.scene, event.tile);
       if (this.cubeConfigured) {
         this.cubeScenes.add(event.scene);
@@ -1032,8 +1383,10 @@ export class TerrainManager {
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
       if (this.cubeConfigured) this.attachSurfaceStyle(event.scene);
+      this.applyGraticule(event.scene);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
+      this.residentModels.delete(event.scene);
       this.cubeScenes.delete(event.scene);
       if (event.scene) this.surfaceStyle?.forget(event.scene);
       this.cubeImagery?.removeTile(event.tile);
@@ -1172,8 +1525,12 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
-  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] = []): void {
+  viewUpdateSucceeded = false;
+
+  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] | null = []): void {
+    this.viewUpdateSucceeded = false;
     if (this.disposed) return;
+    if (this.frameAvailability.kind === 'unavailable') { this.group.visible = false; return; }
 
     // Compute terrain-appropriate near/far from camera position.
     // The scene camera can have extreme near/far ratios (e.g. 1e-12 / 1e6)
@@ -1183,6 +1540,7 @@ export class TerrainManager {
     // tile's bounding volume fails the frustum test → 0 tiles rendered.
     _camPos.setFromMatrixPosition(camera.matrixWorld);
     const distToBody = bodyWorldPos ? _camPos.distanceTo(bodyWorldPos) : 0;
+    this.updateTerminatorGate(camera, bodyWorldPos);
 
     // Near the surface, distToBody ≈ bodyRadius so distToBody*0.001 clips terrain
     // for km around the camera (e.g., 3.4 km near clip at Mars surface).
@@ -1237,6 +1595,14 @@ export class TerrainManager {
     mv.frustum.planes[4].constant = Infinity;
     mv.frustum.planes[5].constant = Infinity;
     mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
+    // The cube root is metres in the physical body-fixed frame. Use its
+    // actual origin/scale instead of a maximum display radius or a camera FOV.
+    // Coarse neighbours under and around the camera refine even behind it.
+    const cubeManifest = this.cube?.source.manifest;
+    const offsetM = mv.eye.length()-(cubeManifest?.geometry?.referenceRadiusKm ?? this.bodyRadiusKm)*1000;
+    this.nearSurfaceDetail = cubeManifest && offsetM >= cubeManifest.heightRangeKm[0]*1000-this.nearSurfacePolicy.altitudeM &&
+      offsetM <= cubeManifest.heightRangeKm[1]*1000+this.nearSurfacePolicy.altitudeM
+      ? { eye: mv.eye.clone(), radiusM: this.nearSurfacePolicy.radiusM, maxErrorM: this.nearSurfacePolicy.maxErrorM } : null;
 
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
@@ -1309,6 +1675,7 @@ export class TerrainManager {
       this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
+      return;
     }
     if (this.drawCulling) this.cullToMainView();
     this.surfaceStyle?.update();
@@ -1324,8 +1691,15 @@ export class TerrainManager {
       } catch (err) {
         // Imagery must never stop terrain streaming or the frame loop.
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+        return;
       }
     }
+    this.viewUpdateSucceeded = true;
+    if (labelObstacles) this.updateContourLabels(camera, renderer, labelObstacles);
+  }
+
+  /** Layout against the final camera after streaming and any clearance correction. */
+  updateContourLabels(camera: THREE.Camera, renderer: THREE.WebGLRenderer, labelObstacles: readonly ScreenRect[] = []): void {
     if (this.surfaceStyle) {
       const size = renderer.getSize(_bufferSize);
       const settings = this.surfaceStyle.current;
@@ -1383,6 +1757,11 @@ export class TerrainManager {
     return this.cube ? this.cube.surface.renderedInnerRadiusKm * 1000 : 0;
   }
 
+  /** Interior radius in kilometres for a validated full globe, independent of draw residency. */
+  get occlusionInnerRadiusKm(): number {
+    return this.cubeOcclusionBoundValidated ? this.cube?.surface.renderedInnerRadiusKm ?? 0 : 0;
+  }
+
   /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
   setCubeSkirts(visible: boolean): void {
     if (visible === this.cubeSkirts) return;
@@ -1403,6 +1782,8 @@ export class TerrainManager {
   get cubeImageryLayer(): CubeImageryLayer | null {
     return this.cubeImagery;
   }
+
+  get cubeImageryMetadata() { return this.cubeImagery?.productMetadata ?? null; }
 
   /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
   get cubeImageryStats(): CubeImageryStats | null {
@@ -1426,6 +1807,21 @@ export class TerrainManager {
     // Cube grids carry no derived normals; `normal` stays absent rather than invented.
     if (this.cubeConfigured) return this.cube?.source.sample(latDeg, lonDeg) ?? null;
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
+  }
+
+  /** Annotation planning reads resident coverage without changing CPU residency. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
+  }
+
+  /** Analytical query of finest available physical CPU geometry, independent of
+   * camera LOD/residency. Missing grids never fall back to a reference shape. */
+  async requestAnalysisSample(latDeg: number, lonDeg: number, signal?: { readonly aborted: boolean }): Promise<TerrainSample | null> {
+    const cube = this.cube;
+    if (!cube || this.frameAvailability.kind !== 'available') return null;
+    const sample = await cube.source.sampleAnalysis(latDeg, lonDeg, signal);
+    if (signal?.aborted || this.cube !== cube) return null;
+    return sample;
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
@@ -1477,9 +1873,50 @@ export class TerrainManager {
     return result;
   }
 
+  /** Conservative radial ground for navigation while visual and CPU LODs load.
+   * Never changes scientific samples. Unknown/absent visible coverage remains
+   * null; skirts never become collision surfaces. Recompute against the active
+   * scenes every call, including immediately after a refinement or eviction.
+   */
+  navigationSurface(point: BodyFixedCartesian): { radiusKm: number | null; physicalRadiusKm: number | null;
+    renderedRadiusKm: number | null; discrepancyM: number | null; settled: boolean } | null {
+    if (!this.cube) return null;
+    const d = new THREE.Vector3(point.xKm, point.yKm, point.zKm).normalize();
+    const outer = this.bodyRadiusKm + 50;
+    const ray: SurfaceRay = { origin: { xKm: d.x*outer, yKm: d.y*outer, zKm: d.z*outer },
+      direction: [-d.x,-d.y,-d.z], nearKm: 0, farKm: 150 };
+    const resident = this.cube.source.sampler.finestResident(directionToCubeFace([d.x,d.y,d.z]));
+    const shape = this.cube.source.manifest.datum.referenceShape;
+    const referenceRadius = this.cube.source.manifest.geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : NaN);
+    const sampledRadius = resident ? radialCellRadius(resident.tile, resident.localU, resident.localV, d, referenceRadius, outer) : null;
+    const cellRadius = sampledRadius !== null && outer-sampledRadius <= ray.farKm ? sampledRadius : null;
+    const hit = cellRadius === null ? this.cube.surface.intersectRay(ray, { maxMeshErrorKm: this.nearSurfacePolicy.maxErrorM/1000 }) : null;
+    // This ray is radial: its cube coordinates never change through the shell.
+    // Avoid marching thousands of identical points every camera frame. Keep
+    // closed edge/face neighbours and the source's existing LRU/retry policy.
+    void Promise.all(radialCubeCoordinates(d, this.cube.source.manifest.maxLevel)
+      .map(coordinate => this.cube!.source.requestCoordinate(coordinate)))
+      .catch(err => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
+    const physical = cellRadius ?? (hit?.kind === 'hit' ? outer-hit.distanceKm : null);
+    const scenes: THREE.Object3D[] = [];
+    for (const tile of this.tiles.visibleTiles) {
+      const scene = (tile as unknown as { engineData?: { scene?: THREE.Object3D } }).engineData?.scene;
+      if (scene) scenes.push(scene);
+    }
+    const renderedM = renderedCubeRadius(scenes, this.tiles.group, d, outer*1000);
+    const rendered = renderedM === null ? null : renderedM/1000;
+    const discrepancyM = physical === null || rendered === null ? null : (rendered-physical)*1000;
+    const position = bodyFixedToGeodetic(point, this.cube.source.manifest.datum);
+    const coverage = this.cube.source.coverage(position.latDeg, position.lonDeg);
+    return { radiusKm: physical === null ? rendered : rendered === null ? physical : Math.max(physical, rendered),
+      physicalRadiusKm: physical, renderedRadiusKm: rendered, discrepancyM,
+      settled: coverage.state === 'finest' && discrepancyM !== null && Math.abs(discrepancyM) <= this.nearSurfacePolicy.maxErrorM };
+  }
+
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
-    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, signal: this.cubeGridsAbort.signal }).then((source) => {
-      if (this.disposed) return;
+    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, fetch: fetchCompleteResponse, signal: this.cubeGridsAbort.signal }).then((source) => {
+      void source.ready.catch(() => {}); // Disposal during metadata rejection must not leave a detached rejection.
+      if (this.disposed) { source.dispose(); return; }
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
       const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
@@ -1487,7 +1924,14 @@ export class TerrainManager {
         a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
         throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
       }
-      const surface = new CubeGridSurface(source, 'body', 'body-fixed');
+      const frame = lunarProductFrame(source.manifest.coordinates?.frame, source.manifest.source.version);
+      if (this.config.frame && frame && frame !== this.config.frame) {
+        source.dispose();
+        throw new Error(`cube grid frame ${frame} does not match rendered frame ${this.config.frame}`);
+      }
+      if (this.config.frame && (!frame || frame === 'unspecified')) { source.dispose(); throw new Error('Cube grid frame is unknown'); }
+      this.cubeFrameReady = true;
+      const surface = new CubeGridSurface(source, this.config.bodyId ?? 'body', frame ?? this.config.frame ?? 'body-fixed');
       source.onChange = (id) => { this.cubeRevision++; surface.invalidate(id); };
       this.cube = { source, surface };
       this.cubeRevision++;
@@ -1500,24 +1944,57 @@ export class TerrainManager {
         // Only the known builder's Z-north, body-fixed metre product is eligible.
         // Config alone is insufficient: arbitrary 3D Tiles stay unsupported.
         const asset = (tileset as { asset?: { generator?: string } }).asset;
-        if (this.cubeStyleCandidate && version && version === source.manifest.source.version &&
-          /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
-          datum.referenceShape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
-          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere') {
+        const knownBuilder = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
+          source.manifest.source.kind === 'height-grid' && !!source.manifest.source.id;
+        const shape = datum.referenceShape, geometry = source.manifest.geometry;
+        // On a sphere the equatorial reference radius is the sphere radius,
+        // so both known builder encodings describe the same radial heights.
+        const knownSphere = shape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
+          (!geometry || geometry.referenceRadiusKm === shape.radiusKm) &&
+          (source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere' ||
+            source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius');
+        // A local product can bound its own triangles but cannot certify an
+        // interior across uncovered faces. Require the matched globe product.
+        const rootFaces = new Set(source.manifest.tiles.filter(([, level, x, y]) => level === 0 && x === 0 && y === 0).map(([face]) => face));
+        const faces: CubeFace[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+        this.cubeOcclusionBoundValidated = !!version && version === source.manifest.source.version &&
+          knownBuilder && knownSphere && faces.every(face => rootFaces.has(face));
+        const generator = (source.manifest.source as typeof source.manifest.source & { generator?: { script?: string; sha256?: string } }).generator;
+        const ellipsoidBuilderKnown = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(generator?.script ?? '') && /^[a-f0-9]{64}$/.test(generator?.sha256 ?? '');
+        const normalEllipsoid = shape.kind === 'ellipsoid' && shape.radiiKm.every(r => Number.isFinite(r) && r > 0) &&
+          shape.radiiKm[0] === shape.radiiKm[1] && shape.radiiKm[2] <= shape.radiiKm[0] &&
+          datum.verticalDatum === 'ellipsoid' && datum.heightConvention === 'geodetic-normal' &&
+          geometry?.kind === 'radial-lattice' && geometry.referenceRadiusKm === shape.radiiKm[0] &&
+          source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius';
+        if (this.cubeStyleCandidate) {
+          if (!knownBuilder) this.appearanceStatus = { state: 'unsupported-product', message: 'Relief styles are unsupported for this terrain product. Its planetary builder identity is not recognized.' };
+          else if (!version || version !== source.manifest.source.version) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain mesh and elevation-grid revisions could not be matched. Relief styles are unavailable.' };
+          else if (shape.kind === 'ellipsoid' && !ellipsoidBuilderKnown) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain source and builder metadata could not be validated. Relief styles are unavailable.' };
+          else if (!knownSphere && !normalEllipsoid) this.appearanceStatus = { state: 'unsupported-reference', message: 'This known terrain product uses an unsupported elevation datum or payload encoding. Relief styles are unavailable.' };
+        }
+        if (this.cubeStyleCandidate && knownBuilder && version && version === source.manifest.source.version && (knownSphere || (normalEllipsoid && ellipsoidBuilderKnown))) {
           this.cubeStyleHeightRange = source.manifest.heightRangeKm;
+          this.cubeStyleReferenceRadiusKm = geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : null);
           this.surfaceStyle = new SurfaceAppearance(datum);
+          this.appearanceStatus = { state: 'ready', message: '' };
           if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = this.surfaceStyle; }
           for (const scene of this.cubeScenes) this.attachSurfaceStyle(scene);
         }
         if (version === undefined || version === source.manifest.source.version) return;
         this.cube = null;
+        this.cubeFrameReady = false;
+        this.cubeFrameError = 'Terrain geometry and CPU grid revisions disagree';
         this.cubeRevision++;
         source.dispose();
         this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
           new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
       });
       return source.ready;
-    }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+    }).catch((err) => {
+      if (!this.cube) { this.cubeFrameReady = false; this.cubeFrameError = String(err); }
+      if (!this.disposed) this.rejectCubeSurfaceStyle('Terrain elevation metadata failed validation or could not be loaded. Relief styles are unavailable.');
+      this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err);
+    });
   }
 
   /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
@@ -1544,6 +2021,7 @@ export class TerrainManager {
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
       status: layerStatus(l.requests, l.failedTiles, this.setupFailed.has(l.id)),
       view: this.overlayView(l),
+      temporal: this.temporalInfo(l.id),
     }));
   }
 
@@ -1591,13 +2069,21 @@ export class TerrainManager {
    * base layer, an unknown id, or the same state).
    */
   setImageryLayerVisible(id: string, visible: boolean): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerVisible(id, visible);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerVisible(id, visible);
+      if (changed) this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
     layer.visible = visible;
+    this.refreshIllumination();
     if (visible) {
       layer.requests = 0;
       layer.failedTiles = 0;
+      // A hidden layer was not following; the day it comes back with is the current one.
+      const rt = this.temporal.get(id);
+      if (rt) rt.follower.force(this.resolveFor(rt), performance.now());
       void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
     } else {
       this.overlayGeneration.set(id, (this.overlayGeneration.get(id) ?? 0) + 1);
@@ -1613,10 +2099,15 @@ export class TerrainManager {
    * has no opacity.
    */
   setImageryLayerOpacity(id: string, opacity: number): boolean {
-    if (this.cubeImagery) return this.cubeImagery.setLayerOpacity(id, opacity);
+    if (this.cubeImagery) {
+      const changed = this.cubeImagery.setLayerOpacity(id, opacity);
+      this.refreshIllumination();
+      return changed;
+    }
     const layer = this.layer(id);
     if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
     layer.opacity = clampOpacity(opacity);
+    this.refreshIllumination();
     const overlay = this.activeOverlays.get(id);
     if (overlay) (overlay as unknown as OverlayInternals).opacity = layer.opacity;
     return true;
@@ -1637,6 +2128,174 @@ export class TerrainManager {
       if (overlay) this.overlayPlugin?.setOverlayOrder(overlay, i);
     });
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Time-indexed imagery (#214)
+  // ---------------------------------------------------------------------------
+
+  /** Bumped whenever a layer's displayed day changes, so view observers see a new source. */
+  get imageryTimeRevision(): number { return this._imageryTimeRevision; }
+
+  /** Whether any layer's day can change by itself with the simulation clock. */
+  get followsSimulationTime(): boolean {
+    for (const rt of this.temporal.values()) if (!rt.base && rt.policy !== 'fixed') return true;
+    return false;
+  }
+
+  /**
+   * Register the layers whose config names a day. The legacy `time` field is a
+   * fixed day in the same system, so there is one date-substitution path.
+   * Unsupported source types and base-layer follow requests are reported and
+   * the layer stays time-independent rather than showing an unlabelled day.
+   */
+  private initTemporal(configs: TerrainImageryConfig[]): void {
+    configs.forEach((cfg, i) => {
+      const id = this.layers[i].id;
+      const legacy = cfg.time ? resolveTime(cfg.time) : undefined;
+      if (!cfg.temporal && !legacy) return;
+      const t = cfg.temporal ?? {};
+      const type = cfg.type ?? 'xyz';
+      if (!['xyz', 'tms', 'wmts', 'wmts-capabilities'].includes(type)) {
+        this.warnOnce(`imagery-time-type:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": time-indexed imagery needs an xyz, tms, wmts or wmts-capabilities source, not "${type}"; showing it without a date.`);
+        return;
+      }
+      const base = i === 0;
+      const fixedDate = t.date ?? legacy ?? null;
+      if (fixedDate !== null && dayNumber(fixedDate) === null) {
+        this.warnOnce(`imagery-time-date:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": "${fixedDate}" is not a YYYY-MM-DD date.`);
+      }
+      let policy: ImageryTimePolicy = t.policy ?? (fixedDate !== null ? 'fixed' : 'follow-simulation');
+      if (policy === 'latest' && type !== 'wmts-capabilities') {
+        this.warnOnce(`imagery-time-latest:${id}`, `[Cosmolabe:Imagery] Layer "${this.layers[i].name}": "latest" needs a wmts-capabilities source, whose time dimension declares what is available; following simulation time instead.`);
+        policy = 'follow-simulation';
+      }
+      if (base && policy !== 'fixed') {
+        this.warnOnce(`imagery-time-base:${id}`, `[Cosmolabe:Imagery] The base layer "${this.layers[i].name}" cannot follow time; put a daily layer above a static backdrop.${fixedDate ? ' Using its fixed date.' : ''}`);
+        if (fixedDate === null) return;
+        policy = 'fixed';
+      }
+      const day = (v: string | undefined) => (v && dayNumber(v) !== null ? v : null);
+      const declared: ImageryAvailability = { start: day(t.start), end: day(t.end) };
+      const rt: TemporalRuntime = {
+        config: t, base, policy, fixedDate, declared, availability: { ...declared },
+        rangeSource: declared.start || declared.end ? 'catalog' : 'clock',
+        follower: new ImageryTimeFollower(), switches: 0,
+      };
+      this.temporal.set(id, rt);
+      // A fixed layer knows its day now; a following one waits for the first frame's clock.
+      if (policy === 'fixed') rt.follower.force(this.resolveFor(rt), performance.now());
+    });
+  }
+
+  private resolveFor(rt: TemporalRuntime): ResolvedImageryTime {
+    return resolveImageryTime(rt.config, rt.policy, rt.fixedDate, this.simulationMs, rt.availability, Date.now());
+  }
+
+  /** The displayed day of a layer: undefined when it is time-independent, null when nothing is shown. */
+  private displayedDate(id: string): string | null | undefined {
+    const rt = this.temporal.get(id);
+    return rt ? rt.follower.current?.date ?? null : undefined;
+  }
+
+  private temporalInfo(id: string): ImageryLayerTime | null {
+    const rt = this.temporal.get(id);
+    if (!rt) return null;
+    const cur = rt.follower.current;
+    const type = this.layerConfigs.get(id)?.type ?? 'xyz';
+    return {
+      semantics: rt.config.semantics ?? 'acquisition',
+      cadence: rt.config.cadence ?? 'day',
+      policy: rt.policy,
+      policies: rt.base ? ['fixed'] : type === 'wmts-capabilities' ? ['fixed', 'follow-simulation', 'latest'] : ['fixed', 'follow-simulation'],
+      illumination: rt.config.illumination ?? 'baked',
+      outOfRange: rt.config.outOfRange ?? 'hide',
+      requestedDate: cur?.requested ?? null,
+      date: cur?.date ?? null,
+      state: cur?.state ?? 'invalid',
+      offsetDays: cur?.offsetDays ?? 0,
+      range: { ...rt.availability, source: rt.rangeSource },
+      pending: rt.follower.pending,
+      pendingDate: rt.follower.pendingDate,
+      switches: rt.switches,
+    };
+  }
+
+  /**
+   * Offer the simulation instant (UTC ms) to the layers that follow it. Called
+   * every frame; a new day is committed only once it has held (debounce) and no
+   * more often than the throttle allows, so playback and scrubbing request a
+   * few date buckets rather than one per frame. Cheap when nothing follows.
+   */
+  updateImageryTime(simulationMs: number, now = performance.now()): void {
+    this.simulationMs = Number.isFinite(simulationMs) ? simulationMs : null;
+    for (const [id, rt] of this.temporal) {
+      // A hidden layer does not follow; re-enabling resolves the current day at once.
+      if (rt.base || rt.policy === 'fixed' || !this.layer(id)?.visible) continue;
+      if (rt.follower.offer(this.resolveFor(rt), now)) this.applyTemporalCommit(id);
+    }
+  }
+
+  /**
+   * Choose how a time-indexed overlay picks its day: `{ date }` fixes it to a
+   * UTC day, `{ policy }` switches between fixed, following the simulation, and
+   * the provider's latest. An explicit choice applies at once (it is not
+   * throttled). Returns false for an unknown or time-independent layer, the
+   * base, an unsupported policy, or a malformed date.
+   */
+  setImageryLayerTime(id: string, patch: { policy?: ImageryTimePolicy; date?: string }): boolean {
+    const rt = this.temporal.get(id);
+    const info = this.temporalInfo(id);
+    if (!rt || !info || rt.base || (patch.policy === undefined && patch.date === undefined)) return false;
+    if (patch.policy !== undefined && !info.policies.includes(patch.policy)) return false;
+    if (patch.date !== undefined && (dayNumber(patch.date) === null || (patch.policy !== undefined && patch.policy !== 'fixed'))) return false;
+    const policy = patch.policy ?? (patch.date !== undefined ? 'fixed' : rt.policy);
+    // Pinning a following layer keeps the day on screen unless one is given.
+    const fixedDate = patch.date ?? (policy === 'fixed' && rt.policy !== 'fixed' ? info.date ?? info.requestedDate ?? rt.fixedDate : rt.fixedDate);
+    if (policy === rt.policy && fixedDate === rt.fixedDate) return false;
+    rt.policy = policy;
+    rt.fixedDate = fixedDate;
+    if (rt.follower.force(this.resolveFor(rt), performance.now())) this.applyTemporalCommit(id);
+    this._imageryTimeRevision++;
+    return true;
+  }
+
+  /**
+   * Read what a provider declares about a layer's days from its capabilities,
+   * keeping what the catalog declared, and re-resolve against it. A day that
+   * the provider shows to be unavailable stops being requested.
+   */
+  private discoverAvailability(id: string, capabilities: WMTSCapabilitiesResult): void {
+    const rt = this.temporal.get(id);
+    const extent = rt && !rt.base ? capabilitiesExtent(capabilities, this.layerConfigs.get(id)?.layer) : null;
+    if (!rt || !extent) return;
+    const availability: ImageryAvailability = { start: rt.declared.start ?? extent.start, end: rt.declared.end ?? extent.end, intervals: extent.intervals };
+    if (availability.start === rt.availability.start && availability.end === rt.availability.end && rt.availability.intervals) return;
+    rt.availability = availability;
+    rt.rangeSource = (rt.declared.start && rt.declared.end) ? 'catalog' : 'provider';
+    // The overlay being prepared reads the result; no reload from inside its own setup.
+    rt.follower.force(this.resolveFor(rt), performance.now());
+    this._imageryTimeRevision++;
+  }
+
+  /** A layer's source day changed: drop the old day's overlay and load the new one. */
+  private applyTemporalCommit(id: string): void {
+    const rt = this.temporal.get(id);
+    const layer = this.layer(id);
+    if (!rt || !layer) return;
+    rt.switches++;
+    this._imageryTimeRevision++;
+    // Counters and degraded tiles describe the day just left.
+    layer.requests = 0;
+    layer.failedTiles = 0;
+    this.degradedTiles.delete(id);
+    this.setupFailed.delete(id);
+    if (rt.base || !layer.visible || !this.overlayPlugin) return;
+    // Removing the overlay aborts its queued fetches and releases its textures
+    // before the new day's is built, so two days never share a layer; the
+    // generation bump in prepareOverlay retires any setup still in flight.
+    this.detachOverlay(id);
+    void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
   }
 
   /** Per-terrain-tile composite resolution, in pixels. */
@@ -1765,30 +2424,44 @@ export class TerrainManager {
     const layer = this.layer(id)!;
     try {
       let overlay: ImageryOverlay;
+      let capabilities: WMTSCapabilitiesResult | undefined;
       if (cfg.type === 'wmts-capabilities') {
-        const capabilities = await this.fetchCapabilities(cfg.url);
-        const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(cfg.time));
+        capabilities = await this.fetchCapabilities(cfg.url);
+        this.discoverAvailability(id, capabilities);
+      }
+      // The day this overlay depicts, fixed for its lifetime: a different day is a different overlay.
+      const date = this.displayedDate(id);
+      // No day to show (outside the source's range, not yet resolved): request nothing and leave the lower layers visible.
+      if (date === null) return null;
+      if (capabilities) {
         overlay = new WMTSTilesOverlay({
           capabilities,
           layer: cfg.layer,
           tileMatrixSet: cfg.tileMatrixSet,
           color: cfg.color ?? 0xffffff,
           opacity: layer.opacity,
-          ...(preprocessURL ? { preprocessURL } : {}),
+          ...(date ? { dimensions: { [timeDimensionId(capabilities, cfg.layer)]: date } } : {}),
         } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
         if (cfg.minZoom != null) clampOverlayMinLevel(overlay, cfg.minZoom);
       } else {
-        overlay = createImageryOverlay(cfg);
+        overlay = createImageryOverlay(cfg, date);
       }
       const o = overlay as unknown as OverlayInternals;
       o.opacity = layer.opacity;
+      // Uploaded per layer into the overlay shader's LayerInfo (injectOverlayAsIsIntoShader).
+      o.asIs = imageryAsIsWeight(layer.illumination, this.lightingMode, this.imageryLightingMode);
       const inner = o.preprocessURL;
       o.preprocessURL = (url: string) => {
         // The plugin queues overlay fetches on the shared download queue, and
         // removing an overlay does not drain them. Fetches a switched-off
         // layer still has queued resolve to an empty tile instead of going out.
         if (this.activeOverlays.get(id) !== overlay) return SKIP_TILE_DATA_URL;
-        const out = inner ? inner(url) : url;
+        let out = inner ? inner(url) : url;
+        if (date && out !== SKIP_TILE_DATA_URL) {
+          out = timeSubstitutedURL(out, date);
+          // Never fetch what the label cannot vouch for: a URL that did not take the day is skipped, not shown as that day.
+          if (!out.includes(date)) return SKIP_TILE_DATA_URL;
+        }
         // Count real requests, not the skip tiles outside a layer's coverage.
         if (out !== SKIP_TILE_DATA_URL) layer.requests++;
         return out;
@@ -1810,6 +2483,13 @@ export class TerrainManager {
         });
       }
       await o.init();
+      // Fail closed: a dated layer whose URL cannot carry the date would show one unlabelled image under a dated name.
+      if (date) {
+        const template = (overlay as unknown as { imageSource?: { url?: string } }).imageSource?.url ?? cfg.url;
+        if (!template.includes(date) && !DATED_SEGMENT.test(template)) {
+          throw new Error(`the tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date ${date} cannot take effect`);
+        }
+      }
       this.setupFailed.delete(id);
       return { id, overlay, generation };
     } catch (err) {
@@ -2123,12 +2803,41 @@ export class TerrainManager {
     return worst;
   }
 
+  /** Coverage within the configured product footprint, using the streamer's own
+   * replacement hierarchy. Never a statement about areas absent from that product. */
+  get viewCoverage() {
+    const coverage = this.coverageTiles().filter(t => t.traversal?.inFrustum !== false);
+    const missing = coverage.filter(t => t.internal?.loadingState !== LOADED).length;
+    const failed = coverage.filter(t => t.internal?.loadingState === FAILED).length;
+    const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
+    const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
+    // Visible parents can fill coverage while children refine. This is reported
+    // separately from coverage and never inferred from an empty request queue.
+    let targetLod = true;
+    for (const tile of this.tiles.visibleTiles) {
+      const t = tile as unknown as { traversal?: { error?: number }; engineData?: { scene?: THREE.Object3D | null } };
+      if (t.engineData?.scene && this.culledScenes.includes(t.engineData.scene)) continue;
+      if (!Number.isFinite(t.traversal?.error) || (t.traversal?.error ?? Infinity) > this.tiles.errorTarget) targetLod = false;
+    }
+    return { observed: this.viewUpdateSucceeded, coverageTiles: coverage.length, missing, failed,
+      pending, drawn: this.surfaceStatus.tiles.drawn, targetLod,
+      physical: !this.imageryOnly, frameAvailable: this.frameAvailability.kind !== 'unavailable' };
+  }
+
+  /** Constant-time residency/draw status, without geometry or texture traversal. */
+  get surfaceStatus() {
+    const stats = (this.tiles as any).stats ?? {};
+    return { tiles: { loaded: this.residentModels.size, cpu: this.cpuDiagnostics.tileCount,
+      drawn: Math.max(0, (stats.visible ?? 0) - this.culledScenes.length) },
+    network: { failed: stats.failed ?? 0 } };
+  }
+
   /** Terrain cost/load snapshot. See {@link TerrainPerformanceMetrics}. */
   get metrics(): TerrainPerformanceMetrics {
     const t = this.tiles as any;
     const stats = t.stats ?? {};
     const cache = t.lruCache ?? {};
-    let geometryBytes = 0, textureBytes = 0;
+    let geometryBytes = 0, textureBytes = 0, loadedModels = 0;
     const seenGeometry = new Set<THREE.BufferGeometry>();
     // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
     // share a Source, and three.js uploads a shared Source to the GPU once.
@@ -2150,6 +2859,7 @@ export class TerrainManager {
     // Every loaded model, not just `group`: the renderer detaches tiles that
     // leave the view but keeps their buffers cached until LRU disposal.
     this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      loadedModels++;
       scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -2173,7 +2883,7 @@ export class TerrainManager {
       parse: this.parseTiming.value,
       cpuDecode: this.decodeTiming.value,
       sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
-      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, loaded: loadedModels, inCache: stats.inCache ?? 0, cpu: d.tileCount },
       network: {
         requests: this.requestCount,
         queued: stats.queued ?? 0,
@@ -2183,6 +2893,7 @@ export class TerrainManager {
       },
       memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
       imagery: {
+        cube: this.cubeImagery?.stats,
         layers: this.layers.length,
         activeOverlays: this.cubeImagery ? this.cubeImagery.imageryLayers.filter(l => l.visible).length : this.activeOverlays.size,
         overlayResolution: this._overlayResolution,
@@ -2208,6 +2919,8 @@ export class TerrainManager {
     this.contourLabels.dispose();
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
+    this.solarShadow?.dispose();
+    this.orbitalSolarShadow?.dispose();
     this.cubeImagery?.dispose();
     this.cubeScenes.clear();
     if (this.terrainCam) {
@@ -2224,6 +2937,7 @@ export class TerrainManager {
     }
     this.normalMap?.dispose();
     this.tiles.dispose();
+    this.residentModels.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -2316,6 +3030,21 @@ export class TerrainManager {
   /**
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
+  private graticuleUniforms: GraticuleUniforms | null = null;
+  private gridBodyFromWorld: THREE.Matrix4 | null = null;
+
+  enableGraticule(uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
+    this.graticuleUniforms = uniforms;
+    this.gridBodyFromWorld = bodyFromWorld;
+    this.applyGraticule(this.group);
+  }
+
+  private applyGraticule(scene: THREE.Object3D): void {
+    const uniforms = this.graticuleUniforms, transform = this.gridBodyFromWorld;
+    if (!uniforms || !transform) return;
+    applyGraticuleToScene(scene, uniforms, transform);
+  }
+
   /** Enable eclipse shadow receiving on all current and future terrain tiles. */
   enableShadowReceiving(uniforms: ShadowUniforms): void {
     this.shadowUniforms = uniforms;
@@ -2358,7 +3087,13 @@ export class TerrainManager {
 
     const su = this.shadowUniforms;
     const apu = this.aerialPerspectiveUniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '');
+    // Illumination-baked imagery is displayed as-is, never relit by the Sun (#204).
+    // Always injected and driven by a shared uniform, so provenance changes
+    // (layer visibility) need no recompile and every tile shares one program.
+    const asIs = this.asIs;
+    const solar = this.solarMaterialUniforms;
+    const lunarMatte = this.lunarMatte;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_illum_v2' + (solar ? '_ss_v1' : '') + (lunarMatte ? '_lunar_matte' : '');
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
@@ -2395,6 +3130,7 @@ export class TerrainManager {
         const mat = new THREE.MeshStandardMaterial({
           map: basic.map,
           transparent: false,
+          side: this.cubeConfigured ? THREE.DoubleSide : basic.side,
           metalness: 0,
           roughness: 0.85,
         });
@@ -2408,16 +3144,17 @@ export class TerrainManager {
         // perspective passes. Order matters — overlays should land before
         // shadow/atmosphere darken the result.
         const cacheKeySuffix = (hasOverlayWrap ? '_overlay_v1' : '');
-        if (su || apu || hasOverlayWrap) {
-          mat.onBeforeCompile = (shader, renderer) => {
-            if (hasOverlayWrap && overlayOnBeforeCompile) {
-              (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
-            }
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
-        }
+        mat.onBeforeCompile = (shader, renderer) => {
+          if (hasOverlayWrap && overlayOnBeforeCompile) {
+            (overlayOnBeforeCompile as (s: typeof shader, r: typeof renderer) => void)(shader, renderer);
+          }
+          injectOverlayAsIsIntoShader(shader);
+          injectAsIsDisplayIntoShader(shader, asIs, lunarMatte);
+          if (solar) injectSolarShadowIntoShader(shader, solar);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
         // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
         // material a second time: the chain above already carries its shader.
         for (const sym of Object.getOwnPropertySymbols(basic)) {
@@ -2437,25 +3174,35 @@ export class TerrainManager {
       // which is not a general glTF transform contract. This intentionally
       // changes cube lighting relative to main, independently of style toggles.
       // See docs/validation/cube-surface-appearance for main-vs-PR lit captures.
+      // Shading-only: this rewrites the `normal` attribute, never positions, so
+      // picking, elevation sampling and slope data stay exact (#204). The blend
+      // softens faceting at the cost of attenuating real slope in the direct
+      // term; cube terrain keeps its physical normals instead.
       if (!this.cubeConfigured) this.blendSphereNormals(child, 0.6);
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
+        // Physical terrain remains an occluder from below, too. Otherwise its
+        // culled top faces expose remote skirts as a misleading line forest.
+        // This changes rasterization only; lattice, normals and CPU stay exact.
+        if (this.cubeConfigured) mat.side = THREE.DoubleSide;
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
-        if (su || apu) {
-          const prevOBC = (mat as any).onBeforeCompile;
-          (mat as any).onBeforeCompile = (shader: any) => {
-            prevOBC?.(shader);
-            if (su) injectShadowIntoShader(shader, su);
-            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
-          };
-          (mat as any).customProgramCacheKey = () => cacheKey;
-          (mat as any).needsUpdate = true;
-        }
+        const prevOBC = (mat as any).onBeforeCompile;
+        (mat as any).onBeforeCompile = (shader: any) => {
+          prevOBC?.(shader);
+          injectOverlayAsIsIntoShader(shader);
+          injectAsIsDisplayIntoShader(shader, asIs, lunarMatte);
+          if (solar) injectSolarShadowIntoShader(shader, solar);
+          if (su) injectShadowIntoShader(shader, su);
+          if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+        };
+        (mat as any).customProgramCacheKey = () => cacheKey;
+        (mat as any).needsUpdate = true;
       }
     });
+
 
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);
@@ -2466,7 +3213,7 @@ export class TerrainManager {
   private attachSurfaceStyle(scene: THREE.Object3D): void {
     if (!this.surfaceStyle) return;
     scene.traverse(child => {
-      if (!isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
+      if (!this.surfaceStyle || !isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
       const matrix = new THREE.Matrix4();
       // Mesh local metres -> body-fixed Z north. Include glTF's Y-up
       // conversion and all tile ancestors, exclude camera-relative tiles.group.
@@ -2478,24 +3225,39 @@ export class TerrainManager {
       }
       if (this.cubeConfigured) {
         const g = child.geometry, n = g.userData.surfaceTriangles;
-        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange) return;
+        const positions = g.getAttribute('position'), normals = g.getAttribute('normal');
+        const reject = () => this.rejectCubeSurfaceStyle('Terrain mesh validation failed for relief styles. Its topology, units or radial extent disagrees with the validated product.');
+        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange ||
+          this.cubeStyleReferenceRadiusKm === null || !positions || positions.itemSize !== 3 || !normals || normals.itemSize !== 3 || normals.count !== positions.count) { reject(); return; }
         const scale = new THREE.Vector3().setFromMatrixScale(matrix);
-        if ([scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) return;
-        const point = new THREE.Vector3(), positions = g.getAttribute('position');
-        const radius = this.surfaceStyle!.datum.referenceShape;
-        if (radius.kind !== 'sphere') return;
+        if (matrix.determinant() <= 0 || [scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) { reject(); return; }
+        const point = new THREE.Vector3();
         // Validate metre encoding against the product range on surface vertices;
         // skirts intentionally extend below it. Allow 1 m for float32 offsets.
         for (let i = 0; i < n * 3; i++) {
-          point.fromBufferAttribute(positions, g.index.getX(i)).applyMatrix4(matrix);
-          const height = point.length() * 0.001 - radius.radiusKm;
-          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
+          const index = g.index.getX(i);
+          if (!Number.isSafeInteger(index) || index < 0 || index >= positions.count) { reject(); return; }
+          point.fromBufferAttribute(positions, index).applyMatrix4(matrix);
+          // The grid range bounds radial payload offsets, including on an
+          // ellipsoid. SurfaceAppearance computes geodetic-normal display
+          // heights separately with renderedHeightKm; never compare those here.
+          const height = point.length() * 0.001 - this.cubeStyleReferenceRadiusKm;
+          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) { reject(); return; }
         }
       }
       // A detached cached QM root is still `visible=true`. It must not enter
       // style preparation, auto-spacing or labels with its stale world scale.
       this.surfaceStyle!.attach(child, matrix, scene);
     });
+  }
+
+  private rejectCubeSurfaceStyle(message: string): void {
+    if (this.surfaceStyle) this.surfaceStyle.set({ ...this.surfaceStyle.current, baseColor: 'imagery', hillshade: false, contours: false, contourLabels: false });
+    this.surfaceStyle = null;
+    this.cubeStyleHeightRange = null;
+    this.cubeStyleReferenceRadiusKm = null;
+    if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = null; }
+    this.appearanceStatus = { state: 'validation-failed', message };
   }
 
   /**

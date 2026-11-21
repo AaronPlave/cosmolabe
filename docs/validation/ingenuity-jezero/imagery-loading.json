@@ -1,0 +1,198 @@
+{
+  "kind": "ingenuity-independent-imagery-loading-regression",
+  "version": 2,
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "passed": true,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "residencyTargetBytes": 1006632960,
+  "liveReducedTargetBytes": 134217728,
+  "coldConstrainedTargetBytes": 50331648,
+  "budgetSemantics": "Residency target, protected committed cover and four-page transition headroom; actual allocation/overage reported. A live reduction cannot destroy displayed references. No viewport resolution cap.",
+  "viewport": [
+    {
+      "fullStack": false,
+      "residencyTargetBytes": 1006632960,
+      "points": 49,
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": false
+    },
+    {
+      "fullStack": false,
+      "residencyTargetBytes": 134217728,
+      "points": 49,
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": true
+    },
+    {
+      "fullStack": true,
+      "residencyTargetBytes": 1006632960,
+      "points": 49,
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": false
+    },
+    {
+      "fullStack": true,
+      "residencyTargetBytes": 134217728,
+      "points": 49,
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": true
+    }
+  ],
+  "motionCases": 14,
+  "motionSamples": 112,
+  "coldConstrained": {
+    "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+    "ready": true,
+    "textures": 16,
+    "pinnedTextures": 6,
+    "textureBytes": 67634172,
+    "inFlight": 0,
+    "failedTiles": 0,
+    "maxTextureBytes": 50331648,
+    "requests": 16,
+    "bytes": 17268198,
+    "failures": 0,
+    "aborted": 0,
+    "evicted": 0,
+    "blockBuildMs": 0,
+    "count": 8,
+    "budgetLimited": true,
+    "queued": 8,
+    "tiles": 7,
+    "splitTiles": 0,
+    "blocks": 22,
+    "extraDraws": 0,
+    "displayedLevels": {
+      "0": 6,
+      "1": 1
+    },
+    "wantedLevels": {
+      "0": 2,
+      "2": 6,
+      "4": 2,
+      "5": 1,
+      "7": 6,
+      "8": 3,
+      "11": 6,
+      "12": 2,
+      "13": 6,
+      "14": 49
+    },
+    "fallbackBlocks": 81,
+    "failedBlocks": 0,
+    "untexturedBlocks": 0,
+    "baseUncoveredBlocks": 0,
+    "maxDisplayedLevel": 1,
+    "committedGroups": 0,
+    "waitingGroups": 4,
+    "updateMs": 0.3999999761581421,
+    "blockGeometryBytes": 0,
+    "transitionTextureBytes": 22544724,
+    "protectedOverBudgetBytes": 0,
+    "gpuAllocatedBytes": 67650556,
+    "uploadMs": 20.69999998807907,
+    "gpuError": null,
+    "inheritedGlErrors": []
+  },
+  "liveReduction": {
+    "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+    "ready": true,
+    "textures": 14,
+    "pinnedTextures": 6,
+    "textureBytes": 78906534,
+    "inFlight": 0,
+    "failedTiles": 0,
+    "maxTextureBytes": 50331648,
+    "requests": 327,
+    "bytes": 261513499,
+    "failures": 0,
+    "aborted": 0,
+    "evicted": 55,
+    "blockBuildMs": 0,
+    "count": 8,
+    "budgetLimited": true,
+    "queued": 8,
+    "tiles": 20,
+    "splitTiles": 0,
+    "blocks": 23,
+    "extraDraws": 0,
+    "displayedLevels": {
+      "2": 4,
+      "3": 5,
+      "4": 7,
+      "7": 1
+    },
+    "wantedLevels": {
+      "0": 2,
+      "2": 6,
+      "4": 2,
+      "7": 1,
+      "11": 3,
+      "13": 1,
+      "14": 6
+    },
+    "fallbackBlocks": 17,
+    "failedBlocks": 0,
+    "untexturedBlocks": 0,
+    "baseUncoveredBlocks": 0,
+    "maxDisplayedLevel": 7,
+    "committedGroups": 0,
+    "waitingGroups": 3,
+    "updateMs": 0.699999988079071,
+    "blockGeometryBytes": 0,
+    "transitionTextureBytes": 22544724,
+    "protectedOverBudgetBytes": 6030162,
+    "gpuAllocatedBytes": 78922918,
+    "uploadMs": 21.600000023841858,
+    "gpuError": null,
+    "inheritedGlErrors": []
+  },
+  "surfaceExplorerMotion": [
+    {
+      "fullStack": false,
+      "samples": 8,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "fullStack": true,
+      "samples": 8,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    }
+  ],
+  "comparison": "../imagery-refinement-257/gpu-comparison.json",
+  "architecture": "../imagery-refinement-257/architecture.md",
+  "corrections": [
+    "Persistent imagery hierarchies independent of terrain tile lifetimes.",
+    "Shared texture array and page table on original terrain; no clipped image geometry or extra draws.",
+    "Progressive complete visible-frontier transactions retain genuine ancestors until replacement usability.",
+    "Decoded source alpha, coverage and opacity establish conservative upper-source occlusion.",
+    "Referenced pages and complete pending waves are protected from eviction.",
+    "GPU allocation failure retains the previous pool; context restoration recreates copy resources.",
+    "Persistent tile failures stop after four attempts, with explicit retry recovery."
+  ],
+  "limits": [
+    "48 MiB cold full stack defers refinement and reports pressure; no invented native detail.",
+    "Live target reductions can retain protected bytes over target; this is explicitly measured, not a hard-budget guarantee.",
+    "The finite source inventory does not certify arbitrary global native CTX coverage."
+  ]
+}

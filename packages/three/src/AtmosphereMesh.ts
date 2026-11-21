@@ -27,7 +27,7 @@ export interface AtmosphereParams {
   mieCoeff: number | [number, number, number];
   /** Mie scale height in km. Controls how quickly haze falls off with altitude. */
   mieScaleHeight: number;
-  /** Henyey-Greenstein asymmetry parameter g (-1 to 1). Negative = backscatter. */
+  /** Mie asymmetry g (-1 to 1). Negative peaks sunward with the existing phase-angle convention. */
   miePhaseAsymmetry: number;
   /** RGB Rayleigh scattering coefficients (1/km). Controls color — blue for Earth. */
   rayleighCoeff: [number, number, number];
@@ -168,7 +168,6 @@ ${SOLAR_DISPLAY_GLSL}
 
 varying vec3  vColor;       // linear scattered radiance
 varying float vAlpha;       // view-ray transmittance (atmosphere alpha for blend)
-varying float vCosTheta;    // dot(-viewDir, sunDir) for per-pixel sun glare
 varying float vDiscAtm;     // for discarding fragments outside the atmosphere shell
 varying vec3  vObjPos;      // proxy-sphere position; needed by the per-fragment fallback path
 
@@ -209,7 +208,6 @@ void main() {
   float c = dot(eyePos, eyePos) - 1.0;
   float discAtm = bHalf * bHalf - c;
   vDiscAtm = discAtm;
-  vCosTheta = dot(-viewDir, lightDir);
 
   if (discAtm < 0.0) {
     vColor = vec3(0.0);
@@ -252,9 +250,10 @@ void main() {
   }
   float stepLen = pathLen / float(NUM_SAMPLES);
 
+  float cosTheta = dot(-viewDir, lightDir);
   float phMie = (1.0 - mieK * mieK)
-              / ((1.0 - mieK * vCosTheta) * (1.0 - mieK * vCosTheta));
-  float phRayleigh = 0.75 * (1.0 + vCosTheta * vCosTheta);
+              / ((1.0 - mieK * cosTheta) * (1.0 - mieK * cosTheta));
+  float phRayleigh = 0.75 * (1.0 + cosTheta * cosTheta);
   vec3  totalInscatter = vec3(0.0);
   vec3 totalOptDepth = vec3(0.0);
 
@@ -299,14 +298,12 @@ const skyViewVertexShader = /* glsl */ `
 #include <logdepthbuf_pars_vertex>
 varying vec3 vColor;
 varying float vAlpha;
-varying float vCosTheta;
 varying float vDiscAtm;
 varying vec3 vObjPos;
 void main() {
   vObjPos = position;
   vColor = vec3(0.0);
   vAlpha = 1.0;
-  vCosTheta = 0.0;
   vDiscAtm = 0.0;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   #include <logdepthbuf_vertex>
@@ -349,7 +346,6 @@ uniform float uCameraInsideShell;
 
 varying vec3  vColor;
 varying float vAlpha;
-varying float vCosTheta;
 varying float vDiscAtm;
 varying vec3  vObjPos;
 
@@ -402,15 +398,7 @@ void main() {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
       return;
     }
-    vec3 color = vColor;
-    float alpha = vAlpha;
-    // Per-pixel sun-glare add-on so the solar disk highlight isn't smeared
-    // by vertex interpolation.
-    float sunCos = max(0.0, vCosTheta);
-    float sunSpike = pow(sunCos, 256.0);
-    color += lightColor * sunSpike * 0.15 * (1.0 - alpha);
-    gl_FragColor = vec4(color, alpha);
-    gl_FragColor.rgb = radianceToDisplay(gl_FragColor.rgb);
+    gl_FragColor = vec4(radianceToDisplay(vColor), vAlpha);
     #include <colorspace_fragment>
     return;
   }
@@ -630,6 +618,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     shellSceneScale?: number,
     observer: 'main' | 'instrument' = 'main',
     renderSkyView = true,
+    exposureOverride?: number,
   ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
@@ -644,7 +633,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       const radiusKm = sunRadius * this.shellRadius / shellSceneScale;
       u.lightColor.value.set(...solarIrradiance(distanceKm, radiusKm));
       const observerDistanceKm = sunWorldPos.distanceTo(cameraWorldPos) * this.shellRadius / shellSceneScale;
-      u.uSolarExposure.value = solarDisplayExposure(observerDistanceKm, radiusKm);
+      u.uSolarExposure.value = exposureOverride ?? solarDisplayExposure(observerDistanceKm, radiusKm);
     }
 
     // Cache camera altitude + local-space directions for getDaytimeSkyBrightness()

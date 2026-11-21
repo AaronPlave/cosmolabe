@@ -30,6 +30,8 @@ interface SnapOemMetadata {
   readonly timeSystem?: string;
   readonly startTime?: string;
   readonly stopTime?: string;
+  readonly usableStartTime?: string;
+  readonly usableStopTime?: string;
 }
 interface SnapOemState {
   readonly epoch: string;
@@ -42,6 +44,7 @@ interface SnapOem {
   readonly creationDate?: string;
   readonly metadata: SnapOemMetadata;
   readonly states: readonly SnapOemState[];
+  readonly segments?: readonly { readonly metadata: SnapOemMetadata; readonly states: readonly SnapOemState[] }[];
 }
 interface SnapAemMetadata {
   readonly objectName?: string;

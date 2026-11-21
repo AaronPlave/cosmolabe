@@ -10,6 +10,7 @@ export type GeographicGeometry<P> =
 
 /** Planetary extension to GeoJSON: angles are degrees; tuple order is longitude, latitude, Z. */
 export interface GeographicCoordinates {
+  frame?: string;
   latitude: 'planetocentric' | 'planetographic';
   longitudeDirection: 'east' | 'west';
   longitudeDomain: '-180..180' | '0..360';
@@ -29,12 +30,15 @@ export interface GeographicLayerDefinition {
   source: string;
   /** Falls back only to the containing catalog's geographicCoordinates. */
   coordinates?: GeographicCoordinates;
-  display?: { visible?: boolean; color?: string; opacity?: number };
+  display?: { visible?: boolean; color?: string; opacity?: number; fillOpacity?: number };
+  /** Allow an interactive host to wait for the user's first request to load a hidden layer. */
+  loadOnDemand?: boolean;
   provenance?: { [key: string]: JsonValue };
 }
 
 export interface GeographicSource {
-  kind: 'catalog' | 'local-file';
+  /** `user`: a layer authored or edited in this session (see editing.ts), never a catalog's data. */
+  kind: 'catalog' | 'local-file' | 'user';
   /** Absolute URL for hosted sources; file path/name for local sources. */
   identity: string;
   catalog?: string;
@@ -65,8 +69,12 @@ export interface GeographicLayer {
   name: string;
   body: string;
   frame: string;
-  /** No editing ownership is implied by importing a file. Authored edits need a separate overlay. */
-  ownership: 'catalog' | 'transient';
+  /**
+   * No editing ownership is implied by importing a file: `catalog` and
+   * `transient` layers are read-only. `user` layers are authored or are working
+   * copies of a read-only layer, which itself stays unchanged.
+   */
+  ownership: 'catalog' | 'transient' | 'user';
   definition: GeographicLayerDefinition;
   source: GeographicSource;
   coordinates: GeographicCoordinates;
@@ -79,8 +87,12 @@ export interface GeographicLayer {
 export interface GeographicLayerLoad {
   id: string;
   source: GeographicSource;
-  status: 'ready' | 'error';
+  status: 'ready' | 'error' | 'deferred';
   layer?: GeographicLayer;
+  deferred?: {
+    definition: GeographicLayerDefinition;
+    load: () => Promise<GeographicLayerLoad>;
+  };
   diagnostics: GeographicDiagnostic[];
 }
 

@@ -1,8 +1,11 @@
+import type { CoverageInterval, StateAvailability } from '../availability.js';
 import type { Vec3 } from '../spice-injection.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 
 export interface StateRecord {
   et: number;
+  /** Original binary64 Julian date, retained by the XYZV decoder. */
+  julianDate?: number;
   position: Vec3;
   velocity: Vec3;
 }
@@ -12,20 +15,44 @@ export class InterpolatedStatesTrajectory implements Trajectory {
   /** The frame the records are in, when the source declared one (an OEM's
    *  `REF_FRAME`). Undefined for sources that don't (`.xyzv`, inline samples). */
   readonly frame?: string;
+  readonly coverage: readonly CoverageInterval[];
 
-  constructor(records: StateRecord[], options: { frame?: string } = {}) {
+  constructor(records: StateRecord[], options: { frame?: string; coverage?: readonly CoverageInterval[] } = {}) {
     this.frame = options.frame;
     this.records = [...records].sort((a, b) => a.et - b.et);
     if (this.records.length < 2) throw new Error('InterpolatedStates requires at least 2 records');
+    if (this.records.some((r, i) => !Number.isFinite(r.et) || i > 0 && r.et <= this.records[i - 1].et)) throw new Error('State epochs must be finite and unique');
+    this.coverage = (options.coverage ?? [{ start: this.startTime, end: this.endTime }]).map(c => ({ start: Math.max(c.start, this.startTime), end: Math.min(c.end, this.endTime) })).sort((a, b) => a.start - b.start);
+    if (!this.coverage.length || this.coverage.some(c => !Number.isFinite(c.start) || !Number.isFinite(c.end) || c.end < c.start)) throw new Error('Invalid state coverage');
   }
+
+  get startJulianDate(): number | undefined { return this.records[0].julianDate; }
+  get endJulianDate(): number | undefined { return this.records[this.records.length - 1].julianDate; }
 
   get startTime(): number { return this.records[0].et; }
   get endTime(): number { return this.records[this.records.length - 1].et; }
 
+  samplingBreakpoints(start: number, end: number): readonly number[] {
+    return this.records.filter(record => record.et >= start && record.et <= end).map(record => record.et);
+  }
+
+  availabilityAt(et: number): StateAvailability {
+    const coverage = this.coverage;
+    if (Number.isFinite(et) && coverage.some(c => et >= c.start && et <= c.end)) return { available: true, coverage };
+    return { available: false, coverage, reason: et < coverage[0].start ? 'before-coverage' : et > coverage[coverage.length - 1].end ? 'after-coverage' : 'gap' };
+  }
+
   stateAt(et: number): CartesianState {
+    return this.availabilityAt(et).available ? this.displayStateAt(et) : { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] };
+  }
+
+  /** Endpoint holding for display only; never use this for scientific reads.
+   * Interior gaps remain unavailable rather than drawing invented interpolation. */
+  displayStateAt(et: number): CartesianState {
+    if (et >= this.startTime && et <= this.endTime && !this.availabilityAt(et).available) return { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] };
     const { records } = this;
 
-    // Clamp to range
+    // Deliberate display-only endpoint holding
     if (et <= records[0].et) return { position: [...records[0].position] as Vec3, velocity: [...records[0].velocity] as Vec3 };
     if (et >= records[records.length - 1].et) {
       const last = records[records.length - 1];
@@ -39,40 +66,43 @@ export class InterpolatedStatesTrajectory implements Trajectory {
       if (records[mid].et <= et) lo = mid; else hi = mid;
     }
 
-    const r0 = records[lo];
-    const r1 = records[hi];
-    const dt = r1.et - r0.et;
-    const t = (et - r0.et) / dt;
-
-    // Cubic Hermite interpolation using position + velocity at both endpoints.
-    // h00(t) = 2t³ - 3t² + 1, h10(t) = t³ - 2t² + t
-    // h01(t) = -2t³ + 3t²,    h11(t) = t³ - t²
-    // p(t) = h00*p0 + h10*dt*v0 + h01*p1 + h11*dt*v1
-    const t2 = t * t;
-    const t3 = t2 * t;
-    const h00 = 2 * t3 - 3 * t2 + 1;
-    const h10 = (t3 - 2 * t2 + t) * dt;
-    const h01 = -2 * t3 + 3 * t2;
-    const h11 = (t3 - t2) * dt;
-
-    const position: Vec3 = [
-      h00 * r0.position[0] + h10 * r0.velocity[0] + h01 * r1.position[0] + h11 * r1.velocity[0],
-      h00 * r0.position[1] + h10 * r0.velocity[1] + h01 * r1.position[1] + h11 * r1.velocity[1],
-      h00 * r0.position[2] + h10 * r0.velocity[2] + h01 * r1.position[2] + h11 * r1.velocity[2],
-    ];
-
-    // Velocity: derivative of Hermite = h00'*p0 + h10'*dt*v0 + h01'*p1 + h11'*dt*v1, divided by dt
-    const dh00 = (6 * t2 - 6 * t) / dt;
-    const dh10 = 3 * t2 - 4 * t + 1;
-    const dh01 = (-6 * t2 + 6 * t) / dt;
-    const dh11 = 3 * t2 - 2 * t;
-
-    const velocity: Vec3 = [
-      dh00 * r0.position[0] + dh10 * r0.velocity[0] + dh01 * r1.position[0] + dh11 * r1.velocity[0],
-      dh00 * r0.position[1] + dh10 * r0.velocity[1] + dh01 * r1.position[1] + dh11 * r1.velocity[1],
-      dh00 * r0.position[2] + dh10 * r0.velocity[2] + dh01 * r1.position[2] + dh11 * r1.velocity[2],
-    ];
-
-    return { position, velocity };
+    return hermiteState(records[lo], records[hi], et);
   }
+}
+
+/** Cubic Hermite state between two bracketing records (shared with coverage-aware models). */
+export function hermiteState(r0: StateRecord, r1: StateRecord, et: number): CartesianState {
+  const dt = r1.et - r0.et;
+  const t = (et - r0.et) / dt;
+
+  // Cubic Hermite interpolation using position + velocity at both endpoints.
+  // h00(t) = 2t³ - 3t² + 1, h10(t) = t³ - 2t² + t
+  // h01(t) = -2t³ + 3t²,    h11(t) = t³ - t²
+  // p(t) = h00*p0 + h10*dt*v0 + h01*p1 + h11*dt*v1
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const h00 = 2 * t3 - 3 * t2 + 1;
+  const h10 = (t3 - 2 * t2 + t) * dt;
+  const h01 = -2 * t3 + 3 * t2;
+  const h11 = (t3 - t2) * dt;
+
+  const position: Vec3 = [
+    h00 * r0.position[0] + h10 * r0.velocity[0] + h01 * r1.position[0] + h11 * r1.velocity[0],
+    h00 * r0.position[1] + h10 * r0.velocity[1] + h01 * r1.position[1] + h11 * r1.velocity[1],
+    h00 * r0.position[2] + h10 * r0.velocity[2] + h01 * r1.position[2] + h11 * r1.velocity[2],
+  ];
+
+  // Velocity: derivative of Hermite = h00'*p0 + h10'*dt*v0 + h01'*p1 + h11'*dt*v1, divided by dt
+  const dh00 = (6 * t2 - 6 * t) / dt;
+  const dh10 = 3 * t2 - 4 * t + 1;
+  const dh01 = (-6 * t2 + 6 * t) / dt;
+  const dh11 = 3 * t2 - 2 * t;
+
+  const velocity: Vec3 = [
+    dh00 * r0.position[0] + dh10 * r0.velocity[0] + dh01 * r1.position[0] + dh11 * r1.velocity[0],
+    dh00 * r0.position[1] + dh10 * r0.velocity[1] + dh01 * r1.position[1] + dh11 * r1.velocity[1],
+    dh00 * r0.position[2] + dh10 * r0.velocity[2] + dh01 * r1.position[2] + dh11 * r1.velocity[2],
+  ];
+
+  return { position, velocity };
 }

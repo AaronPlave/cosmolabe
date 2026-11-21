@@ -1,0 +1,141 @@
+[
+  {
+    "body": "Mars",
+    "source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MARS_nomenclature_center_pts.kmz",
+    "sourceFile": "MARS_nomenclature_center_pts.kmz",
+    "retrieved": "2026-10-21",
+    "sha256": "3175bcd14991fe875ab0ca2d04db2e5cb1fc2f15b10271fca91ccc92cf6091b7",
+    "archiveBytes": 2613250,
+    "members": [
+      {
+        "name": "MARS_nomenclature_center_pts.kml",
+        "bytes": 2577370,
+        "compression": 0
+      },
+      {
+        "name": "MARS_nomenclature_center_pts.prj",
+        "bytes": 171,
+        "compression": 0
+      },
+      {
+        "name": "metadata_nomenclature_points_MARS.xml",
+        "bytes": 35257,
+        "compression": 0
+      }
+    ],
+    "features": 2051,
+    "chunks": 1,
+    "skipped": {
+      "unnamed": 0,
+      "non_point_or_invalid_coordinate": 0,
+      "duplicate": 1,
+      "longitude_domain_mismatch": 0
+    },
+    "catalog": "mars.json",
+    "geojsonBytes": 1558267,
+    "files": [
+      {
+        "file": "mars-001.geojson",
+        "bytes": 1558267,
+        "sha256": "e955303470215e33aede0929d057c0634619df231d8975cb8121cf6565b970ed"
+      }
+    ],
+    "acceptance": [
+      {
+        "name": "Jezero",
+        "id": "gazetteer:14300",
+        "coordinates": [
+          77.6873,
+          18.4082
+        ],
+        "diameter": "47.521198"
+      },
+      {
+        "name": "Blunck",
+        "id": "gazetteer:15149",
+        "coordinates": [
+          -36.897,
+          -27.2282
+        ],
+        "diameter": "66.485001"
+      }
+    ]
+  },
+  {
+    "body": "Moon",
+    "source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz",
+    "sourceFile": "MOON_nomenclature_center_pts.kmz",
+    "retrieved": "2026-10-21",
+    "sha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
+    "archiveBytes": 11718225,
+    "members": [
+      {
+        "name": "MOON_nomenclature_center_pts.kml",
+        "bytes": 11682362,
+        "compression": 0
+      },
+      {
+        "name": "MOON_nomenclature_center_pts.prj",
+        "bytes": 157,
+        "compression": 0
+      },
+      {
+        "name": "metadata_nomenclature_points_MOON.xml",
+        "bytes": 35254,
+        "compression": 0
+      }
+    ],
+    "features": 9087,
+    "chunks": 4,
+    "skipped": {
+      "unnamed": 0,
+      "non_point_or_invalid_coordinate": 0,
+      "duplicate": 0,
+      "longitude_domain_mismatch": 0
+    },
+    "catalog": "moon.json",
+    "geojsonBytes": 7196489,
+    "files": [
+      {
+        "file": "moon-001.geojson",
+        "bytes": 1799579,
+        "sha256": "f4afee8a6cbd1183dbf46831bbc178bf99e574a6e4032b15daf0a3deebdf2057"
+      },
+      {
+        "file": "moon-002.geojson",
+        "bytes": 1799251,
+        "sha256": "1dbfdc51f78fb2669390aff0950df29784bb7f6a147b7fdec70d897aed25de23"
+      },
+      {
+        "file": "moon-003.geojson",
+        "bytes": 1799730,
+        "sha256": "3e2539dc814c33243d48c2007611f91f51e8d2a2d0f8bc48ab08ab743e4721e9"
+      },
+      {
+        "file": "moon-004.geojson",
+        "bytes": 1797929,
+        "sha256": "5178ccca1908cfaf9180c056f65f9156f9cd2a34c62e6a61b35ae898eb30628f"
+      }
+    ],
+    "acceptance": [
+      {
+        "name": "Shackleton",
+        "id": "gazetteer:5450",
+        "coordinates": [
+          129.78,
+          -89.67
+        ],
+        "diameter": "20.924982"
+      },
+      {
+        "name": "Sinus Lunicus",
+        "id": "gazetteer:5566",
+        "coordinates": [
+          -1.85109999999997,
+          32.3641
+        ],
+        "diameter": "119.17538"
+      }
+    ]
+  }
+]

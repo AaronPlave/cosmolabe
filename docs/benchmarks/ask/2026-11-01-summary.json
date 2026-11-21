@@ -1,0 +1,223 @@
+{
+  "date": "2026-11-01",
+  "scope": "12 quality tasks, 48 cells. Next-flight diagnostic and supplementary runs excluded. Historical state scores use scene/pose probes; original transport did not retain per-call model visibility, so inventory delivery remains unverified.",
+  "sources": [
+    "bbc5cb3b3073c63afd15b2d32901767834993172",
+    "ff4517a9d701af71967c21d88285c62120401284"
+  ],
+  "summary": [
+    {
+      "model": "claude-sonnet-5-5",
+      "mode": "fixed",
+      "samples": 12,
+      "excluded": 0,
+      "statePassed": 12,
+      "factualPassed": 10,
+      "factualPartial": 1,
+      "factualFailed": 1,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 10,
+      "requests": 41,
+      "latencyMs": 85251,
+      "rawProcessed": 338143,
+      "estimatedUsd": 0.1435175,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "mode": "discovery",
+      "samples": 12,
+      "excluded": 0,
+      "statePassed": 12,
+      "factualPassed": 11,
+      "factualPartial": 1,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 11,
+      "requests": 62,
+      "latencyMs": 114426,
+      "rawProcessed": 438840,
+      "estimatedUsd": 0.3187642,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "mode": "fixed",
+      "samples": 12,
+      "excluded": 0,
+      "statePassed": 12,
+      "factualPassed": 11,
+      "factualPartial": 1,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 11,
+      "requests": 45,
+      "latencyMs": 74824,
+      "rawProcessed": 372837,
+      "estimatedUsd": 0.010412925,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "mode": "discovery",
+      "samples": 12,
+      "excluded": 0,
+      "statePassed": 12,
+      "factualPassed": 8,
+      "factualPartial": 3,
+      "factualFailed": 1,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 8,
+      "requests": 71,
+      "latencyMs": 109785,
+      "rawProcessed": 550428,
+      "estimatedUsd": 0.0227231,
+      "actualBilledUsd": null
+    }
+  ],
+  "totalUsage": {
+    "requests": 219,
+    "requestedModels": [
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5"
+    ],
+    "answeredModels": [
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5"
+    ],
+    "uncachedInput": 534,
+    "cacheReads": 1436227,
+    "cacheWrites": 231004,
+    "output": 32483,
+    "rawProcessed": 1700248,
+    "estimatedUsd": 0.4954177249999999,
+    "actualBilledUsd": null
+  },
+  "cameraChecks": [
+    {
+      "task": "authored-viewpoint",
+      "samples": 4,
+      "passed": true,
+      "expected": {
+        "position": [
+          737236.8398600926,
+          0,
+          516218.79271594144
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ]
+      },
+      "observed": {
+        "position": [
+          737236.8398600926,
+          0,
+          516218.7927159414
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ],
+        "fov": 60
+      },
+      "poseToleranceKm": 1,
+      "upTolerance": 0.001
+    },
+    {
+      "task": "mixed-workflow",
+      "samples": 4,
+      "passed": true,
+      "expected": {
+        "position": [
+          737236.8398600926,
+          0,
+          516218.79271594144
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ]
+      },
+      "observed": {
+        "position": [
+          737236.8398600926,
+          0,
+          516218.7927159414
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ],
+        "fov": 60
+      },
+      "poseToleranceKm": 1,
+      "upTolerance": 0.001
+    },
+    {
+      "task": "landing-site",
+      "samples": 4,
+      "passed": true,
+      "expected": {
+        "target": [
+          -41.71813030419253,
+          -2.865162300212448,
+          -1736.7224169477429
+        ]
+      },
+      "observed": {
+        "position": [
+          -41.72713666548828,
+          -2.865780848710893,
+          -1737.0973510457886
+        ],
+        "target": [
+          -41.71512955302779,
+          -2.864956211419932,
+          -1736.5974959175526
+        ],
+        "up": [
+          0.3678098127426818,
+          0.9298432236335397,
+          -0.010369238785016914
+        ],
+        "fov": 60
+      },
+      "et": 913759509.1834563,
+      "frame": "EclipticJ2000 relative to Moon; catalog anchor MOON_ME_DE421 transformed through loaded body pose",
+      "targetToleranceKm": 0.5,
+      "eyeDistanceKm": [
+        0.1,
+        5
+      ]
+    }
+  ]
+}

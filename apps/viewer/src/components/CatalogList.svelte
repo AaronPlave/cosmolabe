@@ -5,8 +5,8 @@
    * description. Exactly what the deployment configured (#93), so a mission
    * deployment never shows an Examples section it does not have.
    *
-   * Groups flow into balanced columns once there is room and are never split
-   * across them; a narrow browser is one column. Rows are text, not cards:
+   * Group sections stack vertically, with two columns of entries when there
+   * is room; a narrow browser is one column. Rows are text, not cards:
    * the list is a way into a scene, not a gallery. The scene that is up is
    * marked quietly, because the browser's header already names it.
    */
@@ -109,18 +109,18 @@
     margin-top: 6px;
   }
 
-  /* Groups flow top to bottom, then into the next column, and stay whole. */
-  .groups {
-    column-gap: 48px;
+  .group + .group {
+    margin-top: 22px;
+  }
+  .group ul {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 36px;
   }
   @container (min-width: 640px) {
-    .groups {
-      column-count: 2;
+    .group ul {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-  }
-  .group {
-    break-inside: avoid;
-    padding-bottom: 30px;
   }
 
   .group-heading {

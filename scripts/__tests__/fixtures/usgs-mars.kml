@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ns0:kml xmlns:ns0="http://www.opengis.net/kml/2.2"><Document><ns0:Placemark id="MARS_nomenclature_center_pts.1">
+	<ns0:name>Blunck</ns0:name>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#MARS_nomenclature_center_pts">
+		<ns0:SimpleData name="clean_name">Blunck</ns0:SimpleData>
+		<ns0:SimpleData name="approvaldt">2013/07/01 00:00:00</ns0:SimpleData>
+		<ns0:SimpleData name="origin">Jürgen; German historian (1935-2008).</ns0:SimpleData>
+		<ns0:SimpleData name="diameter">66.485001</ns0:SimpleData>
+		<ns0:SimpleData name="center_lon">323.103</ns0:SimpleData>
+		<ns0:SimpleData name="center_lat">-27.2282</ns0:SimpleData>
+		<ns0:SimpleData name="type">Crater, craters</ns0:SimpleData>
+		<ns0:SimpleData name="code">AA</ns0:SimpleData>
+		<ns0:SimpleData name="approval">Adopted by IAU</ns0:SimpleData>
+		<ns0:SimpleData name="min_lon">322.4693</ns0:SimpleData>
+		<ns0:SimpleData name="max_lon">323.7366</ns0:SimpleData>
+		<ns0:SimpleData name="min_lat">-27.7586</ns0:SimpleData>
+		<ns0:SimpleData name="max_lat">-26.6979</ns0:SimpleData>
+		<ns0:SimpleData name="ethnicity">Germany</ns0:SimpleData>
+		<ns0:SimpleData name="continent">Europe</ns0:SimpleData>
+		<ns0:SimpleData name="quad_name">Margaritifer Sinus</ns0:SimpleData>
+		<ns0:SimpleData name="quad_code">mc19</ns0:SimpleData>
+		<ns0:SimpleData name="link">http://planetarynames.wr.usgs.gov/Feature/15149</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-36.897,-27.2282</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark id="MARS_nomenclature_center_pts.185">
+	<ns0:name>Jezero</ns0:name>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#MARS_nomenclature_center_pts">
+		<ns0:SimpleData name="clean_name">Jezero</ns0:SimpleData>
+		<ns0:SimpleData name="approvaldt">2007/07/25 00:00:00</ns0:SimpleData>
+		<ns0:SimpleData name="origin">Town in Bosnia-Herzegovina.</ns0:SimpleData>
+		<ns0:SimpleData name="diameter">47.521198</ns0:SimpleData>
+		<ns0:SimpleData name="center_lon">77.6873</ns0:SimpleData>
+		<ns0:SimpleData name="center_lat">18.4082</ns0:SimpleData>
+		<ns0:SimpleData name="type">Crater, craters</ns0:SimpleData>
+		<ns0:SimpleData name="code">AA</ns0:SimpleData>
+		<ns0:SimpleData name="approval">Adopted by IAU</ns0:SimpleData>
+		<ns0:SimpleData name="min_lon">77.2663</ns0:SimpleData>
+		<ns0:SimpleData name="max_lon">78.1112</ns0:SimpleData>
+		<ns0:SimpleData name="min_lat">18.0077</ns0:SimpleData>
+		<ns0:SimpleData name="max_lat">18.8094</ns0:SimpleData>
+		<ns0:SimpleData name="ethnicity">Bosnia and Herzegovina</ns0:SimpleData>
+		<ns0:SimpleData name="continent">Europe</ns0:SimpleData>
+		<ns0:SimpleData name="quad_name">Syrtis Major</ns0:SimpleData>
+		<ns0:SimpleData name="quad_code">mc13</ns0:SimpleData>
+		<ns0:SimpleData name="link">http://planetarynames.wr.usgs.gov/Feature/14300</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>77.6873,18.4082</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  </Document></ns0:kml>

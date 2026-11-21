@@ -1,0 +1,1193 @@
+{
+  "version": 1,
+  "runtimeRevision": "e69e8f9febc9aa9e878c525393e91a21125842b3",
+  "runtimeFingerprint": {
+    "sha256": "e3af94bee6c3b20bc931e0ea21dcf54ad588bb0ee3ab3f49fe37bc188702f8da",
+    "files": [
+      "apps/viewer/src/components/AskPanel.svelte",
+      "apps/viewer/src/lib/ask/ask.svelte.ts",
+      "apps/viewer/src/lib/ask/public-metadata.ts",
+      "apps/viewer/src/lib/event-control.ts",
+      "apps/viewer/src/lib/viewer-control.ts",
+      "packages/control/src/agent-loop.ts",
+      "packages/control/src/agent-metadata.ts",
+      "packages/control/src/agent.ts",
+      "packages/control/src/answer-check.ts",
+      "packages/control/src/ask-guidance.ts",
+      "packages/control/src/capabilities.ts",
+      "packages/control/src/contracts.ts",
+      "packages/control/src/event-agent-metadata.ts",
+      "packages/control/src/index.ts",
+      "packages/control/src/verbs.ts",
+      "packages/core/src/Universe.ts",
+      "packages/core/src/catalog/CatalogLoader.ts",
+      "packages/core/src/trajectories/CompositeTrajectory.ts",
+      "packages/core/src/trajectories/InterpolatedStates.ts",
+      "packages/core/src/trajectories/OemAdapter.ts",
+      "packages/core/src/trajectories/Trajectory.ts",
+      "packages/interop/src/oem.ts",
+      "packages/three/src/UniverseRenderer.ts",
+      "packages/control/src/outcome.ts"
+    ]
+  },
+  "runtimeEvidenceNote": "Six goal cases were captured at dba5081b. Subsequent production changes tightened only the imagery exclusive-claim check (affected case rerun at 9fe937bc) and clarified mounted-only plot observations/display-grid count wording (focused regression suite rerun). Each case records its actual runtime revision. The later user-directed UI simplification/direct-submit interaction is verified locally in four catalogs and by the actual live starter click at 6c2e9d02; later changes affect only the send icon, tooltip and input sizing. Earlier goal cases remain pinned to their actual scientific-runtime revisions. Final review corrections at e69e8f9febc9aa9e878c525393e91a21125842b3 expose the existing categories in the expanded disclosure and qualify geometric framing versus unobserved physical appearance; focused tests and four-catalog loaded UI were rerun without paid model calls. Recorded model answers below remain historical, not rewritten.",
+  "frozenCases": {
+    "originalSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
+    "productSha256": "adc54a6d14e396f598f4a06997c050569a07343bde99c9f57a90eadef3a2f442"
+  },
+  "reports": [
+    {
+      "label": "product",
+      "kind": "regressions",
+      "source": "c65ad2e41efe05818d9d71768b0ab37a12a3161f",
+      "sha256": "b16fb592da923b070c861f5b059e04952f226bc6919f8ddec3a92d1091a51f4f",
+      "estimatedUsd": 0.015885815,
+      "cells": 5,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "product",
+      "kind": "discovery",
+      "source": "c65ad2e41efe05818d9d71768b0ab37a12a3161f",
+      "sha256": "54b4625cc1ed5bebd030b684edb12ff4fec3e651b52e95c0de523535f134199e",
+      "estimatedUsd": 0.00695442,
+      "cells": 2,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "final",
+      "kind": "regressions",
+      "source": "c8efe1e5e20b731aae95619159d7d52782145fc4",
+      "sha256": "355c5317fbba8839d92284506696ea4a84b11715fdb4ef997bae9899acdc76ed",
+      "estimatedUsd": 0.013861614999999999,
+      "cells": 5,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "final",
+      "kind": "discovery",
+      "source": "c8efe1e5e20b731aae95619159d7d52782145fc4",
+      "sha256": "6bf231a5f7c186a2701d5593f1de10451c1cdeb1cbad698037eacbe6b1a1156f",
+      "estimatedUsd": 0.007803704999999999,
+      "cells": 2,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "accepted",
+      "kind": "regressions",
+      "source": "18d2bf2c159e760953ce3d8dbcca8c45b2961dc9",
+      "sha256": "2f63e92693ff78f7cc22669b23b7a7bf61f44fdb06176bc705fd8b80187947b1",
+      "estimatedUsd": 0.01319038,
+      "cells": 5,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "accepted",
+      "kind": "discovery",
+      "source": "18d2bf2c159e760953ce3d8dbcca8c45b2961dc9",
+      "sha256": "871e792d496660e85cca3f83853a1fd97ecbea260939703f8472501f025baca3",
+      "estimatedUsd": 0.008442615,
+      "cells": 2,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "human",
+      "kind": "regressions",
+      "source": "a9a85e71aaa247f40c10c5c6f0b23bc5a71b7729",
+      "sha256": "189028ab33c55000a9ab4928e28d1929ab2a578c5ee979f29df3dc4804e6284c",
+      "estimatedUsd": 0.01768455,
+      "cells": 5,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "human",
+      "kind": "discovery",
+      "source": "a9a85e71aaa247f40c10c5c6f0b23bc5a71b7729",
+      "sha256": "ca0a5b5c515d820ce6fa8fb16c803f7cc044139544135e59849ad184f5c70a79",
+      "estimatedUsd": 0.007622865,
+      "cells": 2,
+      "review": "diagnostic; some earlier reports preceded corrections or overlapped local source edits; not final acceptance"
+    },
+    {
+      "label": "complete",
+      "kind": "regressions",
+      "source": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "sha256": "e5a9ded34fea7ff8b17bc28405f081f20624ab18e98de213536db84938f4130d",
+      "estimatedUsd": 0.017393190000000003,
+      "cells": 5,
+      "review": "observed cases; imagery-final supersedes complete/iss-appearance"
+    },
+    {
+      "label": "complete",
+      "kind": "discovery",
+      "source": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "sha256": "466e1920039efa46a3c5d499dd042ad77230b4f6bda61fb72ec632d26c2bd5ef",
+      "estimatedUsd": 0.006219485,
+      "cells": 2,
+      "review": "observed cases; imagery-final supersedes complete/iss-appearance"
+    },
+    {
+      "label": "imagery-final",
+      "kind": "imagery-final",
+      "source": "9fe937bca67a894ecbbcdc9dc6a6d4d058bf4b85",
+      "sha256": "84a71a8f5863d06a8270e75441cacc9470894fd30cac7672b0443f344b09d8a5",
+      "estimatedUsd": 0.0027031000000000004,
+      "cells": 1,
+      "review": "observed cases; imagery-final supersedes complete/iss-appearance"
+    },
+    {
+      "label": "direct-starter",
+      "kind": "starter",
+      "source": "6c2e9d0223bd643625923b6d1b11effe3c4a4a03",
+      "sha256": "df5b9f6920dc2bb2a4410a234451c27762e5b97bcce706fd37ad68c86b40134f",
+      "estimatedUsd": 0.004962095,
+      "cells": 1,
+      "review": "Actual visible button click, without the Send button, through normal Ask/provider path."
+    }
+  ],
+  "usage": {
+    "priorAssessmentAndReviewEstimatedUsd": 0.6651302,
+    "thisPassEstimatedUsd": 0.12272383500000002,
+    "totalEstimatedUsd": 0.7878540350000001,
+    "authorizedCapUsd": 2,
+    "actualBilledUsd": null
+  },
+  "cases": [
+    {
+      "task": "em-context",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 9,
+      "estimatedUsd": 0.00384636,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "verified",
+          "answerSource": "model",
+          "answer": "The Moon is centered in the view at about 5,211 km range, with Earth in the background about 408,711 km away, in the upper right of the frame. The clock is paused at 2024-07-04 12:00:00 UTC. Earth is small in the frame, and I did not check for occlusion.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              -3004.7844394312833,
+              -3511.0136815757824,
+              2408.022923549381
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              -0.7644365045617552,
+              -0.20084275846347982,
+              0.6126165332948385
+            ],
+            "fov": 60
+          },
+          "et": 773366469.184,
+          "tracked": "Moon",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 408710.8924529291,
+              "radiusKm": 6378,
+              "angularRadiusDeg": 0.8941462580562658,
+              "ndc": [
+                0.2969135109710659,
+                0.7318048057655878
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Moon",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 5211.000000000001,
+              "radiusKm": 1737,
+              "angularRadiusDeg": 19.471220634490688,
+              "ndc": [
+                1.2818373471404102e-16,
+                9.014452211855011e-17
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [],
+          "event": null,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "c03cefecc67142f78f2489be015afb552fc556b5363aabcec1930d682dae1b89"
+        },
+        {
+          "status": "done",
+          "viewerVerdict": "unverified",
+          "answerSource": "model",
+          "answer": "Earth is in frame at the upper left, at 408,342.681 km range. The Moon is centered at 5,211 km range, with an apparent diameter of 38.942°, while Earth's apparent diameter is 1.79°, about 22 times smaller. The clock is paused at 2024-07-04 12:00:00 UTC. These apparent sizes reflect distance, so they do not compare physical sizes.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              -4545.21801847574,
+              -2460.661622158672,
+              663.8211700141263
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              -0.7796361788847572,
+              -0.22142570686685042,
+              0.5857798945956497
+            ],
+            "fov": 60
+          },
+          "et": 773366469.184,
+          "tracked": "Moon",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 408342.68147713394,
+              "radiusKm": 6378,
+              "angularRadiusDeg": 0.894952593634795,
+              "ndc": [
+                -0.7576830237763035,
+                0.4530567152977701
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Moon",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 5211.000000000001,
+              "radiusKm": 1737,
+              "angularRadiusDeg": 19.471220634490688,
+              "ndc": [
+                2.4971678265381514e-16,
+                -3.048906807963013e-16
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "comparison": {
+            "checks": {
+              "clockHeld": true,
+              "anchorRangeHeld": true,
+              "trackedAnchor": true,
+              "poseCaptured": true,
+              "cameraSwung": true,
+              "bothResolvedUnoccluded": true,
+              "distinctCenters": true
+            },
+            "geometricGoalSupported": true,
+            "orbitAngleDeg": 28.360590090700786,
+            "beforePose": {
+              "position": [
+                -3004.7844394312833,
+                -3511.0136815757824,
+                2408.022923549381
+              ],
+              "target": [
+                0,
+                0,
+                0
+              ],
+              "up": [
+                -0.7644365045617552,
+                -0.20084275846347982,
+                0.6126165332948385
+              ],
+              "fov": 60
+            },
+            "afterPose": {
+              "position": [
+                -4545.21801847574,
+                -2460.661622158672,
+                663.8211700141263
+              ],
+              "target": [
+                0,
+                0,
+                0
+              ],
+              "up": [
+                -0.7796361788847572,
+                -0.22142570686685042,
+                0.5857798945956497
+              ],
+              "fov": 60
+            },
+            "angularRadiiDeg": [
+              19.471220634490688,
+              0.894952593634795
+            ],
+            "limitation": "Analytic projection and full pose, not measured physical size or pixel-content proof. Manual visual-usefulness review required."
+          },
+          "profiles": [],
+          "event": null,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "3dafebe2b3a3f0e29785ef3e7e84876840a9646c7fca319d2fde994a85ff507a"
+        }
+      ]
+    },
+    {
+      "task": "oem-compare",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 10,
+      "estimatedUsd": 0.00624825,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "partial",
+          "answerSource": "model",
+          "answer": "The sampled range history has no missing values, and its 32 samples run from 2004-06-30 12:00 UTC to 2004-07-02 11:58 UTC. The range-rate series has 2 missing samples of 32, at those two endpoints, so its usable values run from 13:32:50 UTC on 30 June to 10:25:10 UTC on 2 July. The native plots run from 2004-06-30 07:12:12 UTC to 2004-07-02 16:45:48 UTC with 128 missing display samples out of 763, so those plot gaps are separate from the sampled interval. Center-to-center range falls from 750,643 km to a sampled 97,311 km at 01:55:33 UTC on 1 July, then rises to 1,233,532 km, and the range-rate sign flips between 00:22 and 03:28 UTC. These are center distances, not surface clearance, and the exact closest approach was not computed because the search reported missing coverage.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              229306.5,
+              -774125.9,
+              -296222.2
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              0,
+              1
+            ],
+            "fov": 60
+          },
+          "et": 141918997.0873428,
+          "tracked": "Saturn",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Saturn",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 859999.9835848254,
+              "radiusKm": 60268,
+              "angularRadiusDeg": 4.01852881183146,
+              "ndc": [
+                4.578949907808283e-17,
+                -2.22330638114212e-16
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Cassini",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 817595.7854621081,
+              "radiusKm": 0.0025,
+              "angularRadiusDeg": 1.751959236210426e-07,
+              "ndc": [
+                0.09898649415899824,
+                0.1148104635914472
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [
+            {
+              "definition": {
+                "id": "cassini-saturn-range",
+                "label": "Cassini-Saturn range",
+                "profile": {
+                  "quantity": "range",
+                  "bodies": {
+                    "observer": "Cassini",
+                    "target": "Saturn"
+                  }
+                },
+                "enabled": true,
+                "visible": true
+              },
+              "status": "partial",
+              "timeline": {
+                "present": true,
+                "traceVisible": true,
+                "window": {
+                  "start": 141851596.184117,
+                  "end": 142058812.18411705
+                },
+                "samples": 763,
+                "missing": 128
+              },
+              "numericalRead": {
+                "window": {
+                  "start": 141851596.184117,
+                  "end": 142058812.18411705
+                },
+                "missing": 4
+              }
+            },
+            {
+              "definition": {
+                "id": "cassini-saturn-range-rate",
+                "label": "Cassini-Saturn range rate",
+                "profile": {
+                  "quantity": "range-rate",
+                  "bodies": {
+                    "observer": "Cassini",
+                    "target": "Saturn"
+                  }
+                },
+                "enabled": true,
+                "visible": true
+              },
+              "status": "partial",
+              "timeline": {
+                "present": true,
+                "traceVisible": true,
+                "window": {
+                  "start": 141851596.184117,
+                  "end": 142058812.18411705
+                },
+                "samples": 763,
+                "missing": 128
+              },
+              "numericalRead": {
+                "window": {
+                  "start": 141851596.184117,
+                  "end": 142058812.18411705
+                },
+                "missing": 4
+              }
+            }
+          ],
+          "event": null,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            },
+            {
+              "name": "profiles.sampleProfileData",
+              "modelVisible": true
+            },
+            {
+              "name": "profiles.sampleProfileData",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "e534319852faabee0545b5469e48641f1aa3eabdcefe0f6a2fb94ac76a07500e"
+        }
+      ]
+    },
+    {
+      "task": "clipper-compare",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 7,
+      "estimatedUsd": 0.0033744400000000003,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "verified",
+          "answerSource": "model",
+          "answer": "Tracking is now on Europa Clipper, and Europa Clipper and Europa are both still in view at 2031-03-27 14:03 UTC. Europa is the closer approach: a range minimum of 1,838.6 km (altitude 277.7 km), versus 442,173 km for Ganymede on 2031-03-07. These are hourly-step range minima, not verified flybys, because the search reports no encounter criterion.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              9820.084996801384,
+              -1591.8887131931306,
+              -659.1573614329733
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "et": 985658652.6123381,
+          "tracked": "Europa Clipper",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 758261744.958688,
+              "radiusKm": 6378.1366,
+              "angularRadiusDeg": 0.00048194480437904725,
+              "ndc": [
+                0.06914868847774285,
+                13.719150605769542
+              ],
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Europa",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 9970.088637857127,
+              "radiusKm": 1562.6,
+              "angularRadiusDeg": 9.017074604406883,
+              "ndc": [
+                0.01545436548797512,
+                -0.32280514222951606
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Ganymede",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 534227.4186126429,
+              "radiusKm": 2631.2,
+              "angularRadiusDeg": 0.28219679357281047,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Europa Clipper",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 9970.088637857069,
+              "radiusKm": 0.005,
+              "angularRadiusDeg": 2.873383657569952e-05,
+              "ndc": [
+                -1.333737432004387e-17,
+                -1.5768107927728495e-19
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [],
+          "event": {
+            "id": "approach-mwf2wn6q-1-0",
+            "kind": "closest-approach",
+            "bodies": {
+              "observer": "Europa Clipper",
+              "target": "Europa"
+            },
+            "window": {
+              "start": 983361669.184,
+              "end": 986040069.184
+            },
+            "step": 3600,
+            "params": {
+              "scope": "local"
+            },
+            "scope": "local",
+            "maxRangeKm": null,
+            "searchComplete": true,
+            "total": 7,
+            "presented": true,
+            "selectedEt": 985658652.6123381,
+            "selectedRangeKm": 1838.607708583299,
+            "selectedAltitudeKm": 277.7341337364047
+          },
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "259469c84fe9278f82aed06c144fab65bfb838fa44659fb2fd6d2f2a2174ad15"
+        }
+      ]
+    },
+    {
+      "task": "clipper-science",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 5,
+      "estimatedUsd": 0.0017842749999999999,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "no-change",
+          "answerSource": "model",
+          "answer": "The loaded scene has no ice-thickness data, so I can't show where Europa's ice is thinnest. The four instruments (EIS NAC, EIS WAC, MISE and E-THEMIS) are synthetic feeds with no calibrated thickness product, and Europa has no surface overlays or thickness layers. I left the view and clock unchanged. I can instead open the Europa Close-up view to show the moon's surface, but that won't show ice thickness.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              4.652967551869534,
+              8.846375358430654,
+              0.33397152423545007
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "et": 983836869.1854547,
+          "tracked": "Europa Clipper",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 809153478.1986253,
+              "radiusKm": 6378.1366,
+              "angularRadiusDeg": 0.00045163287088039817,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Europa",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 303407.4527961664,
+              "radiusKm": 1562.6,
+              "angularRadiusDeg": 0.29508431659972795,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Ganymede",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 768627.807648729,
+              "radiusKm": 2631.2,
+              "angularRadiusDeg": 0.19613777695636492,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Europa Clipper",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 10.001,
+              "radiusKm": 0.005,
+              "angularRadiusDeg": 0.02864502644731994,
+              "ndc": [
+                1.427948558954905e-16,
+                4.540549030988347e-16
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [],
+          "event": null,
+          "fullStableStateUnchanged": true,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "surface.getImagery",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "4c21892a63eea752f7f81390848c19fb2eb64e5ed4a53bf8d9884d7c78f61a02"
+        }
+      ]
+    },
+    {
+      "task": "oem-discover",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 10,
+      "estimatedUsd": 0.004827695,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "verified",
+          "answerSource": "model",
+          "answer": "I chose how Cassini's center-to-center distance from Saturn changes over the loaded coverage, 2004-06-30 12:00 to 2004-07-02 11:58 UTC. Event Finder had no coverage for this pair, so I used a 12-sample range profile at about 4.4-hour spacing. The smallest sampled distance was about 140,995 km at 2004-07-01 01:04:55 UTC, and the clock is now set there. Cassini is in view but only a point at this zoom. This is a sampled center distance, not a certified minimum or a physical clearance.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              229306.5,
+              -774125.9,
+              -296222.2
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              0,
+              1
+            ],
+            "fov": 60
+          },
+          "et": 141915958.72957155,
+          "tracked": "Saturn",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Saturn",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 859999.9835848254,
+              "radiusKm": 60268,
+              "angularRadiusDeg": 4.01852881183146,
+              "ndc": [
+                4.578949907808283e-17,
+                -2.22330638114212e-16
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Cassini",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 769472.1903122166,
+              "radiusKm": 0.0025,
+              "angularRadiusDeg": 1.8615285982536394e-07,
+              "ndc": [
+                0.04158474037247414,
+                0.22401282443272183
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [
+            {
+              "definition": {
+                "id": "cassini-saturn-range",
+                "label": "Cassini-Saturn range",
+                "profile": {
+                  "quantity": "range",
+                  "bodies": {
+                    "observer": "Cassini",
+                    "target": "Saturn"
+                  },
+                  "window": {
+                    "start": 141868864.184117,
+                    "end": 142041544.18411705
+                  }
+                },
+                "enabled": true,
+                "visible": true
+              },
+              "status": "available",
+              "timeline": {
+                "present": true,
+                "traceVisible": true,
+                "window": {
+                  "start": 141851596.184117,
+                  "end": 142058812.18411705
+                },
+                "samples": 763,
+                "missing": 0
+              },
+              "numericalRead": {
+                "window": {
+                  "start": 141868864.184117,
+                  "end": 142041544.18411705
+                },
+                "missing": 0
+              }
+            }
+          ],
+          "event": null,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            },
+            {
+              "name": "profiles.sampleProfileData",
+              "modelVisible": false
+            },
+            {
+              "name": "profiles.sampleProfileData",
+              "modelVisible": true
+            },
+            {
+              "name": "camera.getViewComposition",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "4d8cf982187b0544918622547198390a3418de33df2d4d307ba1729615b4bd24"
+        }
+      ]
+    },
+    {
+      "task": "clipper-discover",
+      "model": "claude-haiku-5-5",
+      "runtime": "dba5081b9d0cd1e7fe29d37f0e2a2fac6c75acf2",
+      "rounds": 4,
+      "estimatedUsd": 0.00139179,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "verified",
+          "answerSource": "model",
+          "answer": "The question was how close Europa Clipper gets to Europa in the loaded trajectory. The closest computed approach is about 1,585 km range (about 25 km altitude) on 2031-10-23 at 21:46 UTC, found with a 1-hour step over the full kernel coverage. The viewer now shows that moment with both spacecraft and Europa in view. The data gives no flyby criterion, so this is a range minimum, not a confirmed encounter.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              4571.931293034129,
+              8243.676447792886,
+              -707.8126781358199
+            ],
+            "target": [
+              -78.32579341158271,
+              185.40249133110046,
+              766.3787533640862
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "et": 1003830456.8034713,
+          "tracked": "Europa",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 857283101.154387,
+              "radiusKm": 6378.1366,
+              "angularRadiusDeg": 0.0004262772797564806,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            },
+            {
+              "object": "Europa",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 9453.134713493175,
+              "radiusKm": 1562.6,
+              "angularRadiusDeg": 9.51464304630627,
+              "ndc": [
+                0.09138889638205121,
+                -0.06582710631635452
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Ganymede",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 1227947.8313065546,
+              "radiusKm": 2631.2,
+              "angularRadiusDeg": 0.12277131534114398,
+              "ndc": [
+                0.3180308035247634,
+                0.3919303434205643
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Europa Clipper",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 9453.13471349319,
+              "radiusKm": 0.005,
+              "angularRadiusDeg": 3.030517455299897e-05,
+              "ndc": [
+                -0.09138889638205093,
+                0.06582710631635379
+              ],
+              "inView": true,
+              "occlusion": null
+            }
+          ],
+          "profiles": [],
+          "event": {
+            "id": "approach-mwf2v5u9-1-0",
+            "kind": "closest-approach",
+            "bodies": {
+              "observer": "Europa Clipper",
+              "target": "Europa"
+            },
+            "window": {
+              "start": 782198880.4723655,
+              "end": 1094143570.0131
+            },
+            "step": 3600,
+            "params": {
+              "scope": "local"
+            },
+            "scope": "local",
+            "maxRangeKm": null,
+            "searchComplete": true,
+            "total": 885,
+            "presented": true,
+            "selectedEt": 1003830456.8034713,
+            "selectedRangeKm": 1584.73393011446,
+            "selectedAltitudeKm": 24.99987489666576
+          },
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "findClosestApproach",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "b0f6f28163518cf64f760c08007237b05bb614d04e7f11423a2faab53a063bfa"
+        }
+      ]
+    },
+    {
+      "task": "iss-appearance",
+      "model": "claude-haiku-5-5",
+      "runtime": "9fe937bca67a894ecbbcdc9dc6a6d4d058bf4b85",
+      "rounds": 6,
+      "estimatedUsd": 0.0027031000000000004,
+      "turns": [
+        {
+          "status": "done",
+          "viewerVerdict": "verified",
+          "answerSource": "model",
+          "answer": "Selected dates: the clock moved from 2026-11-04 11:30 UTC to 2026-11-05 11:30 UTC, and it now reads that time with Earth tracked at about 15,000 km range. Observed appearance: at the first time, the VIIRS daily true-colour overlay was listed for 2026-11-04 and drawn in view, but I did not compare the two days' images, so I cannot say what changed in clouds or surface. I also have not confirmed which date the overlay shows at the second time.",
+          "answerIssues": [],
+          "camera": {
+            "position": [
+              -11114.154734692835,
+              -9964.052222110273,
+              1480.9550460308383
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "et": 847150269.184,
+          "tracked": "Earth",
+          "playing": false,
+          "projection": [
+            {
+              "object": "Earth",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 15000,
+              "radiusKm": 6378.137,
+              "angularRadiusDeg": 25.163901586948516,
+              "ndc": [
+                4.904285149247243e-16,
+                1.62112606878007e-16
+              ],
+              "inView": true,
+              "occlusion": null
+            },
+            {
+              "object": "Moon",
+              "available": true,
+              "drawEnabled": true,
+              "rangeKm": 396554.18421587156,
+              "radiusKm": 1737.4,
+              "angularRadiusDeg": 0.2510275008031712,
+              "ndc": null,
+              "inView": false,
+              "occlusion": null
+            }
+          ],
+          "profiles": [],
+          "event": null,
+          "modelVisibleEvidence": [
+            {
+              "name": "describeScene",
+              "modelVisible": true
+            },
+            {
+              "name": "camera.getViewComposition",
+              "modelVisible": true
+            }
+          ],
+          "captureSha256": "37340eb4e133fe0bb0bd7929bbb1f82125bb061f24006e03e45a9845c25cb5af"
+        }
+      ]
+    },
+    {
+      "task": "oem-direct-starter",
+      "model": "claude-haiku-5-5",
+      "runtime": "6c2e9d0223bd643625923b6d1b11effe3c4a4a03",
+      "rounds": 7,
+      "estimatedUsd": 0.004962095,
+      "interaction": "Opened Try a question, then clicked Ask: Cassini–Saturn distance. No composer Send click.",
+      "prompt": "Plot Cassini–Saturn distance over time.",
+      "status": "done",
+      "viewerVerdict": "partial",
+      "answerSource": "model",
+      "answer": "The chart covers 2004-06-30 07:12 UTC to 2004-07-02 16:45 UTC on a 763-point display grid, and 128 points inside that plotted span are missing. Those plot gaps are separate from the numerical sample window of 2004-06-30 12:00 to 2004-07-02 11:58 UTC, which had 32 samples about 5,570 seconds apart and no missing values. Within those samples, center distance falls to about 97,311 km at 2004-07-01 01:55:33 UTC, the minimum among the samples only, then rises to about 1,233,532 km. This is center-to-center distance, not surface clearance.",
+      "answerIssues": [],
+      "profiles": [
+        {
+          "definition": {
+            "id": "cassini-saturn-range",
+            "label": "Cassini–Saturn distance",
+            "profile": {
+              "quantity": "range",
+              "bodies": {
+                "observer": "Cassini",
+                "target": "Saturn"
+              }
+            },
+            "enabled": true,
+            "visible": true
+          },
+          "timeline": {
+            "present": true,
+            "traceVisible": true,
+            "window": {
+              "start": 141851596.184117,
+              "end": 142058812.18411705
+            },
+            "samples": 763,
+            "missing": 128
+          }
+        }
+      ],
+      "captureSha256": "85e2114dcf4963f5bfcfa159a7e218ee9ef68585c23c0ed4fd07be26c5965e09"
+    }
+  ],
+  "walkthrough": {
+    "audience": "developer; no independent novice study",
+    "observations": [
+      "Choosing an example was correctly understood as prompt prefill.",
+      "The original authored-view label was vague.",
+      "Expanded help and technical generated prompts were hard to parse and not words the user would write.",
+      "The user requested direct submission and less text, rejected Ideas, and identified unclear button hierarchy, illegible borders, empty space/dividers and a nonexpanding input."
+    ],
+    "response": "Try a question disclosure; filled one-line buttons with send icons and no subtitles; explicit click submits once; opening makes no model call; custom draft stays editable/preserved; textarea grows and can be resized.",
+    "finalCopyReconfirmedByUser": false,
+    "userRequestedDirectSubmission": true,
+    "priorFillOnlyRequirementSupersededByUser": true
+  },
+  "localControls": {
+    "catalogs": [
+      "earth-moon",
+      "iss",
+      "oem-ingest",
+      "europa-clipper"
+    ],
+    "externalCallsOnHelp": 0,
+    "stopLateMutationRejected": true,
+    "realOemBoundariesAndDisplayHolding": true,
+    "explicitStarterSubmitsOnce": true,
+    "preservesUnsentDraft": true,
+    "composerGrows": true,
+    "noEmptyTranscriptGap": true,
+    "guidanceScreenshotSha256": "3b71c8c0c9b1093a74212498a38741e265893141e5d6a1053cf172369a3ba55f",
+    "manualInputResizePersistsWhileTyping": true,
+    "generalCapabilitiesVisible": true
+  },
+  "externalResearch": {
+    "decision": "not yet warranted",
+    "externalRetrievalImplemented": false,
+    "reasons": [
+      "Composition and source coverage are native-state problems, not missing public mission background.",
+      "Hull contact, measured winds and ice thickness need scientific data and algorithms; mission documentation cannot create those products.",
+      "Loaded numerical/visual facts remain authoritative; arbitrary code/browser execution adds no demonstrated value to the frozen tasks."
+    ],
+    "userVisible": "Ask uses the data loaded here. Missing measurements stay unknown; mission background cannot fill them in."
+  },
+  "limitations": [
+    "One run per frozen task, uncontrolled cache warmth; no reliability-rate claim.",
+    "Host fallback is labeled and is not proof that model composition is solved.",
+    "Software WebGL only; no physical GPU claim.",
+    "Ask can cover a projected object; close/minimize the panel to inspect the underlying scene.",
+    "Frozen scenarios allow truthful partial/unsupported outcomes; no certified global accuracy or physical source truth."
+  ],
+  "reviewCorrections": {
+    "review": "https://github.com/AaronPlave/cosmolabe/pull/380#issuecomment-6859962585",
+    "generalCapabilities": "One visible low-emphasis line inside expanded disclosure, before ranked direct-submit starters.",
+    "physicalAppearance": "Scene location in frame and drawEnabled do not establish a resolved physical model. Composition summaries and inView goal receipts qualify physical appearance as unassessed; tiny angular values retain six significant figures.",
+    "clipperRecordedAnswerQualification": "The recorded unfamiliar-investigation answer below said both spacecraft and Europa were in view. This establishes only their projected locations. Clipper angular radius 0.00003030517455299897 degrees does not establish a discernible spacecraft model. Native event indicators and the event lane provide its useful location.",
+    "validation": {
+      "focusedTestsPassed": 70,
+      "build": true,
+      "testTypecheck": true,
+      "svelteTypecheck": true,
+      "lint": true,
+      "loadedCatalogs": 4,
+      "externalModelCalls": 0,
+      "stopLateMutationRejected": true,
+      "inputGrowthAndManualResize": true
+    },
+    "newLiveAssessment": false,
+    "limit": "No new independent pixel observation, physical-appearance verdict, paid goal rerun or novice usability study is claimed."
+  }
+}

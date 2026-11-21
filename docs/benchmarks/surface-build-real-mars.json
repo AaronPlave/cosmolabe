@@ -1,0 +1,778 @@
+{
+  "date": "2026-10-22",
+  "scope": "PR #287 follow-up; existing #245 terrain builder, not lock executor or imagery acceptance",
+  "productionReady": false,
+  "builder": "scripts/build-mars-terrain/cube.sh --workers 4",
+  "localSourceRoot": "/Users/aplave/code/cosmolabe/scripts/build-mars-terrain",
+  "localOutput": "work/surface-build/real-mars-cube",
+  "validationCommands": [
+    "node scripts/validate-cube-terrain.mjs --dir work/surface-build/real-mars-cube --site 18.65,77.4 --out work/surface-build/real-mars-validation",
+    "python3 scripts/terrain/validate_mars_cube.py --dir work/surface-build/real-mars-cube --base SOURCE_ROOT/data/source/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif --fusion SOURCE_ROOT/data/fused --areoid work/surface-build/mola-meg016/MEGA90N000EB.LBL --out work/surface-build/real-mars-source-validation.json"
+  ],
+  "source": {
+    "id": "Mars: Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif + JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif residual",
+    "kind": "height-grid",
+    "version": "cube-fused-f4e1dae18a09-g0-m11-b85084938",
+    "fusion": {
+      "sha256": "f4e1dae18a091307c1dd3d13de5b60015a315d902e8c50826e59f10cc9549c3f",
+      "created": "2026-10-02T23:36:51Z",
+      "base": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "detail": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+    },
+    "generator": {
+      "script": "scripts/terrain/dem.py cube-tile",
+      "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+    },
+    "build": {
+      "global_level": 0,
+      "region": [
+        "jezero@18.45,77.4:1=80,2=60,3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=2"
+      ],
+      "skirt_cells": 0.1,
+      "ellipsoid": [
+        3396190,
+        3376200
+      ],
+      "simplify": 0,
+      "sourceConvention": "areoid-radial",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "inputs": {
+        "base": {
+          "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "residual": {
+          "file": "residual.tif",
+          "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+        },
+        "areoid": {
+          "file": "MEGA90N000EB.LBL",
+          "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+        },
+        "areoidFiles": [
+          {
+            "file": "MEGA90N000EB.IMG",
+            "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+          },
+          {
+            "file": "MEGA90N000EB.LBL",
+            "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+          }
+        ]
+      }
+    }
+  },
+  "datum": {
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    },
+    "verticalDatum": "ellipsoid",
+    "heightConvention": "geodetic-normal"
+  },
+  "geometry": {
+    "kind": "radial-lattice",
+    "referenceRadiusKm": 3396.19
+  },
+  "tileCount": 78,
+  "sourceChecks": {
+    "revision": "cube-fused-f4e1dae18a09-g0-m11-b85084938",
+    "registration": {
+      "model": "detail − base = offset + slopeEast·east + slopeNorth·north (least squares)",
+      "centroid": {
+        "lonDeg": 77.4034569842557,
+        "latDeg": 18.48804879297973
+      },
+      "fitStridePx": 8,
+      "offsetM": -8.645969777066195,
+      "slopeEastMPerKm": 1.0121736526817324,
+      "slopeNorthMPerKm": -0.6852599991318675,
+      "tiltDeg": 0.07003399047059078,
+      "raw": {
+        "n": 4749862,
+        "meanM": -7.893571008697858,
+        "rmsM": 18.93642389993706,
+        "p95AbsM": 39.94189453125,
+        "maxAbsM": 89.161376953125
+      },
+      "afterPlane": {
+        "n": 4749862,
+        "meanM": 8.499790859098853e-14,
+        "rmsM": 15.880520798838809,
+        "p95AbsM": 33.68761187276017,
+        "maxAbsM": 96.78352399830243
+      },
+      "removed": false,
+      "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base"
+    },
+    "sourceControlNote": "MMGIS lon/lat numbers sampled in the USGS source map convention (planetocentric); this is not a certification of existing trajectory Cartesian placement",
+    "areoidModelNote": "MEG016 GMM3 mgm1025 degree/order 50; integer-metre grid, bilinear interpolation; datum/model/source uncertainty remains unbounded here",
+    "vertexConversionM": {
+      "n": 390,
+      "rmsM": 0.00014091456752859667,
+      "p95AbsM": 0.00024304864928126335,
+      "maxAbsM": 0.0009242156520485878
+    },
+    "sourceControlsM": {
+      "n": 73,
+      "rmsM": 0.004180281955175576,
+      "p95AbsM": 0.008264282260643081,
+      "maxAbsM": 0.01816227872541276
+    },
+    "triangleMinusFinestFieldM": {
+      "controls": {
+        "n": 73,
+        "rmsM": 0.8473946278439157,
+        "p95AbsM": 1.7022870867837745,
+        "maxAbsM": 2.92233318210765
+      },
+      "outside": {
+        "n": 12,
+        "rmsM": 0.5252754833848183,
+        "p95AbsM": 0.9420606909193334,
+        "maxAbsM": 1.2393182352429903
+      },
+      "blend": {
+        "n": 12,
+        "rmsM": 3.2512397662597854,
+        "p95AbsM": 6.9885687149755515,
+        "maxAbsM": 8.744418132538158
+      },
+      "interior": {
+        "n": 12,
+        "rmsM": 2.175965905845465,
+        "p95AbsM": 3.967281913920972,
+        "maxAbsM": 7.16954114213172
+      }
+    }
+  },
+  "numericalChecks": {
+    "structure": {
+      "faceRoots": [
+        "px",
+        "nx",
+        "py",
+        "ny",
+        "pz",
+        "nz"
+      ],
+      "replaceComplete": true,
+      "maxBoundsExcessM": 4.656612873077393e-10,
+      "boundsEscapes": 0,
+      "cpuGridVsVertexMismatches": 0
+    },
+    "failures": []
+  },
+  "boundaryPicks": {
+    "note": "rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
+    "rays": 96,
+    "raysOnPair": 96,
+    "renderedMinusCpuM": {
+      "n": 96,
+      "maxM": 291.04234626754646,
+      "rmsM": 38.71513743273922,
+      "p95M": 30.79653014879591
+    },
+    "skirtHitRenderedMinusCpuM": {
+      "n": 25,
+      "maxM": 0.18188703816645102,
+      "rmsM": 0.03711129842195834,
+      "p95M": 0.029581713830793888
+    },
+    "skirtHitOverEdgeGap": {
+      "n": 25,
+      "maxM": 0.00377497801106454,
+      "rmsM": 0.0007561738115713945,
+      "p95M": 0.00015130121263694788
+    },
+    "renderedOnSkirt": 25,
+    "throughCrackWithoutSkirts": 8,
+    "renderedClearanceM": {
+      "n": 93,
+      "maxM": 160.2719588771191,
+      "rmsM": 28.84919033665647,
+      "p95M": 19.758893433429776
+    },
+    "renderedClearanceMinM": 30.23935542566977,
+    "unavailable": []
+  },
+  "limits": [
+    "Real build reused unchanged #50 fusion and did not refit registration or remove the plane.",
+    "Original boundary-ray fixture is pinned to its original revision and was not rebound to this rebuilt product. The 96 rays reported here are regenerated by the numerical validator.",
+    "Controls share source provenance and do not certify absolute physical accuracy. Areoid/model/source uncertainty remains unknown.",
+    "Native-valid source support and continuous requested image coverage are verified for the bounded single-face ROI; no global native-resolution coverage is claimed.",
+    "Local HTTP publication/republication and physical desktop GPU validation passed. No production R2 upload, deployment pin, mission-placement change or real phone acceptance occurred.",
+    "Exact physical peak RAM and exact peak disk remain unknown; one-second worker RSS and logical scratch samples are recorded, with shared-page double counting explicit."
+  ],
+  "executor": {
+    "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
+    "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
+    "productionReady": false,
+    "validation": "passed-supported-gates",
+    "products": [
+      {
+        "kind": "cube-terrain",
+        "sourceIds": [
+          "base",
+          "detail"
+        ],
+        "revision": "cube-fused-f4e1dae18a09-g0-m11-baacd50c2",
+        "maxLevel": 11,
+        "tileCount": 78,
+        "controls": [
+          {
+            "lat": 18.648996249008597,
+            "lon": 77.45101915,
+            "heightM": -2236.417024736056,
+            "toleranceM": 10,
+            "errorM": 1.206073677508357
+          }
+        ]
+      },
+      {
+        "kind": "cube-imagery",
+        "sourceIds": [
+          "hirise-context"
+        ],
+        "revision": "cube-imagery-raster-15f11ffd9fa48dcc",
+        "maxLevel": 13,
+        "tileCount": 24,
+        "controls": null
+      },
+      {
+        "kind": "cube-imagery",
+        "sourceIds": [
+          "hirise-ortho"
+        ],
+        "revision": "cube-imagery-raster-d3b86588fa106fb6",
+        "maxLevel": 16,
+        "tileCount": 32,
+        "controls": null
+      }
+    ],
+    "publishedBytes": 14429321,
+    "sourceAudit": {
+      "baselineSampling": {
+        "invalidUsedKernels": 0,
+        "levels": [
+          {
+            "sourcePyramidLevel": 8,
+            "sourceSize": [
+              417,
+              209
+            ],
+            "tiles": 10,
+            "vertexAndNormalSamples": 211250
+          },
+          {
+            "sourcePyramidLevel": 7,
+            "sourceSize": [
+              834,
+              417
+            ],
+            "tiles": 4,
+            "vertexAndNormalSamples": 84500
+          },
+          {
+            "sourcePyramidLevel": 6,
+            "sourceSize": [
+              1668,
+              834
+            ],
+            "tiles": 4,
+            "vertexAndNormalSamples": 84500
+          },
+          {
+            "sourcePyramidLevel": 5,
+            "sourceSize": [
+              3335,
+              1668
+            ],
+            "tiles": 8,
+            "vertexAndNormalSamples": 169000
+          },
+          {
+            "sourcePyramidLevel": 4,
+            "sourceSize": [
+              6669,
+              3335
+            ],
+            "tiles": 4,
+            "vertexAndNormalSamples": 84500
+          },
+          {
+            "sourcePyramidLevel": 3,
+            "sourceSize": [
+              13337,
+              6669
+            ],
+            "tiles": 4,
+            "vertexAndNormalSamples": 84500
+          },
+          {
+            "sourcePyramidLevel": 2,
+            "sourceSize": [
+              26674,
+              13337
+            ],
+            "tiles": 12,
+            "vertexAndNormalSamples": 253500
+          },
+          {
+            "sourcePyramidLevel": 1,
+            "sourceSize": [
+              53347,
+              26674
+            ],
+            "tiles": 8,
+            "vertexAndNormalSamples": 169000
+          },
+          {
+            "sourcePyramidLevel": 0,
+            "sourceSize": [
+              106694,
+              53347
+            ],
+            "tiles": 24,
+            "vertexAndNormalSamples": 507000
+          }
+        ],
+        "method": "all Catmull-Rom support cells at the exact pinned pyramid level for every emitted lattice vertex and four normal probes",
+        "nativeCoverageNote": "Native voids are retained in the source audit; valid coarse overview samples do not establish native-resolution coverage."
+      },
+      "imagery": {
+        "hirise-context": {
+          "decodedBytes": 4194304,
+          "dtmGridAlignment": {
+            "absoluteGeolocationErrorM": null,
+            "maximumGridPhaseErrorM": 0,
+            "nativePixelRatio": 4,
+            "note": "Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.",
+            "originOffsetsInImagePixels": [
+              53002,
+              52231
+            ]
+          },
+          "filtering": {
+            "bytes": 5621456,
+            "gdal": "3.13.0",
+            "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+            "overviewFactors": [
+              2,
+              4,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+            "supersample": 4
+          },
+          "grid": [
+            77.44647702664389,
+            0.000004217651214528805,
+            0,
+            18.449022866291696,
+            0,
+            -0.000004217651214528805
+          ],
+          "height": 2048,
+          "invalidPixels": 0,
+          "nativeValidSubset": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 230400,
+                "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                "nativeCells": 226576,
+                "window": [
+                  785,
+                  785,
+                  480,
+                  480
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "rasterGsdM": 0.25,
+          "sourceSha256": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9",
+          "sourceToOutputRegistration": {
+            "absoluteGeolocationErrorM": null,
+            "checkedGutterPixels": 0,
+            "checkedPixels": 180,
+            "continuousRequestedCoverage": [
+              {
+                "face": "py",
+                "finestTiles": [
+                  "py/13/5007/2696"
+                ],
+                "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                "uBounds": [
+                  0.22259155842684852,
+                  0.22259992225556025
+                ],
+                "vBounds": [
+                  -0.34168961906424455,
+                  -0.341681140307978
+                ]
+              }
+            ],
+            "maximumAlphaErrorDn": 5.684341886080802e-14,
+            "maximumErrorDn": 0.49638990735776645,
+            "maximumGutterErrorDn": null,
+            "maximumOutputSpacingM": 3.238859176635742,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 9.437843504867773,
+            "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+            "requestedNativeCellsWithFinestCoverage": 8836,
+            "rmsErrorDn": 0.2657846102087784,
+            "sourcePixelSizeM": 0.25,
+            "tiles": [
+              {
+                "checkedPixels": 180,
+                "tile": "py/13/5007/2696"
+              }
+            ]
+          },
+          "validPixels": 4194304,
+          "width": 2048
+        },
+        "hirise-ortho": {
+          "decodedBytes": 4194304,
+          "dtmGridAlignment": {
+            "absoluteGeolocationErrorM": null,
+            "maximumGridPhaseErrorM": 0,
+            "nativePixelRatio": 4,
+            "note": "Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.",
+            "originOffsetsInImagePixels": [
+              53002,
+              52231
+            ]
+          },
+          "filtering": {
+            "bytes": 5621456,
+            "gdal": "3.13.0",
+            "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+            "overviewFactors": [
+              2,
+              4,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+            "supersample": 4
+          },
+          "grid": [
+            77.44647702664389,
+            0.000004217651214528805,
+            0,
+            18.449022866291696,
+            0,
+            -0.000004217651214528805
+          ],
+          "height": 2048,
+          "invalidPixels": 0,
+          "nativeValidSubset": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 230400,
+                "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                "nativeCells": 226576,
+                "window": [
+                  785,
+                  785,
+                  480,
+                  480
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "rasterGsdM": 0.25,
+          "sourceSha256": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9",
+          "sourceToOutputRegistration": {
+            "absoluteGeolocationErrorM": null,
+            "checkedGutterPixels": 640,
+            "checkedPixels": 9224,
+            "continuousRequestedCoverage": [
+              {
+                "face": "py",
+                "finestTiles": [
+                  "py/16/40061/21571",
+                  "py/16/40062/21571"
+                ],
+                "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                "uBounds": [
+                  0.22259155842684852,
+                  0.22259992225556025
+                ],
+                "vBounds": [
+                  -0.34168961906424455,
+                  -0.341681140307978
+                ]
+              }
+            ],
+            "maximumAlphaErrorDn": 1.1368683772161603e-13,
+            "maximumErrorDn": 0.49996122585152136,
+            "maximumGutterErrorDn": 0.49900616090836536,
+            "maximumOutputSpacingM": 0.4048573970794678,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 12.191124802665758,
+            "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+            "requestedNativeCellsWithFinestCoverage": 8836,
+            "rmsErrorDn": 0.28808855071593614,
+            "sourcePixelSizeM": 0.25,
+            "tiles": [
+              {
+                "checkedPixels": 4351,
+                "tile": "py/16/40061/21571"
+              },
+              {
+                "checkedPixels": 4873,
+                "tile": "py/16/40062/21571"
+              }
+            ]
+          },
+          "validPixels": 4194304,
+          "width": 2048
+        }
+      },
+      "largestChildPeakRssBytes": 7261224960,
+      "peakConcurrentRssBytes": 14084800512,
+      "rasters": {
+        "base": {
+          "decodedBytes": 11383609636,
+          "grid": [
+            -180,
+            0.003374120830641,
+            0,
+            90,
+            0,
+            -0.003374120830641
+          ],
+          "height": 53347,
+          "invalidPixels": 39957,
+          "nativeValidSubset": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 30,
+                "maskSha256": "ad26e9c6db9c66373470323228575f3d61d3ec1559b47f9418f717af18350cd9",
+                "nativeCells": 2,
+                "window": [
+                  76299,
+                  21204,
+                  5,
+                  6
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "rasterGsdM": 199.999991643332,
+          "sourceSha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419",
+          "validPixels": 5691764861,
+          "width": 106694
+        },
+        "detail": {
+          "decodedBytes": 1839372800,
+          "grid": [
+            77.22293307697143,
+            0.00001687060485811522,
+            0,
+            18.66931500687775,
+            0,
+            -0.00001687060485811522
+          ],
+          "height": 21488,
+          "invalidPixels": 155852242,
+          "nativeValidSubset": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 15376,
+                "maskSha256": "b4c0c1c776af9c323d656962cc15c75af0e711d879a876e21645268f359a6f47",
+                "nativeCells": 14400,
+                "window": [
+                  13445,
+                  13252,
+                  124,
+                  124
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "rasterGsdM": 1,
+          "sourceSha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8",
+          "validPixels": 303990958,
+          "width": 21400
+        }
+      },
+      "sampledResources": {
+        "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
+        "peakConcurrentRssBytes": 14084800512,
+        "peakScratchBytes": 16218500022,
+        "physicalPeakRamBytes": null,
+        "rssUnavailableReason": null,
+        "sampleIntervalSeconds": 1,
+        "samples": 99
+      },
+      "toolchain": {
+        "gdal": "3.13.0",
+        "numpy": "2.4.6",
+        "python": "3.14.5"
+      },
+      "workerPeakRssBytes": 3024388096
+    },
+    "publication": {
+      "cacheReused": true,
+      "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
+      "localOnly": true,
+      "localFixtureOnly": false,
+      "catalogPinned": false,
+      "products": [
+        {
+          "productId": "terrain-644667a30ff8ca0dfec73004",
+          "prefix": "cube-terrain/terrain-644667a30ff8ca0dfec73004/644667a30ff8ca0dfec73004e9f929c9/",
+          "verified": true
+        },
+        {
+          "productId": "imagery-1ce08e5c3d2af6f973c44522",
+          "prefix": "cube-imagery/imagery-1ce08e5c3d2af6f973c44522/644667a30ff8ca0dfec73004e9f929c9/",
+          "verified": true
+        },
+        {
+          "productId": "imagery-aec72736b4e2fb9518b138e5",
+          "prefix": "cube-imagery/imagery-aec72736b4e2fb9518b138e5/644667a30ff8ca0dfec73004e9f929c9/",
+          "verified": true
+        }
+      ]
+    },
+    "browser": {
+      "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
+      "environment": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36"
+      },
+      "physicalGpu": true,
+      "views": [
+        {
+          "name": "regional",
+          "settleMs": 2050,
+          "geometryLevels": {
+            "0": 2,
+            "1": 2,
+            "2": 3,
+            "3": 2,
+            "4": 7,
+            "5": 3,
+            "6": 1,
+            "7": 10,
+            "8": 6,
+            "9": 6,
+            "10": 6,
+            "11": 8
+          },
+          "imageMaxLevel": 15,
+          "physicalPick": "hit"
+        },
+        {
+          "name": "native-detail",
+          "settleMs": 1784,
+          "geometryLevels": {
+            "0": 2,
+            "1": 2,
+            "2": 3,
+            "3": 2,
+            "4": 7,
+            "5": 3,
+            "6": 2,
+            "7": 6,
+            "8": 6,
+            "9": 6,
+            "10": 6,
+            "11": 8
+          },
+          "imageMaxLevel": 16,
+          "physicalPick": "hit"
+        },
+        {
+          "name": "zoom-out",
+          "settleMs": 1783,
+          "geometryLevels": {
+            "0": 2,
+            "1": 2,
+            "2": 3,
+            "3": 2,
+            "4": 7,
+            "5": 3,
+            "6": 1,
+            "7": 10,
+            "8": 6,
+            "9": 6,
+            "10": 6,
+            "11": 8
+          },
+          "imageMaxLevel": 13,
+          "physicalPick": "hit"
+        },
+        {
+          "name": "restored-native",
+          "settleMs": 1784,
+          "geometryLevels": {
+            "0": 2,
+            "1": 2,
+            "2": 3,
+            "3": 2,
+            "4": 7,
+            "5": 3,
+            "6": 2,
+            "7": 6,
+            "8": 6,
+            "9": 6,
+            "10": 6,
+            "11": 8
+          },
+          "imageMaxLevel": 16,
+          "physicalPick": "hit"
+        }
+      ],
+      "nativeHiddenImageLevel": 13,
+      "nativeRestoredImageLevel": 16,
+      "opacityApplied": 0.35,
+      "hiddenNativeVisible": false,
+      "restoredNativeVisible": true,
+      "geometryIdsPreserved": true,
+      "errors": []
+    }
+  },
+  "historicalPilotNote": "Prior pilot evidence retained for comparison. Current executor/publish/report acceptance is in surface-build-acceptance.json."
+}

@@ -38,6 +38,13 @@ export class CompositeTrajectory implements Trajectory {
     return this.arcAt(et).trajectory.stateAt(et);
   }
 
+  /** The renderer may deliberately hold a child endpoint outside its source
+   * interval. Scientific reads still go through the child's bounded stateAt. */
+  displayStateAt(et: number): CartesianState {
+    const trajectory = this.arcAt(et).trajectory;
+    return trajectory.displayStateAt?.(et) ?? trajectory.stateAt(et);
+  }
+
   /** Return the active arc for a given time */
   arcAt(et: number): TrajectoryArc {
     for (const arc of this.arcs) {

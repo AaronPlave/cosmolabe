@@ -1,27 +1,9 @@
 import type { SurfacePointAnchor, SurfaceDatum, FrameAxis, ReferenceVector, SpatialEndpoint, SpatialRelationship, Universe } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
 
-/**
- * Saved definitions, including temporarily incomplete edits; never sampled values.
- * Reference kinds reuse the endpoint slots: a velocity is of `source` relative
- * to `target` (null: its central body), and axes are drawn at `source`.
- */
-export interface MeasurementDefinition {
-  id: string;
-  kind: SpatialRelationship['kind'];
-  source: SpatialEndpoint | null;
-  target: SpatialEndpoint | null;
-  vertex: SpatialEndpoint | null;
-  /** Axes: the frame drawn. */
-  frame?: string;
-  /** Angle between directions: its two operands. */
-  first?: ReferenceVector | null;
-  second?: ReferenceVector | null;
-  color?: string;
-  visible?: boolean;
-  showDistance?: boolean;
-  fullLength?: boolean;
-}
+export type { MeasurementDefinition } from '@cosmolabe/core';
+import type { MeasurementDefinition } from '@cosmolabe/core';
+
 export interface MeasurementLinkState { version: 1; items: MeasurementDefinition[]; selected?: string; }
 function check(ok: unknown, message: string): asserts ok {
   if (!ok) throw new ViewStateError(`Measurement context: ${message}`);
@@ -83,6 +65,7 @@ function surfacePoint(value: unknown): SurfacePointAnchor {
   const point: SurfacePointAnchor = { bodyName: p.bodyName, bodyFixedPositionKm: positionVector(p.bodyFixedPositionKm), source: p.source,
     latDeg: number(p.latDeg, 90), lonDeg: number(p.lonDeg, 180), latitudeKind: p.latitudeKind,
     hit: { heightKm: hit.heightKm === null ? null : number(hit.heightKm), datum: hit.datum === null ? null : datum(hit.datum) } };
+  if (p.frame !== undefined) { check(text(p.frame), 'invalid surface frame.'); point.frame = p.frame; }
   check((hit.heightKm === null) === (hit.datum === null), 'inconsistent hit datum.');
   if (p.terrainSample !== undefined) {
     const t = object(p.terrainSample);
@@ -115,7 +98,7 @@ export function definitionEndpoints(item: Pick<MeasurementDefinition, 'source' |
   return [item.source, item.target, item.vertex, ...ofVector(item.first), ...ofVector(item.second)].filter((e): e is SpatialEndpoint => !!e);
 }
 function definitionFrames(item: MeasurementDefinition): string[] {
-  const frames = definitionEndpoints(item).flatMap(e => e.kind === 'coordinate' ? [e.frame ?? 'ECLIPJ2000'] : []);
+  const frames = definitionEndpoints(item).flatMap(e => e.kind === 'coordinate' ? [e.frame ?? 'ECLIPJ2000'] : e.kind === 'surface-point' && e.point.frame ? [e.point.frame] : []);
   if (item.kind === 'axes' && item.frame) frames.push(item.frame);
   for (const v of [item.first, item.second]) if (v?.kind === 'frame-axis') frames.push(v.frame);
   return frames;

@@ -1,0 +1,29 @@
+{
+  "name": "Cosmolabe MoonFall synthetic mission waypoints",
+  "geographicCoordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "sphere",
+      "radiusKm": 1737.4
+    },
+    "frame": "MOON_ME_DE421"
+  },
+  "geographicLayers": [
+    {
+      "id": "mission:moonfall-sites",
+      "name": "Cosmolabe MoonFall synthetic mission waypoints",
+      "body": "Moon",
+      "source": "moonfall-sites.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "Cosmolabe MoonFall synthetic mission waypoints",
+        "sourceUrl": "https://github.com/AaronPlave/cosmolabe/blob/main/apps/viewer/test-catalogs/moonfall-shackleton.json",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}

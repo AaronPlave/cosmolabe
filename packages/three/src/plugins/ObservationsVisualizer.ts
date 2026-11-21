@@ -139,6 +139,10 @@ interface ObservationState {
   leading: { gi: number; et: number; fp: Footprint | null } | null;
   /** What the leading mesh was built from. */
   leadingSignature: string;
+  /** What a click can hit: the settled footprints and swath segments, and the
+   *  live leading edge, as surface shapes (see `PickShape`). */
+  pickShapes: PickShape[];
+  leadPickShapes: PickShape[];
   fill: THREE.Mesh;
   outline: THREE.LineSegments;
   /** The leading edge's own small meshes, rebuilt per clock step without
@@ -277,6 +281,8 @@ export class ObservationsVisualizer implements BodyVisualizer {
       buildMs: 0,
       leading: null,
       leadingSignature: '',
+      pickShapes: [],
+      leadPickShapes: [],
       fill,
       outline,
       leadFill,
@@ -332,7 +338,7 @@ export class ObservationsVisualizer implements BodyVisualizer {
     state.signature = 'given';
     const lines = new VertexBuffer(this.maxLine);
     const tris = new VertexBuffer(this.maxFill);
-    this.givenGeometry(obs, ctx, lines, tris);
+    this.givenGeometry(state, obs, ctx, lines, tris);
     lines.writeTo(state.outline.geometry);
     tris.writeTo(state.fill.geometry);
   }
@@ -344,12 +350,20 @@ export class ObservationsVisualizer implements BodyVisualizer {
     return this.showAll || (name !== undefined && this.focus.has(name));
   }
 
-  /** What a click should hit: the footprint fill, drawn or not. Lines are left
-   *  out — a raycaster's line threshold is in world units, and at the scene's
-   *  scale it would catch every click. */
-  pickTargets(object: THREE.Object3D): THREE.Object3D[] {
+  /**
+   * Whether a click that landed on `bodyName` at `worldPoint` is on one of
+   * this observation's drawn footprints — settled or the live leading edge.
+   * A containment test of the surface point against the footprint shapes
+   * (each rejected first by its bounding cap), so a click costs a few dot
+   * products per drawn sample however finely the fill is drawn.
+   */
+  pickOnSurface(object: THREE.Object3D, bodyName: string, worldPoint: THREE.Vector3): boolean {
     const state = object.userData.observation as ObservationState | undefined;
-    return state && object.visible ? [state.fill] : [];
+    if (!state?.obs || !object.visible || state.obs.target.toUpperCase() !== bodyName.toUpperCase()) return false;
+    object.updateMatrixWorld();
+    const local = object.worldToLocal(worldPoint.clone());
+    const p: Vec3 = [local.x, local.y, local.z];
+    return state.pickShapes.some((sh) => shapeContains(sh, p)) || state.leadPickShapes.some((sh) => shapeContains(sh, p));
   }
 
   dispose(object: THREE.Object3D): void {
@@ -454,6 +468,7 @@ export class ObservationsVisualizer implements BodyVisualizer {
       if (!lines.overflowed && !tris.overflowed) {
         lines.writeTo(state.outline.geometry);
         tris.writeTo(state.fill.geometry);
+        state.pickShapes = state.groups.flatMap((progress, gi) => groupPickShapes(progress, counts[gi]!, state.stride));
         return;
       }
       // Over budget, found partway through: the build stopped there, and the
@@ -497,9 +512,12 @@ export class ObservationsVisualizer implements BodyVisualizer {
     state.leadingSignature = key;
     const lines = new VertexBuffer(this.maxLine);
     const tris = new VertexBuffer(this.maxFill);
+    state.leadPickShapes = [];
     if (lead) {
       addFootprint(lead.fp, lines, tris);
       addSwathStrip(lead.from, lead.fp, tris);
+      const shape = hullShape([...hitsOf(lead.from), ...hitsOf(lead.fp)]);
+      if (shape) state.leadPickShapes.push(shape);
     }
     lines.writeTo(state.leadOutline.geometry);
     tris.writeTo(state.leadFill.geometry);
@@ -528,16 +546,20 @@ export class ObservationsVisualizer implements BodyVisualizer {
 
   // ── given coverage ───────────────────────────────────────────────────────
 
-  private givenGeometry(obs: Observation, ctx: RendererContext, lines: VertexBuffer, tris: VertexBuffer): void {
+  private givenGeometry(state: ObservationState, obs: Observation, ctx: RendererContext, lines: VertexBuffer, tris: VertexBuffer): void {
     const radii = ctx.universe.getBody(obs.target)?.radii;
     if (!radii) {
       this.warnOnce(obs.name, `target "${obs.target}" has no radii; a given footprint has no surface to sit on.`);
       return;
     }
     const cov = obs.coverage;
+    state.pickShapes = [];
     if (cov.kind === 'footprint') {
       cov.polygonLonLat.forEach((outer, i) => {
-        addPolygon(outer, cov.holesLonLat?.[i] ?? [], radii, lines, tris);
+        const holes = cov.holesLonLat?.[i] ?? [];
+        addPolygon(outer, holes, radii, lines, tris);
+        const shape = polygonShape(outer, holes, radii);
+        if (shape) state.pickShapes.push(shape);
       });
     } else if (cov.kind === 'disk') {
       // A small ring around the sub-observer point: where the camera looked
@@ -552,6 +574,8 @@ export class ObservationsVisualizer implements BodyVisualizer {
         ring.push([lon + dLon, lat + dLat]);
       }
       addPolygon(ring, [], radii, lines, tris);
+      const shape = polygonShape(ring, [], radii);
+      if (shape) state.pickShapes.push(shape);
     }
   }
 
@@ -795,4 +819,130 @@ function meanLonLat(ring: readonly (readonly [number, number])[]): [number, numb
     lat += la;
   }
   return [(Math.atan2(y, x) * 180) / Math.PI, lat / ring.length];
+}
+
+// ── picking: footprints as surface shapes ───────────────────────────────────
+
+/**
+ * A footprint (or a swath segment) as something a surface point can be tested
+ * against: a bounding cap (centre direction, cosine of its angular radius) for
+ * a cheap reject, then a polygon in the plane tangent at the centre (gnomonic,
+ * so great-circle edges stay straight), with holes.
+ */
+interface PickShape {
+  c: Vec3;
+  cosRadius: number;
+  u: Vec3;
+  v: Vec3;
+  outer: number[];
+  holes: number[][];
+}
+
+const unit3 = (p: Vec3): Vec3 => {
+  const l = Math.hypot(p[0], p[1], p[2]);
+  return [p[0] / l, p[1] / l, p[2] / l];
+};
+const dot3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+
+function hitsOf(fp: Footprint): Vec3[] {
+  return fp.boundary.filter((p): p is Vec3 => p !== null);
+}
+
+/** A tangent frame at the mean direction of `pts`, and the cap that bounds them. */
+function frameFor(pts: Vec3[]): Pick<PickShape, 'c' | 'cosRadius' | 'u' | 'v'> | null {
+  if (pts.length < 3) return null;
+  const sum: Vec3 = [0, 0, 0];
+  for (const p of pts) {
+    const d = unit3(p);
+    sum[0] += d[0]; sum[1] += d[1]; sum[2] += d[2];
+  }
+  const c = unit3(sum);
+  const ref: Vec3 = Math.abs(c[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+  const u = unit3(cross3(ref, c));
+  const v = cross3(c, u);
+  let cosRadius = 1;
+  for (const p of pts) cosRadius = Math.min(cosRadius, dot3(unit3(p), c));
+  if (cosRadius <= 0) return null; // wider than a hemisphere: no tangent plane holds it
+  return { c, cosRadius, u, v };
+}
+
+function project(f: Pick<PickShape, 'c' | 'u' | 'v'>, p: Vec3): [number, number] {
+  const k = dot3(p, f.c);
+  return [dot3(p, f.u) / k, dot3(p, f.v) / k];
+}
+
+/** The convex hull of footprint points: one footprint, or the sweep between two. */
+function hullShape(pts: Vec3[]): PickShape | null {
+  const f = frameFor(pts);
+  if (!f) return null;
+  const q = pts.map((p) => project(f, p)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: number[], a: number[], b: number[]) => (a[0]! - o[0]!) * (b[1]! - o[1]!) - (a[1]! - o[1]!) * (b[0]! - o[0]!);
+  const lower: [number, number][] = [];
+  for (const p of q) {
+    while (lower.length >= 2 && turn(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper: [number, number][] = [];
+  for (let i = q.length - 1; i >= 0; i--) {
+    const p = q[i]!;
+    while (upper.length >= 2 && turn(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+  return hull.length >= 3 ? { ...f, outer: hull.flat(), holes: [] } : null;
+}
+
+/** A given lon/lat polygon, holes kept, as a pick shape. */
+function polygonShape(outer: readonly LonLat[], holes: readonly (readonly LonLat[])[], radii: Vec3): PickShape | null {
+  const pts = openRing(outer).map(([lon, lat]) => lonLatToBodyFixed(lon, lat, radii));
+  const f = frameFor(pts);
+  if (!f) return null;
+  const flat = (ring: readonly LonLat[]) => openRing(ring).flatMap(([lon, lat]) => project(f, lonLatToBodyFixed(lon, lat, radii)));
+  return { ...f, outer: pts.flatMap((p) => project(f, p)), holes: holes.map(flat) };
+}
+
+/** Even-odd point-in-polygon on a flat [x0, y0, x1, y1, …] ring. */
+function inRing(ring: number[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+    const xi = ring[i]!, yi = ring[i + 1]!, xj = ring[j]!, yj = ring[j + 1]!;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function shapeContains(sh: PickShape, p: Vec3): boolean {
+  if (dot3(unit3(p), sh.c) < sh.cosRadius) return false;
+  const [x, y] = project(sh, p);
+  return inRing(sh.outer, x, y) && !sh.holes.some((h) => inRing(h, x, y));
+}
+
+/**
+ * A group's pick shapes, for exactly what `addGroup` draws at `stride`: each
+ * drawn discrete footprint; for a swath, the hull of each joined pair of drawn
+ * samples (the sweep between them), or the lone footprint of an isolated one.
+ * Never across a gap.
+ */
+function groupPickShapes(progress: GroupProgress, n: number, stride: number): PickShape[] {
+  const prints = progress.prints;
+  const drawn: number[] = [];
+  for (let i = 0; i < n; i += stride) drawn.push(i);
+  if (n > 0 && drawn[drawn.length - 1] !== n - 1) drawn.push(n - 1);
+  const joined = (a: number, b: number) => {
+    for (let k = a; k <= b; k++) if (!prints[k]) return false;
+    return true;
+  };
+  const shapes: PickShape[] = [];
+  for (let d = 0; d < drawn.length; d++) {
+    const fp = prints[drawn[d]!];
+    if (!fp) continue;
+    const prevJoined = progress.swath && d > 0 && joined(drawn[d - 1]!, drawn[d]!);
+    const nextJoined = progress.swath && d < drawn.length - 1 && joined(drawn[d]!, drawn[d + 1]!);
+    let shape: PickShape | null = null;
+    if (prevJoined) shape = hullShape([...hitsOf(prints[drawn[d - 1]!]!), ...hitsOf(fp)]);
+    else if (!nextJoined) shape = hullShape(hitsOf(fp));
+    if (shape) shapes.push(shape);
+  }
+  return shapes;
 }

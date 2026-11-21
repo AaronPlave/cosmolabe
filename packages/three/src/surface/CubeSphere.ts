@@ -98,6 +98,8 @@ export interface CubeHeightTile {
 /** CPU payload for the experiment; independent of renderer and imagery residency. */
 export class CubeSphereSampler {
   private readonly tiles = new Map<string, CubeHeightTile>();
+  private readonly levelCounts = new Map<number, number>();
+  private residentLevels: number[] = [];
   /** Squared polar/equatorial radius ratio mapping a geodetic latitude to its geocentric ray. */
   private readonly zScale: number;
   constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata,
@@ -115,9 +117,22 @@ export class CubeSphereSampler {
       || tile.x < 0 || tile.y < 0 || tile.x >= 2 ** tile.level || tile.y >= 2 ** tile.level
       || !Number.isSafeInteger(tile.width) || !Number.isSafeInteger(tile.height) || tile.width < 2 || tile.height < 2
       || tile.elevationsKm.length !== tile.width * tile.height) throw new Error('Malformed cube-sphere height tile');
-    this.tiles.set(cubeTileId(tile), tile);
+    const id = cubeTileId(tile);
+    if (!this.tiles.has(id)) {
+      this.levelCounts.set(tile.level, (this.levelCounts.get(tile.level) ?? 0) + 1);
+      this.residentLevels = [...this.levelCounts.keys()].sort((a, b) => b - a);
+    }
+    this.tiles.set(id, tile);
   }
-  removeTile(address: Pick<CubeTileAddress, 'face' | 'level' | 'x' | 'y'>): void { this.tiles.delete(cubeTileId(address)); }
+  removeTile(address: Pick<CubeTileAddress, 'face' | 'level' | 'x' | 'y'>): void {
+    if (!this.tiles.delete(cubeTileId(address))) return;
+    const count = this.levelCounts.get(address.level)! - 1;
+    if (count) this.levelCounts.set(address.level, count);
+    else {
+      this.levelCounts.delete(address.level);
+      this.residentLevels = this.residentLevels.filter(level => level !== address.level);
+    }
+  }
   getTile(address: Pick<CubeTileAddress, 'face' | 'level' | 'x' | 'y'>): CubeHeightTile | undefined { return this.tiles.get(cubeTileId(address)); }
   get tileCount(): number { return this.tiles.size; }
 
@@ -134,7 +149,7 @@ export class CubeSphereSampler {
 
   /** The finest resident tile containing a face coordinate, with its local fractions. */
   finestResident(coordinate: CubeFaceCoordinate): { tile: CubeHeightTile; localU: number; localV: number } | null {
-    for (let level = MAX_LEVEL; level >= 0; level--) {
+    for (const level of this.residentLevels) {
       const count = 2 ** level;
       const x = tileIndex(coordinate.u, count), y = tileIndex(coordinate.v, count);
       const tile = this.tiles.get(cubeTileId({ face: coordinate.face, level, x, y }));

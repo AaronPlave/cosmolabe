@@ -5,6 +5,7 @@
   import { surfaceNavigable, type SurfacePoint } from '@cosmolabe/three';
   import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route, ZoomIn, Copy } from 'lucide-svelte';
   import { copySurfacePointCoordinates } from '../lib/surface-coordinates';
+  import { workspaceSize } from '../lib/workspace.svelte';
 
   interface Props {
     x: number;
@@ -48,7 +49,7 @@
   }
 
   // Clamp position to viewport
-  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint && surfaceNavigable(surfacePoint) ? 360 : 290))}px;`);
+  let menuStyle = $derived(`left: ${Math.min(x, workspaceSize().width - 200)}px; top: ${Math.min(y, workspaceSize().height - (surfacePoint && surfaceNavigable(surfacePoint) ? 360 : 290))}px;`);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

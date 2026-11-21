@@ -1,0 +1,332 @@
+{
+  "kind": "final-imagery-recovery-and-horizon-acceptance",
+  "date": "2026-10-26",
+  "codeCommit": "2382a6fd160c4fd799ce686c944f84dc0cc0b603",
+  "passed": true,
+  "sourceSha256": {
+    "packages/three/src/CubeImageryLayer.ts": "b13e71d854a495193d4ff8ef331e0cbcd0b1361fd4218ecf95854630241bae1a",
+    "packages/three/src/CubeImageryPages.ts": "82cc65488975031d67bbb9612169063d1636135e9dec4c6045069820e7eb0010",
+    "packages/three/src/surface/ImageryRefinement.ts": "495a524ff12491337483c453f7d905974c71dec893f7aaa370d5c4b5430d5a07",
+    "packages/three/src/__tests__/CubeImageryLayer.test.ts": "3f0679d809d03bca0699e8125a8472e0f393e68c51e937c47ccdc43a5bb8d4f3",
+    "packages/three/src/__tests__/ImageryRefinement.test.ts": "8a6e6705246fbc08ceda26802c2d82dd86992db663e63323f8e2f1d8cf909ebe",
+    "apps/viewer/test-catalogs/moonfall-shackleton.json": "4639beeae08826a54a16058b802ad2f2f8f73d33c3b34bfac418ffe224e38476",
+    "scripts/test-imagery-horizon.mjs": "b905dc963d834484cf471310a0c04a7872bf22c84da0324c7a8be5bd4210a6bb",
+    "scripts/test-imagery-filtering.mjs": "078be8d86de9cdf75a5f632a09e769c76ecb382585a23bd1fceacaf4113e5e6a"
+  },
+  "inputSha256": {
+    "history": "267e6d4ade849e253ef6f9544da12dbe3b4442d06c26123b5645bcee4654d989",
+    "motion": "600c329df823a71ba4e94aa82f019ac239798df4a176b020d3aeb974edddf181",
+    "instrument": "fbf5c85d6543aa291a9ae942b8f4a423360252d468b14a1d60284917b47bc957",
+    "ingenuity": "8549036da2ae01d82ae1355ad0b005f13479904b8513b5916aff93c50464fe5d",
+    "pacing": "248e6ecc8fc7aa3048d4bcfc62795eb4f4c9bcaa3b4b13f813543d4acc9e3d53"
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "unitTests": {
+    "rendererTests": 907,
+    "rendererFiles": 77,
+    "catalogTests": 54,
+    "catalogFiles": 3,
+    "build": true,
+    "testTypecheck": true,
+    "changedTypescriptLint": true,
+    "scriptSyntax": true
+  },
+  "history": {
+    "views": 18,
+    "samples": 358,
+    "nativeGaps": 0,
+    "gpuLevelDisagreements": 0,
+    "quietFrames": 1080,
+    "churn": {
+      "requests": 0,
+      "evicted": 0,
+      "aborted": 0
+    },
+    "peakResidentBytes": 538238976,
+    "analyticFixture": {
+      "isotropicObliqueError": 127.5,
+      "anisotropicObliqueError": 0,
+      "isotropicNadirError": 0,
+      "anisotropicNadirError": 0,
+      "glError": 0
+    }
+  },
+  "adversarialMotion": [
+    {
+      "mission": "ingenuity-jezero",
+      "faults": {
+        "delayed": 41,
+        "failed": 3,
+        "missingParents": 3
+      },
+      "errors": [],
+      "firstPoseToSettledMs": 2161.1764160000002,
+      "summary": {
+        "frameIntervalMs": {
+          "n": 801,
+          "p50": 16.5,
+          "p95": 23.30000001192093,
+          "max": 53.69999998807907
+        },
+        "imageUpdateMs": {
+          "n": 816,
+          "p50": 1.800000011920929,
+          "p95": 5.600000023841858,
+          "max": 18.19999998807907
+        },
+        "maxImageBytes": 1025784942,
+        "maxAllocatedBytes": 1025801326,
+        "last": {
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "ready": true,
+          "textures": 186,
+          "pinnedTextures": 6,
+          "textureBytes": 1025784942,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 1006632960,
+          "requests": 340,
+          "bytes": 274806668,
+          "failures": 3,
+          "aborted": 0,
+          "evicted": 151,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 47,
+          "splitTiles": 0,
+          "blocks": 147,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "0": 8,
+            "1": 6,
+            "2": 18,
+            "3": 16,
+            "4": 14,
+            "5": 2,
+            "6": 15,
+            "7": 12,
+            "8": 5,
+            "9": 10,
+            "10": 5,
+            "11": 5,
+            "12": 4,
+            "13": 5,
+            "14": 7
+          },
+          "wantedLevels": {
+            "0": 4,
+            "2": 14,
+            "4": 6,
+            "5": 1,
+            "6": 5,
+            "7": 8,
+            "8": 3,
+            "9": 6,
+            "10": 8,
+            "11": 6,
+            "12": 4,
+            "13": 7,
+            "14": 4
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 14,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 1.5,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 22544724,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 1025801326,
+          "uploadMs": 936.7000004053116,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        }
+      }
+    },
+    {
+      "mission": "moonfall-shackleton",
+      "faults": {
+        "delayed": 225,
+        "failed": 26,
+        "missingParents": 17
+      },
+      "errors": [],
+      "firstPoseToSettledMs": 1743.8987909999996,
+      "summary": {
+        "frameIntervalMs": {
+          "n": 845,
+          "p50": 16.799999952316284,
+          "p95": 19.700000047683716,
+          "max": 65.10000002384186
+        },
+        "imageUpdateMs": {
+          "n": 864,
+          "p50": 2.399999976158142,
+          "p95": 4.600000023841858,
+          "max": 9
+        },
+        "maxImageBytes": 303688704,
+        "maxAllocatedBytes": 538255360,
+        "last": {
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "ready": true,
+          "textures": 817,
+          "pinnedTextures": 30,
+          "textureBytes": 303688704,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 536870912,
+          "requests": 912,
+          "bytes": 17395718,
+          "failures": 17,
+          "aborted": 0,
+          "evicted": 78,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 21,
+          "splitTiles": 0,
+          "blocks": 12,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "1": 3,
+            "6": 3
+          },
+          "wantedLevels": {
+            "6": 3
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 6,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 0.8999999761581421,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 1486848,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 538255360,
+          "uploadMs": 1274.4000000357628,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        }
+      }
+    }
+  ],
+  "constrainedInstrument": {
+    "passed": true,
+    "fixture": "Synthetic body-fixed nadir sensor at -89.98 degrees, 120 degrees, 25km reference altitude; original MoonFall products",
+    "targetBytes": 50331648,
+    "switches": 3,
+    "errors": []
+  },
+  "ingenuity": {
+    "passed": true,
+    "sites": 3,
+    "operationalPickRays": 75,
+    "estimatedFlightPhases": 15,
+    "viewportSamples": 196,
+    "corridors": {
+      "positions": 15,
+      "renderedFrames": 1307,
+      "maximumSettledDiscrepancyM": 4.7566572902724147e-07,
+      "minimumLoadingClearanceM": 49.17984917619833
+    },
+    "errors": [],
+    "optionalAndBaseOutageRecovery": true,
+    "fourLayerControls": true
+  },
+  "pacing": {
+    "passed": true,
+    "scenarios": [
+      {
+        "mode": "surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "stressed": false,
+        "frameMs": {
+          "min": 15.5,
+          "p50": 16.69999998807907,
+          "p95": 17.5,
+          "max": 18.19999998807907
+        },
+        "imageryMs": {
+          "min": 1.699999988079071,
+          "p50": 2.399999976158142,
+          "p95": 5.699999988079071,
+          "max": 7.599999964237213
+        },
+        "speed": {
+          "min": 15.578081683793904,
+          "p50": 15.578081683794327,
+          "p95": 15.578081683794576,
+          "max": 15.578081683794798
+        },
+        "commandedSpeed": {
+          "min": 15.578081683794316,
+          "p50": 15.578081683794316,
+          "p95": 15.578081683794316,
+          "max": 15.578081683794316
+        },
+        "elapsedSeconds": 4.999699999988076,
+        "distanceKm": 77.8857349942808,
+        "speedRelativeSpread": 5.73567085058894e-14
+      },
+      {
+        "mode": "surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "stressed": true,
+        "frameMs": {
+          "min": 6.800000011920929,
+          "p50": 16.600000023841858,
+          "p95": 42.700000047683716,
+          "max": 44.299999952316284
+        },
+        "imageryMs": {
+          "min": 1.5,
+          "p50": 2.200000047683716,
+          "p95": 3.100000023841858,
+          "max": 4
+        },
+        "speed": {
+          "min": 15.578081683793732,
+          "p50": 15.578081683794315,
+          "p95": 15.578081683794645,
+          "max": 15.578081683794968
+        },
+        "commandedSpeed": {
+          "min": 15.578081683794316,
+          "p50": 15.578081683794316,
+          "p95": 15.578081683794316,
+          "max": 15.578081683794316
+        },
+        "elapsedSeconds": 4.98370000004768,
+        "distanceKm": 77.63648568826845,
+        "speedRelativeSpread": 7.936435212743351e-14
+      }
+    ],
+    "wheel": {
+      "beforeKm": 6.801987877921225,
+      "afterKm": 7.822286059609302
+    },
+    "errors": []
+  },
+  "ci": {
+    "codeCommit": "2382a6fd160c4fd799ce686c944f84dc0cc0b603",
+    "runId": 40402800518,
+    "conclusion": "success",
+    "jobs": 6
+  },
+  "limits": [
+    "Physical Apple M4 Max / Chrome Metal; other devices not covered by this run.",
+    "Historical baseline reports retain their recorded source hashes.",
+    "All source products and mission flight estimates unchanged.",
+    "Production R2 upload/deployment, live HTTP verification and hosted rollback acceptance await explicit authorization."
+  ]
+}

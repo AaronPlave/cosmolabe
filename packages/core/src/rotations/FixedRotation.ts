@@ -23,7 +23,11 @@ export class FixedRotation implements RotationModel {
   constructor(
     quaternion: Quaternion,
     sourceFrame: InertialFrameName = 'EquatorJ2000',
+    readonly bodyFixedFrame?: string,
   ) {
+    if (bodyFixedFrame && (!quaternion.every(Number.isFinite) || Math.abs(Math.hypot(...quaternion) - 1) > 1e-10)) {
+      throw new Error('Named body-fixed orientation requires a finite unit quaternion');
+    }
     this.q = quaternion;
     this.sourceFrame = sourceFrame;
   }
@@ -41,10 +45,12 @@ export class FixedRotation implements RotationModel {
     ascendingNode: number,
     meridianAngle: number,
     sourceFrame: InertialFrameName = 'EquatorJ2000',
+    bodyFixedFrame?: string,
   ): FixedRotation {
     return new FixedRotation(
       composeZXZ(ascendingNode, inclination, meridianAngle),
       sourceFrame,
+      bodyFixedFrame,
     );
   }
 }

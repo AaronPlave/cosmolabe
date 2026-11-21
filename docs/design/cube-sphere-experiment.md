@@ -399,8 +399,9 @@ choice to the builder once, at the price of a cube-specific copy of each source.
   a tiled face layout that the interface's single affine `pixelToSource` cannot
   express. That interface needs a tiled-layout variant before a second
   implementation adopts it.
-- **Config and views.** `TerrainConfig.cubeSphere.imagery = { url }` (plus
-  optional texel target, budget, concurrency, resident level, level cap). Three
+- **Config and views.** A `type: 'cube'` entry in `terrain.imagery[]` (with
+  `cubeSphere.imagery` carrying the optional texel target, budget, concurrency,
+  resident level, level cap). Three
   unlisted catalogs: `moon-terrain-cube-imagery-{grid,registration,nac}`. Debug
   views `imagery-level` (hue per displayed imagery level) and `imagery-unlit`
   (raw texels, no lighting, tone mapping or colour conversion).
@@ -2103,8 +2104,11 @@ Steps 1–4 are done (*First migration*).
      globe (`hasStreamFailed`).
    - Rollback is one catalog block back to `moon_v14`, or `datasets.json`
      pointed at a previous immutable build.
-   - Keep `moon_v14` in `lro-moon.json`, and keep the geographic and polar
-     experiment products, until step 3 has been verified on the hosted build.
+   - Historical rollout gate: keep `moon_v14` in `lro-moon.json` until the
+     first hosted migration is verified. The #240 working catalog now uses
+     the pinned cube products; see [LRO migration status](../validation/lro-cube/README.md)
+     for pending deployed acceptance and rollback. Geographic and polar
+     experiment products remain comparison fixtures.
 5. **Then:**
    - `lro-moon.json`, whose LRO ground tracks are global and so depend on
      step 2;

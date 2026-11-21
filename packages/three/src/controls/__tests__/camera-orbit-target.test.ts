@@ -360,3 +360,21 @@ describe('fly-to with a body-frame landing pose', () => {
     close(camera.up, 0, 1, 0);
   });
 });
+
+describe('explicit orbit target restoration', () => {
+  it('retains the authored offset through tracking updates and releases it on new navigation', () => {
+    const { camera, cc, earth } = setup();
+    cc.track(earth);
+    cc.controls.target.set(100, 200, 300);
+    cc.syncOrbitTargetFromCamera();
+    cc.update();
+    close(cc.controls.target, 100, 200, 300);
+    earth.position.set(10,20,30);
+    cc.update();
+    close(cc.controls.target, 110, 220, 330);
+    expect(camera.position.toArray().every(Number.isFinite)).toBe(true);
+    cc.track(earth); cc.update();
+    close(cc.controls.target, 10,20,30);
+    cc.dispose();
+  });
+});

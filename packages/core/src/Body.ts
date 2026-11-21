@@ -1,3 +1,4 @@
+import type { SurfaceTrajectoryProvenance } from './geometry/surface-trajectory.js';
 import type { Vec3 } from './spice-injection.js';
 import type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 import { CompositeTrajectory, type TrajectoryArc } from './trajectories/CompositeTrajectory.js';
@@ -11,6 +12,13 @@ export type LegacyTrajectoryFrame = 'ecliptic' | 'equatorial' | 'body-fixed';
 
 /** Per-body trajectory plot configuration from Cosmographia's `trajectoryPlot` JSON field */
 export interface TrajectoryPlotConfig {
+  /** Plot reference frame; default is inertial. BodyFixed keeps surface paths
+   * registered to the centre's current orientation, not historical rotation. */
+  frame?: string;
+  /** Maximum initial cache sampling interval in seconds; a rendering policy. */
+  sampleInterval?: number;
+  /** Opt into timeline navigation of sampled composite arcs, using this label. */
+  timelineLabel?: string;
   /** Trail duration in seconds */
   duration?: number;
   /** Lead duration in seconds (plot ahead of current time) */
@@ -29,8 +37,11 @@ export interface TrajectoryPlotConfig {
 
 export interface BodyProperties {
   name: string;
+  /** Human-readable source/model qualifications, shown in the inspector. */
+  description?: string;
   naifId?: number;
   trajectory: Trajectory;
+  surfaceTrajectory?: SurfaceTrajectoryProvenance;
   rotation?: RotationModel;
   parentName?: string;
   radii?: Vec3;            // [equatorial, equatorial, polar] in km
@@ -78,6 +89,8 @@ export type BodyChangeCallback = (body: Body, field: BodyChangeField) => void;
 
 export class Body {
   readonly name: string;
+  readonly surfaceTrajectory?: SurfaceTrajectoryProvenance;
+  readonly description?: string;
   readonly naifId?: number;
   private _trajectory: Trajectory;
   private _rotation?: RotationModel;
@@ -104,6 +117,7 @@ export class Body {
 
   constructor(props: BodyProperties) {
     this.name = props.name;
+    this.description = props.description;
     this.naifId = props.naifId;
     this._trajectory = props.trajectory;
     this._rotation = props.rotation;
@@ -122,6 +136,7 @@ export class Body {
       : undefined;
     this.existsFrom = props.existsFrom;
     this.existsUntil = props.existsUntil;
+    this.surfaceTrajectory = props.surfaceTrajectory;
   }
 
   /** Whether `et` falls inside the body's own existence window (bounds

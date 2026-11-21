@@ -186,22 +186,54 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     expect(s.at(endEt + 3600).visible).toBe(true);
   });
 
-  it('a click on a footprint hits the observation, ahead of the ground under it', () => {
+  /** A world-space point on Titan's surface along a body-fixed direction. */
+  function surfacePoint(obj: THREE.Object3D, dir: readonly number[]): THREE.Vector3 {
+    const r = 2575;
+    const l = Math.hypot(dir[0]!, dir[1]!, dir[2]!);
+    obj.updateMatrixWorld(true);
+    return obj.localToWorld(new THREE.Vector3((dir[0]! / l) * r, (dir[1]! / l) * r, (dir[2]! / l) * r));
+  }
+
+  type PickState = { pickShapes: { c: number[] }[]; leadPickShapes: { c: number[] }[]; leading: { fp: { boundary: (number[] | null)[]; boresight: number[] | null } | null } | null };
+
+  it('a click on a drawn footprint is on the observation — by surface containment, not by raycasting its fill', () => {
     const s = scene({ sensor: 'ISS NAC', groups: groups(120), sideDivisions: 4 });
     s.at(endEt);
-    const targets = s.vis.pickTargets(s.obj);
-    expect(targets).toHaveLength(1);
-    // Down onto the first footprint vertex from far outside Titan.
-    s.obj.updateMatrixWorld(true);
-    const pos = (targets[0] as THREE.Mesh).geometry.getAttribute('position');
-    const p = new THREE.Vector3(pos.getX(0), pos.getY(0), pos.getZ(0)).applyMatrix4(s.obj.matrixWorld);
-    const ray = new THREE.Raycaster(p.clone().multiplyScalar(3), p.clone().negate().normalize());
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(2575e-6, 64, 32));
-    const hits = ray.intersectObjects([globe, ...targets], true);
-    expect(hits[0]!.object).toBe(targets[0]);
-    // Hidden observations are not pickable.
+    const state = s.obj.userData.observation as PickState;
+    expect(state.pickShapes.length).toBeGreaterThan(0);
+    const c = state.pickShapes[0]!.c;
+    expect(s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, c))).toBe(true);
+    // The far side of Titan, another body, or a hidden observation: no.
+    expect(s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, c.map((x) => -x)))).toBe(false);
+    expect(s.vis.pickOnSurface(s.obj, 'Saturn', surfacePoint(s.obj, c))).toBe(false);
     s.at(startEt - 1);
-    expect(s.vis.pickTargets(s.obj)).toEqual([]);
+    expect(s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, c))).toBe(false);
+  });
+
+  it('the live leading edge is pickable between grid samples, where only it is drawn', () => {
+    // A coarse grid (1,000 s steps), paused near the next sample: the leading
+    // footprint has moved well past the last settled one.
+    const step = (C1 - C0) / 3;
+    const s = scene({ sensor: 'ISS NAC', groups: steady, alongTrackDivisions: 3, sideDivisions: 4, fillInObservations: true });
+    s.at(C0 + 1.9 * step);
+    const state = s.obj.userData.observation as PickState;
+    const lead = state.leading?.fp;
+    expect(lead && state.leadPickShapes.length).toBeTruthy();
+    // Points on the leading footprint (pulled 2% toward its centre) that no
+    // settled shape covers: the newest ground, drawn only by the leading mesh.
+    const centre = lead!.boresight!;
+    const onlyLead = lead!.boundary
+      .filter((p): p is number[] => p !== null)
+      .map((p) => p.map((x, k) => x + 0.02 * (centre[k]! - x)))
+      .filter((p) => {
+        const saved = state.leadPickShapes;
+        state.leadPickShapes = [];
+        const settled = s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, p));
+        state.leadPickShapes = saved;
+        return !settled;
+      });
+    expect(onlyLead.length).toBeGreaterThan(0);
+    for (const p of onlyLead) expect(s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, p))).toBe(true);
   });
 
   /** The engine with a CK gap: sincpt fails for `inGap` instants, as it does
@@ -345,6 +377,20 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     expect(vertexCount(r.fill)).toBeGreaterThan(0);
     expect(vertexCount(r.fill)).toBeLessThanOrEqual(MAX_FILL_VERTICES);
     expect(vertexCount(r.outline)).toBeLessThanOrEqual(MAX_LINE_VERTICES);
+    // And a click on it stays cheap: containment against bounding caps, not a
+    // raycast of up to 500k fill triangles. 1,000 clicks over Titan, both on
+    // and off the swath.
+    const pick = s.obj.userData.observation as PickState;
+    const c = pick.pickShapes[0]!.c;
+    const t0 = performance.now();
+    let hits = 0;
+    for (let i = 0; i < 1000; i++) {
+      const dir = i % 2 ? c : [Math.sin(i), Math.cos(i), Math.sin(i * 0.7)];
+      if (s.vis.pickOnSurface(s.obj, 'Titan', surfacePoint(s.obj, dir))) hits++;
+    }
+    const perClickMs = (performance.now() - t0) / 1000;
+    expect(hits).toBeGreaterThanOrEqual(500);
+    expect(perClickMs).toBeLessThan(2);
   });
 
   it('over budget, a swath is drawn at a stride rather than allocated — still gap-honest', () => {

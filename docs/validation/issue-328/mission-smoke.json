@@ -1,0 +1,730 @@
+{
+  "model": "claude-sonnet-5-5",
+  "cache": "existing proxy prompt caching enabled; runs sequential, provider cache may be warm",
+  "renderer": "Chromium SwiftShader",
+  "limits": {
+    "rawTokens": 600000,
+    "estimatedUsd": 0.5,
+    "maxOutputTokensPerRound": 1536
+  },
+  "runs": [
+    {
+      "catalog": "ingenuity-jezero",
+      "mode": "fixed",
+      "prompt": "Show me Ingenuity's longest flight by duration, pause at its start, frame the helicopter, and tell me what imagery is available on Mars.",
+      "latencyMs": 12610,
+      "modelRounds": 6,
+      "usage": {
+        "uncachedInput": 14,
+        "cacheRead": 52063,
+        "cacheWrite": 3532,
+        "output": 702,
+        "rawProcessed": 56311,
+        "estimatedUsd": 0.0210843,
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ]
+      },
+      "stateChecksPassed": true,
+      "state": {
+        "activity": {
+          "id": "ingenuity:flight:12",
+          "name": "Flight 12",
+          "start": 682390499.7,
+          "end": 682390669.2
+        },
+        "place": null,
+        "et": 682390499.7,
+        "playing": false,
+        "selected": null,
+        "tracked": "Ingenuity",
+        "camera": {
+          "position": [
+            0.002410191470448436,
+            -0.0012228935959571544,
+            -0.00036130733301054097
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        }
+      },
+      "reply": "Flight 12 is Ingenuity's longest flight by duration, at about 169.5 s. The clock is paused at its start (2021-08-16 12:53:50 UTC), and the camera is framed on and tracking Ingenuity. The timing is estimated, and the record gives Airfield H as the site, with no link to a place in the scene.\n\nMars has 4 imagery layers, all visible and loading fine:\n- Global Viking, the base layer.\n- Global CTX, an overlay.\n- Jezero CTX, an overlay.\n- Jezero HiRISE, an overlay.",
+      "steps": [
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Ingenuity at Jezero: 4 objects; selected object none; selected activity none; selected place none; tracking Mars."
+        },
+        {
+          "name": "listActivities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "72 matching activities; sorted across all matches by duration desc; 5 returned."
+        },
+        {
+          "name": "getImagery",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Mars: 4 imagery layers.",
+          "inventorySummary": {
+            "body": "Mars",
+            "layers": [
+              {
+                "id": "viking",
+                "name": "Global \u00b7 Viking",
+                "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "ctx-global",
+                "name": "Global \u00b7 CTX",
+                "attribution": "Caltech Murray Lab / Esri",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "jezero-ctx",
+                "name": "Jezero \u00b7 CTX",
+                "attribution": "NASA/USGS Mars 2020 TRN CTX soc_008",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "jezero-hirise",
+                "name": "Jezero \u00b7 HiRISE",
+                "attribution": "NASA/USGS Mars 2020 TRN HiRISE soc_006",
+                "status": "ok",
+                "visible": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "getActivity",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Flight 12"
+        },
+        {
+          "name": "setPlaying",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "setPlaying off: done. The clock now reads 2021-07-05 09:00:08 UTC. Playback is paused."
+        },
+        {
+          "name": "selectActivity",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "selectActivity ingenuity:flight:12: done. The viewer now reports Flight 12 (ingenuity:flight:12) as the selected activity."
+        },
+        {
+          "name": "seekActivity",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "seekActivity ingenuity:flight:12 start: done. The clock now reads 2021-08-16 12:53:50 UTC. Playback is paused."
+        },
+        {
+          "name": "frameObject",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "frameObject Ingenuity: done."
+        },
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Ingenuity at Jezero: 4 objects; selected object none; selected activity Flight 12; selected place none; tracking Ingenuity."
+        }
+      ]
+    },
+    {
+      "catalog": "ingenuity-jezero",
+      "mode": "discovery",
+      "prompt": "Show me Ingenuity's longest flight by duration, pause at its start, frame the helicopter, and tell me what imagery is available on Mars.",
+      "latencyMs": 20931,
+      "modelRounds": 10,
+      "usage": {
+        "uncachedInput": 22,
+        "cacheRead": 88623,
+        "cacheWrite": 18589,
+        "output": 1622,
+        "rawProcessed": 108856,
+        "estimatedUsd": 0.0715988,
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ]
+      },
+      "stateChecksPassed": true,
+      "state": {
+        "activity": {
+          "id": "ingenuity:flight:12",
+          "name": "Flight 12",
+          "start": 682390499.7,
+          "end": 682390669.2
+        },
+        "place": null,
+        "et": 682390499.7,
+        "playing": false,
+        "selected": null,
+        "tracked": "Ingenuity",
+        "camera": {
+          "position": [
+            0.002410191470448436,
+            -0.0012228935959571544,
+            -0.00036130733301054097
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        }
+      },
+      "reply": "Flight 12 is Ingenuity's longest flight by catalog duration, at 169.5 s with estimated timing. It's selected, and the clock is paused at its start (2021-08-16 12:53:50 UTC). The camera is tracking Ingenuity, but the framing call had no readback, so I can't confirm how the view looks. The flight's site is Airfield H, with link \"none\".\n\nMars has four imagery layers, all visible and loading OK:\n- Viking is the base layer.\n- Global CTX is an overlay.\n- Jezero CTX is an overlay.\n- Jezero HiRISE is an overlay.\n\nAll four report being in coverage for the current view. Terrain is configured and drawn. Its source attribution is withheld, and full view coverage is unknown.",
+      "steps": [
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Ingenuity at Jezero: 4 objects; selected object none; selected activity none; selected place none; tracking Mars."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "describeCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task."
+        },
+        {
+          "name": "activities.listActivities",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "72 matching activities; sorted across all matches by duration desc; 5 returned."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "activities.getActivity",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Flight 12"
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "describeCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task."
+        },
+        {
+          "name": "time.setPlaying",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "setPlaying off: done. The clock now reads 2021-07-05 09:00:08 UTC. Playback is paused."
+        },
+        {
+          "name": "activities.selectActivity",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "selectActivity ingenuity:flight:12: done. The viewer now reports Flight 12 (ingenuity:flight:12) as the selected activity."
+        },
+        {
+          "name": "activities.seekActivity",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "seekActivity ingenuity:flight:12 start: done. The clock now reads 2021-08-16 12:53:50 UTC. Playback is paused."
+        },
+        {
+          "name": "camera.frameObject",
+          "ok": true,
+          "status": "partial",
+          "code": null,
+          "summary": "frameObject Ingenuity: done."
+        },
+        {
+          "name": "surface.getImagery",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Mars: 4 imagery layers.",
+          "inventorySummary": {
+            "body": "Mars",
+            "layers": [
+              {
+                "id": "viking",
+                "name": "Global \u00b7 Viking",
+                "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "ctx-global",
+                "name": "Global \u00b7 CTX",
+                "attribution": "Caltech Murray Lab / Esri",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "jezero-ctx",
+                "name": "Jezero \u00b7 CTX",
+                "attribution": "NASA/USGS Mars 2020 TRN CTX soc_008",
+                "status": "ok",
+                "visible": true
+              },
+              {
+                "id": "jezero-hirise",
+                "name": "Jezero \u00b7 HiRISE",
+                "attribution": "NASA/USGS Mars 2020 TRN HiRISE soc_006",
+                "status": "ok",
+                "visible": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "surface.getSurfaceData",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Mars: configured surface products and independently managed overlays; unknown runtime observations are null.",
+          "inventorySummary": {
+            "body": "Mars",
+            "terrain": {
+              "source": {
+                "id": null,
+                "revision": null,
+                "kind": "height-grid",
+                "attribution": null
+              },
+              "frame": null,
+              "runtime": {
+                "ready": true,
+                "loaded": true,
+                "manifestFailed": null,
+                "failedRequests": 0,
+                "drawn": true,
+                "coversView": null,
+                "coversDrawnTiles": null
+              }
+            },
+            "overlays": 4
+          }
+        },
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Ingenuity at Jezero: 4 objects; selected object none; selected activity Flight 12; selected place none; tracking Ingenuity."
+        }
+      ]
+    },
+    {
+      "catalog": "moonfall-shackleton",
+      "mode": "fixed",
+      "prompt": "Take me to the MoonFall landing site near Shackleton, explain which terrain and imagery datasets are available, and tell me whether they're actually loaded.",
+      "latencyMs": 9525,
+      "modelRounds": 4,
+      "usage": {
+        "uncachedInput": 10,
+        "cacheRead": 33376,
+        "cacheWrite": 5151,
+        "output": 673,
+        "rawProcessed": 39210,
+        "estimatedUsd": 0.022965100000000002,
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ]
+      },
+      "stateChecksPassed": true,
+      "state": {
+        "activity": null,
+        "place": {
+          "ref": "moon:mission:moonfall-sites/psr-landing",
+          "name": "MoonFall PSR landing (synthetic)",
+          "body": "Moon"
+        },
+        "et": 913759509.1834563,
+        "playing": false,
+        "selected": null,
+        "tracked": "Moon",
+        "camera": {
+          "position": [
+            -41.72713666548828,
+            -2.865780848710893,
+            -1737.0973510457886
+          ],
+          "target": [
+            -41.71512955302779,
+            -2.864956211419932,
+            -1736.5974959175526
+          ],
+          "up": [
+            0.3678098127426818,
+            0.9298432236335397,
+            -0.010369238785016914
+          ],
+          "fov": 60
+        }
+      },
+      "reply": "The camera is now at \"MoonFall PSR landing (synthetic)\" at -89.71\u00b0, -2\u00b0, a synthetic demo waypoint and not an observed landing. The other site, \"MoonFall base (synthetic)\", is at -89.55\u00b0, -45\u00b0. I picked the landing one because you asked for the landing site.\n\nTerrain is a streamed LOLA-based height grid (the source's attribution is withheld). Imagery is a cube composite of the LROC WAC 100 m global mosaic and the LROC NAC 1 m South Pole mosaic. Both report ready, loaded and drawn with no failed requests. Imagery covers the drawn terrain tiles, but current-view coverage is unknown. There are no managed overlays. Base, normal and displacement textures are configured, but their load state is unknown.",
+      "steps": [
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "MoonFall at Shackleton: 7 objects; selected object none; selected activity none; selected place none; tracking nothing."
+        },
+        {
+          "name": "resolve",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "10 candidates for \"MoonFall\"."
+        },
+        {
+          "name": "searchPlaces",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "1 place found."
+        },
+        {
+          "name": "searchPlaces",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "2 places found."
+        },
+        {
+          "name": "gotoPlace",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "gotoPlace moon:mission:moonfall-sites/psr-landing: arrived at Moon. The viewer now reports MoonFall PSR landing (synthetic) as the selected place."
+        },
+        {
+          "name": "getSurfaceData",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Moon: configured surface products and independently managed overlays; unknown runtime observations are null.",
+          "inventorySummary": {
+            "body": "Moon",
+            "terrain": {
+              "source": {
+                "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                "kind": "height-grid",
+                "attribution": null
+              },
+              "frame": "MOON_ME_DE421",
+              "runtime": {
+                "ready": true,
+                "loaded": true,
+                "manifestFailed": null,
+                "failedRequests": 0,
+                "drawn": true,
+                "coversView": null,
+                "coversDrawnTiles": null
+              }
+            },
+            "cubeImagery": {
+              "source": {
+                "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+                "revision": "cube-imagery-composite-3f34a19541af7710",
+                "kind": "imagery",
+                "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)"
+              },
+              "frame": null,
+              "runtime": {
+                "ready": true,
+                "loaded": true,
+                "manifestFailed": false,
+                "failedRequests": 0,
+                "drawn": true,
+                "coversView": null,
+                "coversDrawnTiles": true
+              }
+            },
+            "overlays": 0
+          }
+        },
+        {
+          "name": "getImagery",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Moon has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.",
+          "inventorySummary": {
+            "body": "Moon",
+            "layers": []
+          }
+        },
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "MoonFall at Shackleton: 7 objects; selected object none; selected activity none; selected place MoonFall PSR landing (synthetic); tracking Moon."
+        }
+      ]
+    },
+    {
+      "catalog": "moonfall-shackleton",
+      "mode": "discovery",
+      "prompt": "Take me to the MoonFall landing site near Shackleton, explain which terrain and imagery datasets are available, and tell me whether they're actually loaded.",
+      "latencyMs": 12819,
+      "modelRounds": 7,
+      "usage": {
+        "uncachedInput": 16,
+        "cacheRead": 55998,
+        "cacheWrite": 14263,
+        "output": 1225,
+        "rawProcessed": 71502,
+        "estimatedUsd": 0.0535393,
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ]
+      },
+      "stateChecksPassed": true,
+      "state": {
+        "activity": null,
+        "place": {
+          "ref": "moon:mission:moonfall-sites/psr-landing",
+          "name": "MoonFall PSR landing (synthetic)",
+          "body": "Moon"
+        },
+        "et": 913759509.1834563,
+        "playing": false,
+        "selected": null,
+        "tracked": "Moon",
+        "camera": {
+          "position": [
+            -41.72713666548828,
+            -2.865780848710893,
+            -1737.0973510457886
+          ],
+          "target": [
+            -41.71512955302779,
+            -2.864956211419932,
+            -1736.5974959175526
+          ],
+          "up": [
+            0.3678098127426818,
+            0.9298432236335397,
+            -0.010369238785016914
+          ],
+          "fov": 60
+        }
+      },
+      "reply": "I flew the camera to \"MoonFall PSR landing (synthetic)\", a synthetic demo waypoint at about -89.71\u00b0, -2\u00b0 (not an observed landing). It's now the selected place. Shackleton crater is a separate gazetteer place.\n\nThe Moon has terrain from a fused LOLA height grid, with no attribution given. It also has cube imagery that combines the LROC WAC 100 m mosaic and the LROC NAC south-pole 1 m mosaic. Both are loaded and drawn, with 0 failed requests. Whether they cover the current view is unknown. Base, normal and displacement textures are configured, but their load state is unknown. There are no managed overlay layers.",
+      "steps": [
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "MoonFall at Shackleton: 7 objects; selected object none; selected activity none; selected place none; tracking nothing."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "listCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Capability page; describe selected IDs to enable their schemas."
+        },
+        {
+          "name": "places.searchPlaces",
+          "ok": false,
+          "status": "refused",
+          "code": "unknown-tool",
+          "summary": "Unknown capability tool"
+        },
+        {
+          "name": "describeCapabilities",
+          "ok": true,
+          "status": null,
+          "code": null,
+          "summary": "Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task."
+        },
+        {
+          "name": "places.searchPlaces",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "1 place found."
+        },
+        {
+          "name": "places.searchPlaces",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "1 place found."
+        },
+        {
+          "name": "scene.resolve",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "\"landing site\" is the activity \"moonfall:Polaris-B:landing:3\"."
+        },
+        {
+          "name": "surface.getSurfaceData",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Moon: configured surface products and independently managed overlays; unknown runtime observations are null.",
+          "inventorySummary": {
+            "body": "Moon",
+            "terrain": {
+              "source": {
+                "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                "kind": "height-grid",
+                "attribution": null
+              },
+              "frame": "MOON_ME_DE421",
+              "runtime": {
+                "ready": true,
+                "loaded": true,
+                "manifestFailed": null,
+                "failedRequests": 0,
+                "drawn": true,
+                "coversView": null,
+                "coversDrawnTiles": null
+              }
+            },
+            "cubeImagery": {
+              "source": {
+                "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+                "revision": "cube-imagery-composite-3f34a19541af7710",
+                "kind": "imagery",
+                "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)"
+              },
+              "frame": null,
+              "runtime": {
+                "ready": true,
+                "loaded": true,
+                "manifestFailed": false,
+                "failedRequests": 0,
+                "drawn": true,
+                "coversView": null,
+                "coversDrawnTiles": true
+              }
+            },
+            "overlays": 0
+          }
+        },
+        {
+          "name": "surface.getImagery",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "Moon has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.",
+          "inventorySummary": {
+            "body": "Moon",
+            "layers": []
+          }
+        },
+        {
+          "name": "places.gotoPlace",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "gotoPlace moon:mission:moonfall-sites/psr-landing fly: arrived at Moon. The viewer now reports MoonFall PSR landing (synthetic) as the selected place."
+        },
+        {
+          "name": "describeScene",
+          "ok": true,
+          "status": "completed",
+          "code": null,
+          "summary": "MoonFall at Shackleton: 7 objects; selected object none; selected activity none; selected place MoonFall PSR landing (synthetic); tracking Moon."
+        }
+      ]
+    }
+  ],
+  "date": "2026-11-01",
+  "limitations": [
+    "One run per mode/task; no statistical performance claim. Fresh browser/scene/conversation per run; provider cache may be warm, fixed precedes discovery.",
+    "Setup trials failed before viewer writes: incorrect catalog paths, then an async polling predicate returned early during the first read-only provider call. Excluded from retained final-run metrics; may warm cache.",
+    "Compact viewport checks passed at 390px. Software WebGL; no physical GPU or terrain-quality claim.",
+    "State checks establish target/time/tracking and successful framing dispatch, not universal UI parity. Discovery correctly marked Ingenuity frameObject partial because no shared semantic readback exists. Both modes produced the same final camera pose.",
+    "MoonFall discovery made one invalid direct semantic-tool call, which was refused, then recovered without replaying writes.",
+    "Answers are not perfect: fixed Ingenuity called all layers loading fine despite degraded fallback tiles, and neither Ingenuity answer reproduced full layer attributions. MoonFall discovery said no attribution given instead of identifying withheld attribution. Preserve these quality issues for #332; successful final state is not full factual-answer acceptance.",
+    "Estimated USD uses existing reviewed proxy rates; not actual billed cost. No cheaper-model availability, pricing or routing was changed."
+  ]
+}

@@ -10,6 +10,7 @@
   import { Copy, Check, Ruler, Navigation, Maximize } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { vs, getRenderer, clearProbePin, navigateToSurfacePoint } from '../lib/viewer-state.svelte';
+  import SurfaceScienceReadings from './SurfaceScienceReadings.svelte';
   import { measureFromHere } from '../lib/spatial-measurements.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -89,6 +90,8 @@
       <div class="row"><span class="k">Radial distance</span><span class="v">{fmtRange(Math.hypot(...point.bodyFixedPositionKm))}</span></div>
       <div class="row"><span class="k">Altitude</span><span class="v">Unavailable (no defined datum)</span></div>
     {/if}
+
+    <SurfaceScienceReadings {point} />
 
     <!-- Camera navigation to the pinned point (#190): the same surface point,
          not re-entered coordinates. Separate from measuring. -->

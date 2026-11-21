@@ -1,0 +1,239 @@
+{
+ "method": "Real hosted terrain/imagery through the real viewer on software WebGL (SwiftShader). Fixed camera per view, fixed epochs, Natural lighting. Every frame waited for the displayed imagery level to equal the wanted level with no fallback blocks. A = provenance forced to unknown (pre-#372 relit path), B = baked as-is, C = a reflectance layer. A was checked against a build of the base commit on the same catalog: mean pixel difference 0.00, 0% of pixels differ.",
+ "gpu": "ANGLE SwiftShader (software); no desktop GPU or mobile-class hardware available",
+ "normalizedStandIn": {
+  "source": "NASA SVS CGI Moon Kit colour map (textures/moon-16k.jpg), derived from the Hapke-normalized LROC WAC mosaic; LOLA albedo fills the poles",
+  "resolution": "16384x8192 equirectangular, about 660 m/px at the equator",
+  "calibration": "luminance scaled so the mean linear value over |lat|<60 deg is 0.115 (LROC global mean reflectance at 643 nm)",
+  "levels": "cube pyramid to level 5"
+ },
+ "shackleton": {
+  "views": {
+   "shk-t0": {
+    "epoch": "2025-01-15T00:00:00Z",
+    "sunElevationDeg": 1.17,
+    "sunAzimuthDeg": 222.3
+   },
+   "shk-t1": {
+    "epoch": "2025-01-22T00:00:00Z",
+    "sunElevationDeg": 1.08,
+    "sunAzimuthDeg": 137.3
+   },
+   "shk-t2": {
+    "epoch": "2025-01-29T00:00:00Z",
+    "sunElevationDeg": 1.4,
+    "sunAzimuthDeg": 52.0
+   },
+   "shk-t3": {
+    "epoch": "2025-02-05T00:00:00Z",
+    "sunElevationDeg": 1.33,
+    "sunAzimuthDeg": 326.7
+   }
+  },
+  "meanLuma": {
+   "A": [
+    21.4,
+    16.1,
+    15.8,
+    23.1
+   ],
+   "B": [
+    72.1,
+    72.0,
+    72.3,
+    72.3
+   ],
+   "C660m": [
+    27.4,
+    24.3,
+    22.1,
+    26.9
+   ],
+   "C100m": [
+    26.7,
+    23.6,
+    21.6,
+    26.5
+   ]
+  },
+  "meanAbsLumaDiff_C100_vs_C660": [
+   1.03,
+   0.93,
+   0.89,
+   0.98
+  ],
+  "c100mDefects": "thin dark ring on the flank (reflectance ~0.12 vs ~0.18) and a dip at the nodata-floor edge: residual slope shading in the product"
+ },
+ "equator": {
+  "views": {
+   "eq-t0": {
+    "epoch": "2025-01-03T12:00:00Z",
+    "sunElevationDeg": 20.26,
+    "sunAzimuthDeg": 91.6
+   },
+   "eq-t1": {
+    "epoch": "2025-01-09T12:00:00Z",
+    "sunElevationDeg": 86.46,
+    "sunAzimuthDeg": 245.7
+   },
+   "eq-t2": {
+    "epoch": "2025-01-15T00:00:00Z",
+    "sunElevationDeg": 20.06,
+    "sunAzimuthDeg": 268.5
+   }
+  },
+  "meanLuma": {
+   "A": [
+    28.2,
+    50.7,
+    31.4
+   ],
+   "B": [
+    49.1,
+    49.1,
+    49.1
+   ],
+   "C": [
+    35.3,
+    63.0,
+    39.0
+   ]
+  }
+ },
+ "jezero": {
+  "views": {
+   "jez-t0": {
+    "epoch": "2021-07-05T05:30:00Z",
+    "sunElevationDeg": 50.45,
+    "sunAzimuthDeg": 75.6
+   },
+   "jez-t1": {
+    "epoch": "2021-07-05T09:00:00Z",
+    "sunElevationDeg": 80.37,
+    "sunAzimuthDeg": 301.2
+   },
+   "jez-t2": {
+    "epoch": "2021-07-05T13:30:00Z",
+    "sunElevationDeg": 20.82,
+    "sunAzimuthDeg": 288.5
+   }
+  },
+  "meanLuma": {
+   "A": [
+    69.6,
+    78.6,
+    42.9
+   ],
+   "B": [
+    98.9,
+    98.9,
+    98.9
+   ]
+  }
+ },
+ "globeToStreamed": {
+  "hiSun60": {
+   "r2500km": {
+    "globe": 85.7,
+    "A": 44.7,
+    "B": 46.2,
+    "C": 58.6
+   },
+   "r700km": {
+    "globe": 76.7,
+    "A": 41.0,
+    "B": 39.1,
+    "C": 53.6
+   }
+  },
+  "loSun8": {
+   "r2500km": {
+    "globe": 34.2,
+    "A": 15.9,
+    "B": 45.3,
+    "C": 21.9
+   },
+   "r700km": {
+    "globe": 39.2,
+    "A": 17.5,
+    "B": 56.0,
+    "C": 24.9
+   }
+  }
+ },
+ "galeCtxEdge": {
+  "epoch": "2014-02-05T14:30:00Z",
+  "meanLuma": {
+   "allRelit": {
+    "ctx": 61.6,
+    "viking": 60.5
+   },
+   "vikingReflectanceCtxBaked": {
+    "ctx": 117.6,
+    "viking": 60.5
+   },
+   "allBaked": {
+    "ctx": 117.6,
+    "viking": 98.6
+   }
+  }
+ },
+ "overlayPluginRealViewer": {
+  "epoch": "2021-07-05T13:30:00Z",
+  "meanLuma": {
+   "allRelit": {
+    "hirise": 60.4,
+    "ctx": 54.9
+   },
+   "ctxRelitHiriseBaked": {
+    "hirise": 70.1,
+    "ctx": 54.9
+   },
+   "allBaked": {
+    "hirise": 139.0,
+    "ctx": 133.0
+   }
+  },
+  "perLayerAsIsWeights": {
+   "allRelit": {
+    "ctx-global": 0,
+    "jezero-ctx": 0,
+    "jezero-hirise": 0
+   },
+   "mixed": {
+    "ctx-global": 0,
+    "jezero-ctx": 0,
+    "jezero-hirise": 1
+   },
+   "allBaked": {
+    "ctx-global": 1,
+    "jezero-ctx": 1,
+    "jezero-hirise": 1
+   }
+  },
+  "preExistingError": "`Cannot read properties of undefined (reading width)` from three.js uploadTexture while overlays stream: identical on the pre-#372 build, so not introduced here"
+ },
+ "softwareGlFrameMs": {
+  "relit": [
+   366.6,
+   366.7
+  ],
+  "baked": [
+   350.0,
+   366.7
+  ],
+  "programs": 10,
+  "drawCalls": 46,
+  "note": "SwiftShader; no GPU or mobile claim"
+ },
+ "normalizedWac100m": {
+  "source": "LROC WAC_EMP_643NM_P900S0000_304P (PDS LRO-L-LROC-5-RDR-V1.0, DATA/MDR/WAC_EMP), fetched from pds.lroc.im-ldi.com",
+  "format": "float32 reflectance, 18669x18669, polar stereographic centred -90/0, 99.74786 m/px, normalized i=30 e=0 g=30; nodata 0xFF7FFFFB",
+  "values": "0.0058-0.657, mean 0.136 (valid pixels)",
+  "nodata": "about 2% of the area poleward of -60 (the square tile corners lie outside the product), 30% within 3 deg of the pole; floors of permanently shadowed craters (Shackleton to about 9 km radius), filled with a smooth regional mean in the cube layer",
+  "orientation": "x = r sin(lon), y = r cos(lon), row = (UL - y)/px, col = (x + UL)/px; checked by correlation 0.82 with the Moon Kit map (other seven orientations: -0.21..0.26)",
+  "cube": "level 7 (83 m/px), 6,706 tiles, 66.5 MB; blends to the Moon Kit layer equatorward of -60, gain 0.350 matched in the -62..-70 ring",
+  "scale": "used as albedo directly; a Lambertian equivalent of reflectance normalized at i=30 would be 1/cos30 = 1.155x larger (not applied)",
+  "equatorialTiles": "WAC_EMP_643NM_E300{S1350,S0450,N0450,N1350,N2250,N3150} located (about 499 MB each); not built"
+ }
+}

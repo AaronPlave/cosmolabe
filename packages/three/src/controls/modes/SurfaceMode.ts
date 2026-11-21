@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
+import { attachPointerInput, keyEventInScope, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 import { bodyFixedToGeodeticRad, geodeticToBodyFixedKm, type Ellipsoid } from '../surfaceNavigation.js';
 
@@ -26,6 +26,9 @@ const MIN_CLEARANCE_KM = 0.01;
  * - Scroll wheel / two-finger pinch: adjust altitude directly
  * - Shift: speed boost
  *
+ * Cruise speed starts at twice the entry clearance per second and remains
+ * fixed across terrain relief. Wheel/pinch selects a new altitude and speed.
+ *
  * The camera co-rotates with the body. Heading is maintained as a body-fixed
  * direction that's updated after movement to prevent drift.
  */
@@ -38,6 +41,7 @@ export class SurfaceMode implements ICameraMode {
   private bodyName = '';
   private altitudeKm = 10;
   private speedKmPerSec = 10;
+  private altitudeFactor = 1;
   private yaw = 0;
   private pitch = 0;
 
@@ -64,6 +68,7 @@ export class SurfaceMode implements ICameraMode {
     this.bodyName = params.bodyName ?? '';
     this.altitudeKm = params.altKm ?? 10;
     this.speedKmPerSec = this.altitudeKm * 2;
+    this.altitudeFactor = 1;
     this.yaw = 0;
     this.pitch = 0;
     this.keys.clear();
@@ -118,12 +123,17 @@ export class SurfaceMode implements ICameraMode {
     }
 
     ctx.camera.position.copy(bm.position).addScaledVector(posKm, ctx.scaleFactor);
+    // Choose cruise speed once from the real entry clearance. Terrain relief
+    // and later sampling/LOD changes must not act like throttle input.
+    this.clampAboveFloor(ctx, bm);
+    this.speedKmPerSec = this.altitudeKm * 2;
 
     // Set up event listeners
     const canvas = ctx.controls.domElement as HTMLElement;
     if (canvas && !this.handlers) {
       this.handlers = {
         keydown: (e: KeyboardEvent) => {
+          if (!keyEventInScope(e, canvas)) return;
           const tag = (e.target as HTMLElement)?.tagName;
           if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
           this.keys.add(e.code);
@@ -185,6 +195,8 @@ export class SurfaceMode implements ICameraMode {
       this.curBodyQuat.copy(bodyQ);
       this.hasBodyQuat = true;
     }
+
+    if (this.altitudeFactor !== 1) this.clampAboveFloor(ctx, bm);
 
     // Surface normal at camera position
     _toBody.copy(ctx.camera.position).sub(bm.position);
@@ -304,8 +316,8 @@ export class SurfaceMode implements ICameraMode {
 
   /**
    * Keep the camera at least `MIN_CLEARANCE_KM` above the floor along the
-   * geodetic normal, and update the altitude (and the speed derived from it)
-   * to the camera's height above that floor.
+   * geodetic normal. Only an explicit altitude adjustment changes cruise
+   * speed; terrain relief or a new terrain sample cannot change the throttle.
    */
   private clampAboveFloor(ctx: CameraModeContext, bm: BodyMesh): void {
     const radii = bm.body.radii;
@@ -323,21 +335,24 @@ export class SurfaceMode implements ICameraMode {
       ? bm.sampleTerrainElevation(g.latRad * 180 / Math.PI, g.lonRad * 180 / Math.PI)?.elevationKm ?? 0
       : 0;
 
+    const zooming = this.altitudeFactor !== 1;
+    const clearanceKm = Math.max(MIN_CLEARANCE_KM, g.altKm - terrainKm);
+    const requestedKm = Math.max(MIN_CLEARANCE_KM, clearanceKm * this.altitudeFactor);
     const floorKm = terrainKm + MIN_CLEARANCE_KM;
-    if (g.altKm < floorKm) {
-      const p = geodeticToBodyFixedKm(g.latRad, g.lonRad, floorKm, ell);
+    if (zooming || g.altKm < floorKm) {
+      const p = geodeticToBodyFixedKm(g.latRad, g.lonRad, zooming ? terrainKm + requestedKm : floorKm, ell);
       _toBody.set(p[0], p[1], p[2]);
       if (this.hasBodyQuat) _toBody.applyQuaternion(this.curBodyQuat);
       ctx.camera.position.copy(bm.position).addScaledVector(_toBody, sf);
     }
-    this.altitudeKm = Math.max(MIN_CLEARANCE_KM, g.altKm - terrainKm);
-    this.speedKmPerSec = this.altitudeKm * 2;
+    this.altitudeKm = zooming ? requestedKm : clearanceKm;
+    if (zooming) this.speedKmPerSec = requestedKm * 2;
+    this.altitudeFactor = 1;
   }
 
   /** Scale altitude (and the speed derived from it) by a zoom factor. */
   private zoomAltitude(factor: number): void {
-    this.altitudeKm = Math.max(0.01, this.altitudeKm * factor);
-    this.speedKmPerSec = this.altitudeKm * 2;
+    this.altitudeFactor *= factor;
   }
 
   private getBodyQuat(_ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {

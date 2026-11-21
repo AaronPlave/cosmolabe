@@ -99,6 +99,10 @@ export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndp
   if (!body) return null;
   try {
     const center = universe.absolutePositionOf(body.name, et);
+    if (endpoint.kind === 'surface-point' && endpoint.point.frame) {
+      const offset = universe.frames.transformRequired([...positionKm], endpoint.point.frame, 'ECLIPJ2000', et);
+      return finite([center[0] + offset[0], center[1] + offset[1], center[2] + offset[2]]);
+    }
     const rotation = body.rotation;
     // A body-fixed coordinate has no defined world position without attitude.
     if (!rotation) return null;

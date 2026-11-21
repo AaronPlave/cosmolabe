@@ -11,6 +11,7 @@
     "rootDir": "src",
     "types": []
   },
+  "references": [{ "path": "../core" }, { "path": "../interop" }],
   "include": ["src"],
   "exclude": ["src/**/*.test.ts", "src/__tests__"]
 }

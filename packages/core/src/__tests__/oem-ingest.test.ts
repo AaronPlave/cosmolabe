@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
 import { parseOem } from '@cosmolabe/interop';
 import {
+  oemCoverage,
   oemToStateRecords,
   oemEpochToEt,
   oemRefFrameToInertial,
@@ -33,10 +34,17 @@ import { InterpolatedStatesTrajectory } from '../trajectories/InterpolatedStates
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 
-const OEM_TEXT = readFileSync(
+const STANDARD_EXCERPT = readFileSync(
   fileURLToPath(new URL('../../../interop/test-fixtures/mgs.oem', import.meta.url)),
   'utf8',
 );
+// The CCSDS example includes only its first three records but declares a
+// ten-day usable interval beginning after those records. For ingestion tests,
+// explicitly bound this excerpt to its actual two minutes; never ignore the
+// producer's usable limits to make a truncated file appear covered.
+const OEM_TEXT = STANDARD_EXCERPT.replace('USEABLE_START_TIME = 1996-12-18T12:10:00.331',
+  'USEABLE_START_TIME = 1996-12-18T12:00:00.331').replace('USEABLE_STOP_TIME = 1996-12-28T21:23:00.331',
+  'USEABLE_STOP_TIME = 1996-12-18T12:02:00.331');
 const LSK = fileURLToPath(
   new URL('../../../../kernels/test-data/naif0012.tls', import.meta.url),
 );
@@ -158,6 +166,9 @@ describe('CCSDS OEM ingest', () => {
   });
 
   describe('state records', () => {
+    it('refuses scientific coverage for the untrimmed standard excerpt outside its usable interval', () => {
+      expect(() => oemCoverage(parseOem(STANDARD_EXCERPT), str2et)).toThrow('no usable coverage');
+    });
     it('carries every tabulated state through in ET order', () => {
       const records = oemToStateRecords(parseOem(OEM_TEXT), str2et);
       expect(records).toHaveLength(3);
@@ -332,7 +343,7 @@ describe('CCSDS OEM ingest', () => {
       expect(warnings.join('\n')).toMatch(/MGS/);
     });
 
-    it('degrades to a fixed point, with a warning, when the file cannot be resolved', () => {
+    it('keeps the scientific position unavailable, with a warning, when the file cannot be resolved', () => {
       const warnings: string[] = [];
       const original = console.warn;
       console.warn = (...args: unknown[]) => void warnings.push(args.join(' '));
@@ -341,7 +352,7 @@ describe('CCSDS OEM ingest', () => {
         const { bodies } = loader.load(catalogWith('J2000'));
         const mgs = bodies.find((b) => b.name === 'MGS');
         expect(mgs).toBeDefined();
-        expect(Array.from(mgs!.trajectory.stateAt(0).position)).toEqual([0, 0, 0]);
+        expect(Array.from(mgs!.trajectory.stateAt(0).position)).toEqual([NaN, NaN, NaN]);
       } finally {
         console.warn = original;
       }

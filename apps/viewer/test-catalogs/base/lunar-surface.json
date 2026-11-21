@@ -1,0 +1,7 @@
+{
+  "name": "DE421 lunar surface orientation",
+  "spiceKernels": [
+    "../kernels/lro/moon_080317.tf.gz",
+    "../kernels/lro/moon_pa_de421_1900_2050.bpc.gz"
+  ]
+}

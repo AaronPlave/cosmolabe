@@ -158,6 +158,16 @@ A Keplerian orbit propagates with the center's GM, from a built-in table of the 
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
+Absolute surface inputs may add an item-level `surfaceTrajectory` with `frame`,
+`positionUnits: "km"`, a physical `datum` (`referenceShape`, `verticalDatum`,
+`heightConvention`), `purpose: "supplied" | "synthetic-demo"`, and optional
+`terrainRevision` used in planning. This records provenance and prevents terrain
+adjustment; it never requests snapping or adds a datum offset. Frame declaration
+conflicts withhold placement. Frame/datum/revision comparisons are available via
+`Universe.surfaceTrajectoryStatus` and the body inspector. See the
+[lunar audit and migration guide](validation/lunar-frames/README.md) for the
+complete schema, numerical comparisons, uncertainty and legacy behavior.
+
 ## Rotation models
 
 Picked by `rotationModel.type`:
@@ -225,6 +235,37 @@ its own geometry type, [`Dsk`](#dsk).
 
 Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `imagery[].url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
 
+#### Fixed mission-site meshes (`Globe.surfaceTiles`)
+
+Each entry uses the existing 3D Tiles loader and requires `name`, `url`,
+`sourceVersion`, `registration`, source-local metre `coverage: {min:[x,y,z],
+max:[x,y,z]}`, `physicalQueryPolicy: "visual-only"` and `overlapPolicy:
+"composite"`. Optional `priority` orders coincident sites; `errorTarget` and
+`maxCacheBytes` control streaming. Multiple entries are independent.
+
+`registration` requires `version`, `bodyFixedFrame`, `provenance`, `status`
+(`estimated` or `controlled`), `uncertaintyKm` (absolute accuracy, `null` if
+unknown), and `bodyFixedKmFromLocalMeters`: a column-major affine 4×4 matrix
+mapping original local metres to declared body-fixed kilometres. Its basis must
+be rigid, right-handed and scaled by 0.001. Source axes must be established
+offline; glTF's up-axis alone does not establish planetary orientation. The
+body needs a rotation with an explicit matching destination frame. `Spice`
+rotation uses `bodyFrame`; synthetic/non-SPICE bodies may use `Fixed` rotation
+with `bodyFixedFrame` and an explicit `inertialFrame`. A frame label declares
+the axes represented by that orientation; it does not certify registration.
+An absent or mismatched destination frame is rejected. The matrix remains fixed across
+camera changes, time, terrain LOD, eviction, retries and reloads. Legacy
+`lat`/`lon`/`altitudeOffset` placement is replaced by this explicit contract.
+
+The coverage box is a display envelope, not a trusted physical mask. Loaded
+local pixels composite over near-side globe pixels and local triangles visually
+occlude models. Cube terrain remains active beneath gaps and failures and owns
+picking, measurements and clearance/navigation; local rocks and overhangs do
+not become query ground truth. No authoritative local-mesh query policy is
+implemented. See the [Dingo Gap source audit](validation/curiosity-gale/source-registration.md)
+and the [small ENU fixture](../apps/viewer/test-catalogs/fixtures/site-mesh/tileset.json)
+for two source-axis conventions and explicit uncertainty.
+
 ### `Globe.imagery`
 
 Streamed, tiled surface imagery that replaces the static `baseMap` as the camera approaches. It is independent of terrain: a Globe with `imagery` and no `terrain` draws the imagery on the body's ellipsoid, and a Globe with both drapes the same imagery over the terrain. Imagery detail is chosen from the source's own levels and the projected image size, never from the terrain mesh's LOD.
@@ -255,16 +296,43 @@ The bottom layer is the **base**: it should cover the whole body, and it is alwa
 | `bounds` | Coverage `[west, south, east, north]` in degrees. Tiles outside it are not requested |
 | `minZoom` | First zoom level with data. Regional products have none below it |
 | `opacity`, `color` | Overlay opacity (0–1) and tint. Ignored on the base of an imagery-only Globe |
-| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS |
+| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS. A fixed date; the same system as `temporal` below |
+| `temporal` | Time-indexed imagery: which observation day the layer depicts and how it is chosen. See [time-indexed imagery](#time-indexed-imagery) |
 | `layer`, `tileMatrixSet`, `crs`, `format`, `styles`, `version`, `transparent` | WMS/WMTS service parameters |
 | `id`, `name`, `attribution` | How the viewer's Imagery control identifies the layer. Defaults: `layer-<index>`, the product name in the URL path, the service host. Keep `name` short (`Jezero · HiRISE`) |
 | `description` | The full product name, shown in the layer's details |
 | `resolutionMeters` | Native ground resolution in m/px, as the provider advertises it. The control shows it under the name. The tile pyramid's pixel size is listed separately, in details, since providers often pad levels past the data |
 | `visible` | `false` makes an overlay start switched off. It requests nothing until it is switched on |
+| `illumination` | `reflectance`, `baked` or `unknown` (default). What the pixels mean for relighting: `baked` imagery is shown as-is where the layer draws (never lit by the Sun a second time), `reflectance` and `unknown` are lit. Applied per pixel, weighted by the layer's own alpha, so layers of different provenance can be stacked. Cube imagery is declared as `terrain.imagery[]` layers with `type: cube`. This is **not** `temporal.illumination`, which only labels a dated image's acquisition lighting. See [surface-illumination.md](surface-illumination.md) |
 
 **Distance transition.** From far away the Globe draws its static `baseMap`. Streaming starts once the body is `preloadAtPixels` (default 40) tall on screen, behind the static map. At `showAtPixels` (default 80) the streamed surface replaces it, but only once the coarsest tiles in view (the level-0 tiles of an imagery-only Globe) have loaded, and then once the request queue has drained, or after 1.5 s of continuous loading if the camera keeps moving. Backing out returns to the static map. If the stream fails outright (the base layer cannot be set up, the root tileset or one of those coarsest tiles fails, or tiles fail before any loads and nothing else is loading), the static map stays for the rest of the session and nothing more is requested. A failed overlay never triggers this, because the layers beneath it still render.
 
 **Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, one row each: a checkbox (a lock for the base, which is always on), the name, and the source and native resolution beneath. A row's expander holds its opacity, order and details: the full product name, coverage, the source's resolution next to the finest its tile pyramid offers, what the view is drawing, and the session's request counts. A badge appears only when it explains why an enabled layer is not showing, or is showing worse than it can, judged against the tiles on screen (in the main camera's frustum and facing it): *Out of view* (none of its coverage is on screen), *Zoom in* (too far out for its data), *Cache full* (close enough, but the tile cache is full so finer tiles cannot load; raise `maxCacheBytes`), *Gaps* (tiles in view could not load it, so the layers beneath show through), *Lower res* (failed source tiles in view are drawn from coarser ones) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. Hovering a regional layer outlines its footprint, faint where it lies past the horizon, and its crosshair button flies the camera over it in free orbit. At most ten layers can be shown at once.
+
+#### Time-indexed imagery
+
+A layer may depict one **observation (acquisition) day**, which is not the simulation epoch the Sun, bodies and spacecraft are drawn at. `time` fixes that day; `temporal` also lets it follow simulation time. Both go through one date substitution (a `/default/YYYY-MM-DD/` path segment, or a WMTS `{Time}` dimension), so existing `time` layers behave as before. Daily products are only as old as their publication, so nothing is ever shown for a day later than the clock allows.
+
+```json
+{
+  "id": "modis-daily", "name": "MODIS daily true colour",
+  "url": "https://…/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-06-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg",
+  "levels": 9, "projection": "EPSG:3857",
+  "temporal": { "policy": "follow-simulation", "start": "2000-02-24", "end": "present", "latencyDays": 1 }
+}
+```
+
+| `temporal` field | Meaning |
+|---|---|
+| `policy` | `fixed` (the UTC `date`), `follow-simulation` (the simulation's UTC day) or `latest` (the newest day the provider declares; `wmts-capabilities` sources only, never guessed). Default `fixed` with a `date`, else `follow-simulation` |
+| `date` | The `fixed` day, `YYYY-MM-DD` |
+| `start`, `end` | First and last day the source has; `end: "present"` leaves it to the clock. A `wmts-capabilities` source fills in what the catalog leaves out from its time dimension, including the gaps between runs of days (a day in a gap is *No data*) |
+| `latencyDays` | Days between acquisition and publication; the newest day shown is today (UTC) minus this. Default 0 |
+| `outOfRange` | For `follow-simulation` outside `[start, end]`: `hide` (default; the layers beneath show) or `nearest` (the closest available day, labelled as such). An explicit `fixed` date is never swapped |
+| `semantics`, `cadence` | `acquisition` and `day`, the only values so far |
+| `illumination` | `baked` (default): the image carries its acquisition-time Sun, and the viewer still shades the globe by the simulated Sun, so the two stack (nothing un-lights the image); `reflectance` when the product has no baked lighting |
+
+Following is throttled to the source cadence: a new day must hold 0.4 s, no two changes are less than 1 s apart, and one is forced after 3 s of continuous change, so fast playback or scrubbing asks for a handful of days, not one per frame. A day change replaces the layer's overlay: the old day's fetches are aborted and its textures released before the new day's loads, so two days never share a layer. The base layer can only be `fixed` (put a daily layer above a static backdrop). `Imagery` shows the acquisition day under the layer's name, with date mode, a date picker, cadence, range and the lighting note in the expander, and badges for *Before data*, *After data*, *No data*, *Not published*, *Nearest day* and *No imagery*. Full notes and the Earth GIBS pilot: [time-indexed imagery](time-indexed-imagery.md).
 
 `terrain.imagery` (below) is still accepted. When both are present, `imagery` wins and a warning is logged. Tuning fields for an imagery-only Globe (`showAtPixels`, `preloadAtPixels`, `overlayResolution`, `errorTarget`, …) go in a `terrain` block of `"type": "imagery"` with no layers of its own; it then takes the sibling stack:
 
@@ -383,6 +451,14 @@ Policy:
 
 To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
+#### `solarShadows`
+
+`"solarShadows": true` enables terrain-cast Sun shadows and horizon occlusion from resident source heights (#205). It is off by default. On relit terrain it attenuates the direct Sun term. On baked imagery it applies current-Sun visibility over the source photograph, whose acquisition shadows remain. Missing height coverage on baked imagery falls back to the reference-sphere horizon. Flood disables both simulated terrain shadows and the photographic day/night gate. Nearby modeled vehicles use their own point visibility in the near clipmap.
+
+The viewer's Display panel has an Off / Low / Medium / High control that turns it on for any terrain with CPU heights, whatever the catalog says. An object tunes it: `levels` (`[{ "halfKm": 8, "size": 256 }, …]`, finest first, at most four, `size` a power of two; default 8 / 24 / 80 / 320 km at 256²), `quality` (`high` default, `medium`, `low`), `budgetMs` (CPU per frame while a level fills, default 3), `biasKm`, `maxAltitudeKm`, `unknownReliefKm`. Design, accuracy, cost and limits: [terrain-solar-visibility.md](terrain-solar-visibility.md).
+
+`"orbitalSolarShadows": { "halfKm": 1500, "size": 256, "maxAltitudeKm": 1150 }` adds an optional coarse level for validated cube terrain above the near range. It does not enable shadows by itself. The active tier uses the same quality selector. The viewer blends through the reference horizon at tier changes and at the outer range.
+
 The other tuning keys (`errorTarget`, `referenceRadiusOffsetKm`, `skirtScale`, `fadeDurationMs`, …) are listed with the rest of the accepted keys in `packages/core/src/catalog/CatalogSchema.ts`.
 
 ## Frames
@@ -398,8 +474,8 @@ Frames are named, and every name resolves through one registry (`Universe.frames
 | `B1950`, `FK4`, `ECLIPB1950`, `GALACTIC` | `EquatorB1950` | inertial | SPICE's fixed matrices | same |
 | `MOD`, `TOD`, `TEME` | `TETE` (TOD) | inertial, time-dependent | IAU-1976 precession, IAU-1980 nutation | same (SPICE has no TEME) |
 | `ITRF` | `ITRF93`, `ITRF2000`…`ITRF2020`, `ECEF`, `TDR` | Earth-fixed | SPICE `ITRF93` when a binary Earth PCK is loaded | TEME + GMST, with UT1 ≈ UTC (≤ 0.4 km at the surface) |
-| `IAU_<BODY>` | | body-fixed | the body's own `rotationModel`, else SPICE's PCK frame | the body's own `rotationModel` |
-| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to `IAU_<CENTER>` | same |
+| `IAU_<BODY>` | | body-fixed | the body's rotation if its declared target is this frame, else SPICE's PCK frame | the matching body's `rotationModel` |
+| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to the centre's declared target frame (default `IAU_<CENTER>`) | same |
 | any SPICE frame | | per SPICE | `pxform` (CK, TK and dynamic frames, `MOON_ME`, …) | not resolvable |
 
 The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. What "EME2000" means depends on who wrote the file. From JPL and SPICE tools it is SPICE's J2000, which is ICRF-aligned; from Orekit, STK or GMAT it is FK5 J2000, which carries the bias. For the second kind, set `"trajectoryFrame": "EME2000_IERS"`: on an OEM whose `REF_FRAME` is EME2000 or ICRF, that declaration refines the file's label rather than being reported as a mismatch.
@@ -618,11 +694,11 @@ An unknown trajectory or rotation `type` is reported the same way, unless a cust
 
 ## More examples
 
-The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. They are listed on the viewer's home screen and catalog browser by `test-catalogs/index.json`; see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
+The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. The curated public experiences are listed on the viewer's home screen and catalog browser by `test-catalogs/index.json`; technical examples and regression fixtures have a separate opt-in `dev-index.json` (see [the fixture guide](../apps/viewer/test-catalogs/README.md)); see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
 
 | File | What it shows |
 |---|---|
-| `iss.json` | Minimal TLE-driven Earth + ISS — no SPICE kernels needed |
+| `iss.json` | Earth from Orbit: NOAA-20 VIIRS daily imagery over Blue Marble plus a TLE-driven ISS — no SPICE kernels needed |
 | `lro-moon.json` | LRO at the Moon with high-res Moon textures |
 | `cassini-soi.json` | Cassini at Saturn-Orbit-Insertion with rings, sensor frustums, multiple viewpoints |
 | `europa-clipper.json` | Multi-body Jupiter system + Galilean moons |
@@ -635,3 +711,5 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 Catalogs **do not** embed kernel paths. SPICE kernels are loaded separately, either via drag-drop in the demo viewer or by calling `Spice.loadKernel(...)` before invoking `CatalogLoader.load(...)`. A catalog that uses `"trajectory": { "type": "Spice", … }` will fail to evaluate at render time if the required kernel hasn't been loaded — but the catalog itself parses fine.
 
 This separation lets the same catalog be reused with different kernel sets (e.g. development predicts vs. reconstructed ephemerides).
+
+The optional catalog-level `displayNote` supplies a visible plain-text scene caption. A scene load resets it; scripts can replace or clear it with `displayNote`. Use it to explain source-solution limits that affect interpretation of the displayed geometry.

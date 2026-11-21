@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { ROOT } from './data-hosting/lib/datasets.mjs';
 import { verifyBuild } from './data-hosting/lib/verify.mjs';
+import { withRetry } from './data-hosting/lib/publish.mjs';
 
 const { values: opt } = parseArgs({
   options: {
@@ -27,10 +28,17 @@ const { values: opt } = parseArgs({
 
 const record = JSON.parse(readFileSync(join(resolve(ROOT, opt.dist), 'hosted-data.json'), 'utf8'));
 const origins = opt.origin?.length ? opt.origin : ['http://localhost:5173'];
+// Retry transport errors only; status, CORS and content checks still fail normally.
+const fetchPublic = (url, init) => withRetry(async () => {
+  const response = await fetch(url, init);
+  if (!response.ok || !response.body) return response;
+  const body = await response.arrayBuffer();
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+}, { tries: 4, baseMs: 1000, what: `public request ${url}` });
 let failed = false;
 for (const [id, d] of Object.entries(record.datasets)) {
   console.log(`${id} (${d.prefix})`);
-  const r = await verifyBuild({ baseUrl: record.baseUrl, prefix: d.prefix, origins, deepKernels: opt.deep, log: console.log });
+  const r = await verifyBuild({ baseUrl: record.baseUrl, prefix: d.prefix, origins, deepKernels: opt.deep, fetchImpl: fetchPublic, log: console.log });
   for (const p of r.problems) console.error(`  - ${p}`);
   if (!r.ok) failed = true;
 }

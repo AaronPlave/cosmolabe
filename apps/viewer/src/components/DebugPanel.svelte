@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { TERRAIN_DEBUG_MODES, type TerrainDebugMode, type TerrainPerformanceMetrics } from '@cosmolabe/three';
+  import { TERRAIN_DEBUG_MODES, type TerrainDebugMode, type TerrainPerformanceMetrics, type SolarShadowDebugMode } from '@cosmolabe/three';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import ViewerLogPanel from './shell/ViewerLogPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -21,6 +22,18 @@
   let currentHeapMB = $state<number | null>(null);
   let terrainDebug = $state(false);
   let terrainDebugMode = $state<TerrainDebugMode>('none');
+  let shadowDebugMode = $state<SolarShadowDebugMode>(0);
+
+  /** Terrain-shadow debug views (#205); see SolarShadowDebugMode. */
+  const SHADOW_DEBUG_VIEWS: { mode: SolarShadowDebugMode; name: string; legend: string }[] = [
+    { mode: 0, name: 'none', legend: '' },
+    { mode: 1, name: 'sun fraction', legend: 'White: Sun fully visible · black: hidden by terrain' },
+    { mode: 2, name: 'unknown', legend: 'Sun fraction; magenta where height data is missing here or on the way to the Sun (drawn lit); orange where the heights are too far apart to decide it (approximate)' },
+    { mode: 3, name: 'alignment', legend: 'Green: drawn terrain within 10 m of the shadow data · red/blue: above/below' },
+    { mode: 4, name: 'neutral + shadows', legend: 'Grey albedo lit by the Sun, with terrain shadows (no imagery)' },
+    { mode: 5, name: 'neutral, no shadows', legend: 'Grey albedo lit by the Sun, without terrain shadows' },
+    { mode: 6, name: 'bypass (A/B off)', legend: 'Normal image, terrain shadows bypassed; shadow data keep updating' },
+  ];
 
   /** One legend line per debug surface mode; the encoding lives in TerrainManager. */
   const DEBUG_MODE_LEGEND: Record<TerrainDebugMode, string> = {
@@ -42,7 +55,7 @@
    * the planet's terrain diagnostics). Polled with FPS rather than derived
    * per frame: the memory estimate walks the loaded tiles.
    */
-  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; surface: string | null; }
+  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; surface: string | null; shadows: boolean; }
   let terrain = $state<TerrainSnapshot | null>(null);
 
   function pollTerrain(): void {
@@ -58,6 +71,7 @@
           state: bm.terrainDiagnostics?.state ?? 'unloaded',
           debugMode: bm.terrainDebugMode ?? 'none',
           surface: bm.surfaceTransitionState,
+          shadows: bm.hasSolarShadow,
         };
         // The renderer owns the mode; the panel only mirrors it, so reopening
         // the panel or reloading a catalog never shows a stale selection.
@@ -101,7 +115,8 @@
     };
     requestAnimationFrame(loop);
 
-    return () => { running = false; };
+    // The shadow view is panel-local: closing the panel returns to the normal image, so it can never be left on unseen.
+    return () => { running = false; getRenderer()?.setTerrainShadowDebug(0); };
   });
 
   // Renderer stats — re-derive each frame
@@ -159,6 +174,8 @@
 {#if info}
   <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
     <div class="diagnostics">
+
+    <ViewerLogPanel />
 
     <!-- FPS chart -->
     <div class="mb-1.5">
@@ -236,6 +253,22 @@
         <div class="row" title="static map / preloading / waiting for first tiles / streamed / fallback after a failed stream"><span class="label">Surface</span><span class="val">{terrain.surface ?? '—'}</span></div>
         {#if t.imagery.layers > 0}
           <div class="row" title="imagery overlays shown / configured · overlay fetches (failed)"><span class="label">Imagery</span><span class="val">{t.imagery.activeOverlays} / {t.imagery.layers} &middot; {t.imagery.requests}{#if t.imagery.failed}&nbsp;({t.imagery.failed} failed){/if}</span></div>
+          {#if t.imagery.cube}
+            {@const i = t.imagery.cube}
+            <div class="ui-section-label mt-3">Independent imagery</div>
+            <div class="row" title="Displayed image levels and patch counts; independent of physical terrain LOD"><span class="label">Shown LODs</span><span class="val">{Object.entries(i.displayedLevels).map(([level, count]) => `${level}:${count}`).join(' ') || '—'}</span></div>
+            <div class="row" title="Desired image levels and patch counts, before residency constraints"><span class="label">Wanted LODs</span><span class="val">{Object.entries(i.wantedLevels).map(([level, count]) => `${level}:${count}`).join(' ') || '—'}</span></div>
+            <div class="row" title="Queued / in flight / failed image tiles"><span class="label">Image loading</span><span class="val">{i.queued} / {i.inFlight} / {i.failedTiles}{#if i.budgetLimited} · limited{/if}</span></div>
+            <div class="row" title="Image requests / aborts / evictions since reset"><span class="label">Image churn</span><span class="val">{i.requests} / {i.aborted} / {i.evicted}</span></div>
+            <div class="row" title="Resident image payload / target, not a hard ceiling. Displayed pages and transition reservations may exceed the target."><span class="label">Image / target</span><span class="val">{mb(i.textureBytes)} / {mb(i.maxTextureBytes)}</span></div>
+            <div class="row" title="Allocated image array and page table; separate from terrain geometry and tile-cache memory"><span class="label">Image GPU</span><span class="val">{mb(i.gpuAllocatedBytes)}</span></div>
+            {#if i.gpuError}<div class="row"><span class="label">Image GPU state</span><span class="val" title={i.gpuError}>retained fallback</span></div>{/if}
+            <div class="row" title="Transition reservation / protected bytes above a reduced target"><span class="label">Image reserve</span><span class="val">{mb(i.transitionTextureBytes)} / {mb(i.protectedOverBudgetBytes)}</span></div>
+            <div class="row" title="Sibling groups committed this frame / awaiting usable replacements"><span class="label">Replacement</span><span class="val">{i.committedGroups} / {i.waitingGroups}</span></div>
+            <div class="row" title="Fallback patches / failed patches / uncovered mandatory base patches"><span class="label">Image fallback</span><span class="val">{i.fallbackBlocks} / {i.failedBlocks} / {i.baseUncoveredBlocks}</span></div>
+            <div class="row" title="Imagery update CPU time this frame / cumulative image upload CPU time"><span class="label">Image CPU</span><span class="val">{fixed(i.updateMs)} / {fixed(i.uploadMs)} ms</span></div>
+            <div class="row" title="Extra imagery draws / derived geometry bytes / cumulative geometry build time; paged imagery should keep these zero"><span class="label">Image geometry</span><span class="val">{i.extraDraws} / {mb(i.blockGeometryBytes)} / {fixed(i.blockBuildMs)} ms</span></div>
+          {:else}
           <label class="row" title="Per-tile imagery composite size. Changing it rebuilds every shown overlay, for side-by-side measurement; texture memory grows with its square.">
             <span class="label">Composite</span>
             <select
@@ -251,6 +284,7 @@
               {/each}
             </select>
           </label>
+          {/if}
         {/if}
       {:else}
         <div class="row"><span class="label">Sampler</span><span class="val">none</span></div>
@@ -284,6 +318,27 @@
       </label>
       {#if terrainDebugMode !== 'none'}
         <div class="label legend">{DEBUG_MODE_LEGEND[terrainDebugMode]}</div>
+      {/if}
+      {#if terrain?.shadows}
+        <label class="row" title="Terrain-cast Sun shadows (#205): debug views, shown while Display → Terrain shadows is on">
+          <span class="label">Shadow view</span>
+          <select
+            class="val m-0 bg-transparent"
+            data-testid="terrain-shadow-debug"
+            value={String(shadowDebugMode)}
+            onchange={(e) => {
+              shadowDebugMode = Number((e.target as HTMLSelectElement).value) as SolarShadowDebugMode;
+              getRenderer()?.setTerrainShadowDebug(shadowDebugMode);
+            }}
+          >
+            {#each SHADOW_DEBUG_VIEWS as v}
+              <option value={String(v.mode)}>{v.name}</option>
+            {/each}
+          </select>
+        </label>
+        {#if shadowDebugMode !== 0}
+          <div class="label legend">{SHADOW_DEBUG_VIEWS[shadowDebugMode].legend}</div>
+        {/if}
       {/if}
     </div>
     </div>

@@ -3,6 +3,7 @@ import { checkGeographicText, geographicLimits, geographicObject, parseGeographi
 import type { GeographicLayer, GeographicLayerLoad, GeographicSource, GeographicLimits } from './model.js';
 
 export interface GeographicLoadOptions {
+  deferHidden?: boolean;
   catalogUrl?: string;
   /** Non-URL identity (for example a selected local catalog filename). */
   catalogIdentity?: string;
@@ -86,17 +87,28 @@ export async function loadGeographicLayers(catalog: CatalogJson, options: Geogra
       const spec = validateGeographicDefinition(raw, catalog.geographicCoordinates);
       if (ids.has(spec.id)) throw new Error(`Duplicate geographic layer id ${spec.id}`);
       ids.add(spec.id);
-      if (remaining <= 0) throw new Error('GeoJSON catalog byte budget exhausted');
-      const limits = geographicLimits({ ...options.limits, maxBytes: Math.min(geographicLimits(options.limits).maxBytes, remaining) });
-      // A broken optional source must not keep the scene waiting indefinitely.
-      const signal = AbortSignal.any([...(options.signal ? [options.signal] : []), AbortSignal.timeout(15_000)]);
-      const text = await (options.readText ?? fetchGeographicText)(source.identity, limits.maxBytes, signal);
-      signal.throwIfAborted();
-      remaining -= new TextEncoder().encode(text).byteLength;
-      checkGeographicText(text, limits);
-      const layer = await (options.parse ?? parseGeographicGeoJson)(text, spec, source, undefined, limits);
-      signal.throwIfAborted();
-      results.push({ id: spec.id, source, status: 'ready', layer, diagnostics: layer.diagnostics });
+      const load = async (): Promise<GeographicLayerLoad> => {
+        if (remaining <= 0) throw new Error('GeoJSON catalog byte budget exhausted');
+        const limits = geographicLimits({ ...options.limits, maxBytes: Math.min(geographicLimits(options.limits).maxBytes, remaining) });
+        // A broken optional source must not keep the scene waiting indefinitely.
+        const signal = AbortSignal.any([...(options.signal ? [options.signal] : []), AbortSignal.timeout(15_000)]);
+        const text = await (options.readText ?? fetchGeographicText)(source.identity, limits.maxBytes, signal);
+        signal.throwIfAborted();
+        checkGeographicText(text, limits);
+        const layer = await (options.parse ?? parseGeographicGeoJson)(text, spec, source, undefined, limits);
+        signal.throwIfAborted();
+        const bytes = new TextEncoder().encode(text).byteLength;
+        if (bytes > remaining) throw new Error('GeoJSON catalog byte budget exhausted');
+        remaining -= bytes;
+        return { id: spec.id, source, status: 'ready', layer, diagnostics: layer.diagnostics };
+      };
+      if (options.deferHidden && spec.loadOnDemand && spec.display?.visible === false) {
+        let pending: Promise<GeographicLayerLoad> | undefined;
+        const request = () => pending ??= load().finally(() => { pending = undefined; });
+        results.push({ id: spec.id, source, status: 'deferred', deferred: { definition: spec, load: request }, diagnostics: [] });
+      } else {
+        results.push(await load());
+      }
     } catch (error) {
       options.signal?.throwIfAborted();
       results.push(failure(raw, source, error));
@@ -151,6 +163,16 @@ export class GeographicLayerStore {
   }
   get layers(): readonly GeographicLayer[] { return this.loads.flatMap(x => x.status === 'ready' && x.layer ? [x.layer] : []); }
   get(id: string): GeographicLayer | undefined { return this.layers.find(x => x.id === id); }
+  /** A request may finish after its catalog was replaced or unloaded. */
+  resolveDeferred(previous: GeographicLayerLoad, ready: GeographicLayerLoad): boolean {
+    if (this.loads.find(load => load.id === previous.id) !== previous) return false;
+    for (const [owner, loads] of this.owners) {
+      if (!loads.includes(previous)) continue;
+      this.owners.set(owner, loads.map(load => load === previous ? ready : load));
+      return true;
+    }
+    return false;
+  }
   removeCatalog(owner: string): void { this.owners.delete(owner); }
   clear(): void { this.owners.clear(); }
 }

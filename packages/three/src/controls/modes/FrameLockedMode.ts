@@ -40,6 +40,15 @@ export interface FrameLockedModeOptions {
   axisBasis?: AxisBasis;
 }
 
+export interface CameraFrameFault {
+  frameId: string;
+  et: number;
+  /** Why, without the epoch: constant while the same failure continues. */
+  reason: string;
+  /** The full text, naming the epoch. */
+  message: string;
+}
+
 const _offset = /* @__PURE__ */ new THREE.Vector3();
 const _curQ = /* @__PURE__ */ new THREE.Quaternion();
 const _deltaQ = /* @__PURE__ */ new THREE.Quaternion();
@@ -75,6 +84,7 @@ export class FrameLockedMode implements ICameraMode {
   private axis: Axis = '-Z';
   private offsetKm = 0;
   private source: FrameOrientationSource | null = null;
+  private _frameFault: CameraFrameFault | null = null;
   private readonly prevQuat = new THREE.Quaternion();
   private hasPrevQuat = false;
 
@@ -92,11 +102,17 @@ export class FrameLockedMode implements ICameraMode {
     return this.source?.frameId ?? null;
   }
 
+  /** Why the current locked frame could not be evaluated, or null when healthy. */
+  get frameFault(): CameraFrameFault | null {
+    return this._frameFault;
+  }
+
   activate(ctx: CameraModeContext, params: CameraModeParams): void {
     this.bodyName = params.bodyName ?? '';
     this.axis = params.axis ?? '-Z';
     this.offsetKm = params.offset ?? 0;
     this.source = this.resolveFrame(ctx, params);
+    this._frameFault = null;
     this.hasPrevQuat = false;
 
     if (this.behavior === 'corotate' && this.source?.orientation(ctx, this.prevQuat)) {
@@ -106,10 +122,24 @@ export class FrameLockedMode implements ICameraMode {
 
   update(ctx: CameraModeContext): void {
     const bm = ctx.bodyMeshes.get(this.bodyName);
-    if (!bm || !this.source) return;
+    if (!bm || !this.source) {
+      const reason = !bm ? `Body "${this.bodyName}" is not loaded.` : 'No orientation source is available.';
+      this._frameFault = { frameId: this.source?.frameId ?? `body:${this.bodyName}`, et: ctx.et, reason, message: reason };
+      return;
+    }
 
     const curQuat = this.source.orientation(ctx, _curQ);
-    if (!curQuat) return;
+    if (!curQuat) {
+      const reason = this.source.fault ?? 'orientation data unavailable.';
+      this._frameFault = {
+        frameId: this.source.frameId,
+        et: ctx.et,
+        reason,
+        message: `Frame ${this.source.frameId} unavailable at ET ${ctx.et.toFixed(3)}: ${reason}`,
+      };
+      return;
+    }
+    this._frameFault = null;
 
     if (this.behavior === 'attached') {
       this.updateAttached(ctx, bm.position, curQuat);
@@ -142,6 +172,7 @@ export class FrameLockedMode implements ICameraMode {
   deactivate(_ctx: CameraModeContext): void {
     this.bodyName = '';
     this.source = null;
+    this._frameFault = null;
     this.hasPrevQuat = false;
   }
 

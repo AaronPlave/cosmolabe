@@ -215,8 +215,46 @@ export interface BlockSelectionInput {
   /** Upper bound on blocks per geometry tile; splitting stops before exceeding it. */
   maxBlocks: number;
   /** Sphere-in-view test, body-fixed km. Out-of-view blocks do not split. */
-  inView?: (centreKm: Vec3, radiusKm: number) => boolean;
+  inView?: (centreKm: Vec3, radiusKm: number, address: ImageryAddress) => boolean;
 }
+
+/** Conservative body-axis box for the entire spherical patch, including its
+ * edge/interior coordinate extrema, at all supplied radial distances. Convex
+ * triangles joining points in this patch also remain inside the box.
+ */
+export function blockBoundingBox(a: ImageryAddress, radiusRangeKm: readonly [number, number]): { min: Vec3; max: Vec3 } {
+  const { u0, v0, size } = imageryTileRect(a);
+  const u1 = u0 + size, v1 = v0 + size;
+  const absRange = (lo: number, hi: number) => [lo <= 0 && hi >= 0 ? 0 : Math.min(Math.abs(lo), Math.abs(hi)), Math.max(Math.abs(lo), Math.abs(hi))];
+  const [umin, umax] = absRange(u0, u1), [vmin, vmax] = absRange(v0, v1);
+  const component = (lo: number, hi: number, otherMin: number, otherMax: number) => [
+    lo / Math.sqrt(1 + lo * lo + (lo <= 0 ? otherMin : otherMax) ** 2),
+    hi / Math.sqrt(1 + hi * hi + (hi >= 0 ? otherMin : otherMax) ** 2),
+  ];
+  const intervals = [[1 / Math.sqrt(1 + umax * umax + vmax * vmax), 1 / Math.sqrt(1 + umin * umin + vmin * vmin)],
+    component(u0, u1, vmin, vmax), component(v0, v1, umin, umax)];
+  const basis = cubeFaceBasis(a.face), min: [number, number, number] = [0, 0, 0], max: [number, number, number] = [0, 0, 0];
+  for (let axis = 0; axis < 3; axis++) {
+    const k = basis.findIndex(b => b[axis] !== 0), sign = basis[k][axis];
+    const values = intervals[k].flatMap(value => radiusRangeKm.map(radius => sign * value * radius));
+    min[axis] = Math.min(...values); max[axis] = Math.max(...values);
+  }
+  return { min, max };
+}
+
+/** A box is occulted only if every corner is behind a known inner sphere.
+ * The shadow region is convex. A zero/unknown inner radius culls nothing.
+ */
+export function boxBeyondHorizon(box: { min: Vec3; max: Vec3 }, eye: Vec3, innerRadiusKm: number): boolean {
+  const vh2 = dot3(eye, eye) - innerRadiusKm * innerRadiusKm;
+  if (!(innerRadiusKm > 0) || vh2 <= 0) return false;
+  for (const x of [box.min[0], box.max[0]]) for (const y of [box.min[1], box.max[1]]) for (const z of [box.min[2], box.max[2]]) {
+    const delta: Vec3 = [x - eye[0], y - eye[1], z - eye[2]], d = -dot3(delta, eye);
+    if (!(d > vh2 && d * d > vh2 * dot3(delta, delta))) return false;
+  }
+  return true;
+}
+const dot3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /** Bounding sphere (body-fixed km) of a face square at radii within `radiusRangeKm`. */
 export function blockBoundingSphere(a: ImageryAddress, radiusRangeKm: readonly [number, number]): { centre: Vec3; radius: number } {
@@ -251,7 +289,7 @@ export function selectImageryBlocks(input: BlockSelectionInput): ImageryBlock[] 
     // Nearest point of the square to the face centre carries its largest texel.
     const uc = Math.min(Math.max(0, u0), u0 + size), vc = Math.min(Math.max(0, v0), v0 + size);
     const desiredLevel = Math.min(availability.maxLevel, imageryLevelFor(texelGroundSizeKm(0, uc, vc, input.radiusRangeKm[1], input.tileSize), distance, input.pixelAngleRad, input.maxScreenTexelError));
-    const inView = input.inView ? input.inView(sphere.centre, sphere.radius) : true;
+    const inView = input.inView ? input.inView(sphere.centre, sphere.radius, block) : true;
     if (inView && desiredLevel > block.level && count + 3 <= input.maxBlocks && availability.hasAnyChild(block)) {
       for (let i = 0; i < 4; i++) queue.push({ face: block.face, level: block.level + 1, x: 2 * block.x + (i & 1), y: 2 * block.y + (i >> 1) });
       count += 3;

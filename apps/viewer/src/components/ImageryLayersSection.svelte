@@ -4,6 +4,7 @@
 </script>
 
 <script lang="ts">
+  import { setImageryVisible, setImageryOpacity, moveImageryLayer, setImageryTime } from '../lib/appearance-control';
   /**
    * The selected body's streamed imagery stack (#123): which sources it has,
    * which are on, their opacity and order. The settings are transient, scoped
@@ -14,13 +15,23 @@
    * explains why an enabled layer is not showing, or showing worse than it can.
    *
    * A selected rover or spacecraft shows its parent's imagery, since that is
-   * the surface it sits on.
+   * the surface it sits on. The Surface layers panel passes `bodyName` to show
+   * one body's stack under the same controls.
    */
   import { vs, getRenderer, flyToRegion } from '../lib/viewer-state.svelte';
-  import type { BodyMesh, ImageryLayerInfo, SurfaceTransitionState } from '@cosmolabe/three';
+  import type { BodyMesh, ImageryLayerInfo, ImageryLayerTime, ImageryTimePolicy, SurfaceTransitionState } from '@cosmolabe/three';
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Crosshair, Lock } from 'lucide-svelte';
 
-  let open = $state(rememberedOpen);
+  interface Props {
+    /** A specific body, instead of following the selection. */
+    bodyName?: string;
+    /** Open regardless of the remembered state (the Surface layers imagery view). */
+    startOpen?: boolean;
+  }
+  let { bodyName, startOpen = false }: Props = $props();
+
+  // svelte-ignore state_referenced_locally
+  let open = $state(startOpen || rememberedOpen);
   $effect(() => { rememberedOpen = open; });
 
   /** Layers whose details are expanded, by id. */
@@ -47,9 +58,10 @@
     void tick;
     void rev;
     const r = getRenderer();
-    if (!r || !vs.selectedBodyName) return null;
-    let bm = r.getBodyMesh(vs.selectedBodyName);
-    if (bm && bm.imageryLayers.length === 0 && bm.body.parentName) bm = r.getBodyMesh(bm.body.parentName);
+    const target = bodyName ?? vs.selectedBodyName;
+    if (!r || !target) return null;
+    let bm = r.getBodyMesh(target);
+    if (!bodyName && bm && bm.imageryLayers.length === 0 && bm.body.parentName) bm = r.getBodyMesh(bm.body.parentName);
     if (!bm || bm.imageryLayers.length === 0) return null;
     return {
       body: bm.body.name,
@@ -68,12 +80,23 @@
   }
 
   function setVisible(layer: ImageryLayerInfo, visible: boolean) {
-    bodyMesh()?.setImageryLayerVisible(layer.id, visible);
+    if (surface) setImageryVisible(surface.body, layer.id, visible);
     rev++;
   }
 
   function setOpacity(layer: ImageryLayerInfo, value: number) {
-    bodyMesh()?.setImageryLayerOpacity(layer.id, value);
+    if (surface) setImageryOpacity(surface.body, layer.id, value);
+    rev++;
+  }
+
+  function setPolicy(layer: ImageryLayerInfo, policy: ImageryTimePolicy) {
+    if (surface) setImageryTime(surface.body, layer.id, { policy });
+    rev++;
+  }
+
+  function setDate(layer: ImageryLayerInfo, date: string) {
+    // A cleared or half-typed date input is not a choice.
+    if (surface && date) setImageryTime(surface.body, layer.id, { date });
     rev++;
   }
 
@@ -81,7 +104,7 @@
   function move(layer: ImageryLayerInfo, up: boolean) {
     if (!surface) return;
     const index = surface.layers.findIndex((l) => l.id === layer.id);
-    bodyMesh()?.moveImageryLayer(layer.id, index + (up ? 1 : -1));
+    moveImageryLayer(surface.body, layer.id, index + (up ? 1 : -1));
     rev++;
   }
 
@@ -92,7 +115,7 @@
   function highlight(layer: ImageryLayerInfo | null) {
     footprintOwner?.showImageryFootprint(null);
     footprintOwner = layer?.bounds ? bodyMesh() : null;
-    footprintOwner?.showImageryFootprint(layer!.bounds);
+    footprintOwner?.showImageryFootprint(layer!.bounds, layer!.latitudeConvention);
   }
   let surfaceBody = $derived(surface?.body);
   $effect(() => { void surfaceBody; return () => highlight(null); });
@@ -110,6 +133,14 @@
   /** Why an enabled layer is not showing, or showing worse than it can; null when it is fine. */
   function badge(layer: ImageryLayerInfo, s: Surface): Badge | null {
     if (!layer.visible) return null;
+    const t = layer.temporal;
+    if (t && t.date === null) return timeBadge(t);
+    if (t?.state === 'nearest') {
+      return { text: 'Nearest day', tone: 'warn', title: `No imagery for ${t.requestedDate}; showing ${t.date}, ${plural(Math.abs(t.offsetDays), 'day')} ${t.offsetDays < 0 ? 'earlier' : 'later'}` };
+    }
+    if (t && layer.status === 'failed' && layer.requests > 0) {
+      return { text: 'No imagery', tone: 'error', title: `The provider has no tiles for ${t.date}; the layers beneath are shown` };
+    }
     if (layer.status === 'failed' || (layer.role === 'base' && s.state === 'fallback')) {
       return { text: 'Unavailable', tone: 'error', title: 'This source could not be loaded; the layers beneath it are shown' };
     }
@@ -134,6 +165,38 @@
       return { text: 'Lower res', tone: 'warn', title: `${plural(v.degradedTiles, 'source tile')} in view failed to load; coarser tiles stand in` };
     }
     return null;
+  }
+
+  /** Why a time-indexed layer shows nothing at all. */
+  function timeBadge(t: ImageryLayerTime): Badge | null {
+    switch (t.state) {
+      case 'before-range':
+        return { text: 'Before data', tone: 'muted', title: `${t.requestedDate} is before this source’s first day (${t.range.start}); the layers beneath are shown` };
+      case 'after-range':
+        return { text: 'After data', tone: 'muted', title: `${t.requestedDate} is after this source’s last day (${t.range.end}); the layers beneath are shown` };
+      case 'no-data':
+        return { text: 'No data', tone: 'muted', title: `The source has no imagery for ${t.requestedDate}; the layers beneath are shown` };
+      case 'not-yet-published':
+        return { text: 'Not published', tone: 'muted', title: `${t.requestedDate} is later than this source can have published; the layers beneath are shown` };
+      case 'invalid':
+        return t.policy === 'follow-simulation' ? null
+          : { text: 'No date', tone: 'warn', title: t.policy === 'latest' ? 'The provider has not said which day is newest' : 'The date is not a valid UTC day' };
+      default:
+        return null;
+    }
+  }
+
+  const POLICY_LABEL: Record<ImageryTimePolicy, string> = {
+    fixed: 'Fixed date',
+    'follow-simulation': 'Follow simulation',
+    latest: 'Latest available',
+  };
+
+  /** The acquisition day under the name, kept short: what is on screen and how it was chosen. */
+  function timeSummary(t: ImageryLayerTime): string {
+    const how = t.policy === 'fixed' ? 'fixed' : t.policy === 'latest' ? 'latest' : 'follows time';
+    if (t.date) return `Acquired ${t.date} · ${how}${t.state === 'nearest' ? ' · nearest day' : ''}`;
+    return t.requestedDate ? `No imagery for ${t.requestedDate} · ${how}` : `No date yet · ${how}`;
   }
 
   function plural(n: number, noun: string): string {
@@ -163,7 +226,7 @@
 {#if surface}
   <details class="mt-2 pt-2 border-t border-border" bind:open>
     <summary class="ui-section-label imagery-summary">
-      Imagery{#if surface.body !== vs.selectedBodyName}&nbsp;&middot; {surface.body}{/if}
+      Imagery{#if surface.body !== (bodyName ?? vs.selectedBodyName)}&nbsp;&middot; {surface.body}{/if}
       <span class="ui-meta normal-case tracking-normal font-normal">{enabledCount} of {surface.layers.length} enabled</span>
     </summary>
     <div class="ui-meta mt-1 mb-1">
@@ -201,7 +264,7 @@
             {/if}
             {#if layer.bounds}
               {@const bounds = layer.bounds}
-              <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds)} title="Fly to this layer" aria-label="Fly to {layer.name}">
+              <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds, layer.latitudeConvention)} title="Fly to this layer" aria-label="Fly to {layer.name}">
                 <Crosshair size={13} />
               </button>
             {/if}
@@ -216,6 +279,10 @@
             </button>
           </div>
           <div class="ui-meta layer-indent layer-provenance">{provenance(layer)}</div>
+          {#if layer.temporal}
+            <!-- The acquisition day is the one fact that says which epoch the pixels depict, so it is never truncated. -->
+            <div class="ui-meta layer-indent layer-day" class:muted={layer.temporal.date === null || !layer.visible}>{layer.visible ? timeSummary(layer.temporal) : 'Off'}</div>
+          {/if}
           {#if isOpen}
             <div class="layer-indent layer-details ui-meta">
               {#if layer.description}<div class="text-text-secondary">{layer.description}</div>{/if}
@@ -245,10 +312,58 @@
                   </button>
                 </div>
               {/if}
+              {#if layer.temporal}
+                {@const t = layer.temporal}
+                <div class="layer-time flex flex-col gap-1" role="group" aria-label="{layer.name} observation date">
+                  <label class="flex items-center gap-2">
+                    <span class="w-12">Date</span>
+                    <select
+                      class="time-select flex-1 min-w-0"
+                      value={t.policy}
+                      disabled={t.policies.length < 2}
+                      aria-label="{layer.name} date mode"
+                      onchange={(e) => setPolicy(layer, (e.target as HTMLSelectElement).value as ImageryTimePolicy)}
+                    >
+                      {#each t.policies as p (p)}<option value={p}>{POLICY_LABEL[p]}</option>{/each}
+                    </select>
+                  </label>
+                  {#if t.policy === 'fixed' && layer.role === 'overlay'}
+                    <label class="flex items-center gap-2">
+                      <span class="w-12">Day</span>
+                      <input
+                        type="date"
+                        class="time-select flex-1 min-w-0"
+                        value={t.date ?? t.requestedDate ?? ''}
+                        min={t.range.start ?? undefined}
+                        max={t.range.end ?? undefined}
+                        aria-label="{layer.name} observation date, UTC"
+                        onchange={(e) => setDate(layer, (e.target as HTMLInputElement).value)}
+                      />
+                    </label>
+                  {/if}
+                  <div class="text-text-secondary">
+                    {#if !layer.visible}Layer is off; it does not follow time{:else if t.date}Showing the daily image acquired {t.date} (UTC){:else}Showing no imagery{/if}{#if t.pending}; {t.pendingDate ? `loading ${t.pendingDate}` : 'about to show nothing'}…{/if}
+                  </div>
+                  {#if t.policy === 'follow-simulation' && t.requestedDate && t.requestedDate !== t.date}
+                    <div class="text-text-secondary">Simulation day {t.requestedDate}{#if t.date}; nearest available day shown{/if}</div>
+                  {/if}
+                  <div class="text-text-secondary">
+                    {t.semantics === 'acquisition' ? 'Acquisition' : 'Valid'} date, not the simulation epoch. {t.illumination === 'baked' ? 'Sunlight is baked into the image as acquired. The viewer also shades the globe by the simulated Sun, so the day/night boundary will not match.' : 'Reflectance; lighting follows the simulated Sun.'}
+                  </div>
+                </div>
+              {/if}
               <dl class="layer-facts">
+                {#if layer.temporal}
+                  <dt>Cadence</dt><dd>{layer.temporal.cadence === 'day' ? 'Daily (UTC)' : layer.temporal.cadence}</dd>
+                  <dt>Available</dt><dd>{layer.temporal.range.start ?? 'unknown'} – {layer.temporal.range.end ?? 'present'}{#if layer.temporal.range.source === 'provider'} (from provider){/if}</dd>
+                  {#if layer.temporal.switches > 0}<dt>Date changes</dt><dd>{layer.temporal.switches}</dd>{/if}
+                {/if}
                 <dt>Coverage</dt><dd>{layer.bounds ? formatBounds(layer.bounds) : 'Global'}</dd>
                 {#if layer.resolutionMeters != null}
                   <dt>Source resolution</dt><dd>{formatResolution(layer.resolutionMeters)}</dd>
+                {/if}
+                {#if layer.illumination}
+                  <dt>Illumination</dt><dd>{layer.illumination === 'reflectance' ? 'Reflectance: lit by the simulated Sun' : layer.illumination === 'baked' ? 'Shading baked in: shown as-is where this layer draws, never lit by the Sun a second time (only the night side darkens)' : 'Not declared: lit by the simulated Sun (legacy), not asserted physical'}</dd>
                 {/if}
                 {#if layer.metersPerPixel != null}
                   <dt>Available tile resolution</dt><dd>~{formatResolution(layer.metersPerPixel)} at zoom {layer.maxLevel}{#if layer.minZoom > 0}, from zoom {layer.minZoom}{/if}</dd>
@@ -318,6 +433,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .layer-day {
+    color: var(--color-text-secondary);
+  }
+  .layer-day.muted {
+    color: var(--color-text-muted);
   }
   .layer-details {
     display: flex;
@@ -389,6 +510,14 @@
   .layer-action:disabled {
     opacity: 0.35;
     cursor: default;
+  }
+  .time-select {
+    padding: 2px 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-control);
+    color: var(--color-text-primary);
+    font: inherit;
   }
   .opacity-slider {
     height: 16px;

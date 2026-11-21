@@ -7,9 +7,11 @@ import { parseCatalogIndex } from '../catalog-sources';
 import { shell } from '../shell.svelte';
 
 const catalogsDir = new URL('../../../test-catalogs/', import.meta.url);
-const indexUrl = new URL('index.json', catalogsDir).href;
-const { index } = parseCatalogIndex(JSON.parse(readFileSync(new URL(indexUrl), 'utf8')), indexUrl);
-const scripted = index.catalogs.filter((e) => e.scriptUrl);
+const scripted = ['index.json', 'dev-index.json'].flatMap(name => {
+  const indexUrl = new URL(name, catalogsDir).href;
+  const { index } = parseCatalogIndex(JSON.parse(readFileSync(new URL(indexUrl), 'utf8')), indexUrl);
+  return index.catalogs.filter(e => e.scriptUrl);
+});
 
 describe('scripted demos', () => {
   it('the Examples index offers at least one', () => {

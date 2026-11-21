@@ -1,3 +1,6 @@
+import type { SurfaceRasterDefinition } from './SurfaceRaster.js';
+import { parseMissionActivities, type MissionActivity, type MissionActivitySpec } from '../MissionActivity.js';
+import { validateSurfaceTrajectoryProvenance, type SurfaceTrajectoryProvenance } from '../geometry/surface-trajectory.js';
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 import type { GeographicCoordinates, GeographicLayerDefinition } from '../geographic/model.js';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
@@ -8,7 +11,7 @@ import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
 import { parseOem } from '@cosmolabe/interop';
-import { oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
+import { oemCoverage, oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
 import { parseViewpoint as parseViewpointItem, type ViewpointDefinition } from '../viewpoint.js';
@@ -72,10 +75,16 @@ export interface SpkImportSpec {
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
+  activities?: MissionActivitySpec[];
   /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
   geographicCoordinates?: GeographicCoordinates;
   geographicLayers?: GeographicLayerDefinition[];
+  surfaceRasters?: SurfaceRasterDefinition[];
+  /** Viewer: geographic names initially enabled on these bodies (otherwise opt-in). */
+  defaultGeographicNames?: string[];
   name?: string;
+  /** Viewer caption shown until a script replaces or clears it. */
+  displayNote?: string;
   version?: string;
   require?: string[];
   items?: CatalogItem[];
@@ -103,6 +112,9 @@ export interface CatalogJson {
 }
 
 export interface TrajectoryPlotSpec {
+  frame?: string;
+  sampleInterval?: string;
+  timelineLabel?: string;
   duration?: string;
   lead?: string;
   fade?: number;
@@ -122,6 +134,7 @@ export interface CatalogItem {
    *  the catalog loads. */
   trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory?: TrajectorySpec;
+  surfaceTrajectory?: SurfaceTrajectoryProvenance;
   trajectoryPlot?: TrajectoryPlotSpec;
   rotationModel?: RotationModelSpec;
   bodyFrame?: string | BodyFrameSpec;
@@ -129,6 +142,7 @@ export interface CatalogItem {
   label?: LabelSpec;
   naifId?: number;
   mass?: number | string;
+  description?: string;
   radii?: number[];
   startTime?: string;
   endTime?: string | number;
@@ -275,6 +289,8 @@ export interface RotationModelSpec {
   ascension?: number;
   declination?: number;
   bodyFrame?: string;
+  /** Fixed rotation: explicit destination axes for registered local geometry. */
+  bodyFixedFrame?: string;
   inertialFrame?: string;
   /** Spice rotation: frame to use where `bodyFrame` has no data (a CK gap), e.g. an articulated part's zero frame. */
   fallbackFrame?: string;
@@ -321,6 +337,7 @@ export interface LabelSpec {
 export type { ViewpointDefinition } from '../viewpoint.js';
 
 export interface LoadedCatalog {
+  activities: MissionActivity[];
   bodies: Body[];
   viewpoints: ViewpointDefinition[];
   name?: string;
@@ -625,6 +642,11 @@ export class CatalogLoader {
     this.frames = frames ?? new FrameRegistry({ spice: this.spice });
   }
 
+  private catalogBodyFrames = new Map<string, string>();
+  private frameForBody(name: string): string {
+    return this.catalogBodyFrames.get(normalizeFrameKey(name)) ?? this.frames.bodyFixedFrameFor(name);
+  }
+
   /** The frame to ask SPICE for when a catalog names `frame`: its SPICE
    *  spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`), the
    *  center's `IAU_` frame for `BodyFixed`, and J2000 for frames SPICE cannot
@@ -634,7 +656,7 @@ export class CatalogLoader {
     if (frame === undefined) return fallback;
     const canonical = this.frames.canonicalName(frame);
     const name = canonical === BODY_FIXED
-      ? (center ? bodyFixedFrameName(center) : undefined)
+      ? (center ? this.frameForBody(center) : undefined)
       : this.frames.spiceName(canonical);
     if (!name) return 'J2000';
     // A body-fixed frame of a body SPICE has no PCK or CK frame for
@@ -668,7 +690,7 @@ export class CatalogLoader {
     }
     const type = typeof frame.type === 'string' ? frame.type : '';
     if (/^body[-_ ]?fixed$/i.test(type)) {
-      const name = typeof frame.body === 'string' && frame.body ? bodyFixedFrameName(frame.body) : BODY_FIXED;
+      const name = typeof frame.body === 'string' && frame.body ? this.frameForBody(frame.body) : BODY_FIXED;
       this.checkFrameName(owner, name);
       return name;
     }
@@ -693,6 +715,7 @@ export class CatalogLoader {
       return;
     }
     const canonical = this.frames.canonicalName(frame);
+    const missingBehavior = /^(MOON_ME|MOON_PA)(_|$)/i.test(canonical) ? 'placement is unavailable' : 'states are used unrotated';
     if (canonical === BODY_FIXED) return;
     if (canonical.startsWith('IAU_')) {
       // Its body may be further down this catalog; checked once it has loaded.
@@ -703,7 +726,7 @@ export class CatalogLoader {
       if (!this.frames.get(canonical)) {
         console.warn(
           `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
-            `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+            `${missingBehavior}. Declare it in the catalog's "frames" or use a registered frame.`,
         );
       }
       return;
@@ -716,7 +739,7 @@ export class CatalogLoader {
     if (!this.frames.isResolvable(canonical, this.probeEpoch) && spiceName && this.frames.spiceRejects(spiceName)) {
       console.warn(
         `[Cosmolabe] "${owner}": frame "${frame}" is not a registry frame and SPICE does not recognize it ` +
-          `(missing frame kernel?); states are used unrotated.`,
+          `(missing frame kernel?); ${missingBehavior}.`,
       );
     }
   }
@@ -769,6 +792,19 @@ export class CatalogLoader {
       }
     }
 
+    // Normalize structured references against this catalog's target attitudes,
+    // including parents not installed into Universe until this load completes.
+    this.catalogBodyFrames.clear();
+    const indexFrames = (items: CatalogItem[]) => {
+      for (const item of items) {
+        if (item.rotationModel?.type === 'Spice' && item.rotationModel.bodyFrame) {
+          this.catalogBodyFrames.set(normalizeFrameKey(item.name), item.rotationModel.bodyFrame);
+        }
+        if (item.items) indexFrames(item.items);
+      }
+    };
+    indexFrames(json.items ?? []);
+
     const bodies: Body[] = [];
     const viewpoints: ViewpointDefinition[] = [];
 
@@ -798,6 +834,7 @@ export class CatalogLoader {
 
     const kernels = collectKernelRefs(json);
     return {
+      activities: parseMissionActivities(json.activities === undefined ? [] : json.activities, t => this.parseEpoch(t) ?? NaN),
       bodies,
       viewpoints,
       name: json.name,
@@ -898,9 +935,11 @@ export class CatalogLoader {
     // Waypoints → BODY_FIXED, SPICE → the frame it queried, OEM → REF_FRAME).
     const trajectoryFrame = frameName(item.trajectoryFrame);
 
+    if (item.surfaceTrajectory) validateSurfaceTrajectoryProvenance(item.surfaceTrajectory);
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
+      description: typeof item.description === 'string' ? item.description : undefined,
       trajectory,
       rotation,
       parentName: parentName ?? item.center,
@@ -911,6 +950,7 @@ export class CatalogLoader {
       labelVisible: item.label?.visible !== false,
       geometryType: geometry?.type as string | undefined,
       geometryData: geometry,
+      surfaceTrajectory: item.surfaceTrajectory,
       trajectoryPlot,
       trajectoryFrame,
       existsFrom: this.existenceBound(item, 'startTime'),
@@ -1169,19 +1209,18 @@ export class CatalogLoader {
         // renderable arc. Needs SPICE, and says so — OEM epochs are calendar
         // strings in a declared time system, so converting them without leap
         // seconds would offset the whole ephemeris by tens of seconds.
-        if (!spec.source || !this.resolveFile) return new FixedPointTrajectory([0, 0, 0]);
+        if (!spec.source || !this.resolveFile) return new FixedPointTrajectory([NaN, NaN, NaN]);
         if (!this.spice) {
           console.warn(
             `OEM trajectory for "${item.name}" needs SPICE for epoch conversion ` +
-              `(leap seconds); no instance was supplied, so the body is placed at its ` +
-              `parent's origin. Load an LSK and pass a Spice instance to CatalogLoader.`,
+              `(leap seconds); no instance was supplied, so the body has no available position. Load an LSK and pass a Spice instance to CatalogLoader.`,
           );
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
         const text = this.resolveFile(spec.source);
         if (!text) {
           console.warn(`OEM trajectory for "${item.name}": could not resolve ${spec.source}.`);
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
         try {
           const oem = parseOem(text);
@@ -1209,14 +1248,14 @@ export class CatalogLoader {
               `OEM trajectory for "${item.name}": ${spec.source} has ${records.length} ` +
                 `state(s); at least 2 are needed to interpolate.`,
             );
-            return new FixedPointTrajectory([0, 0, 0]);
+            return new FixedPointTrajectory([NaN, NaN, NaN]);
           }
-          return new InterpolatedStatesTrajectory(records, { frame: oemFrame });
+          return new InterpolatedStatesTrajectory(records, { frame: oemFrame, coverage: oemCoverage(oem, t => this.spice!.str2et(t)) });
         } catch (e) {
           console.warn(
             `OEM trajectory for "${item.name}": ${e instanceof Error ? e.message : String(e)}`,
           );
-          return new FixedPointTrajectory([0, 0, 0]);
+          return new FixedPointTrajectory([NaN, NaN, NaN]);
         }
       }
 
@@ -1309,7 +1348,10 @@ export class CatalogLoader {
           });
         }
         if (waypoints.length < 2) return new FixedPointTrajectory([0, 0, 0]);
-        return new WaypointTrajectory(waypoints, refRadius, { useAbsoluteAlt: spec.useAbsoluteAlt === true });
+        return new WaypointTrajectory(waypoints, refRadius, {
+          useAbsoluteAlt: spec.useAbsoluteAlt === true || !!item.surfaceTrajectory,
+          frame: item.surfaceTrajectory?.frame,
+        });
       }
 
       default:
@@ -1420,7 +1462,14 @@ export class CatalogLoader {
       }
 
       case 'Spice':
-        if (!this.spice) return undefined;
+        if (!this.spice) {
+          const target = spec.bodyFrame ?? bodyFixedFrameName(item.name);
+          if (!/^(MOON_ME|MOON_PA)(_|$)/i.test(target)) return undefined;
+          return {
+            sourceFrame: spec.inertialFrame ?? 'ECLIPJ2000', bodyFixedFrame: target,
+            rotationAt: () => { throw new Error(`Orientation unavailable for ${item.name}: SPICE is required`); },
+          };
+        }
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? bodyFixedFrameName(item.name),
@@ -1475,6 +1524,7 @@ export class CatalogLoader {
           return new FixedRotation(
             [spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]],
             sourceFrame,
+            spec.bodyFixedFrame,
           );
         }
         // Pole angles form: inclination/ascendingNode/meridianAngle (degrees)
@@ -1483,6 +1533,7 @@ export class CatalogLoader {
           (spec.ascendingNode ?? 0) * Math.PI / 180,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           sourceFrame,
+          spec.bodyFixedFrame,
         );
       }
 
@@ -1665,6 +1716,13 @@ export class CatalogLoader {
   private parseTrajectoryPlot(spec: TrajectoryPlotSpec | undefined): TrajectoryPlotConfig | undefined {
     if (!spec) return undefined;
     const config: TrajectoryPlotConfig = {};
+    if (spec.frame != null) config.frame = spec.frame;
+    if (spec.timelineLabel != null) config.timelineLabel = spec.timelineLabel;
+    if (spec.sampleInterval != null) {
+      const interval = parseValueWithUnit(spec.sampleInterval, 0);
+      if (!(interval > 0) || !Number.isFinite(interval)) throw new Error('trajectoryPlot.sampleInterval must be finite and positive');
+      config.sampleInterval = interval;
+    }
     if (spec.duration != null) config.duration = parseValueWithUnit(spec.duration, 0);
     if (spec.lead != null) config.lead = parseValueWithUnit(spec.lead, 0);
     if (spec.fade != null) config.fade = Math.max(0, Math.min(1, spec.fade));

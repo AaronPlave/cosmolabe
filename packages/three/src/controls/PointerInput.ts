@@ -180,6 +180,19 @@ export interface PointerInputSpec extends TouchGestureHandlers {
  * drag that leaves the canvas still tracks — the same reach the old
  * `window.addEventListener('mousemove', …)` had.
  */
+/**
+ * Whether a window-level key event is meant for the scene drawn on `el`.
+ *
+ * On a page the viewer owns, every key is (the long-standing behaviour). A
+ * viewer embedded in a shadow root shares the window with its host, so only
+ * keys typed while focus is inside that shadow tree count — the host page
+ * keeps its arrows, space and letters.
+ */
+export function keyEventInScope(e: KeyboardEvent, el: Element | null | undefined): boolean {
+  const root = el?.getRootNode?.();
+  return !(typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot) || e.composedPath().includes(root);
+}
+
 export function attachPointerInput(canvas: HTMLElement, spec: PointerInputSpec): () => void {
   // The canvas's own window, not the ambient global: correct inside an iframe,
   // and it lets the wiring be exercised without a browser.

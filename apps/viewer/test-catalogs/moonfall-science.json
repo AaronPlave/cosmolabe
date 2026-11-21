@@ -1,0 +1,78 @@
+{
+  "name": "MoonFall south-pole science",
+  "surfaceRasters": [
+    {
+      "id": "moon:science:regional-psr",
+      "name": "LOLA permanently shadowed regions",
+      "body": "Moon",
+      "source": "data/moon-science/psr-79496e2f44a49200/science.json",
+      "description": "All 1,531 regions larger than 1 km² from the Barker et al. south-pole release. At 160 m, opacity reflects the fraction of each cell covered by mapped regions. Use Point Probe to inspect a mapped region and select its original boundary. Zoom in to see detailed outlines. Permanent shadow is a model result from LOLA topography, independent of the simulation clock. Smaller regions and locations beyond the release footprint are unclassified by this layer.",
+      "quantity": "Modeled permanent shadow",
+      "unit": "",
+      "opacity": 0.44,
+      "colorScale": [
+        {
+          "value": 0,
+          "color": "#6ccbd8"
+        },
+        {
+          "value": 1,
+          "color": "#6ccbd8"
+        }
+      ]
+    },
+    {
+      "id": "moon:science:diviner-summer-max",
+      "name": "Diviner summer maximum temperature",
+      "body": "Moon",
+      "source": "data/moon-science/diviner-90a09af641e79b00/science.json",
+      "description": "Maximum of south-polar summer bolometric brightness temperature bins from LRO Diviner observations, July 2009–February 2019. Fixed climatology, independent of the simulation clock. Transparent areas have no valid observations. Display saturates above 350 K; the probe preserves source values. Spatial sampling is 240 m. Geolocation and the instrument footprint limit site-scale interpretation.",
+      "quantity": "Maximum summer bolometric brightness temperature",
+      "unit": "K",
+      "opacity": 0.77,
+      "colorScale": [
+        {
+          "value": 45,
+          "color": "#1b214e"
+        },
+        {
+          "value": 110,
+          "color": "#3949a3"
+        },
+        {
+          "value": 180,
+          "color": "#a64a93"
+        },
+        {
+          "value": 260,
+          "color": "#e5744b"
+        },
+        {
+          "value": 350,
+          "color": "#fff4ad"
+        }
+      ]
+    },
+    {
+      "id": "moon:science:minirf-south-pole",
+      "name": "Mini-RF south-pole δCPR mosaic",
+      "body": "Moon",
+      "source": "data/moon-science/minirf-south-pole-49f0257b30403126/science.json",
+      "description": "Regional LRO Mini-RF monostatic S-band mosaic south of 80°S. Fassett et al. adjusted the measured circular polarization ratio for local incidence angle, with a 0.42 offset for the 49° reference. The 270 m overview averages valid measurements and fades partially observed cells. Cells with no observations are transparent. Point Probe reports no data in coverage gaps such as Shackleton’s center. The color scale is centered at 0.42 and clips below 0.20 and above 0.80. Point Probe reads the archived 90 m values. Radar scattering alone cannot identify ice.",
+      "quantity": "Incidence-adjusted circular polarization ratio (δCPR)",
+      "unit": "dimensionless",
+      "opacity": 0.78,
+      "colorScale": [
+        { "value": 0.20, "color": "#245487" },
+        { "value": 0.35, "color": "#74a9cc" },
+        { "value": 0.42, "color": "#ece7d8" },
+        { "value": 0.58, "color": "#d48b51" },
+        { "value": 0.80, "color": "#962941" }
+      ],
+      "observation": {
+        "latDeg": -87.35,
+        "lonDeg": -2.57
+      }
+    }
+  ]
+}

@@ -1,0 +1,1395 @@
+{
+  "version": 1,
+  "kind": "locked-surface-plan",
+  "desired": {
+    "version": 1,
+    "kind": "desired-surface-plan",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "-180..180",
+      "referenceShape": {
+        "kind": "sphere",
+        "radiusKm": 3396.19
+      }
+    },
+    "layers": [
+      {
+        "id": "mission",
+        "name": "All Ingenuity operations; source coordinates",
+        "body": "Mars",
+        "source": "embedded",
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "mission",
+              "properties": null,
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      77.32,
+                      18.425
+                    ],
+                    [
+                      77.454,
+                      18.425
+                    ],
+                    [
+                      77.454,
+                      18.503
+                    ],
+                    [
+                      77.32,
+                      18.503
+                    ],
+                    [
+                      77.32,
+                      18.425
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "regions": [
+      {
+        "id": "mission",
+        "feature": {
+          "layerId": "mission",
+          "featureId": "string:mission"
+        },
+        "elevation": {
+          "gsdM": 4
+        },
+        "fallback": "require-target"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "base",
+      "productId": "USGS-HRSC-MOLA-200m-v2",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "mission",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.32,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.425
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+      },
+      "nativeGsdM": 200,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 11384463908,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "retrieval": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC, Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 200,
+        "dataType": "Int16",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "geographic on the Mars 2000 map sphere",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "role": "raster",
+            "bytes": 11384463908,
+            "sizeEvidence": "verified original file bytes"
+          }
+        ],
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "A source envelope is not a complete native-valid footprint."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "mission-0-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-0-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "method": "Every native cell and two-cell interpolation halo checked during execution.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    },
+    {
+      "id": "detail",
+      "productId": "JEZ-TRN-soc-006-DTM-1m-DeltaGeoid-blend40",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "mission",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.32,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.425
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+      },
+      "nativeGsdM": 1,
+      "accuracyM": null,
+      "projection": "Mars-EQC-0-0",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 1839545409,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8"
+        },
+        "retrieval": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC, Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 1,
+        "dataType": "Float32",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+            "role": "raster",
+            "bytes": 1839545409,
+            "sizeEvidence": "verified original file bytes"
+          }
+        ],
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "A source envelope is not a complete native-valid footprint."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "mission-0-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-0-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "method": "Every native cell and two-cell interpolation halo checked during execution.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    }
+  ],
+  "selections": [
+    {
+      "regionId": "mission",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 4,
+      "resampling": "cubic",
+      "transformations": [
+        {
+          "kind": "areoid-radial",
+          "outputDatum": {
+            "referenceShape": {
+              "kind": "ellipsoid",
+              "radiiKm": [
+                3396.19,
+                3396.19,
+                3376.2
+              ]
+            },
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "areoid": {
+            "label": {
+              "bytes": 3760,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+              },
+              "retrieval": "Official MOLA MEG016 label"
+            },
+            "image": {
+              "bytes": 33177600,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+              },
+              "retrieval": "Official MOLA MEG016 image"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "processing": {
+    "generator": {
+      "name": "cosmolabe-surface-build",
+      "version": "1"
+    },
+    "fusion": "residual-bias-none",
+    "parameters": {
+      "profile": "bounded-real-mars",
+      "toolchain": {
+        "python": "3.14.5",
+        "gdal": "3.13.0",
+        "numpy": "2.4.6"
+      },
+      "terrain": {
+        "base": "base",
+        "detail": "detail",
+        "globalLevel": 2,
+        "regions": [
+          "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+          "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+          "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
+        ],
+        "blendM": 1000,
+        "fitStride": 8,
+        "fusionAsset": {
+          "bytes": 1060,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "68eeaacb4b52281db84a061f6c24d1beea7d93826c6a107faa509c5db5d8afe5"
+          },
+          "retrieval": "Clean recomputation from the pinned original DEMs; normalized provenance; complete raster inventory"
+        },
+        "baseOverviewAsset": {
+          "bytes": 3822114651,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "1d0e14aaeb5cfa7c594ab1e7476a45d802a05f9fb1074858e766a97cae26ebcb"
+          },
+          "retrieval": "Pinned global source overview dependency"
+        }
+      },
+      "imagery": [],
+      "gates": {
+        "maxOffsetM": 10,
+        "maxBoundaryStepM": 1,
+        "clearanceM": 50,
+        "controls": [
+          {
+            "lat": 18.648996248786357,
+            "lon": 77.45101915,
+            "heightM": -2236.413366544639,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.648996985697224,
+            "lon": 77.45101959,
+            "heightM": -2236.41334809372,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.648998207153973,
+            "lon": 77.45102213,
+            "heightM": -2236.4133464793667,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.64898865819722,
+            "lon": 77.45100917,
+            "heightM": -2236.423469399597,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.648990527403758,
+            "lon": 77.45111647,
+            "heightM": -2236.2851221259916,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.646777509787956,
+            "lon": 77.4513883,
+            "heightM": -2235.626004576261,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.64576313693502,
+            "lon": 77.44994298,
+            "heightM": -2235.497943241171,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.643964888488735,
+            "lon": 77.45015049,
+            "heightM": -2235.503398120727,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.641298317232025,
+            "lon": 77.45078614,
+            "heightM": -2236.0756467933243,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.63206897732543,
+            "lon": 77.44543778,
+            "heightM": -2246.8182034194797,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.632056213084397,
+            "lon": 77.44371342,
+            "heightM": -2245.0810605109837,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.63670506671339,
+            "lon": 77.43879656,
+            "heightM": -2236.4722636198167,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.636706983995097,
+            "lon": 77.43923886,
+            "heightM": -2236.9592722534435,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.636897945153393,
+            "lon": 77.43914181,
+            "heightM": -2236.4511381219927,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.636878081257052,
+            "lon": 77.43917516,
+            "heightM": -2236.4923563814045,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.63269117343372,
+            "lon": 77.44501701,
+            "heightM": -2245.7800513725488,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.63412661154685,
+            "lon": 77.44644658,
+            "heightM": -2249.083469714151,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.637083359152573,
+            "lon": 77.44773285,
+            "heightM": -2246.332160219481,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.640295143161676,
+            "lon": 77.45008781,
+            "heightM": -2239.6890816085033,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.6411167114244,
+            "lon": 77.45075374,
+            "heightM": -2236.0413971778144,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.6474707364107,
+            "lon": 77.44857228,
+            "heightM": -2236.8569749864946,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.649280657298238,
+            "lon": 77.44220948,
+            "heightM": -2224.96262162349,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.650245095196897,
+            "lon": 77.4429247,
+            "heightM": -2227.820683516711,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.6547682647097,
+            "lon": 77.44328534,
+            "heightM": -2231.7698165147704,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.654949159508703,
+            "lon": 77.44245658,
+            "heightM": -2229.250299255,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.659000100526907,
+            "lon": 77.43059567,
+            "heightM": -2223.4801065515057,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.65584222460634,
+            "lon": 77.43047047,
+            "heightM": -2225.4275894520106,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.656711550003514,
+            "lon": 77.42634265,
+            "heightM": -2222.3214245723284,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.661379903339228,
+            "lon": 77.42064135,
+            "heightM": -2215.1382937086055,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.660223949384893,
+            "lon": 77.41767573,
+            "heightM": -2215.7209596894063,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.66021150753087,
+            "lon": 77.41764295,
+            "heightM": -2215.8008666060596,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.660060422267758,
+            "lon": 77.41590824,
+            "heightM": -2214.828357951319,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.660161836145274,
+            "lon": 77.41423146,
+            "heightM": -2212.7180194447646,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.65985650282934,
+            "lon": 77.41226441,
+            "heightM": -2210.8871489485864,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.65985486749969,
+            "lon": 77.41226576,
+            "heightM": -2210.887227288822,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.66004942015354,
+            "lon": 77.41209277,
+            "heightM": -2210.5277104437846,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.660040203745297,
+            "lon": 77.41208615,
+            "heightM": -2210.5279243187397,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.66076637473362,
+            "lon": 77.41152403,
+            "heightM": -2209.0637370019977,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.661531509281513,
+            "lon": 77.4098952,
+            "heightM": -2205.0811354247344,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.661512490008363,
+            "lon": 77.40988382,
+            "heightM": -2205.2316129179417,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.662973148470524,
+            "lon": 77.40713322,
+            "heightM": -2188.5069606973957,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.663296272993875,
+            "lon": 77.40709567,
+            "heightM": -2185.765149987219,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.665993810367105,
+            "lon": 77.40378107,
+            "heightM": -2162.953442885282,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.671421166176867,
+            "lon": 77.40038108,
+            "heightM": -2153.7639622952156,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.67663832252467,
+            "lon": 77.39842974,
+            "heightM": -2142.718318536936,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.68162839163875,
+            "lon": 77.39239887,
+            "heightM": -2136.615131607414,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.67954259641344,
+            "lon": 77.38783313,
+            "heightM": -2127.025036393661,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.675701070751803,
+            "lon": 77.38140034,
+            "heightM": -2115.3803582433284,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.678887263501657,
+            "lon": 77.37672291,
+            "heightM": -2093.8161176504764,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.680443468469353,
+            "lon": 77.37229897,
+            "heightM": -2085.695516514079,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.684347145400977,
+            "lon": 77.36885496,
+            "heightM": -2083.130589470784,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.684531373384296,
+            "lon": 77.36647578,
+            "heightM": -2080.503754705205,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.68491189058941,
+            "lon": 77.36014058,
+            "heightM": -2083.184508462182,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.687339278800415,
+            "lon": 77.36032717,
+            "heightM": -2080.5848919117125,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.68734002579858,
+            "lon": 77.36032758,
+            "heightM": -2080.584874295255,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.686202240247678,
+            "lon": 77.35698187,
+            "heightM": -2080.3434841523085,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.68902824202901,
+            "lon": 77.35095273,
+            "heightM": -2083.3766050609484,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.692498228137868,
+            "lon": 77.35098453,
+            "heightM": -2072.859745398091,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.69392958724218,
+            "lon": 77.34832863,
+            "heightM": -2070.366049398217,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.69393520349129,
+            "lon": 77.34834688,
+            "heightM": -2070.426333490559,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.69850507930792,
+            "lon": 77.34511243,
+            "heightM": -2072.6981798698034,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.698502747476464,
+            "lon": 77.34511629,
+            "heightM": -2072.698361098901,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.698955836144208,
+            "lon": 77.34484606,
+            "heightM": -2071.945442271044,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.693377987458746,
+            "lon": 77.33650661,
+            "heightM": -2061.207182422095,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.699433751107055,
+            "lon": 77.33377949,
+            "heightM": -2068.271280505087,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.699418643220227,
+            "lon": 77.33365412,
+            "heightM": -2067.999805663021,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.699409347372615,
+            "lon": 77.33365298,
+            "heightM": -2068.020113399598,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.7020458213441,
+            "lon": 77.32710942,
+            "heightM": -2072.652886353808,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.702130033249045,
+            "lon": 77.32708433,
+            "heightM": -2072.5395294098234,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.702130205479172,
+            "lon": 77.32709896,
+            "heightM": -2072.5497574017027,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.701384203967287,
+            "lon": 77.32374878,
+            "heightM": -2066.8423623028502,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.70191614581385,
+            "lon": 77.32249561,
+            "heightM": -2060.2036698778647,
+            "toleranceM": 1
+          },
+          {
+            "lat": 18.701887028016195,
+            "lon": 77.32253449,
+            "heightM": -2060.2853136451813,
+            "toleranceM": 1
+          }
+        ]
+      },
+      "caveats": [
+        "Terrain prerequisite only: four-source imagery and mission browser acceptance remain required.",
+        "Every original path sample is within an L15 cap; ~3.24 m maximum grid spacing is distinct from 1 m native DTM fidelity.",
+        "73 scalar controls share provenance, use conditional radial placement, and do not certify absolute physical accuracy.",
+        "Ground-level rendered loading/LOD acceptance remains open; no production upload or catalog switch."
+      ]
+    }
+  },
+  "output": {
+    "representation": "tiled-raster-pyramid",
+    "formatVersion": "cosmolabe-cube-1",
+    "tileSize": 1024,
+    "gutter": 2,
+    "imageryEncoding": "png",
+    "elevationEncoding": "float32"
+  },
+  "desiredIdentity": "sha256:617b14f32ffbbe60f59e8dfea42bed71364e071baa3ea6803a33472e46c195dd",
+  "identity": "sha256:138be31ebea3f9d50350a9daa5f77b46292a8626233f106daa7b1751302b0982"
+}

@@ -1,0 +1,13 @@
+{
+  "source": {
+    "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+    "kind": "imagery",
+    "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
+    "version": "cube-imagery-composite-3f34a19541af7710"
+  },
+  "registration": {
+    "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON"
+  },
+  "minLevel": 0,
+  "maxLevel": 13
+}

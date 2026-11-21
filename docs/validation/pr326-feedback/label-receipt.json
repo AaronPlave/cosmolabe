@@ -1,0 +1,5 @@
+{
+  "transport": "local scripted Playwright route; no model API calls",
+  "requests": 2,
+  "label": "Checked surface datasets on Moon"
+}

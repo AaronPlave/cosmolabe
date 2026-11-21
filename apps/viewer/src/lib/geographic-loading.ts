@@ -12,12 +12,14 @@ export function parseGeographicInWorker(
   args: Parameters<typeof parseGeographicGeoJson>, signal?: AbortSignal,
 ): Promise<GeographicLayer> {
   signal?.throwIfAborted();
+  const started = performance.now();
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('../workers/geographic.worker.ts', import.meta.url), { type: 'module' });
     const finish = (error?: unknown, layer?: GeographicLayer) => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', abort);
       worker.terminate();
+      performance.measure('geographic:worker-roundtrip', { start: started });
       if (error) reject(error);
       else if (layer) resolve(layer);
       else reject(new Error('GeoJSON worker returned no layer'));
@@ -44,6 +46,7 @@ export async function prepareGeographicCatalogs(
   parser = parseGeographicInWorker,
 ): Promise<PreparedGeographicCatalog[]> {
   const prepared: PreparedGeographicCatalog[] = [];
+  const started = performance.now();
   const deadline = new AbortController();
   const timer = setTimeout(() => deadline.abort(new Error(`Scene GeoJSON import deadline exceeded (${GEOGRAPHIC_SCENE_WAIT_MS} ms)`)), GEOGRAPHIC_SCENE_WAIT_MS);
   const sceneSignal = AbortSignal.any([signal, deadline.signal]);
@@ -52,6 +55,7 @@ export async function prepareGeographicCatalogs(
   try {
     for (const { url, json } of catalogs) {
       const loads = await loadGeographicLayers(json, {
+        deferHidden: !localFiles,
         catalogUrl: localFiles ? undefined : url,
         catalogIdentity: url,
         sourceKind: localFiles ? 'local-file' : 'catalog', signal,
@@ -72,5 +76,5 @@ export async function prepareGeographicCatalogs(
       prepared.push({ source: url, loads });
     }
     return prepared;
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); performance.measure('geographic:scene-import', { start: started }); }
 }

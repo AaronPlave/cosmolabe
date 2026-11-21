@@ -64,6 +64,19 @@ describe('planetary GeoJSON data', () => {
     expect(position(layer)).toEqual({ latDeg: -89.5, lonDeg: -179.8 });
   });
 
+  it('keeps detailed PSR-scale rings within the topology budget', () => {
+    const boundary = Array.from({ length: 3500 }, (_, index) => {
+      const angle = index * 2 * Math.PI / 3500;
+      return [140 + 8 * Math.cos(angle), -89.7 + 0.1 * Math.sin(angle)];
+    });
+    const ring = [...boundary, boundary[0]];
+    const hole = [[139, -89.71], [141, -89.71], [140, -89.69], [139, -89.71]];
+    const geometry = { type: 'Polygon', coordinates: [ring, hole] };
+    const layer = parse(collection(feature(geometry, 'psr')), { ...spec, body: 'Moon', coordinates: moon });
+    expect(layer.diagnostics).toEqual([]);
+    expect(layer.features[0].original.geometry).toEqual(geometry);
+  });
+
   it('preserves typed IDs, stable fallbacks, foreign members, and diagnoses duplicate IDs', () => {
     const text = collection(feature(point(), 7), feature(point(), '7'), feature(point()), feature(point(), 7),
       { ...feature(point(), 'foreign'), links: ['paper'] });
@@ -161,6 +174,23 @@ describe('planetary GeoJSON data', () => {
 
 describe('geographic asset loading and lifecycle', () => {
   const text = JSON.stringify(jezero);
+  it('defers opt-in hidden layers and rejects results from replaced catalogs', async () => {
+    const catalog = { geographicLayers: [{ ...spec, loadOnDemand: true, display: { visible: false } }] };
+    const readText = vi.fn(async () => text);
+    const [deferred] = await loadGeographicLayers(catalog, { deferHidden: true, readText });
+    expect(deferred.status).toBe('deferred');
+    expect(readText).not.toHaveBeenCalled();
+    const universe = new Universe();
+    universe.geographicLayers.replaceCatalog('test', [deferred]);
+    const request = deferred.deferred!.load();
+    expect(deferred.deferred!.load()).toBe(request);
+    const ready = await request;
+    expect(readText).toHaveBeenCalledOnce();
+    expect(universe.geographicLayers.resolveDeferred(deferred, ready)).toBe(true);
+    expect(universe.geographicLayers.get(spec.id)?.features).toHaveLength(jezero.features.length);
+    universe.geographicLayers.replaceCatalog('test', []);
+    expect(universe.geographicLayers.resolveDeferred(deferred, ready)).toBe(false);
+  });
   it('resolves required catalog sources against their own URLs, retaining provenance and default conventions', async () => {
     const graph = await loadCatalogFromUrl('https://data.test/missions/main.json', async url => url.endsWith('main.json')
       ? { require: ['../base/base.json'], geographicLayers: [{ ...spec, id: 'main' }] }

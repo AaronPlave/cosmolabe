@@ -5,8 +5,9 @@ import {
   watchLayout, isToolId, isMinimized, minimizePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
   raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
-  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, type PanelKey,
+  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, enableTool, type PanelKey,
 } from '../shell.svelte';
+import { shortcutFor } from '../keymap';
 
 /**
  * The regression this file exists for: three panels — the event finder, the
@@ -44,13 +45,14 @@ describe('the tool table', () => {
     expect(new Set(TOOLS.map((t) => t.id)).size).toBe(TOOLS.length);
   });
 
-  it('gives every shortcut to at most one tool', () => {
-    const keys = TOOLS.map((t) => t.shortcut).filter((k) => k != null);
-    expect(new Set(keys).size).toBe(keys.length);
+  it('gets tool shortcuts from the shared keymap, not the tool definitions', () => {
+    expect(shortcutFor('tool:catalog')).toBe('B');
+    expect(shortcutFor('instr:open')).toBe('I');
+    expect(TOOLS.every((tool) => !('shortcut' in tool))).toBe(true);
   });
 
   it('does not bind Events to camera roll-right', () => {
-    expect(toolDef('events').shortcut).toBeUndefined();
+    expect(shortcutFor('tool:events')).toBeUndefined();
   });
 
   it('resolves a tool by id, and refuses one it does not have', () => {
@@ -207,6 +209,7 @@ describe('dock layout', () => {
   });
 
   it('sends each panel to exactly one dock, so two can never share a slot', () => {
+    enableTool('ask');
     for (const tool of TOOLS) openTool(tool.id);
     const left = openToolsWith('panel', 'left').map((t) => t.id);
     const right = openToolsWith('panel', 'right').map((t) => t.id);

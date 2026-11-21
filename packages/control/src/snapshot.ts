@@ -48,6 +48,7 @@ function vector(v: ScriptVec3): string {
 export function snapshotScript(state: ViewerSnapshotState): string {
   const lines: string[] = ['# Cosmolabe snapshot'];
 
+  for (const omitted of state.omitted ?? []) lines.push(`# Omitted: ${omitted.replace(/[\r\n]/g, ' ')}`);
   lines.push('setPlaying off');
   lines.push(`setTime ${quote(state.timeText ?? num(state.time))}`);
   lines.push(`setTimeRate ${num(state.rate)}`);
@@ -79,7 +80,47 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     lines.push(`setLayer ${layer.id} ${on ? 'on' : 'off'}`);
   }
 
+  if (state.grid) {
+    const grid = state.grid;
+    lines.push(`setGridScope ${grid.scope}${grid.scope === 'bodies' ? ` ${quote(grid.bodies.join(','))}` : ''}`);
+    lines.push(`setGridDensity ${grid.density} ${num(grid.spacingDeg)}`);
+    lines.push(`setGridOpacity ${num(grid.opacity ?? 1)}`);
+    lines.push(`setGridLabels ${grid.labels ? 'on' : 'off'}`);
+    lines.push(`setGridMinorLines ${grid.minorLines ? 'on' : 'off'}`);
+    lines.push(`setGridCoordinateFrame ${grid.coordinateFrame ? 'on' : 'off'}`);
+    for (const [name, setting] of Object.entries(grid.perBody)) {
+      if (setting.visible !== undefined) lines.push(`showBodyGrid ${quote(name)} ${setting.visible ? 'on' : 'off'}`);
+      if (setting.labels !== undefined) lines.push(`showBodyGridLabels ${quote(name)} ${setting.labels ? 'on' : 'off'}`);
+    }
+    // Per-body enable may turn on the layer; restore the snapshot’s master switch last.
+    lines.push(`setLayer grid ${state.layers.grid ? 'on' : 'off'}`);
+  }
+
+  for (const source of state.placeSources ?? []) {
+    lines.push(`setPlaceSourceEnabled ${quote(source.id)} ${source.enabled ? 'on' : 'off'}`);
+    lines.push(`showPlaceLabels ${quote(source.id)} ${source.labelsVisible ? 'on' : 'off'}`);
+  }
+  if (state.measurements) {
+    for (const definition of state.measurements.items) lines.push(`upsertMeasurement ${quote(JSON.stringify(definition))}`);
+    if (state.measurements.selected) lines.push(`selectMeasurement ${quote(state.measurements.selected)}`);
+  }
+  for (const bookmark of state.bookmarks ?? []) lines.push(`upsertBookmark ${quote(JSON.stringify(bookmark))}`);
+  if (state.instrument) lines.push(`selectInstrument ${quote(state.instrument)}`);
+  for (const query of state.eventQueries ?? []) lines.push(`upsertEventQuery ${quote(JSON.stringify(query))}`);
+  if (state.eventSelection) lines.push('# Computed event selection is not replayed. Rerun the preserved query and inspect new run-scoped references before focusing a result.');
+  for (const layer of state.imagery ?? []) {
+    lines.push(`showImagery ${quote(layer.body)} ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
+    if (layer.index !== undefined) lines.push(`moveImageryLayer ${quote(layer.body)} ${quote(layer.id)} ${layer.index}`);
+    lines.push(`setImageryOpacity ${quote(layer.body)} ${quote(layer.id)} ${num(layer.opacity)}`);
+  }
+  for (const layer of state.geographic ?? []) {
+    lines.push(`showGeographicLayer ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
+    lines.push(`setGeographicLayerStyle ${quote(layer.id)} ${quote(JSON.stringify(layer.style))}`);
+  }
+  for (const appearance of state.appearance ?? []) lines.push(`setSurfaceAppearance ${quote(appearance.body)} ${quote(JSON.stringify(appearance.settings))}`);
+
   lines.push(state.selected ? `select ${quote(state.selected)}` : 'deselect');
+  if (state.selectedPlace) lines.push(`selectPlace ${quote(state.selectedPlace)}`);
 
   // Persistent only: `ViewerSnapshotState.note` carries a caption that will stay
   // up, and a timed one never reaches here. Emitting it without a duration is

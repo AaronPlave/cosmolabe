@@ -30,6 +30,7 @@
  *    velocities puts a spacecraft roughly 500 km from where it belongs while
  *    looking entirely plausible.
  */
+import type { CoverageInterval } from '../availability.js';
 import type { Vec3 } from '../spice-injection.js';
 import type { Oem } from '@cosmolabe/interop';
 import type { StateRecord } from './InterpolatedStates.js';
@@ -188,6 +189,11 @@ export function oemEpochToEt(
  * applies, and what makes it testable without standing up an engine.
  */
 export function oemToStateRecords(oem: Oem, str2et: (s: string) => number): StateRecord[] {
+  for (const segment of oem.segments ?? []) {
+    for (const key of ['refFrame', 'centerName', 'timeSystem'] as const) {
+      if (segment.metadata[key] !== oem.metadata[key]) throw new Error(`OEM segments with different ${key} require separate trajectories`);
+    }
+  }
   const timeSystem = oem.metadata.timeSystem;
   const records: StateRecord[] = [];
   for (const state of oem.states) {
@@ -199,4 +205,20 @@ export function oemToStateRecords(oem: Oem, str2et: (s: string) => number): Stat
   }
   records.sort((a, b) => a.et - b.et);
   return records;
+}
+
+/** Declared usable intervals intersected with actual records, never an inferred
+ * gap threshold: a long sampling cadence alone does not declare a data gap. */
+export function oemCoverage(oem: Oem, str2et: (s: string) => number): CoverageInterval[] {
+  return (oem.segments?.length ? oem.segments : [oem]).map(segment => {
+    const records = oemToStateRecords({ ...oem, ...segment, segments: undefined }, str2et);
+    if (records.length < 2) throw new Error('OEM segment requires at least two states');
+    const m = segment.metadata;
+    const start = Math.max(records[0].et, m.startTime ? oemEpochToEt(m.startTime, m.timeSystem, str2et) : -Infinity,
+      m.usableStartTime ? oemEpochToEt(m.usableStartTime, m.timeSystem, str2et) : -Infinity);
+    const end = Math.min(records[records.length - 1].et, m.stopTime ? oemEpochToEt(m.stopTime, m.timeSystem, str2et) : Infinity,
+      m.usableStopTime ? oemEpochToEt(m.usableStopTime, m.timeSystem, str2et) : Infinity);
+    if (end < start) throw new Error('OEM segment has no usable coverage');
+    return { start, end };
+  });
 }

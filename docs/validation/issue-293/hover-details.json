@@ -1,0 +1,45 @@
+{
+  "desktopHover": {
+    "selected": "Flight 44",
+    "previewed": [
+      "Flight 45",
+      "Flight 46",
+      "Flight 45"
+    ],
+    "sameIdentitySuppressed": true,
+    "differentQueryVisible": true,
+    "keyboardPreview": true,
+    "selectionTimeCameraUnchanged": true
+  },
+  "geometryHover": {
+    "visibleWithActivitySelected": true,
+    "selectionTimeCameraUnchanged": true
+  },
+  "touch": [
+    {
+      "catalog": "ingenuity-jezero",
+      "geometry": {
+        "inspectorBottom": 640,
+        "transportTop": 689,
+        "pageWidth": 390
+      },
+      "hasTouch": true,
+      "hover": false
+    },
+    {
+      "catalog": "msl-dingo-gap",
+      "geometry": {
+        "inspectorBottom": 619,
+        "transportTop": 668,
+        "pageWidth": 390
+      },
+      "hasTouch": true,
+      "hover": false
+    }
+  ],
+  "errors": [],
+  "httpErrors": [],
+  "touchStaleOtherActivityPreviewCleared": true,
+  "otherRequestFailures": [],
+  "abortedRequests": 9
+}

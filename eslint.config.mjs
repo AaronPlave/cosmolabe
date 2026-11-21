@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-embed/**',
       '**/node_modules/**',
       '**/*.d.ts',
       '**/.svelte-kit/**',

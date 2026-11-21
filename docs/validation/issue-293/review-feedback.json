@@ -1,0 +1,87 @@
+{
+  "cases": [
+    {
+      "catalog": "ingenuity-jezero",
+      "count": 72,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 88,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "moonfall-shackleton",
+      "count": 24,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "msl-dingo-gap",
+      "count": 2,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 101,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "fixtures/mission-activities",
+      "count": 4,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    }
+  ],
+  "errors": [],
+  "httpErrors": [],
+  "abortedRequests": 9,
+  "otherRequestFailures": [],
+  "checks": [
+    "chooser and previous/next fit the selected activity",
+    "geometry event then activity clears body highlights without clock or camera selection changes",
+    "dense aggregate zoom changes only timeline window",
+    "bounded windows use restrained distinct bands with unknown drive duration in inspector",
+    "desktop and 390px expanded and compact layouts"
+  ],
+  "baseline": {
+    "records": 4,
+    "meanMs": 16.59916666696469,
+    "p95Ms": 17.600000023841858
+  },
+  "performance": {
+    "records": 10000,
+    "meanMs": 16.591666666666665,
+    "p95Ms": 17.5,
+    "marks": 4,
+    "options": 2
+  }
+}

@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ns0:kml xmlns:ns0="http://www.opengis.net/kml/2.2"><Document><ns0:Placemark id="MOON_nomenclature_center_pts.1">
+	<ns0:name>Sinus Lunicus</ns0:name>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#MOON_nomenclature_center_pts">
+		<ns0:SimpleData name="clean_name">Sinus Lunicus</ns0:SimpleData>
+		<ns0:SimpleData name="approvaldt">1970/01/01 00:00:00</ns0:SimpleData>
+		<ns0:SimpleData name="origin">"Lunik Bay"-landing area of Luna (Lunik) 2.</ns0:SimpleData>
+		<ns0:SimpleData name="diameter">119.17538</ns0:SimpleData>
+		<ns0:SimpleData name="center_lon">358.1489</ns0:SimpleData>
+		<ns0:SimpleData name="center_lat">32.3641</ns0:SimpleData>
+		<ns0:SimpleData name="type">Sinus, sinūs</ns0:SimpleData>
+		<ns0:SimpleData name="code">SI</ns0:SimpleData>
+		<ns0:SimpleData name="approval">Adopted by IAU</ns0:SimpleData>
+		<ns0:SimpleData name="min_lon">355.8237</ns0:SimpleData>
+		<ns0:SimpleData name="max_lon">360.3956</ns0:SimpleData>
+		<ns0:SimpleData name="min_lat">30.9873</ns0:SimpleData>
+		<ns0:SimpleData name="max_lat">33.8479</ns0:SimpleData>
+		<ns0:SimpleData name="ethnicity">Latin</ns0:SimpleData>
+		<ns0:SimpleData name="continent">Europe</ns0:SimpleData>
+		<ns0:SimpleData name="quad_name">Cassini</ns0:SimpleData>
+		<ns0:SimpleData name="quad_code">LAC-25</ns0:SimpleData>
+		<ns0:SimpleData name="link">http://planetarynames.wr.usgs.gov/Feature/5566</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-1.85109999999997,32.3641</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark id="MOON_nomenclature_center_pts.8305">
+	<ns0:name>Shackleton</ns0:name>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#MOON_nomenclature_center_pts">
+		<ns0:SimpleData name="clean_name">Shackleton</ns0:SimpleData>
+		<ns0:SimpleData name="approvaldt">1994/01/01 00:00:00</ns0:SimpleData>
+		<ns0:SimpleData name="origin">Sir Ernest Henry; Irish-born British Antarctic explorer (1874-1922).</ns0:SimpleData>
+		<ns0:SimpleData name="diameter">20.924982</ns0:SimpleData>
+		<ns0:SimpleData name="center_lon">129.78</ns0:SimpleData>
+		<ns0:SimpleData name="center_lat">-89.67</ns0:SimpleData>
+		<ns0:SimpleData name="type">Crater, craters</ns0:SimpleData>
+		<ns0:SimpleData name="code">AA</ns0:SimpleData>
+		<ns0:SimpleData name="approval">Adopted by IAU</ns0:SimpleData>
+		<ns0:SimpleData name="min_lon">35.538</ns0:SimpleData>
+		<ns0:SimpleData name="max_lon">206.565</ns0:SimpleData>
+		<ns0:SimpleData name="min_lat">-89.943</ns0:SimpleData>
+		<ns0:SimpleData name="max_lat">-89.287</ns0:SimpleData>
+		<ns0:SimpleData name="ethnicity">Great Britain</ns0:SimpleData>
+		<ns0:SimpleData name="continent">Europe</ns0:SimpleData>
+		<ns0:SimpleData name="quad_name">Amundsen</ns0:SimpleData>
+		<ns0:SimpleData name="quad_code">LAC-144</ns0:SimpleData>
+		<ns0:SimpleData name="link">http://planetarynames.wr.usgs.gov/Feature/5450</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>129.78,-89.67</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  </Document></ns0:kml>

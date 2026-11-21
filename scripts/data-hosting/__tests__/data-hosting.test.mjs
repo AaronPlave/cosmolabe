@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeQuantizedMesh } from '../../../packages/three/src/internal/quantized-mesh.ts';
@@ -341,6 +341,25 @@ describe('upstream resolution from the real fetch scripts', () => {
     expect(resolved).toBeGreaterThan(50);
   });
 
+  it('keeps removed viewer binary kernels reproducible from their registry fetch scripts', () => {
+    const datasets = loadDatasets().datasets;
+    for (const path of [
+      'kernels/cassini/040629AP_SCPSE_04179_04185.bsp',
+      'kernels/cassini/04183_04185ra.bc',
+      'kernels/europa-clipper/ref_trj_scpse.bsp',
+      'kernels/msl/mar099s.bsp',
+      'kernels/msl/msl_ls_ops120808_iau2000_v1.bsp',
+      'kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp',
+      'kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp',
+      'kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc',
+    ]) {
+      const match = matchDataset(path, datasets);
+      expect(match, path).toBeDefined();
+      const texts = match.ds.fetchScripts.map(script => readFileSync(join(ROOT, script), 'utf8'));
+      expect(resolveUpstream(match.rest, texts), path).toMatch(/^https:\/\//);
+    }
+  });
+
   it('parses each shape of fetch script', () => {
     const m = upstreamFromScript(`
 NAIF="https://example.org/k"
@@ -392,33 +411,39 @@ describe('hosted catalog rewriting', () => {
   };
   const base = 'https://data.example.org';
 
-  it('omits the real local-only Jezero experiment without making hosted builds require its product', async () => {
+  it('omits both local-only Jezero experiments without making hosted builds require their terrain', async () => {
     const all = loadDatasets().datasets;
     const id = 'cube-terrain/mars-terrain-cube-jezero';
     const ds = all[id];
     expect(ds.localOnly).toBe(true);
     expect(ds.build).toBeNull();
+    expect(ds.catalogs).toContain('mars-cube-imagery-experiment.json');
     const dist = tmp('local-experiment');
     const pub = join(dist, 'test-catalogs');
-    const cat = ds.catalogs[0];
-    mkdirSync(join(pub, 'experiments'), { recursive: true });
+    const originals = new Map();
     mkdirSync(join(pub, ds.catalogPrefix), { recursive: true });
-    const original = readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8');
-    writeFileSync(join(pub, cat), original);
+    for (const cat of ds.catalogs) {
+      const original = readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8');
+      originals.set(cat, original);
+      mkdirSync(dirname(join(pub, cat)), { recursive: true });
+      writeFileSync(join(pub, cat), original);
+    }
     writeFileSync(join(pub, ds.catalogPrefix, 'cpu-grids.json'), '{}');
-    // Both local-data and hosted-data deployment copy modes omit this experiment.
+    // Both local-data and hosted-data deployment copy modes omit every listed experiment.
     for (const sets of [{ [id]: ds }, all]) {
       const keep = publicDirCopyFilter(sets, pub);
-      expect(keep(join(pub, cat))).toBe(false);
+      for (const cat of ds.catalogs) expect(keep(join(pub, cat))).toBe(false);
       expect(keep(join(pub, ds.catalogPrefix))).toBe(false);
       expect(keep(join(pub, ds.catalogPrefix, 'cpu-grids.json'))).toBe(false);
       expect(keep(join(pub, 'experiments/other.json'))).toBe(true);
     }
     const rec = await buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet });
     expect(rec.datasets).toEqual({});
-    expect(existsSync(join(pub, cat))).toBe(false);
+    for (const cat of ds.catalogs) {
+      expect(existsSync(join(pub, cat))).toBe(false);
+      expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(originals.get(cat));
+    }
     expect(existsSync(join(pub, ds.catalogPrefix))).toBe(false);
-    expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(original);
     // A production catalog accidentally using the unpublished local product must still fail.
     writeFileSync(join(pub, 'production.json'), JSON.stringify({ url: `${ds.catalogPrefix}cpu-grids.json` }));
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet })).rejects.toThrow(id);

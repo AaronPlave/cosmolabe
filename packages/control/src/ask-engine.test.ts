@@ -1,0 +1,831 @@
+/**
+ * The Ask engine (#345), offline: goals held from contracts, answers shown only
+ * after the viewer's check, answers grounded in published facts, intent that
+ * stops a wrong action before it runs, the person's takeover, and an operation
+ * added or removed with no Ask code or prompt change.
+ */
+import { describe, expect, it } from 'vitest';
+import { FakeViewer } from './__tests__/fake-host.js';
+import { CAPABILITY_LIMITS, createCapabilityTools } from './capabilities.js';
+import { escalateDestructive, runAgent, systemPrompt, type AgentContent, type AgentEvent, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { checkAnswer, statedDistancesKm, statedDates } from './answer-check.js';
+import { registerVerb, type VerbSpec } from './verbs.js';
+import type { ScriptEventQueryInfo, ScriptProfileData, ScriptEventReference, ScriptEventResultPage, ScriptEventVisualization, ViewerControl } from './contracts.js';
+import type { ResultFact } from './agent.js';
+
+const use = (id: string, name: string, input: unknown): AgentContent => ({ type: 'tool_use', id, name, input });
+const say = (text: string): AgentResponse => ({ content: [{ type: 'text', text }], stop: 'end' });
+const call = (...uses: AgentContent[]): AgentResponse => ({ content: uses, stop: 'tool_use' });
+const goal = (require: unknown[] = []) => use('goal', 'checkGoal', { require });
+const describe_ = (...ids: string[]) => use('describe', 'describeCapabilities', { ids });
+
+/** A model that plays its replies in order, whatever it is told. */
+function scripted(replies: AgentResponse[]) {
+  const requests: AgentRequest[] = [];
+  return { requests, transport: { async send(request: AgentRequest) { requests.push({ ...request, messages: [...request.messages] }); return replies[requests.length - 1]; } } };
+}
+
+/** One computed closest approach per search: Voyager 1–Neptune (3.48e9 km) and Psyche–Mars (4,500 km). */
+class EventScene extends FakeViewer {
+  readonly searches: Record<string, { observer: string; target: string; et: number; km: number }> = {
+    'v1-neptune': { observer: 'Voyager 1', target: 'Neptune', et: 400_000_000, km: 3.48e9 },
+    'psyche-mars': { observer: 'Psyche', target: 'Mars', et: 832_000_000, km: 4500 },
+  };
+  presented: string[] = [];
+  selectedRef: ScriptEventReference | null = null;
+  constructor() {
+    super();
+    this.objects = ['Voyager 1', 'Neptune', 'Psyche', 'Mars', 'Sun'];
+    this.scene = { id: 3, catalog: 'events', ready: true };
+  }
+  private event(q: string) {
+    const s = this.searches[q];
+    return { id: `${q}-0`, queryId: q, kind: 'closest-approach', temporality: 'instant' as const, et: s.et, bodies: { observer: s.observer, target: s.target },
+      metrics: [{ key: 'range', label: 'Range', value: s.km, unit: 'km' }] };
+  }
+  override getEventQueryInfo(q?: string) {
+    const s = q ? this.searches[q] : undefined;
+    return { status: 'available', coverage: null, error: null, provenance: null,
+      definition: s ? { id: q!, label: q!, enabled: true, visible: true, query: { id: q!, kind: 'closest-approach', bodies: { observer: s.observer, target: s.target }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: { scope: 'local' } } } : null } as never;
+  }
+  override getEventResultPage(q?: string): ScriptEventResultPage {
+    return { status: 'ready', total: 1, offset: 0, nextOffset: null, ranking: { order: 'range-ascending', compared: 1 },
+      items: [{ reference: { scene: 3, query: q!, id: `${q}-0`, revision: 1 }, event: this.event(q!) as never }], query: this.getEventQueryInfo(q) };
+  }
+  listEventResults(q: string) { return { total: 1, items: [this.event(q) as never] }; }
+  override async presentEventResult(reference: ScriptEventReference) {
+    this.presented.push(reference.id);
+    this.selectedRef = reference; this.time = this.searches[reference.query].et; this.playing = false; this.tracked = this.searches[reference.query].target;
+    return { status: 'observed', reference, anchor: 'middle', observation: this.getEventVisualization() } as never;
+  }
+  override getEventVisualization(): ScriptEventVisualization {
+    const s = this.selectedRef ? this.searches[this.selectedRef.query] : null;
+    return { ...super.getEventVisualization(), selected: this.selectedRef, status: 'observed',
+      renderer: this.selectedRef ? { observedEt: this.time, selected: { query: this.selectedRef.query, id: this.selectedRef.id }, markerGroups: 1, visibleGlyphs: 1, visibleSpans: 0, occultationVisible: false } : null,
+      presentation: s ? { tracked: s.target, reference: null, participants: [s.observer, s.target].map(object => ({ object, ndc: [0, 0, 0.5], inView: true, drawEnabled: true })) } : undefined };
+  }
+}
+const ref = (q: string) => JSON.stringify({ scene: 3, query: q, id: `${q}-0`, revision: 1 });
+
+describe('answers are shown only after the viewer has checked them', () => {
+  it('a candidate answer the check sends back is never displayed', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal(), use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })),
+      call(use('2', 'invokeCapability', { id: 'display.setObjectVisible', input: { object: 'Mars', visible: false } })),
+      say('Mars is selected and in view.'),
+      say('Mars is selected, but it is hidden.'),
+    ]);
+    // An earlier request held Mars in view.
+    const events: AgentEvent[] = [];
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars and hide it', goals: [{ p: 'inView', object: 'Mars' }], onEvent: e => events.push(e) });
+    expect(events.filter(e => e.type === 'text').map(e => (e as { text: string }).text)).toEqual(['Mars is selected, but it is hidden.']);
+    expect(run.answer).toBe('Mars is selected, but it is hidden.');
+    expect(run.result.status).toBe('failed');
+  });
+});
+
+describe('scientific answers are grounded in published facts', () => {
+  const neptune = [
+    call(use('1', 'getEventResultPage', { query: 'v1-neptune', order: 'range-ascending' })),
+    say('Voyager 1 flew past Neptune at 3.5 billion km.'),
+  ];
+
+  it('a result page says whether each range minimum is an encounter, and by which criterion', async () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+    const r = await tools.call('getEventResultPage', { query: 'v1-neptune' });
+    expect(r).toMatchObject({ ok: true, summary: expect.stringContaining("0 of 1 on this page are encounters by Neptune's sphere of influence (8.66e+7 km)"),
+      data: { items: [{ encounter: { criterion: 'sphere-of-influence', encounter: false, thresholdKm: 8.66e7 } }] },
+      facts: [{ kind: 'event-result', target: 'Neptune', criterionBody: 'Neptune', rangeKm: 3.48e9, encounter: false }, { kind: 'event-window' }] });
+    const mars = await tools.call('getEventResultPage', { query: 'psyche-mars' });
+    expect(mars).toMatchObject({ facts: [{ encounter: true, rangeKm: 4500 }, { kind: 'event-window' }] });
+  });
+
+  it('an answer that calls a distant minimum a flyby gets one correction; if it persists, the host states the facts instead', async () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+    const model = scripted([...neptune, say('Voyager 1 flew past Neptune at 3.5 billion km.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when voyager 1 flew past neptune' });
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/contradicts what the viewer published: .*presents a flyby, but every result is outside the Neptune's sphere of influence/);
+    expect(run.result.answerIssues.length).toBe(1);
+    expect(run.answer).toMatch(/^The viewer's closest Voyager 1–Neptune result is 3\.48e\+9 km on .*: a distant range minimum, not a flyby \(Neptune's sphere of influence is 8\.66e\+7 km\)\.$/);
+  });
+
+  it('a corrected answer stands', async () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+    const model = scripted([...neptune, say('Voyager 1 never flew past Neptune: its closest approach in the searched window is 3.48 billion km, far outside Neptune\'s sphere of influence.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when voyager 1 flew past neptune' });
+    expect(run.result.answerIssues).toEqual([]);
+    expect(run.answer).toMatch(/^Voyager 1 never flew past Neptune/);
+    expect(run.result.status).toBe('no-change');
+  });
+
+  it('a stated encounter stops presenting a result that is not one, before it runs', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(describe_('events.presentEventResult'), use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'v1-neptune', encounter: true }] })),
+      call(use('2', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('v1-neptune') } })),
+      say('Voyager 1 never flew past Neptune; I did not show the distant closest approach.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when voyager 1 flew past neptune' });
+    const refused = run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === '2') as { content: string; isError: boolean };
+    expect(refused.isError).toBe(true);
+    expect(JSON.parse(refused.content).error).toMatch(/^Not run: the person asked for an encounter, and result v1-neptune-0 is not one: .*not a flyby/);
+    expect(host.presented).toEqual([]);
+  });
+
+  it('a real encounter presents and verifies, with the closest and encounter intent carried onto the selected result', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(describe_('events.presentEventResult'), use('1', 'checkGoal', { require: [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true }] })),
+      call(use('2', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('psyche-mars') } })),
+      say('Showing the Psyche–Mars flyby at 4,500 km.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show the psyche mars flyby' });
+    expect(host.presented).toEqual(['psyche-mars-0']);
+    expect(run.goals).toContainEqual({ p: 'eventSelected', query: 'psyche-mars', pick: 'closest', encounter: true, id: 'psyche-mars-0', stated: true });
+    expect(run.result).toMatchObject({ status: 'verified', report: { status: 'met' } });
+  });
+
+  it('checks distances, dates and flyby claims against the facts, and passes prose with nothing to check', () => {
+    const facts: ResultFact[] = [{ kind: 'event-result', query: 'q', id: 'e', observer: 'Psyche', target: 'Earth', utc: '2026-05-15T12:00:00.000Z', rangeKm: 1.8e8, altitudeKm: null, encounter: false, criterion: 'sphere-of-influence', criterionBody: 'Earth', thresholdKm: 9.25e5 },
+      { kind: 'event-window', query: 'q', startUtc: '2023-10-13T00:00:00Z', endUtc: '2031-11-01T00:00:00Z', maxRangeKm: null }];
+    expect(statedDistancesKm('about 1.2 AU, or 180 million km; 4,500 km; 1.8e8 km').map(d => Math.round(d.km))).toEqual([179517445, 180000000, 4500, 180000000]);
+    expect(statedDates('on May 15, 2026 and 2031-11-01 and 3 March 2030').map(d => d.day)).toEqual(['2026-05-15', '2031-11-01', '2030-03-03']);
+    expect(checkAnswer('None of these is a flyby: the closest is 180 million km on 2026-05-15, searched from 2023-10-13 to 2031-11-01; none comes within 1 AU.', facts)).toEqual([]);
+    expect(checkAnswer('Psyche flew past Earth at 4,500 km on 2026-05-16.', facts)).toEqual([expect.stringMatching(/"4,500 km" matches no distance/), expect.stringMatching(/presents a flyby/)]);
+    expect(checkAnswer('Psyche passes Earth on 2027-01-01.', facts)).toEqual([expect.stringMatching(/"2027-01-01" matches no date/)]);
+    expect(checkAnswer('Selected Mars.', [])).toEqual([]);
+  });
+});
+
+describe('the person keeps what they take', () => {
+  it('camera and clock goals are given up when the person moves the camera or the clock during the request', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal(), use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } }), use('2', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } })),
+      say('Framed Mars, paused.'),
+    ]);
+    const send = model.transport.send;
+    model.transport.send = async (req: AgentRequest) => {
+      // Between rounds the person drags the view and scrubs the clock.
+      if (model.requests.length === 1) { host.emit('cameraInput', {}); host.camera = { ...host.camera, position: [9, 9, 9] }; host.emit('time', { et: 5, cause: 'viewer' }); }
+      return send(req);
+    };
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'frame mars and pause' });
+    expect(run.result.changes).toEqual(['The person moved the camera; camera goals are theirs now.', 'The person moved the clock; time goals are theirs now.']);
+    expect(run.goals).toEqual([]);
+  });
+
+  it('a scene reload ends the request: nothing later runs against the new scene', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })), call(use('2', 'invokeCapability', { id: 'scene.select', input: { object: 'Psyche' } })), say('done')]);
+    const send = model.transport.send;
+    model.transport.send = async (req: AgentRequest) => { if (model.requests.length === 1) { host.scene = { id: 4, catalog: 'other', ready: true }; host.emit('load', { objects: [] }); } return send(req); };
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars then psyche' });
+    expect(run.outcome.kind).toBe('stale');
+    expect(host.selected).toBe('Mars');
+  });
+});
+
+describe('operations come and go without an Ask change', () => {
+  /** A feature a later release adds: a widget with a colour, its read and its write. */
+  class WidgetViewer extends EventScene {
+    color = 'grey';
+    getWidget() { return { color: this.color }; }
+    setWidgetColor(color: string) { this.color = color; return true; }
+  }
+  const spec: VerbSpec = {
+    name: 'setWidgetColor', params: [{ name: 'color', type: 'enum', values: ['grey', 'teal'] }], category: 'Display', method: 'setWidgetColor' as keyof ViewerControl,
+    help: 'Colour the widget.', invoke: (h, a) => (h as unknown as WidgetViewer).setWidgetColor(a[0] as string),
+    contract: { namespace: 'display', writes: ['display'], idempotent: true, observes: ['getWidget' as keyof ViewerControl],
+      expect: a => [{ p: 'state', read: 'getWidget', path: 'color', equals: a.color }], guide: 'Teal means the widget is armed.' },
+  };
+  const offered = (tools: ReturnType<typeof createCapabilityTools>) => ({
+    index: tools.list().find(t => t.name === 'invokeCapability')!.description, prompt: systemPrompt(tools.list(), tools.guides!()),
+  });
+
+  it('a newly registered operation is offered, guided, held to its own result and verified', async () => {
+    const before = offered(createCapabilityTools(new WidgetViewer(), { surface: 'fixed' }));
+    expect(before.index).not.toContain('display.setWidgetColor');
+    const unregister = registerVerb(spec);
+    try {
+      const host = new WidgetViewer();
+      const tools = createCapabilityTools(host, { surface: 'fixed' });
+      const now = offered(tools);
+      // Indexed and marked as having notes; the notes stay out of the prompt and come from the registry.
+      expect(now.index).toContain('"display.setWidgetColor"(color:string=grey|teal) [notes]');
+      // #379: copying the quoted ID must never include signature/notes syntax.
+      const copiedIds = [...now.index.matchAll(/"([^"]+)"\(/g)].map(m => m[1]);
+      expect(copiedIds).toContain('display.setWidgetColor');
+      for (const id of copiedIds) expect(tools.describeCapabilities([id])[0].id).toBe(id);
+      expect(now.prompt).not.toContain('Teal means');
+      expect(tools.describeCapabilities(['display.setWidgetColor'])[0]).toMatchObject({ available: true, guide: 'Teal means the widget is armed.', behaviour: { writes: ['display'], unobservable: null, idempotent: true } });
+      const invoke = (id: string) => use(id, 'invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } });
+      const model = scripted([call(goal(), invoke('1')), call(invoke('2')), say('The widget is teal.')]);
+      const run = await runAgent({ transport: model.transport, tools, prompt: 'arm the widget' });
+      // Its first use returns the notes instead of running; the second runs.
+      expect(JSON.stringify(model.requests[1].messages.at(-1))).toMatch(/Not run: this operation's usage notes apply before its first use.*Teal means the widget is armed/);
+      expect(run.result).toMatchObject({ status: 'verified', report: { status: 'met' } });
+      expect(run.goals).toEqual([{ p: 'state', read: 'getWidget', path: 'color', equals: 'teal' }]);
+      // A host that says yes and changes nothing is caught by the same contract.
+      host.setWidgetColor = () => true; host.color = 'grey';
+      expect(await tools.call('invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } })).toMatchObject({ ok: false, code: 'failed' });
+      // A host without the feature does not offer it, and its guidance does not reach the prompt.
+      const plain = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+      expect(plain.listCapabilities({ query: 'setWidgetColor' }).items[0]).toMatchObject({ id: 'display.setWidgetColor', available: false, reason: 'Host does not implement setWidgetColor' });
+      expect(offered(plain).prompt).not.toContain('setWidgetColor');
+      expect(await plain.call('invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } })).toMatchObject({ ok: false, code: 'refused' });
+    } finally { unregister(); }
+    // Removed: gone from the index and the prompt, and refused by name.
+    const after = createCapabilityTools(new WidgetViewer(), { surface: 'fixed' });
+    expect(offered(after).index).not.toContain('setWidgetColor');
+    expect(offered(after).prompt).not.toContain('setWidgetColor');
+    expect(await after.call('invokeCapability', { id: 'display.setWidgetColor', input: { color: 'teal' } })).toMatchObject({ ok: false, code: 'unknown-tool' });
+  });
+
+  it('a built-in operation the host withholds loses its direct tool and its guidance', () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed', omitted: { 'camera.composeView': 'The host owns the camera' } });
+    expect(tools.list().map(t => t.name)).not.toContain('composeView');
+    expect(offered(tools).prompt).not.toContain('- composeView:');
+  });
+});
+
+describe('reading stated numbers', () => {
+  it('reads decimals with thousands separators and spaced scientific notation whole', () => {
+    expect(statedDistancesKm('76,685.77 km; 1.997 × 10^8 km; 2.0e9 km').map(d => d.km)).toEqual([76685.77, 1.997e8, 2e9]);
+  });
+});
+
+describe('stated goals are held only over real reads', () => {
+  it('a state predicate over an invented read is refused, not held as uncheckable', async () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+    const model = scripted([call(use('1', 'checkGoal', { require: [{ p: 'state', read: 'display.layer', args: ['trajectories'], equals: false }] })), say('ok')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'hide trajectories' });
+    const r = run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result') as { content: string };
+    expect(JSON.parse(r.content).error).toMatch(/display.layer is not a read on this viewer/);
+    expect(run.goals).toEqual([]);
+  });
+});
+
+/** Two local minima of Psyche–Mars range: the 2026 flyby and a distant 2030 minimum, with the pair's coverage. */
+class TwoMinima extends EventScene {
+  readonly results = [{ id: 'pm-0', et: 832_000_000, km: 4500 }, { id: 'pm-1', et: 950_000_000, km: 1.719e8 }];
+  private item(r: { id: string; et: number; km: number }) {
+    return { reference: { scene: 3, query: 'pm', id: r.id, revision: 1 }, event: { id: r.id, queryId: 'pm', kind: 'closest-approach', temporality: 'instant', et: r.et,
+      bodies: { observer: 'Psyche', target: 'Mars' }, metrics: [{ key: 'range', label: 'Range', value: r.km, unit: 'km' }] } as never };
+  }
+  override getEventQueryInfo(q?: string) {
+    if (q !== undefined && q !== 'pm') return { status: 'missing-query', definition: null, coverage: null, error: null, provenance: null } as never;
+    return { status: 'available', error: null, provenance: null, coverage: { status: 'available', windows: [{ start: 0, end: 2e9 }], exact: true, problems: [] },
+      definition: { id: 'pm', label: 'pm', enabled: true, visible: true, query: { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} } } } as never;
+  }
+  override getEventResultPage(_q?: string, opts: { order?: string; limit?: number } = {}): ScriptEventResultPage {
+    const items = [...this.results].sort((a, b) => opts.order === 'range-ascending' ? a.km - b.km : a.et - b.et).slice(0, opts.limit ?? 5).map(r => this.item(r));
+    return { status: 'ready', total: 2, offset: 0, nextOffset: null, items, query: this.getEventQueryInfo() };
+  }
+  override listEventResults() { return { total: 2, items: this.results.map(r => this.item(r).event) }; }
+  getEventSearchOptions() { return { kinds: [{ kind: 'closest-approach', step: 3600 }] } as never; }
+  override async presentEventResult(reference: ScriptEventReference) {
+    this.presented.push(reference.id); this.selectedRef = reference; this.playing = false;
+    this.time = this.results.find(r => r.id === reference.id)!.et;
+    return { status: 'observed', reference, anchor: 'middle', observation: this.getEventVisualization() } as never;
+  }
+  override getEventVisualization(): ScriptEventVisualization {
+    return { ...super.getEventVisualization(), presentation: this.selectedRef ? { tracked: 'Mars', reference: null, participants: ['Psyche', 'Mars'].map(object => ({ object, ndc: [0, 0, 0.5], inView: true, drawEnabled: true })) } : undefined };
+  }
+}
+const present = (id: string, result: string) => use(id, 'invokeCapability', { id: 'events.presentEventResult', input: { reference: JSON.stringify({ scene: 3, query: 'pm', id: result, revision: 1 }) } });
+const errorOf = (run: Awaited<ReturnType<typeof runAgent>>, id: string) =>
+  JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content).error as string | undefined;
+
+describe('the Haiku misses of the final gate, replayed offline', () => {
+  it('"the closest": a distant minimum is refused before it is shown, and the closest then verifies', async () => {
+    const host = new TwoMinima();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      // Stated before the search is named: it binds to the result this request presents.
+      call(describe_('events.presentEventResult')),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), present('1', 'pm-1')),
+      call(present('2', 'pm-0')),
+      say('The closest approach is the 2026 flyby at 4,500 km.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me the one where psyche is closest to mars' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for the closest result, which is pm-0, not pm-1/);
+    expect(host.presented).toEqual(['pm-0']);
+    expect(run.result.status).toBe('verified');
+    expect(run.goals).toContainEqual({ p: 'eventSelected', pick: 'closest', query: 'pm', id: 'pm-0', stated: true });
+  });
+
+  it('intent about a search named by its label, or not created yet, binds to the request\'s own search instead of being held where it can never be met', async () => {
+    const tools = createCapabilityTools(new TwoMinima(), { surface: 'fixed' });
+    const model = scripted([call(goal([{ p: 'eventRun', query: 'Psyche within 10000 km of Mars', whole: true }]), use('2', 'checkGoal', { require: [{ p: 'eventFramed', query: 'nope' }] })), say('ok')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when psyche is within 10000km of mars' });
+    const summary = JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === 'goal') as { content: string }).content).summary;
+    expect(summary).toMatch(/No search has ID "Psyche within 10000 km of Mars" yet; held as the search this request runs/);
+    expect(run.goals).toEqual([{ p: 'eventRun', whole: true, stated: true }]);
+    // Other event predicates still need a real search.
+    expect(errorOf(run, '2')).toMatch(/no search with ID "nope"/);
+  });
+
+  it('"all": a search that misses part of the coverage fails the stated goal, and the answer must say so', async () => {
+    const host = new TwoMinima();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(describe_('events.presentEventResult')),
+      call(goal([{ p: 'eventRun', query: 'pm', whole: true }]), present('1', 'pm-0')),
+      say('These are all of Psyche\'s approaches to Mars.'),
+      say('The search covered only part of the loaded data, so these may not be all of them.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show me all psyche flybys of mars' });
+    expect(JSON.stringify(model.requests[3].messages.at(-1))).toMatch(/eventRun:pm unmet \(search pm does not span the participants' coverage\)/);
+    expect(run.result.status).toBe('failed');
+    expect(run.answer).toMatch(/only part/);
+  });
+
+  it('"on the ground": a pin on the reference ellipsoid is refused before it is placed', async () => {
+    const host = new EventScene();
+    let pinned = 0;
+    host.pinGroundPoint = ((object: string, policy: never) => { pinned++; return FakeViewer.prototype.pinGroundPoint.call(host, object, policy); }) as never;
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const pin = (id: string, policy?: string) => use(id, 'invokeCapability', { id: 'spatial.pinGroundPoint', input: { object: 'Mars', ...(policy ? { policy } : {}) } });
+    const model = scripted([call(describe_('spatial.pinGroundPoint')), call(goal([{ p: 'probeUnder', object: 'Mars' }]), pin('1', 'reference')), say('I could not pin it.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'place a pick marker on the ground where mars currently is' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: the person asked for probeUnder Mars, and this would leave probeUnder Mars reference\./);
+    expect(pinned).toBe(0);
+  });
+
+  it('"keep it close": a stated distance survives a change of camera subject, so a later view that loses it is not verified', async () => {
+    const host = new EventScene();
+    host.objects = ['Psyche', 'Mars'];
+    host.bodies = { Psyche: { position: [0, 0, 0], radiusKm: 0.0125 }, Mars: { position: [-6000, 1500, 7800], radiusKm: 3389.5 } } as never;
+    host.camera = { position: [0, 0, 0.06], target: [0, 0, 0], up: [0, 1, 0], fov: 45 };
+    // Framing Mars moves the camera to Mars, far from Psyche.
+    host.frameObject = (name?: string) => { host.tracked = name ?? null; host.camera = { position: [-6000, 1500, 20_000], target: [-6000, 1500, 7800], up: [0, 1, 0], fov: 45 }; return true; };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })), say('Framed Mars.'), say('Framed Mars; Psyche is no longer close.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'show mars', goals: [{ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true }] });
+    expect(run.goals).toContainEqual({ p: 'range', object: 'Psyche', maxKm: 0.1, stated: true });
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/range:Psyche unmet/);
+    expect(run.result.status).toBe('failed');
+  });
+});
+
+describe('intent comes before any change', () => {
+  it('a change before the goal is stated does not run', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(use('1', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })), say('Could not select Mars.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: state what the person asked for with checkGoal first/);
+    expect(host.selected).toBeNull();
+    expect(run.result.status).toBe('no-change');
+  });
+
+  it('an action cannot overwrite what the person stated; the person restating it can', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const select = (id: string, object: string) => use(id, 'invokeCapability', { id: 'scene.select', input: { object } });
+    const held = [{ p: 'selected' as const, object: 'Mars', stated: true }];
+    const blocked = await runAgent({ transport: scripted([call(goal(), select('1', 'Psyche')), say('Mars stays selected.')]).transport, tools, prompt: 'select psyche', goals: held });
+    expect(errorOf(blocked, '1')).toMatch(/the person asked for selected Mars, and this would leave selected Psyche\. If they changed their mind, restate it/);
+    expect(host.selected).toBeNull();
+    const restated = await runAgent({ transport: scripted([call(goal([{ p: 'selected', object: 'Psyche' }]), select('1', 'Psyche')), say('Psyche is selected.')]).transport, tools, prompt: 'no, select psyche instead', goals: held });
+    expect(host.selected).toBe('Psyche');
+    expect(restated.goals).toEqual([{ p: 'selected', object: 'Psyche', stated: true }]);
+    expect(restated.result.status).toBe('verified');
+  });
+});
+
+describe('routing before the first change', () => {
+  const select = (id: string, object: string) => use(id, 'invokeCapability', { id: 'scene.select', input: { object } });
+
+  it('a first change the policy names is dropped unrun and the round asked again of the escalation model, which keeps the request', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal([{ p: 'selected', object: 'Mars' }]), select('1', 'Psyche')), call(goal([{ p: 'selected', object: 'Mars' }]), select('2', 'Mars')), say('Mars is selected.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'select mars', escalate: ({ name }) => name === 'select' ? 'selection is routed' : null });
+    expect(model.requests.map(r => r.escalated)).toEqual([undefined, true, true]);
+    // The dropped proposal ran nothing and is not in the escalated model's history.
+    expect(JSON.stringify(model.requests[1].messages)).not.toMatch(/Psyche/);
+    expect(host.selected).toBe('Mars');
+    expect(run.result).toMatchObject({ status: 'verified', escalated: 'selection is routed', intentStated: true });
+  });
+
+  it('once a change has run the request stays on its model: nothing partly done is replayed', async () => {
+    const host = new EventScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(goal(), use('1', 'invokeCapability', { id: 'time.setPlaying', input: { playing: false } })), call(select('2', 'Mars')), say('Paused, Mars selected.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'pause and select mars', escalate: ({ name }) => name === 'select' ? 'selection is routed' : null });
+    expect(model.requests.every(r => !r.escalated)).toBe(true);
+    expect(host.selected).toBe('Mars');
+    // require: [] stated nothing: verified covers each change's own result, not the request.
+    expect(run.result).toMatchObject({ status: 'verified', escalated: null, intentStated: false });
+  });
+
+  it('by default, a change that destroys saved state is routed, by its contract', () => {
+    expect(escalateDestructive({ name: 'removeBookmark', input: { name: 'x' }, contract: { namespace: 'bookmarks', writes: ['bookmarks'], destructive: () => true } })).toBe('removeBookmark destroys saved state');
+    expect(escalateDestructive({ name: 'editAnnotation', input: { json: '{"type":"add"}' }, contract: { namespace: 'geographic', writes: ['geographic'], destructive: a => a.json === '{}' } })).toBeNull();
+  });
+});
+
+describe('round trips a closest-approach request does not need', () => {
+  it('the event search read carries its domain\'s notes and only the asked kind; reads resend no observation; no change is refused for notes', async () => {
+    const host = Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }, { kind: 'occultation', step: 60 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const invoke = (id: string, op: string, input: unknown) => use(id, 'invokeCapability', { id: op, input });
+    const query = { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} };
+    // The shape of the seven-round Cassini–Titan trace: scene, options, configure, run, page, present.
+    const model = scripted([
+      call(use('scene', 'describeScene', {})),
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' } })),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), invoke('upsert', 'events.upsertEventQuery', { definition: JSON.stringify({ id: 'pm', label: 'pm', enabled: true, visible: true, query }) })),
+      call(invoke('run', 'events.runEventQuery', { id: 'pm' })),
+      call(invoke('page', 'events.getEventResultPage', { query: 'pm', order: 'range-ascending' })),
+      call(present('present', 'pm-0')),
+      say('Psyche came closest to Mars at 4,500 km.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'when was psyche closest to mars? show me' });
+    const result = (id: string) => JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content);
+    expect(run.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result' && /Not run/.test(c.content))).toEqual([]);
+    expect(run.stats.rounds).toBe(7);
+    for (const op of ['upsertEventQuery', 'presentEventResult', 'getEventResultPage']) expect(result('options').summary).toContain(`${op}: `);
+    expect(result('options').data.kinds.map((k: { kind: string }) => k.kind)).toEqual(['closest-approach']);
+    expect(result('scene').receipt).not.toHaveProperty('observation');
+    expect(result('scene').receipt.status).toBe('completed');
+    expect(run.result.status).toBe('verified');
+  });
+
+  const optionsHost = () => Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+  const upsert = (id: string) => use(id, 'invokeCapability', { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'pm', label: 'pm', enabled: true, visible: true,
+    query: { id: 'pm', kind: 'closest-approach', bodies: { observer: 'Psyche', target: 'Mars' }, window: { start: 0, end: 1e9 }, step: 3600, abcorr: 'NONE', params: {} } }) } });
+
+  it('notes a read carries count as seen only after its result is returned: a guided change in the same reply is refused for them', async () => {
+    const host = optionsHost();
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const model = scripted([call(goal(), use('options', 'getEventSearchOptions', { kind: 'closest-approach' }), upsert('1')), call(upsert('2')), say('Configured.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(errorOf(run, '1')).toMatch(/^Not run: this operation's usage notes apply before its first use/);
+    expect(errorOf(run, '2')).toBeUndefined();
+    expect(host.calls.filter(c => c.startsWith('upsertEventQuery('))).toHaveLength(1);
+  });
+
+  it('normalizes a namespaced operation alias when checking already-delivered usage notes', async () => {
+    const host = optionsHost();
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const invocation = upsert('alias') as Extract<AgentContent, { type: 'tool_use' }>;
+    const model = scripted([
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })),
+      call(goal(), use('alias', 'events.upsertEventQuery', (invocation.input as { input: unknown }).input)),
+      say('Configured.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(errorOf(run, 'alias')).toBeUndefined();
+    expect(host.calls.filter(c => c.startsWith('upsertEventQuery('))).toHaveLength(1);
+    tools.dispose();
+  });
+
+  it('notes in a result the model never receives whole (too large, omitted) are not seen', async () => {
+    const host = Object.assign(new TwoMinima(), { getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', label: 'x'.repeat(8000), step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 2e9 }, error: null }) as never });
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const model = scripted([call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' })), call(goal(), upsert('1')), say('Configured.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'set up a psyche–mars closest approach search' });
+    expect(JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === 'options') as { content: string }).content)).toHaveProperty('code', 'result-too-large');
+    expect(errorOf(run, '1')).toMatch(/^Not run: this operation's usage notes apply/);
+  });
+});
+
+describe('missing SPICE worker dependency recovery (#363)', () => {
+  const frameError = 'The number -226000 is not a recognized id-code for a reference frame.';
+  const probe = { id: 'philae-range', start: 0, end: 10, count: 2 };
+  function failingScene() {
+    let attempts = 0;
+    const host = Object.assign(new EventScene(), {
+      getEventSearchOptions: () => ({ kinds: [{ kind: 'closest-approach', step: 3600 }], coverage: null, suggestedWindow: null, catalogWindow: { start: 0, end: 10 }, error: null }) as never,
+      runEventQuery: async () => { attempts++; throw new Error(frameError); },
+      sampleProfileData: (): ScriptProfileData => ({
+        scene: 3, id: probe.id, status: 'available', quantity: 'range', unit: 'km', bodies: { observer: 'Philae', target: '67P' },
+        requestedWindow: { start: 0, end: 10 }, window: { start: 0, end: 10 },
+        samples: [{ et: 0, utc: 't0', value: 4 }, { et: 10, utc: 't10', value: 3 }],
+        missing: 0, gaps: [], minimum: { et: 10, utc: 't10', value: 3 }, maximum: { et: 0, utc: 't0', value: 4 },
+        sampling: { method: 'uniform', requestedCount: 2, maxCount: 32, stepSeconds: 10, coverage: 'not-certified', interpolation: 'none' }, limitations: [],
+      }),
+    });
+    host.objects.push('Philae', '67P');
+    host.searches['philae-landing'] = { observer: 'Philae', target: '67P', et: 10, km: 3 };
+    return { host, attempts: () => attempts };
+  }
+  const runQuery = (id: string, query: string) => use(id, 'invokeCapability', { id: 'events.runEventQuery', input: { id: query } });
+  const readSamples = (id: string) => use(id, 'invokeCapability', { id: 'profiles.sampleProfileData', input: probe });
+  const resultOf = (run: Awaited<ReturnType<typeof runAgent>>, id: string) =>
+    JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === id) as { content: string }).content);
+
+  it('classifies the real worker error, refuses repeated event searches, and still allows a numerical profile read', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed', allowAuthoring: true });
+    const model = scripted([
+      call(use('options', 'getEventSearchOptions', { kind: 'closest-approach' }), describe_('events.upsertEventQuery')),
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(runQuery('retry', 'philae-new-id')),
+      call(use('new-query', 'invokeCapability', { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'replacement', enabled: true, visible: true, query: { id: 'replacement', kind: 'closest-approach', bodies: { observer: 'Philae', target: '67P' }, window: { start: 0, end: 10 }, step: 3600 } }) } }), readSamples('sampled')),
+      say('The SPICE search worker cannot calculate a closest approach. The profile sampled 3 km at t10, only a sampled center-distance minimum, not touchdown; 0 missing samples.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to 67P during landing? Show me.' });
+    expect(resultOf(run, 'search')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('non-retryable') });
+    expect(resultOf(run, 'retry')).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('Not run') });
+    expect(resultOf(run, 'new-query').code, resultOf(run, 'new-query').error).toBe('missing-dependency');
+    expect(host.calls.some(c => c.startsWith('upsertEventQuery('))).toBe(false);
+    expect(resultOf(run, 'sampled')).toMatchObject({ data: { minimum: { et: 10, value: 3 }, sampling: { coverage: 'not-certified' } } });
+    expect(attempts()).toBe(1);
+    expect(resultOf(run, 'search').receipt).toMatchObject({ status: 'partial', verification: 'host-return' });
+    expect(tools.verify!(run.goals).checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(run.answer).toContain('only a sampled center-distance minimum');
+    expect(run.stats.rounds).toBe(5);
+    tools.dispose();
+  });
+
+  it('uses the existing request budget for a model that ignores the non-retryable error', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal(), runQuery('search', 'philae-landing')),
+      ...Array.from({ length: 9 }, (_, i) => call(runQuery('again-' + i, 'changed-' + i))),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, maxSteps: 4, prompt: 'When did Philae get closest to 67P?' });
+    expect(attempts()).toBe(1);
+    expect(run.stats.rounds).toBe(4);
+    expect(run.outcome.kind).toBe('step-limit');
+    expect(run.answer).toBe(''); // ordinary stopped-request UI; no fabricated recovery answer
+    tools.dispose();
+  });
+
+  it('keeps a sampled navigation separate from an unmet computed-event goal', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }, { p: 'eventFramed', query: 'philae-landing' }, { p: 'eventDrawn', query: 'philae-landing' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('samples')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The SPICE dependency prevented computation. The smallest of 2 samples over ET 0 to 10 is 3 km at t10, with no gaps. The clock is there, but this sampled center-distance minimum is not verified closest approach, clearance or touchdown.'),
+      say('The clock is at a sampled center-distance minimum only; the requested computed closest approach remains unverified, with 0 missing samples.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(host.time).toBe(10);
+    expect(resultOf(run, 'seek')).toMatchObject({ receipt: { status: 'completed' } });
+    expect(run.stats.rounds).toBe(4); // an unrecoverable event predicate cannot be repaired with another search
+    expect(run.answer).toContain('not verified closest approach');
+    expect(run.result.status).toBe('failed');
+    expect(tools.verify!(run.goals).checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(host.selectedRef).toBeNull();
+    tools.dispose();
+  });
+
+  it('offers a scoped profile recovery only for a center-distance search and withholds raw solver text', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'missing-dependency', data: { alternative: 'sampled-center-distance', query: { bodies: { observer: 'Philae', target: '67P' }, window: { start: 0, end: 1000000000 } } } });
+    if (!result.ok) {
+      expect(result.error).not.toContain('-226000');
+    }
+    const info = host.getEventQueryInfo.bind(host);
+    host.getEventQueryInfo = q => {
+      const result = info(q) as ScriptEventQueryInfo;
+      if (result.definition) result.definition.query.kind = 'occultation';
+      return result as never;
+    };
+    const occultation = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(occultation).toMatchObject({ code: 'missing-dependency', error: expect.stringContaining('No numerical profile substitution') });
+    if (!occultation.ok) expect(occultation.error).not.toContain('sampleProfileData');
+    tools.dispose();
+  });
+
+  it.each(['coverage unavailable', 'Event search timed-out', 'no results'])('does not classify other failures (%s) as frame dependencies', async message => {
+    const { host } = failingScene();
+    host.runEventQuery = async () => { throw new Error(message); };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining(message) });
+    tools.dispose();
+  });
+
+  it('still checks and repairs unrelated unmet goals after an event dependency failure', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }, { p: 'selected', object: 'Mars' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The sampled alternative has 0 missing samples and is approximate; the computed event is unverified.'),
+      call(use('select', 'invokeCapability', { id: 'scene.select', input: { object: 'Mars' } })),
+      say('Mars is selected, but the computed event remains unverified; the sampled alternative has 0 missing samples.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'Show the closest approach and select Mars.' });
+    expect(host.selected).toBe('Mars');
+    expect(run.result.report?.checks.find(c => c.slot === 'selected')?.ok).toBe(true);
+    expect(run.result.report?.checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(run.result.status).toBe('failed');
+    tools.dispose();
+  });
+
+  it('checks the model-facing sampled answer for omitted gap disclosure, with one correction only', async () => {
+    const { host, attempts } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('The approximate minimum among 2 samples is 3 km at t10; the computed event remains unverified.'),
+      say('The approximate minimum among 2 samples is 3 km at t10; the computed event remains unverified.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(attempts()).toBe(1);
+    expect(run.stats.rounds).toBe(5);
+    expect(run.result.answerIssues).toEqual([expect.stringContaining('missing-data limit')]);
+    expect(run.answer).toContain('(0 missing)');
+    expect(run.answer).toContain('not a verified closest approach');
+    expect(run.result.status).toBe('failed');
+    tools.dispose();
+  });
+
+  it('corrects fabricated sampled distances even without a computed event fact', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([call(readSamples('sampled')), say('The sampled minimum is 999 km; 0 missing samples.'), say('The sampled minimum is 999 km; 0 missing samples.')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'Tell me the sampled center distance.' });
+    expect(run.stats.rounds).toBe(3);
+    expect(run.result.answerIssues).toEqual([expect.stringMatching(/999 km.*matches no distance/)]);
+    expect(run.answer).toContain('is 3 km at t10');
+    expect(run.answer).not.toContain('999');
+    tools.dispose();
+  });
+
+  it('an output-limit stop retains a labeled host account of completed measurements', async () => {
+    const {host}=failingScene();
+    const tools=createCapabilityTools(host,{surface:'fixed'});
+    const model=scripted([call(readSamples('samples')),{content:[],stop:'max_tokens'}]);
+    const run=await runAgent({transport:model.transport,tools,prompt:'Explain this history'});
+    expect(run.outcome.kind).toBe('max-tokens');
+    expect(run.answer).toContain('minimum among 2 returned');
+    expect(run.result.answerSource).toBe('host-facts');
+    expect(run.result.answerIssues).toEqual([]);
+    tools.dispose();
+  });
+
+  it('a budget stop reports the published sampled alternative without certifying the unmet event goal', async () => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(readSamples('sampled')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, maxSteps: 3, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(run.outcome.kind).toBe('step-limit');
+    expect(run.result.status).toBe('failed');
+    expect(run.result.report?.checks.find(c => c.slot === 'event')?.ok).toBe(false);
+    expect(run.answer).toContain('Event Finder could not compute');
+    expect(run.answer).toContain('minimum among 2 returned Philae–67P center-distance samples from t0 to t10 (0 missing) is 3 km at t10 (ET 10)');
+    expect(run.answer).toContain('not a verified closest approach');
+    expect(run.messages.at(-1)?.content).toEqual([{ type: 'text', text: run.answer }]);
+    expect(host.time).toBe(10);
+    tools.dispose();
+  });
+
+  it('a late frame failure after scene reload is stale, not an invitation to recover in the new scene', async () => {
+    const { host } = failingScene();
+    host.runEventQuery = async () => {
+      await Promise.resolve();
+      host.scene = { id: 4, catalog: 'new', ready: true }; host.emit('load', { objects: [] });
+      throw new Error(frameError);
+    };
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('invokeCapability', { id: 'events.runEventQuery', input: { id: 'philae-landing' } });
+    expect(result).toMatchObject({ ok: false, code: 'stale' });
+    tools.dispose();
+  });
+
+  it('normal computed event presentation still satisfies the exact Philae request', async () => {
+    const host = new EventScene();
+    host.searches['philae-landing'] = { observer: 'Philae', target: '67P', et: 10, km: 3 };
+    host.objects.push('Philae', '67P');
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal([{ p: 'eventSelected', pick: 'closest' }]), runQuery('search', 'philae-landing')),
+      call(use('page', 'getEventResultPage', { query: 'philae-landing', order: 'range-ascending' })),
+      call(use('present', 'invokeCapability', { id: 'events.presentEventResult', input: { reference: ref('philae-landing') } })),
+      say('Presented the computed closest approach.'),
+    ]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(resultOf(run, 'present')).toMatchObject({ receipt: { status: 'completed' } });
+    expect(host.time).toBe(10);
+    expect(host.presented).toEqual(['philae-landing-0']);
+    expect(run.result.status).toBe('verified');
+    tools.dispose();
+  });
+
+  it.each(['time', 'scene'] as const)('preserves %s takeover during frame recovery', async takeover => {
+    const { host } = failingScene();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const model = scripted([
+      call(goal(), runQuery('search', 'philae-landing')),
+      call(use('seek', 'invokeCapability', { id: 'time.setTime', input: { when: 10 } })),
+      say('Navigation was stopped.'),
+    ]);
+    const send = model.transport.send;
+    model.transport.send = async request => {
+      if (model.requests.length === 1) {
+        if (takeover === 'time') { host.time = 8; host.emit('time', { et: 8, cause: 'viewer' }); }
+        else { host.scene = { id: 4, catalog: 'new', ready: true }; host.emit('load', { objects: [] }); }
+      }
+      return send(request);
+    };
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'When did Philae get closest to comet 67P during its landing? Show me.' });
+    expect(host.time).not.toBe(10);
+    if (takeover === 'scene') expect(run.outcome.kind).toBe('stale');
+    else expect(resultOf(run, 'seek')).toMatchObject({ code: 'interrupted' });
+    tools.dispose();
+  });
+
+});
+
+describe('the model-facing context stays bounded as operations are added', () => {
+  it('300 more operations leave the prompt unchanged and the index within its budget, and a new one is still found and run', async () => {
+    const measure = () => {
+      const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+      return { tools, prompt: systemPrompt(tools.list(), tools.guides!()), index: tools.list().find(t => t.name === 'invokeCapability')!.description };
+    };
+    const before = measure();
+    const unregister = Array.from({ length: 300 }, (_, i) => registerVerb({
+      name: `synthetic${i}`, params: [{ name: 'level', type: 'number' }], category: 'Display', method: 'getScene', help: `Synthetic feature ${i}.`, invoke: () => true,
+      contract: { namespace: 'display', writes: ['display'], unobservable: 'synthetic', guide: `Notes for synthetic feature ${i}, which only matter when it is used.` },
+    }));
+    try {
+      const after = measure();
+      expect(after.prompt).toBe(before.prompt);
+      expect(after.index.length).toBeLessThan(CAPABILITY_LIMITS.index + 600);
+      expect(after.index).toMatch(/and \d+ more: find them with listCapabilities\.$/);
+      const found = after.tools.listCapabilities({ query: 'synthetic299' }).items[0];
+      expect(found).toMatchObject({ id: 'display.synthetic299', available: true });
+      expect(after.tools.describeCapabilities(['display.synthetic299'])[0].guide).toMatch(/synthetic feature 299/);
+      expect(await after.tools.call('invokeCapability', { id: 'display.synthetic299', input: { level: 1 } })).toMatchObject({ ok: true });
+    } finally { unregister.forEach(u => u()); }
+  });
+});
+
+it('does not treat speeds in a native history comparison as contradictory distances', () => {
+  expect(statedDistancesKm('Incoming at -10.96 kilometers per second, outgoing at +13.43 km/s; the center distance is 104,291 km.'))
+    .toEqual([{ text: '104,291 km', km: 104291 }]);
+  expect(statedDistancesKm('0.5 m/s and 10 km per second versus 50 m.')).toEqual([{ text: '50 m', km: 0.05 }]);
+});
+
+it('keeps a qualified native-history fallback with both plotted and sampled intervals and gaps', async () => {
+  const { factSummary } = await import('./answer-check.js');
+  const facts: ResultFact[] = [
+    {kind:'sampled-range',observer:'Probe',target:'Body',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,minimumKm:100,minimumUtc:'2004-07-01 00:00:00 UTC',minimumEt:2,eventSearchUnavailable:false,samples:[{km:700,et:1,utc:'2004-06-30 12:00:00 UTC'},{km:1200,et:3,utc:'2004-07-02 11:58:00 UTC'}]},
+    {kind:'sampled-profile',observer:'Probe',target:'Body',quantity:'range-rate',unit:'km/s',startUtc:'2004-06-30 12:00:00 UTC',endUtc:'2004-07-02 11:58:00 UTC',count:32,missing:0,samples:[{value:-10,et:1,utc:'2004-06-30 12:00:00 UTC'},{value:7,et:3,utc:'2004-07-02 11:58:00 UTC'}],plot:{startUtc:'2004-06-30 07:00:00 UTC',endUtc:'2004-07-02 17:00:00 UTC',count:763,missing:128,visible:true}},
+  ];
+  expect(checkAnswer('Distance falls and then rises over 32 samples.',facts)).toContainEqual(expect.stringMatching(/visible native plots/));
+  const summary=factSummary(facts);
+  for (const phrase of ['2004-06-30 12:00:00 UTC','2004-07-02 11:58:00 UTC','32 range samples (0 missing)','negative means closing, positive means opening','Native plotted interval 2004-06-30 07:00:00 UTC to 2004-07-02 17:00:00 UTC','128 missing points on a 763-point display grid','do not certify']) expect(summary).toContain(phrase);
+  expect(checkAnswer(summary,facts)).toEqual([]);
+  const missingRate:ResultFact[]=[facts[0],{...facts[1],kind:'sampled-profile',missing:2} as ResultFact];
+  expect(checkAnswer('The timeline plot has gaps; 32 samples describe closing and opening.',missingRate)).toContainEqual(expect.stringMatching(/range-rate series has 2 missing/));
+  expect(checkAnswer(factSummary(missingRate),missingRate)).toEqual([]);
+});
+
+it('publishes aspect-correct camera evidence instead of inviting vertical-FOV comparisons', async () => {
+  const { compositionData } = await import('./agent.js');
+  const data=compositionData({scene:1,et:1,playing:false,tracked:'A',orbitDistanceKm:10,fovDeg:60,aspect:1.5,objects:[]});
+  expect(data).toMatchObject({fovDeg:60,aspect:1.5,horizontalFovDeg:81.787});
+});
+
+it('describes the Clipper investigation projection without claiming a resolved spacecraft model', async () => {
+  const { compositionData, compositionSentence } = await import('./agent.js');
+  const view: import('./contracts.js').ScriptViewComposition = {
+    scene: 1, et: 1003830456.8034713, playing: false, tracked: 'Europa', orbitDistanceKm: 9453.134713493175, fovDeg: 60, aspect: 1280 / 900,
+    objects: [{ object: 'Europa Clipper', available: true, inView: true, drawEnabled: true, ndc: [-0.09138889638205093, 0.06582710631635379], bearingDeg: null, rangeKm: 9453.13471349319, radiusKm: 0.005, angularRadiusDeg: 0.00003030517455299897, occlusion: null }],
+  };
+  const data = compositionData(view);
+  expect(data.objects[0]).toMatchObject({ inView: true, drawEnabled: true, physicalAppearance: 'unassessed', angularRadiusDeg: 0.0000303052, angularDiameterDeg: 0.0000606103 });
+  expect(data).toHaveProperty('projectionMeaning', expect.stringContaining('Markers/event indicators may locate an unresolved object'));
+  expect(compositionSentence(view)).toContain('Europa Clipper location in frame (physical appearance unassessed)');
+  const { evaluate } = await import('./outcome.js');
+  const host = { getViewComposition: () => view } as unknown as import('./contracts.js').ViewerControl;
+  const goal = evaluate(host, [{ p: 'inView', object: 'Europa Clipper' }]);
+  expect(goal.status).toBe('met');
+  expect(goal.checks[0].detail).toBe('Europa Clipper location in frame; physical appearance unassessed');
+});
+
+it('checks current framing claims against final viewer evidence, not an intermediate failed move', async () => {
+  const {factSummary}=await import('./answer-check.js');
+  const report={status:'met' as const,checks:[{slot:'view:Body',ok:true,detail:'Body in frame',soft:false}]};
+  expect(checkAnswer('Body is currently out of frame.',[],report)).toEqual([expect.stringMatching(/current viewer check/)]);
+  expect(checkAnswer('Body is visible.',[],report)).toEqual([]);
+  expect(factSummary([],report)).toContain('Body in frame');
+  expect(factSummary([],report)).toContain('not whether the requested camera improvement was achieved');
+});

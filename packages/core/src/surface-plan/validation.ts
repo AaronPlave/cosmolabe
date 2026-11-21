@@ -188,6 +188,30 @@ export function parseSurfaceSourceFootprint(s: SurfaceSourceDescriptor): Geograp
   return layer;
 }
 
+function areoidTransform(v: unknown, path: string): void {
+  object(v, path); keys(v, ['kind', 'areoid', 'outputDatum'], path);
+  if (v.kind !== 'areoid-radial') planFail('unsupported-transform', path, 'Expected identity or explicit areoid-radial conversion');
+  object(v.areoid, path + '.areoid'); keys(v.areoid, ['label', 'image'], path + '.areoid');
+  for (const role of ['label', 'image']) {
+    const a = v.areoid[role]; const p = `${path}.areoid.${role}`;
+    object(a, p); keys(a, ['url', 'retrieval', 'bytes', 'checksum'], p);
+    if (a.url === undefined && a.retrieval === undefined) planFail('schema', p, 'Datum asset requires URL or retrieval');
+    for (const k of ['url', 'retrieval']) if (a[k] !== undefined) string(a[k], p + '.' + k);
+    integer(a.bytes, p + '.bytes', 1);
+    object(a.checksum, p + '.checksum'); keys(a.checksum, ['algorithm', 'value'], p + '.checksum');
+    if (a.checksum.algorithm !== 'sha256' || !/^[a-f0-9]{64}$/.test(String(a.checksum.value)))
+      planFail('unpinned-source', p, 'Datum assets require SHA-256');
+  }
+  object(v.outputDatum, path + '.outputDatum');
+  keys(v.outputDatum, ['referenceShape', 'verticalDatum', 'heightConvention'], path + '.outputDatum');
+  // The existing Mars converter supports this axisymmetric IAU shape. This is
+  // an execution contract, not permission to relabel arbitrary vertical data.
+  const expected = { referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 3396.19, 3376.2] },
+    verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
+  if (serializeSurfacePlan(v.outputDatum) !== serializeSurfacePlan(expected))
+    planFail('unsupported-transform', path, 'areoid-radial requires the IAU Mars ellipsoid normal-height output datum');
+}
+
 export async function createLockedSurfacePlan(input: Omit<LockedSurfacePlan, 'identity' | 'desiredIdentity'>): Promise<LockedSurfacePlan> {
   const desiredIdentity = await surfacePlanIdentity(input.desired);
   const payload = { ...input, desiredIdentity };
@@ -222,8 +246,16 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
     if (selected.has(key)) planFail('duplicate-id', p, 'Duplicate region/channel selection'); selected.add(key);
     positive(s.outputGsdM, `${p}.outputGsdM`);
     if (!['nearest', 'bilinear', 'cubic'].includes(String(s.resampling))) planFail('schema', p, 'Unsupported resampling');
-    array(s.transformations, `${p}.transformations`, 32); s.transformations.forEach(t => string(t, `${p}.transformations`));
-    if (s.transformations.length !== 1 || s.transformations[0] !== 'identity') planFail('unsupported-transform', `${p}.transformations`, 'v1 supports exactly ["identity"]; arbitrary or descriptive transforms are not executable');
+    array(s.transformations, `${p}.transformations`, 1);
+    const transform = s.transformations[0];
+    if (transform !== 'identity') {
+      if (typeof transform === 'string') planFail('unsupported-transform', p, 'Expected identity or explicit areoid-radial conversion');
+      areoidTransform(transform, `${p}.transformations[0]`);
+      if (s.channel !== 'elevation' || desired.body !== 'Mars' || desired.frame !== 'IAU_MARS'
+        || desired.coordinates.latitude !== 'planetocentric' || desired.coordinates.longitudeDirection !== 'east'
+        || serializeSurfacePlan(desired.coordinates.referenceShape) !== serializeSurfacePlan({ kind: 'sphere', radiusKm: 3396.19 }))
+        planFail('unsupported-transform', p, 'areoid-radial requires Mars planetocentric east-positive source coordinates on the 3396.19 km map sphere');
+    }
     const target = region[s.channel]!;
     const allowCoarser = region.fallback === 'allow-coarser';
     if (!allowCoarser && s.outputGsdM > target.gsdM) planFail('unmet-fidelity', `${p}.outputGsdM`, 'Output GSD exceeds the requested target without allow-coarser fallback');
@@ -239,17 +271,19 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
       if (!source || source.channel !== s.channel || source.body !== desired.body) planFail('unresolved-reference', p, 'Source must match channel and body');
       if (localIds.has(id)) planFail('duplicate-id', p, 'Duplicate source selection'); localIds.add(id); usedSources.add(source.id);
       if (source.frame !== desired.frame || serializeSurfacePlan(source.coordinates) !== serializeSurfacePlan(desired.coordinates)
-        || serializeSurfacePlan(source.datum) !== serializeSurfacePlan(geographicDatum(desired.coordinates))) {
-        planFail('unsupported-transform', p, `Identity cannot transform source ${source.id}: frame, coordinates and datum must match the desired plan`);
+        || serializeSurfacePlan(source.datum) !== serializeSurfacePlan(transform === 'identity' ? geographicDatum(desired.coordinates)
+          : { referenceShape: desired.coordinates.referenceShape, verticalDatum: 'areoid', heightConvention: 'radial' })) {
+        planFail('unsupported-transform', p, `Selected operation cannot transform source ${source.id}: frame, coordinates and datum must match its declared input contract`);
       }
-      if (source.nodata !== 'none') planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata; v1 locks require resolved, unmasked coverage`);
+      if (source.nodata === 'unknown' || (source.nodata !== 'none' && !source.metadata?.validData))
+        planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata without independently evidenced valid coverage`);
       if (source.metadata && !source.metadata.validData) planFail('unresolved-coverage', p, 'Discovery sources require independently evidenced valid pixels before locking');
       const footprint = parseSurfaceSourceFootprint(source.metadata?.validData ? { ...source, footprint: source.metadata.validData.geometry } : source)!;
       const geometry = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
       const overlap = intersectGeometry(roi, geometry);
       if (!overlap.length || surfaceAreaM2(overlap, desired.coordinates) <= 0) planFail('disjoint-source', p, `Source ${source.id} does not intersect the selected ROI with positive area`);
       coverage.push(overlap);
-      if ((allowCoarser || source.nativeGsdM! <= target.gsdM)
+      if ((allowCoarser || Math.max(source.nativeGsdM!, source.metadata?.rasterGsdM ?? 0) <= target.gsdM)
         && (target.accuracyM === undefined || (source.accuracyM !== null && source.accuracyM <= target.accuracyM))) adequateCoverage.push(overlap);
     }
     if (surfaceAreaM2(subtractGeometry(roi, unionGeometry(coverage)), desired.coordinates) > tolerance) planFail('insufficient-coverage', p, 'Selected footprints do not cover the ROI; partial/leave-unavailable builds need future explicit masking support');

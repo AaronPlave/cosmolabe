@@ -6,11 +6,13 @@ import { UniverseRenderer } from '../UniverseRenderer.js';
 import { AtmosphereMesh, getAtmospherePreset } from '../AtmosphereMesh.js';
 import { SkyViewLUT } from '../SkyViewLUT.js';
 import { normalizeAtmosphere } from '../AtmosphereModel.js';
+import type { SolarExposurePolicy } from '../index.js';
+import { FIXED_REFERENCE_SOLAR_EXPOSURE } from '../SolarRadiometry.js';
 import { makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 
 // Exercise the actual per-view refresh without constructing a WebGL renderer.
-// The atmosphere shell is a lightweight stand-in; the globe's scene hierarchy
-// and aerial-perspective matrix uniforms are real Three.js objects.
+// The shell, globe hierarchy and aerial-perspective uniforms are real
+// Three.js objects; no WebGL context is required for the per-view refresh.
 describe('atmosphere planet frame', () => {
   it.each([false, true])('uses instrument star brightness and restores main state (draw throws: %s)', throws => {
     const camera = new THREE.PerspectiveCamera();
@@ -57,7 +59,11 @@ describe('atmosphere planet frame', () => {
     } finally { atmosphere.dispose(); }
   });
 
-  it('refreshes the moving globe parent before publishing surface transport matrices', () => {
+  it.each<SolarExposurePolicy>([
+    { mode: 'legacy-observer-adapted' },
+    { mode: 'fixed-reference' },
+    { mode: 'fixed-reference', exposure: 123 },
+  ])('refreshes transport matrices and exposure for $mode ($exposure)', solarExposurePolicy => {
     const scaleFactor = 1e-6;
     const model = normalizeAtmosphere(getAtmospherePreset('Saturn')!);
     const body = new BodyMesh(new Body({ name: 'Saturn', geometryType: 'Globe',
@@ -66,14 +72,13 @@ describe('atmosphere planet frame', () => {
     scene.add(body);
     const camera = new THREE.PerspectiveCamera();
     camera.position.set(0.1, 0.2, 0.3);
-    const atmosphere = Object.assign(new THREE.Object3D(), {
-      shellRadius: 60268 + model.heightKm, planetRadius: 60268, model,
-      material: { uniforms: { lightColor: { value: new THREE.Vector3(1, 1, 1) }, uSolarExposure: { value: 1 } } },
-      update: vi.fn(), getDaytimeSkyBrightness: () => 0,
-    });
+    const atmosphere = new AtmosphereMesh(60268, getAtmospherePreset('Saturn')!);
+    const update = vi.spyOn(atmosphere, 'update');
     scene.add(atmosphere);
     const ap = makeAerialPerspectiveUniforms(model, 60268, scaleFactor, null);
-    const state = { scaleFactor, bodyMeshes: new Map([['Saturn', body]]),
+    const methods = UniverseRenderer.prototype as unknown as { fixedSolarExposure: () => number | undefined };
+    const state = { solarExposurePolicy, fixedSolarExposure: methods.fixedSolarExposure,
+      scaleFactor, bodyMeshes: new Map([['Saturn', body]]),
       atmosphereMeshes: new Map([['Saturn', { atm: atmosphere, parentName: 'Saturn' }]]),
       aerialPerspectiveUniforms: new Map([['Saturn', ap]]),
       _shadowOccluderCache: new Map(), _sunRadiusKm: 695000 };
@@ -88,6 +93,13 @@ describe('atmosphere planet frame', () => {
         body.updatePosition(position as [number, number, number], 0, scaleFactor);
         body.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.7);
         refresh.call(state, camera);
+        const fixed = solarExposurePolicy.mode === 'fixed-reference'
+          ? solarExposurePolicy.exposure ?? FIXED_REFERENCE_SOLAR_EXPOSURE : undefined;
+        expect(update.mock.lastCall?.[8]).toBe(fixed);
+        const exposure = (atmosphere.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
+        expect(exposure).toBeGreaterThan(0);
+        if (fixed !== undefined) expect(exposure).toBe(fixed);
+        expect(ap.uSolarExposure.value).toBe(exposure);
         // Rendering now updates the hierarchy. The transport matrices must
         // already describe exactly this frame, rather than catching up next time.
         scene.updateMatrixWorld(true);
@@ -96,6 +108,6 @@ describe('atmosphere planet frame', () => {
           .applyMatrix4(ap.uAPWorldToPlanet.value);
         expect(origin.length()).toBeLessThan(1e-8);
       }
-    } finally { body.dispose(); }
+    } finally { atmosphere.dispose(); body.dispose(); }
   });
 });

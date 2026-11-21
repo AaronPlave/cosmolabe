@@ -1,0 +1,614 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+
+<?xml-model href="https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1G00.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1G00_1950.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1G00_1500.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/img/v1/PDS4_IMG_1G00_1860.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1G00_1930.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/proc/v1/PDS4_PROC_1G00_1210.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/msn/v1/PDS4_MSN_1G00_1300.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/msn_surface/v1/PDS4_MSN_SURFACE_1G00_1220.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/img_surface/v1/PDS4_IMG_SURFACE_1G00_1260.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/msss_cam_mh/v1/PDS4_MSSS_CAM_MH_1G00_1030.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<?xml-model href="https://pds.nasa.gov/pds4/mission/mars2020/v1/PDS4_MARS2020_1G00_1000.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+
+<Product_Observational xmlns="http://pds.nasa.gov/pds4/pds/v1" 
+    xmlns:cart="http://pds.nasa.gov/pds4/cart/v1" 
+    xmlns:disp="http://pds.nasa.gov/pds4/disp/v1" 
+    xmlns:geom="http://pds.nasa.gov/pds4/geom/v1" 
+    xmlns:img="http://pds.nasa.gov/pds4/img/v1" 
+    xmlns:img_surface="http://pds.nasa.gov/pds4/img_surface/v1" 
+    xmlns:mars2020="http://pds.nasa.gov/pds4/mission/mars2020/v1" 
+    xmlns:msn="http://pds.nasa.gov/pds4/msn/v1" 
+    xmlns:msn_surface="http://pds.nasa.gov/pds4/msn_surface/v1" 
+    xmlns:msss_cam_mh="http://pds.nasa.gov/pds4/msss_cam_mh/v1" 
+    xmlns:pds="http://pds.nasa.gov/pds4/pds/v1" 
+    xmlns:proc="http://pds.nasa.gov/pds4/proc/v1" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+    xsi:schemaLocation="   http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1G00.xsd   http://pds.nasa.gov/pds4/img/v1 https://pds.nasa.gov/pds4/img/v1/PDS4_IMG_1G00_1860.xsd      http://pds.nasa.gov/pds4/proc/v1 https://pds.nasa.gov/pds4/proc/v1/PDS4_PROC_1G00_1210.xsd      http://pds.nasa.gov/pds4/msn/v1 https://pds.nasa.gov/pds4//msn/v1/PDS4_MSN_1G00_1300.xsd   http://pds.nasa.gov/pds4/msn_surface/v1 https://pds.nasa.gov/pds4/msn_surface/v1/PDS4_MSN_SURFACE_1G00_1220.xsd   http://pds.nasa.gov/pds4/img_surface/v1 https://pds.nasa.gov/pds4/img_surface/v1/PDS4_IMG_SURFACE_1G00_1260.xsd   http://pds.nasa.gov/pds4/geom/v1 https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1G00_1930.xsd   http://pds.nasa.gov/pds4/disp/v1 https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1G00_1500.xsd   http://pds.nasa.gov/pds4/cart/v1 https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1G00_1950.xsd   http://pds.nasa.gov/pds4/msss_cam_mh/v1 https://pds.nasa.gov/pds4/msss_cam_mh/v1/PDS4_MSSS_CAM_MH_1G00_1030.xsd   http://pds.nasa.gov/pds4/mission/mars2020/v1 https://pds.nasa.gov/pds4/mission/mars2020/v1/PDS4_MARS2020_1G00_1000.xsd">
+  <Identification_Area>
+    <logical_identifier>urn:nasa:pds:mars2020_helicam:data:hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</logical_identifier>
+    <version_id>4.0</version_id>
+    <title>Mars2020 HELI_NAV FDR  Observational Product - hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</title>
+    <information_model_version>1.16.0.0</information_model_version>
+    <product_class>Product_Observational</product_class>
+    <Alias_List>
+      <Alias>
+        <alternate_id>HNM_0174_0682390538_578FDR_N0120001HELI01649_0000LUJ04</alternate_id>
+        <comment>VICAR PRODUCT_ID</comment>
+      </Alias>
+    </Alias_List>
+  </Identification_Area>
+  <Observation_Area>
+    <comment>Observational Intent</comment>
+    <Time_Coordinates>
+      <start_date_time>2021-08-16T12:59:10.537794Z</start_date_time>
+      <stop_date_time>2021-08-16T12:59:18.537857Z</stop_date_time>
+      <local_mean_solar_time>13:24:35.13003</local_mean_solar_time>
+      <local_true_solar_time>13:38:07</local_true_solar_time>
+    </Time_Coordinates>
+    <Primary_Result_Summary>
+      <purpose>Science</purpose>
+      <processing_level>Derived</processing_level>
+      <Science_Facets>
+        <wavelength_range>Visible</wavelength_range>
+        <domain>Surface</domain>
+        <discipline_name>Imaging</discipline_name>
+      </Science_Facets>
+    </Primary_Result_Summary>
+    <Investigation_Area>
+      <name>Mars2020</name>
+      <type>Mission</type>
+      <Internal_Reference>
+        <lid_reference>urn:nasa:pds:context:investigation:mission.mars2020</lid_reference>
+        <reference_type>data_to_investigation</reference_type>
+        <comment>This is the PDS4 logical identifier for the Mars2020 Mission.</comment>
+      </Internal_Reference>
+    </Investigation_Area>
+    <Observing_System>
+      <Observing_System_Component>
+        <name>Mars 2020</name>
+        <type>Host</type>
+        <Internal_Reference>
+          <lid_reference>urn:nasa:pds:context:instrument_host:spacecraft.mars2020</lid_reference>
+          <reference_type>is_instrument_host</reference_type>
+          <comment>This is the PDS4 logical identifier for the Mars 2020 spacecraft.</comment>
+        </Internal_Reference>
+      </Observing_System_Component>
+      <Observing_System_Component>
+        <name>Helicopter Navigation Camera</name>
+        <type>Instrument</type>
+        <Internal_Reference>
+          <lid_reference>urn:nasa:pds:context:instrument:mars2020.helicam</lid_reference>
+          <reference_type>is_instrument</reference_type>
+          <comment>This is the PDS4 logical identifier for the Helicopter Navigation Camera onboard the Mars 2020 spacecraft.</comment>
+        </Internal_Reference>
+      </Observing_System_Component>
+    </Observing_System>
+    <Target_Identification>
+      <name>Mars</name>
+      <type>Planet</type>
+      <Internal_Reference>
+        <lid_reference>urn:nasa:pds:context:target:planet.mars</lid_reference>
+        <reference_type>data_to_target</reference_type>
+        <comment>This is the PDS4 logical identifier for the planet - mars.</comment>
+      </Internal_Reference>
+    </Target_Identification>
+    <Mission_Area>
+      <mars2020:Mars2020_Parameters>
+        <mars2020:Observation_Information>
+          <mars2020:release_number nilReason="missing" xsi:nil="true"/>
+          <mars2020:mission_phase_name>Surface Mission</mars2020:mission_phase_name>
+          <mars2020:spacecraft_clock_start>682390538.5789139</mars2020:spacecraft_clock_start>
+          <mars2020:spacecraft_clock_stop>682390546.5789139</mars2020:spacecraft_clock_stop>
+          <mars2020:spacecraft_clock_partition>1</mars2020:spacecraft_clock_partition>
+          <mars2020:sol_number>174</mars2020:sol_number>
+          <mars2020:start_local_mean_solar_time>Sol-00174M13:24:35.13003</mars2020:start_local_mean_solar_time>
+          <mars2020:start_local_true_solar_time>13:38:07</mars2020:start_local_true_solar_time>
+          <mars2020:start_local_true_solar_time_sol>174</mars2020:start_local_true_solar_time_sol>
+        </mars2020:Observation_Information>
+      </mars2020:Mars2020_Parameters>
+    </Mission_Area>
+    <Discipline_Area>
+      <disp:Display_Settings>
+        <Local_Internal_Reference>
+          <local_identifier_reference>hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</local_identifier_reference>
+          <local_reference_type>display_settings_to_array</local_reference_type>
+        </Local_Internal_Reference>
+        <disp:Display_Direction>
+          <disp:horizontal_display_axis>Sample</disp:horizontal_display_axis>
+          <disp:horizontal_display_direction>Left to Right</disp:horizontal_display_direction>
+          <disp:vertical_display_axis>Line</disp:vertical_display_axis>
+          <disp:vertical_display_direction>Top to Bottom</disp:vertical_display_direction>
+        </disp:Display_Direction>
+      </disp:Display_Settings>
+      <geom:Geometry>
+        <geom:Geometry_Lander>
+          <geom:geometry_state>Telemetry</geom:geometry_state>
+          <geom:description>Geometry as reported by the spacecraft in telemetry</geom:description>
+          <local_identifier>geom_telemetry_state</local_identifier>
+          <geom:Camera_Model_Parameters>
+            <geom:model_type>CAHVORE</geom:model_type>
+            <geom:calibration_source_id>SYNTHETIC</geom:calibration_source_id>
+            <geom:CAHVORE_Model>
+              <geom:Vector_Center>
+                <geom:x_position unit="m">0.0</geom:x_position>
+                <geom:y_position unit="m">0.0619</geom:y_position>
+                <geom:z_position unit="m">0.1374</geom:z_position>
+              </geom:Vector_Center>
+              <geom:Vector_Axis>
+                <geom:x_unit>0.00256683</geom:x_unit>
+                <geom:y_unit>-0.0580188</geom:y_unit>
+                <geom:z_unit>0.998312</geom:z_unit>
+              </geom:Vector_Axis>
+              <geom:Vector_Horizontal>
+                <geom:x_pixel>-0.0176873</geom:x_pixel>
+                <geom:y_pixel>-293.879</geom:y_pixel>
+                <geom:z_pixel>310.679</geom:z_pixel>
+              </geom:Vector_Horizontal>
+              <geom:Vector_Vertical>
+                <geom:x_pixel>276.142</geom:x_pixel>
+                <geom:y_pixel>-15.3003</geom:y_pixel>
+                <geom:z_pixel>248.479</geom:z_pixel>
+              </geom:Vector_Vertical>
+              <geom:Vector_Optical>
+                <geom:x_unit>0.00583129</geom:x_unit>
+                <geom:y_unit>-0.0520831</geom:y_unit>
+                <geom:z_unit>0.998626</geom:z_unit>
+              </geom:Vector_Optical>
+              <geom:Radial_Terms>
+                <geom:c0>0.0</geom:c0>
+                <geom:c1>0.001066</geom:c1>
+                <geom:c2>-0.000398</geom:c2>
+              </geom:Radial_Terms>
+              <geom:Entrance_Terms>
+                <geom:c0>0.0</geom:c0>
+                <geom:c1>0.0</geom:c1>
+                <geom:c2>0.0</geom:c2>
+              </geom:Entrance_Terms>
+              <geom:cahvore_model_type>3</geom:cahvore_model_type>
+              <geom:cahvore_model_parameter>0.0</geom:cahvore_model_parameter>
+            </geom:CAHVORE_Model>
+            <geom:Coordinate_Space_Reference>
+              <Local_Internal_Reference>
+                <local_identifier_reference>HELI_M_FRAME_12_1649</local_identifier_reference>
+                <local_reference_type>to_reference_coordinate_space</local_reference_type>
+              </Local_Internal_Reference>
+            </geom:Coordinate_Space_Reference>
+            <geom:Quaternion_Model_Transform>
+              <geom:qcos>1.0</geom:qcos>
+              <geom:qsin1>0.0</geom:qsin1>
+              <geom:qsin2>0.0</geom:qsin2>
+              <geom:qsin3>0.0</geom:qsin3>
+            </geom:Quaternion_Model_Transform>
+            <geom:Vector_Model_Transform>
+              <geom:x>0.0</geom:x>
+              <geom:y>0.0</geom:y>
+              <geom:z>-0.26575</geom:z>
+            </geom:Vector_Model_Transform>
+          </geom:Camera_Model_Parameters>
+          <geom:Coordinate_Space_Definition>
+            <local_identifier>HELI_G_FRAME_12</local_identifier>
+            <local_identifier>HELI_G_FRAME_12_TELEMETRY</local_identifier>
+            <geom:positive_azimuth_direction>Clockwise</geom:positive_azimuth_direction>
+            <geom:positive_elevation_direction>Up</geom:positive_elevation_direction>
+            <geom:Coordinate_Space_Present>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>HELI_G_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>FLIGHT</geom:index_id>
+                  <geom:index_value_number>12</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+                <geom:solution_id>TELEMETRY</geom:solution_id>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Present>
+            <geom:Vector_Origin_Offset>
+              <geom:x_position unit="m">-709.24329</geom:x_position>
+              <geom:y_position unit="m">-680.69713</geom:y_position>
+              <geom:z_position unit="m">-0.052</geom:z_position>
+            </geom:Vector_Origin_Offset>
+            <geom:Quaternion_Plus_Direction>
+              <geom:qcos>-0.9428806983295449</geom:qcos>
+              <geom:qsin1>-0.0</geom:qsin1>
+              <geom:qsin2>0.0</geom:qsin2>
+              <geom:qsin3>0.3331305880845975</geom:qsin3>
+              <geom:rotation_direction>Forward</geom:rotation_direction>
+            </geom:Quaternion_Plus_Direction>
+            <geom:Coordinate_Space_Reference>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>SITE_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>SITE</geom:index_id>
+                  <geom:index_value_number>3</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Reference>
+          </geom:Coordinate_Space_Definition>
+          <geom:Coordinate_Space_Definition>
+            <local_identifier>HELI_M_FRAME_12_1649</local_identifier>
+            <local_identifier>HELI_M_FRAME_12_1649_TELEMETRY</local_identifier>
+            <geom:positive_azimuth_direction>Clockwise</geom:positive_azimuth_direction>
+            <geom:positive_elevation_direction>Up</geom:positive_elevation_direction>
+            <geom:Coordinate_Space_Present>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>HELI_M_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>FLIGHT</geom:index_id>
+                  <geom:index_value_number>12</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>POS</geom:index_id>
+                  <geom:index_value_number>1649</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+                <geom:solution_id>TELEMETRY</geom:solution_id>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Present>
+            <geom:Vector_Origin_Offset>
+              <geom:x_position unit="m">-31.662721</geom:x_position>
+              <geom:y_position unit="m">77.526172</geom:y_position>
+              <geom:z_position unit="m">-10.522429</geom:z_position>
+            </geom:Vector_Origin_Offset>
+            <geom:Quaternion_Plus_Direction>
+              <geom:qcos>0.978486</geom:qcos>
+              <geom:qsin1>-0.04079</geom:qsin1>
+              <geom:qsin2>-0.039644</geom:qsin2>
+              <geom:qsin3>0.198319</geom:qsin3>
+              <geom:rotation_direction>Forward</geom:rotation_direction>
+            </geom:Quaternion_Plus_Direction>
+            <geom:Coordinate_Space_Reference>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>HELI_G_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>SITE</geom:index_id>
+                  <geom:index_value_number>12</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Reference>
+          </geom:Coordinate_Space_Definition>
+          <geom:Coordinate_Space_Definition>
+            <local_identifier>HELI_S2_FRAME_12_1649</local_identifier>
+            <local_identifier>HELI_S2_FRAME_12_1649_TELEMETRY</local_identifier>
+            <geom:positive_azimuth_direction>Clockwise</geom:positive_azimuth_direction>
+            <geom:positive_elevation_direction>Up</geom:positive_elevation_direction>
+            <geom:Coordinate_Space_Present>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>HELI_S2_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>FLIGHT</geom:index_id>
+                  <geom:index_value_number>12</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>POS</geom:index_id>
+                  <geom:index_value_number>1649</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+                <geom:solution_id>TELEMETRY</geom:solution_id>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Present>
+            <geom:Vector_Origin_Offset>
+              <geom:x_position unit="m">-31.6353874206543</geom:x_position>
+              <geom:y_position unit="m">77.41737365722656</geom:y_position>
+              <geom:z_position unit="m">-10.47437763214111</geom:z_position>
+            </geom:Vector_Origin_Offset>
+            <geom:Quaternion_Plus_Direction>
+              <geom:qcos>-0.02150266058743</geom:qcos>
+              <geom:qsin1>-0.9802844524383545</geom:qsin1>
+              <geom:qsin2>-0.1919737756252289</geom:qsin2>
+              <geom:qsin3>-0.04154672101140022</geom:qsin3>
+              <geom:rotation_direction>Forward</geom:rotation_direction>
+            </geom:Quaternion_Plus_Direction>
+            <geom:Coordinate_Space_Reference>
+              <geom:Coordinate_Space_Indexed>
+                <geom:coordinate_space_frame_type>HELI_G_FRAME</geom:coordinate_space_frame_type>
+                <geom:Coordinate_Space_Index>
+                  <geom:index_id>SITE</geom:index_id>
+                  <geom:index_value_number>12</geom:index_value_number>
+                </geom:Coordinate_Space_Index>
+              </geom:Coordinate_Space_Indexed>
+            </geom:Coordinate_Space_Reference>
+          </geom:Coordinate_Space_Definition>
+          <geom:Motion_Counter>
+            <geom:name>RMC</geom:name>
+            <geom:Motion_Counter_Index>
+              <geom:index_id>FLIGHT</geom:index_id>
+              <geom:index_value_number>12</geom:index_value_number>
+            </geom:Motion_Counter_Index>
+            <geom:Motion_Counter_Index>
+              <geom:index_id>POS</geom:index_id>
+              <geom:index_value_number>1649</geom:index_value_number>
+            </geom:Motion_Counter_Index>
+          </geom:Motion_Counter>
+        </geom:Geometry_Lander>
+      </geom:Geometry>
+      <img:Imaging>
+        <Local_Internal_Reference>
+          <local_identifier_reference>hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</local_identifier_reference>
+          <local_reference_type>imaging_parameters_to_image_object</local_reference_type>
+        </Local_Internal_Reference>
+        <img:Color_Filter_Array>
+          <img:color_filter_array_type>None</img:color_filter_array_type>
+          <img:color_filter_array_state>No CFA</img:color_filter_array_state>
+        </img:Color_Filter_Array>
+        <img:Detector>
+          <img:first_line>1</img:first_line>
+          <img:first_sample>1</img:first_sample>
+          <img:lines>480</img:lines>
+          <img:samples>640</img:samples>
+          <img:detector_to_image_rotation unit="deg">0.0</img:detector_to_image_rotation>
+          <img:gain_number>0</img:gain_number>
+        </img:Detector>
+        <img:Downsampling>
+          <img:processing_algorithm>NONE</img:processing_algorithm>
+          <img:Pixel_Averaging_Dimensions>
+            <img:height_pixels unit="pixel">1</img:height_pixels>
+            <img:width_pixels unit="pixel">1</img:width_pixels>
+          </img:Pixel_Averaging_Dimensions>
+        </img:Downsampling>
+        <img:Exposure>
+          <img:exposure_duration unit="ms">0.1546664</img:exposure_duration>
+          <img:exposure_duration_count>8</img:exposure_duration_count>
+        </img:Exposure>
+        <img:Frame>
+          <img:frame_id>Mono</img:frame_id>
+          <img:frame_type_name>Mono</img:frame_type_name>
+          <img:product_flag>true</img:product_flag>
+        </img:Frame>
+        <img:Onboard_Compression>
+          <img:onboard_compression_type>Lossless</img:onboard_compression_type>
+          <img:onboard_compression_quality>1.0</img:onboard_compression_quality>
+        </img:Onboard_Compression>
+        <img:Radiometric_Correction>
+          <img:active_flag>false</img:active_flag>
+        </img:Radiometric_Correction>
+        <img:Sampling>
+          <img:sample_bits>8</img:sample_bits>
+          <img:sample_bit_mask>2#0000000011111111#</img:sample_bit_mask>
+        </img:Sampling>
+        <img:Commanded_Parameters>
+          <img:Detector>
+            <img:gain_number>0.0</img:gain_number>
+          </img:Detector>
+          <img:Exposure>
+            <img:exposure_duration unit="ms">0.1625700767110825</img:exposure_duration>
+            <img:exposure_duration_count>8.408811569213867</img:exposure_duration_count>
+            <img:exposure_type>Auto</img:exposure_type>
+          </img:Exposure>
+          <img:Sampling>
+            <img:Companding>
+              <img:processing_algorithm>None</img:processing_algorithm>
+              <img:companding_state>Companded</img:companding_state>
+            </img:Companding>
+          </img:Sampling>
+          <img:Thumbnail>
+            <img:Sampling>
+              <img:Companding>
+                <img:processing_algorithm>None</img:processing_algorithm>
+                <img:companding_state>Companded</img:companding_state>
+              </img:Companding>
+            </img:Sampling>
+          </img:Thumbnail>
+        </img:Commanded_Parameters>
+      </img:Imaging>
+      <img_surface:Surface_Imaging>
+        <img_surface:Image_Identifiers>
+          <img_surface:image_id>1649</img_surface:image_id>
+        </img_surface:Image_Identifiers>
+        <img_surface:Instrument_Information>
+          <img_surface:image_type>REGULAR</img_surface:image_type>
+          <img_surface:image_acquire_mode>IMAGE</img_surface:image_acquire_mode>
+          <img_surface:instrument_type>IMAGING CAMERA</img_surface:instrument_type>
+          <img_surface:instrument_serial_number>5002</img_surface:instrument_serial_number>
+          <img_surface:instrument_version_number>FM</img_surface:instrument_version_number>
+          <img_surface:ops_instrument_key>HELI_NAV</img_surface:ops_instrument_key>
+        </img_surface:Instrument_Information>
+        <img_surface:Derived_Product_Parameters>
+          <img_surface:derived_image_type_name>IMAGE</img_surface:derived_image_type_name>
+        </img_surface:Derived_Product_Parameters>
+        <img_surface:Geometry_Projection>
+          <img_surface:geometry_projection_type>Raw</img_surface:geometry_projection_type>
+        </img_surface:Geometry_Projection>
+      </img_surface:Surface_Imaging>
+      <msn:Mission_Information>
+        <msn:mission_phase_name>Surface Mission</msn:mission_phase_name>
+        <msn:product_type_name>FDR</msn:product_type_name>
+        <msn:spacecraft_clock_start>682390538.5789139</msn:spacecraft_clock_start>
+        <msn:spacecraft_clock_stop>682390546.5789139</msn:spacecraft_clock_stop>
+        <msn:spacecraft_clock_partition>1</msn:spacecraft_clock_partition>
+        <msn:instrument_clock_start>1629075338.578914</msn:instrument_clock_start>
+        <msn:Surface_Mission>
+          <msn:start_sol_number>174</msn:start_sol_number>
+          <msn:start_local_mean_solar_time>13:24:35.13003</msn:start_local_mean_solar_time>
+          <msn:start_local_mean_solar_time_sol>174</msn:start_local_mean_solar_time_sol>
+          <msn:start_local_true_solar_time>13:38:07</msn:start_local_true_solar_time>
+          <msn:start_local_true_solar_time_sol>174</msn:start_local_true_solar_time_sol>
+        </msn:Surface_Mission>
+        <msn:Observation_Context>
+          <msn:active_flight_imu>2</msn:active_flight_imu>
+        </msn:Observation_Context>
+      </msn:Mission_Information>
+      <msn_surface:Surface_Mission_Information>
+        <msn_surface:Telemetry>
+          <msn_surface:telemetry_source_name>ncam_flight580000000.upbin-00043.tiff</msn_surface:telemetry_source_name>
+          <msn_surface:transport_protocol>Team-generated Image</msn_surface:transport_protocol>
+        </msn_surface:Telemetry>
+        <msn_surface:Observational_Intent>
+          <msn_surface:activity_notes>Metadata for image labeling, flight 12</msn_surface:activity_notes>
+        </msn_surface:Observational_Intent>
+      </msn_surface:Surface_Mission_Information>
+      <proc:Processing_Information>
+        <Local_Internal_Reference>
+          <local_identifier_reference>hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</local_identifier_reference>
+          <local_reference_type>processing_information_to_data_object</local_reference_type>
+        </Local_Internal_Reference>
+        <proc:Input_Product_List>
+          <proc:Input_Product>
+            <Internal_Reference>
+              <lidvid_reference>urn:nasa:pds:mars2020_helicam:data:hnm_0174_0682390538_578edr_n0120001heli01649_0000luj::4.0</lidvid_reference>
+              <reference_type>data_to_input_product</reference_type>
+              <comment>This is the PDS4 logical identifier for an input product.</comment>
+            </Internal_Reference>
+          </proc:Input_Product>
+        </proc:Input_Product_List>
+        <proc:Process>
+          <proc:process_owner_institution_name>MULTIMISSION INSTRUMENT PROCESSING LAB, JET PROPULSION LAB</proc:process_owner_institution_name>
+          <proc:Software>
+            <proc:Software_Program>
+              <proc:name>LABEL</proc:name>
+              <proc:program_type_name>VICAR</proc:program_type_name>
+              <proc:program_user>jpluser</proc:program_user>
+              <proc:program_start_date_time>2021-10-20T21:59:33.033Z</proc:program_start_date_time>
+            </proc:Software_Program>
+            <proc:Software_Program>
+              <proc:name>MARSRELA</proc:name>
+              <proc:program_type_name>VICAR</proc:program_type_name>
+              <proc:program_user>jpluser</proc:program_user>
+              <proc:program_start_date_time>2021-10-20T21:59:34.034Z</proc:program_start_date_time>
+              <proc:Software_Program_Parameters>
+                <proc:Parameter>
+                  <proc:name>INP</proc:name>
+                  <proc:value>HNM_0174_0682390538_578ECM_N0120001HELI01649_0000LUJ00.VIC.x</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>OUT</proc:name>
+                  <proc:value>HNM_0174_0682390538_578ECM_N0120001HELI01649_0000LUJ00.VIC</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>CM</proc:name>
+                  <proc:value>CM</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>FIXED_SITE</proc:name>
+                  <proc:value>12</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>FIXED_NAME</proc:name>
+                  <proc:value>HELI_G_FRAME</proc:value>
+                </proc:Parameter>
+              </proc:Software_Program_Parameters>
+            </proc:Software_Program>
+            <proc:Software_Program>
+              <proc:name>MARSRELA</proc:name>
+              <proc:program_type_name>VICAR</proc:program_type_name>
+              <proc:program_user>jpluser</proc:program_user>
+              <proc:program_start_date_time>2021-10-20T21:59:34.034Z</proc:program_start_date_time>
+              <proc:Software_Program_Parameters>
+                <proc:Parameter>
+                  <proc:name>INP</proc:name>
+                  <proc:value>HNM_0174_0682390538_578ECM_N0120001HELI01649_0000LUJ00.VIC.x</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>OUT</proc:name>
+                  <proc:value>HNM_0174_0682390538_578ECM_N0120001HELI01649_0000LUJ00.VIC</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>CM</proc:name>
+                  <proc:value>CM</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>COORD</proc:name>
+                  <proc:value>INSTRUMENT</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>COORD_INDEX</proc:name>
+                  <proc:value>12</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>FIXED_SITE</proc:name>
+                  <proc:value>12</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>FIXED_NAME</proc:name>
+                  <proc:value>HELI_G_FRAME</proc:value>
+                </proc:Parameter>
+              </proc:Software_Program_Parameters>
+            </proc:Software_Program>
+            <proc:Software_Program>
+              <proc:name>MARSINVE</proc:name>
+              <proc:program_type_name>VICAR</proc:program_type_name>
+              <proc:program_user>jpluser</proc:program_user>
+              <proc:program_start_date_time>2021-10-20T21:59:59.059Z</proc:program_start_date_time>
+              <proc:Software_Program_Parameters>
+                <proc:Parameter>
+                  <proc:name>INP</proc:name>
+                  <proc:value>HNM_0174_0682390538_578ECM_N0120001HELI01649_0000LUJ04.VIC</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>OUT</proc:name>
+                  <proc:value>HNM_0174_0682390538_578EDR_N0120001HELI01649_0000LUJ04.VIC</proc:value>
+                </proc:Parameter>
+                <proc:Parameter>
+                  <proc:name>POINT_METHOD</proc:name>
+                  <proc:value>cm=label</proc:value>
+                </proc:Parameter>
+              </proc:Software_Program_Parameters>
+            </proc:Software_Program>
+          </proc:Software>
+        </proc:Process>
+        <proc:Process>
+          <proc:Software>
+            <proc:Software_Program>
+              <proc:name>HELI_EDRGEN</proc:name>
+              <proc:program_version>1.0</proc:program_version>
+              <proc:description>EDR created from Helicopter team data via JPL/MIPL heli_edrgen script</proc:description>
+            </proc:Software_Program>
+          </proc:Software>
+        </proc:Process>
+      </proc:Processing_Information>
+    </Discipline_Area>
+  </Observation_Area>
+  <Reference_List>
+    <Internal_Reference>
+      <lidvid_reference>urn:nasa:pds:mars2020_helicam:browse:hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj::4.0</lidvid_reference>
+      <reference_type>data_to_browse</reference_type>
+      <comment>Reference pointer to browse version of this image.</comment>
+    </Internal_Reference>
+    <Source_Product_Internal>
+      <lidvid_reference>urn:nasa:pds:mars2020_helicam:data:hnm_0174_0682390538_578ecm_n0120001heli01649_0000luj::4.0</lidvid_reference>
+      <reference_type>data_to_raw_source_product</reference_type>
+      <comment>Reference pointer to the raw source product.</comment>
+    </Source_Product_Internal>
+  </Reference_List>
+  <File_Area_Observational>
+    <File>
+      <file_name>HNM_0174_0682390538_578FDR_N0120001HELI01649_0000LUJ04.IMG</file_name>
+      <creation_date_time>2021-10-20T21:59:33Z</creation_date_time>
+    </File>
+    <Header>
+      <local_identifier>ODL3_Header</local_identifier>
+      <offset unit="byte">0</offset>
+      <object_length unit="byte">11520</object_length>
+      <parsing_standard_id>PDS ODL 2</parsing_standard_id>
+      <description>ODL3 Header</description>
+    </Header>
+    <Header>
+      <local_identifier>VICAR_Header</local_identifier>
+      <offset unit="byte">11520</offset>
+      <object_length unit="byte">6400</object_length>
+      <parsing_standard_id>VICAR2</parsing_standard_id>
+      <description>VICAR Header</description>
+    </Header>
+    <Array_2D_Image>
+      <local_identifier>hnm_0174_0682390538_578fdr_n0120001heli01649_0000luj</local_identifier>
+      <offset unit="byte">17920</offset>
+      <axes>2</axes>
+      <axis_index_order>Last Index Fastest</axis_index_order>
+      <Element_Array>
+        <data_type>SignedMSB2</data_type>
+        <unit>DN</unit>
+      </Element_Array>
+      <Axis_Array>
+        <axis_name>Line</axis_name>
+        <elements>480</elements>
+        <sequence_number>1</sequence_number>
+      </Axis_Array>
+      <Axis_Array>
+        <axis_name>Sample</axis_name>
+        <elements>640</elements>
+        <sequence_number>2</sequence_number>
+      </Axis_Array>
+      <Special_Constants>
+        <missing_constant>0.0</missing_constant>
+        <invalid_constant>0.0</invalid_constant>
+      </Special_Constants>
+    </Array_2D_Image>
+  </File_Area_Observational>
+</Product_Observational>

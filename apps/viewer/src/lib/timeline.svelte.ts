@@ -10,6 +10,7 @@
  */
 import { vs, scrubTo, zoomScrubber, panScrubberBy } from './viewer-state.svelte';
 import { clampFraction, snapFraction, windowFraction } from './scrubber-math';
+import { resettable } from './session.svelte';
 
 export const timeline = $state({
   /** Hovered instant, or null. Never moves simulation time. */
@@ -49,6 +50,7 @@ export const timeline = $state({
    */
   laneFit: false,
 });
+resettable(timeline);
 
 /** The inspected (ghost) instant: the pointer's, else a linked preview's. */
 export function ghostEt(): number | null {

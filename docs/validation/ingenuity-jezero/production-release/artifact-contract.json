@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "products": [
+    {
+      "productId": "terrain-3846907d293e9e5d0b0243ce",
+      "prefix": "cube-terrain/terrain-3846907d293e9e5d0b0243ce/3846907d293e9e5d0b0243cefc2ed446/",
+      "localProductShipped": false
+    },
+    {
+      "productId": "imagery-04513d4681559e949e39e30f",
+      "prefix": "cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/",
+      "localProductShipped": false
+    },
+    {
+      "productId": "imagery-11f675fe48a13579126bb3cd",
+      "prefix": "cube-imagery/imagery-11f675fe48a13579126bb3cd/11f675fe48a13579126bb3cd85c3cb42/",
+      "localProductShipped": false
+    },
+    {
+      "productId": "imagery-ab90c8bd749d673d3f786918",
+      "prefix": "cube-imagery/imagery-ab90c8bd749d673d3f786918/ab90c8bd749d673d3f7869185cbf5040/",
+      "localProductShipped": false
+    },
+    {
+      "productId": "imagery-4992e13935cc9898d6522634",
+      "prefix": "cube-imagery/imagery-4992e13935cc9898d6522634/4992e13935cc9898d65226349f2cf222/",
+      "localProductShipped": false
+    }
+  ],
+  "moonfallCatalogMatchesNormalRewrite": true,
+  "datasets": 15
+}

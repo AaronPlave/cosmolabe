@@ -1,3 +1,5 @@
+export type { SolarExposurePolicy } from './SolarRadiometry.js';
+
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
 export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';
@@ -62,6 +64,8 @@ export { StarField } from './StarField.js';
 export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
+export { glyphWeight, GLYPH_FULL_PX, GLYPH_GONE_PX } from './PositionGlyphs.js';
+export type { PositionGlyphReadout, GlyphRing } from './PositionGlyphs.js';
 export { EventMarkers } from './EventMarkers.js';
 export type { EventMarker, EventMarkerType, EventMarkersOptions, EventLeadVisibility } from './EventMarkers.js';
 export type { ScreenRect } from './EventCallout.js';
@@ -76,7 +80,7 @@ export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
 export type {
-  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  CameraFlight, CameraFlightOutcome, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
   SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
 } from './controls/CameraController.js';
 export {
@@ -87,7 +91,7 @@ export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-export { KeyboardControls } from './controls/KeyboardControls.js';
+export { KeyboardControls, CAMERA_KEY_BINDINGS } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 export { CameraModeName } from './controls/CameraModes.js';
 export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';
@@ -97,12 +101,22 @@ export { bodyRotationFrame, spiceFrame, lvlhFrame, frameToWorldQuat } from './co
 export type { FrameOrientationSource } from './controls/frameOrientation.js';
 
 // Terrain
-export { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES } from './SurfaceAppearance.js';
+export { DEFAULT_SURFACE_APPEARANCE, normalizeSurfaceAppearance, ELEVATION_PALETTES } from './SurfaceAppearance.js';
 export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
-export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
+export { LIGHTING_MODES, DEFAULT_IMAGERY_ILLUMINATION, combineImageryIllumination, imageryAsIsWeight, isImageryIllumination, isPhysicallyRelit, sunDirectionAt, incidenceCosine, directTerm, solarGeometryAt } from './SurfaceIllumination.js';
+// `ImageryIllumination` is already the time-indexed imagery label (ImageryTime.ts, #214); the relighting provenance is exported under its own name.
+export { clipmapSourceFromSurface } from './SolarShadowSurfaceSource.js';
+export type { ClipmapSource } from './SolarShadowClipmap.js';
+export { horizonAlong, solarVisibility, sunFraction, occluderRangeKm } from './TerrainSunVisibility.js';
+export type { HeightKm, HorizonResult, SolarVisibility } from './TerrainSunVisibility.js';
+export type { SolarShadowConfig, SolarShadowQuality, SolarShadowStatus, SolarShadowLevelStatus, SolarShadowDebugMode, SolarShadowBuildReason, ClipmapLevelConfig } from './SolarShadowClipmap.js';
+export type { ImageryIllumination as ImageryRelightProvenance, SurfaceIlluminationSummary, LightingMode, ImageryLightingMode, LightingModeParams, SolarGeometry } from './SurfaceIllumination.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
-export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export { resolveImageryTime, parseTimeExtent, ImageryTimeFollower, DEFAULT_IMAGERY_THROTTLE, dayNumber, utcDay } from './ImageryTime.js';
+export type { ImageryLayerTime, ImageryTemporalConfig, ImageryTimePolicy, ImageryTimeState, ImageryTimeSemantics, ImageryCadence, ImageryIllumination, ImageryOutOfRange, ResolvedImageryTime, ImageryAvailability } from './ImageryTime.js';
+export type { ImageryLayerInfo, ImageryLayerSource, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
@@ -119,9 +133,12 @@ export type {
 export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, TerrainMeshTile, TerrainTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
+export type { SiteMeshConfig, SiteMeshRegistration } from './SiteMeshPlacement.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
+export { installMissionPlugins } from './plugins/MissionPlugin.js';
+export type { MissionPluginRegistration } from './plugins/MissionPlugin.js';
 export type { RendererContext } from './plugins/RendererContext.js';
 export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 export { ObservationsVisualizer } from './plugins/ObservationsVisualizer.js';
@@ -189,6 +206,13 @@ export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surfac
 export { CubeImageryLayer } from './CubeImageryLayer.js';
 export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
 export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
+export { placeAnchor } from './geographic/PlaceSurface.js';
 export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
+export { geographicSurfaceNote } from './geographic/GeographicStatus.js';
 export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
 export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';
+
+export type { PolarRasterManifest, SouthPolarRaster } from './surface/SouthPolarRaster.js';

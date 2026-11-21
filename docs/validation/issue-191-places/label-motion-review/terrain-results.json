@@ -1,0 +1,190 @@
+{
+  "hardware": true,
+  "gpu": {
+    "vendor": "Google Inc. (Apple)",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+  },
+  "results": [
+    {
+      "km": 20,
+      "acrossKm": 0,
+      "hidden": false,
+      "screen": {
+        "x": 1.8206885333875317e-14,
+        "y": -1.0278545921805636e-13,
+        "z": 0.9999999
+      },
+      "hitRangeKm": 20.000000087485155,
+      "source": "rendered-surface",
+      "accepted": "true",
+      "opacity": "0.85",
+      "picked": "string:gazetteer:15941",
+      "featureId": "string:gazetteer:15941",
+      "errorKm": 0.00000137547617826187,
+      "referenceSeparationKm": 2.3724050043701936,
+      "cameraRadiusKm": 3413.658235614016,
+      "anchorRadiusKm": 3393.658235614015,
+      "p95CpuMs": 2.300000011920929,
+      "meanFrameMs": 16.663333333532016,
+      "metrics": {
+        "scanned": 103,
+        "candidates": 11,
+        "drawn": 1,
+        "terrain": 0,
+        "rendered": 1,
+        "reference": 0,
+        "cpuMs": 0.19999998807907104,
+        "enters": 8,
+        "exits": 7,
+        "losChecks": 0,
+        "losDeferred": 0,
+        "handoffs": 2
+      }
+    },
+    {
+      "km": 1,
+      "acrossKm": 0,
+      "hidden": false,
+      "screen": {
+        "x": 3.434022745210981e-13,
+        "y": -1.974110690770773e-12,
+        "z": 0.9999979999999999
+      },
+      "hitRangeKm": 1.0000000043758657,
+      "source": "rendered-surface",
+      "accepted": "true",
+      "opacity": "0.85",
+      "picked": "string:gazetteer:15941",
+      "featureId": "string:gazetteer:15941",
+      "errorKm": 6.877441980141546e-8,
+      "referenceSeparationKm": 2.3724050043701936,
+      "cameraRadiusKm": 3394.6582356140166,
+      "anchorRadiusKm": 3393.658235614015,
+      "p95CpuMs": 2.699999988079071,
+      "meanFrameMs": 16.660000000397364,
+      "metrics": {
+        "scanned": 103,
+        "candidates": 11,
+        "drawn": 1,
+        "terrain": 0,
+        "rendered": 1,
+        "reference": 0,
+        "cpuMs": 0.19999998807907104,
+        "enters": 9,
+        "exits": 8,
+        "losChecks": 0,
+        "losDeferred": 0,
+        "handoffs": 2
+      }
+    },
+    {
+      "km": 0.1,
+      "acrossKm": 0,
+      "hidden": false,
+      "screen": {
+        "x": 6.62182331199163e-12,
+        "y": -1.9300272545921096e-11,
+        "z": 0.9999799999999999
+      },
+      "hitRangeKm": 0.10000000043815806,
+      "source": "rendered-surface",
+      "accepted": "true",
+      "opacity": "0.85",
+      "picked": "string:gazetteer:15941",
+      "featureId": "string:gazetteer:15941",
+      "errorKm": 6.877611067440244e-9,
+      "referenceSeparationKm": 2.3724050043701936,
+      "cameraRadiusKm": 3393.7582356140156,
+      "anchorRadiusKm": 3393.658235614015,
+      "p95CpuMs": 2.5,
+      "meanFrameMs": 16.663333333532016,
+      "metrics": {
+        "scanned": 103,
+        "candidates": 11,
+        "drawn": 1,
+        "terrain": 0,
+        "rendered": 1,
+        "reference": 0,
+        "cpuMs": 0.19999998807907104,
+        "enters": 10,
+        "exits": 9,
+        "losChecks": 0,
+        "losDeferred": 0,
+        "handoffs": 2
+      }
+    },
+    {
+      "km": 0.02,
+      "acrossKm": 0,
+      "hidden": false,
+      "screen": {
+        "x": 4.914739366658858e-12,
+        "y": -7.710961642748537e-11,
+        "z": 0.9998999999999973
+      },
+      "hitRangeKm": 0.020000000088524265,
+      "source": "rendered-surface",
+      "accepted": "true",
+      "opacity": "0.85",
+      "picked": "string:gazetteer:15941",
+      "featureId": "string:gazetteer:15941",
+      "errorKm": 1.3767715353984946e-9,
+      "referenceSeparationKm": 2.3724050043701936,
+      "cameraRadiusKm": 3393.6782356140156,
+      "anchorRadiusKm": 3393.658235614015,
+      "p95CpuMs": 2.800000011920929,
+      "meanFrameMs": 16.657500000298022,
+      "metrics": {
+        "scanned": 103,
+        "candidates": 11,
+        "drawn": 1,
+        "terrain": 0,
+        "rendered": 1,
+        "reference": 0,
+        "cpuMs": 0.19999998807907104,
+        "enters": 11,
+        "exits": 10,
+        "losChecks": 0,
+        "losDeferred": 0,
+        "handoffs": 2
+      }
+    },
+    {
+      "km": 0.1,
+      "acrossKm": 0.5,
+      "hidden": false,
+      "screen": {
+        "x": 0,
+        "y": -1.4803492816550098e-12,
+        "z": 0.9999960584839344
+      },
+      "hitRangeKm": 0.5074190890115535,
+      "source": "rendered-surface",
+      "accepted": "true",
+      "opacity": "0.85",
+      "picked": "string:gazetteer:15941",
+      "featureId": "string:gazetteer:15941",
+      "errorKm": 1.2716979777289183e-7,
+      "referenceSeparationKm": 2.3724050043701936,
+      "cameraRadiusKm": 3393.745642449857,
+      "anchorRadiusKm": 3393.658235614015,
+      "p95CpuMs": 2.699999988079071,
+      "meanFrameMs": 16.683333333333334,
+      "metrics": {
+        "scanned": 103,
+        "candidates": 16,
+        "drawn": 1,
+        "terrain": 0,
+        "rendered": 1,
+        "reference": 0,
+        "cpuMs": 2.399999976158142,
+        "enters": 13,
+        "exits": 12,
+        "losChecks": 4,
+        "losDeferred": 0,
+        "handoffs": 2
+      }
+    }
+  ],
+  "errors": []
+}

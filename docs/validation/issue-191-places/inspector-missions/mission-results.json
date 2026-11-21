@@ -1,0 +1,164 @@
+[
+  {
+    "catalog": "moonfall-shackleton",
+    "body": "Moon",
+    "indexedBodies": [
+      "Moon"
+    ],
+    "count": 9089,
+    "enabledBodies": [
+      "Moon"
+    ],
+    "officialTarget": "Shackleton",
+    "missionRef": "moon:mission:moonfall-sites/base",
+    "target": {
+      "ref": "moon:mission:moonfall-sites/base",
+      "name": "MoonFall base (synthetic)"
+    },
+    "failures": [],
+    "camera": [
+      -0.00003299857349869972,
+      -0.000005229365239236052,
+      -0.0017561529383456236
+    ],
+    "labels": 0,
+    "surface": "on terrain (moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh))",
+    "terrainReady": true,
+    "errors": []
+  },
+  {
+    "catalog": "lro-moon",
+    "body": "Moon",
+    "indexedBodies": [
+      "Moon"
+    ],
+    "count": 9087,
+    "enabledBodies": [
+      "Moon"
+    ],
+    "officialTarget": "Shackleton",
+    "missionRef": null,
+    "target": {
+      "ref": "moon:usgs:places/gazetteer:5450",
+      "name": "Shackleton"
+    },
+    "failures": [],
+    "camera": [
+      0.0000035825638960007802,
+      -0.00004868843988711097,
+      -0.0022589093989893332
+    ],
+    "labels": 5,
+    "surface": "on terrain (https://marshub.s3.amazonaws.com/moon_v14/)",
+    "terrainReady": true,
+    "errors": []
+  },
+  {
+    "catalog": "moon-imagery-apollo15",
+    "body": "Moon",
+    "indexedBodies": [
+      "Moon"
+    ],
+    "count": 9088,
+    "enabledBodies": [
+      "Moon"
+    ],
+    "officialTarget": "Mons Hadley",
+    "missionRef": "moon:mission:apollo15-site/lm",
+    "target": {
+      "ref": "moon:mission:apollo15-site/lm",
+      "name": "Apollo 15 landing site"
+    },
+    "failures": [],
+    "camera": [
+      -0.0009408539678474108,
+      0.0012892082452256985,
+      0.0007356566261700227
+    ],
+    "labels": 5,
+    "surface": "on the terrain datum",
+    "terrainReady": true,
+    "errors": []
+  },
+  {
+    "catalog": "msl-dingo-gap",
+    "body": "Mars",
+    "indexedBodies": [
+      "Mars"
+    ],
+    "count": 2052,
+    "enabledBodies": [
+      "Mars"
+    ],
+    "officialTarget": "Gale",
+    "missionRef": "mars:mission:msl-sites/dingo-gap",
+    "target": {
+      "ref": "mars:mission:msl-sites/dingo-gap",
+      "name": "Dingo Gap overlay anchor"
+    },
+    "failures": [],
+    "camera": [
+      -0.0007132412197484696,
+      -0.003340480832582453,
+      -0.000044352068196957736
+    ],
+    "labels": 2,
+    "surface": "on the reference shape",
+    "terrainReady": true,
+    "errors": []
+  },
+  {
+    "catalog": "ingenuity-jezero",
+    "body": "Mars",
+    "indexedBodies": [
+      "Mars"
+    ],
+    "count": 2053,
+    "enabledBodies": [
+      "Mars"
+    ],
+    "officialTarget": "Jezero",
+    "missionRef": "mars:mission:ingenuity-sites/airfield-0",
+    "target": {
+      "ref": "mars:mission:ingenuity-sites/airfield-0",
+      "name": "Wright Brothers Field"
+    },
+    "failures": [],
+    "camera": [
+      0.0031892768359273074,
+      -0.0011260068295721524,
+      -0.00046635545832097785
+    ],
+    "labels": 3,
+    "surface": "on the reference shape",
+    "terrainReady": true,
+    "errors": []
+  },
+  {
+    "catalog": "mars-imagery-jezero",
+    "body": "Mars",
+    "indexedBodies": [
+      "Mars"
+    ],
+    "count": 2051,
+    "enabledBodies": [
+      "Mars"
+    ],
+    "officialTarget": "Jezero",
+    "missionRef": null,
+    "target": {
+      "ref": "mars:usgs:places/gazetteer:14300",
+      "name": "Jezero"
+    },
+    "failures": [],
+    "camera": [
+      0.004128485773647139,
+      -0.0014376515879916845,
+      -0.0005882018561563663
+    ],
+    "labels": 6,
+    "surface": "on the reference shape",
+    "terrainReady": true,
+    "errors": []
+  }
+]

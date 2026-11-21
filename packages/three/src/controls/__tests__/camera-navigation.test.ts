@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { KeyboardControls } from '../KeyboardControls.js';
 import { CameraController } from '../CameraController.js';
 import { CameraModeName } from '../CameraModes.js';
 import type { InstrumentMode } from '../modes/InstrumentMode.js';
@@ -25,7 +26,7 @@ function fakeElement(width = 800, height = 600) {
     addEventListener: add,
     removeEventListener() {},
     style: {},
-    ownerDocument: { ...noop, defaultView: noop, documentElement: { clientLeft: 0, clientTop: 0 } },
+    ownerDocument: { ...noop, defaultView: { ...noop, addEventListener: add }, documentElement: { clientLeft: 0, clientTop: 0 } },
     clientWidth: width,
     clientHeight: height,
     getBoundingClientRect: () => ({ left: 0, top: 0, width, height, right: width, bottom: height, x: 0, y: 0 }),
@@ -110,6 +111,7 @@ function setup(opts: { width?: number; height?: number } = {}) {
     now += seconds * 1000;
     cc.applyPendingOriginSwitch();
     place();
+    cc.syncPendingModeFromCamera();
     cc.update();
   };
   /** The camera's position in absolute coordinates. */
@@ -148,6 +150,7 @@ describe('focus', () => {
 });
 
 describe('frame', () => {
+
   it('fits the body at three radii in a landscape 60° view, from the side the camera sees it', () => {
     const { camera, cc, moon, moonAbs, absolute } = setup();
     const side = new THREE.Vector3(0, 0, 20000).sub(moonAbs).normalize();
@@ -181,7 +184,7 @@ describe('flyTo', () => {
   it('reports the flight while it plays, and nothing once it has landed', () => {
     const { cc, moon, frame } = setup();
     cc.flyTo(moon, { scaleFactor: 1, duration: 1 });
-    expect(cc.flight).toEqual({ destination: moon, path: 'direct', phase: 'approach' });
+    expect(cc.flight).toEqual({ id: expect.any(Number), destination: moon, path: 'direct', phase: 'approach' });
     expect(cc.focusBody).toBe(moon);
     frame(0.5);
     expect(cc.flight?.destination).toBe(moon);
@@ -200,7 +203,7 @@ describe('flyTo', () => {
   it('overview pulls back to show both ends, then approaches', () => {
     const { camera, cc, moon, moonAbs, frame } = setup();
     cc.flyTo(moon, { scaleFactor: 1, duration: 2, path: 'overview' });
-    expect(cc.flight).toEqual({ destination: moon, path: 'overview', phase: 'overview' });
+    expect(cc.flight).toEqual({ id: expect.any(Number), destination: moon, path: 'overview', phase: 'overview' });
     expect(cc.focusBody).toBe(moon);
 
     // The pull-back is 40% of the flight. At its end the camera looks at the
@@ -223,7 +226,7 @@ describe('flyTo', () => {
     const { camera, cc, moon } = setup();
     camera.position.set(0, 5e7, 0);
     cc.flyTo(moon, { scaleFactor: 1, path: 'overview' });
-    expect(cc.flight).toEqual({ destination: moon, path: 'overview', phase: 'approach' });
+    expect(cc.flight).toEqual({ id: expect.any(Number), destination: moon, path: 'overview', phase: 'approach' });
   });
 
   it('overview looks across the line between the two ends, not along it', () => {
@@ -321,6 +324,176 @@ describe('manual input during a flight', () => {
     fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
     frame(0.1);
     expect(cc.moving).toBe(false);
+  });
+});
+
+describe('onFlightEnd', () => {
+  const ends = (cc: CameraController) => {
+    const seen: string[] = [];
+    cc.onFlightEnd = (flight, outcome) => seen.push(`${flight.destination?.body.name ?? 'viewpoint'} ${flight.path} ${outcome}`);
+    return seen;
+  };
+  /** Ends are told a microtask after the command that caused them. */
+  const told = () => Promise.resolve();
+
+  it('reports an arrival once, after the camera lands, and an overview only at its end', async () => {
+    const { cc, moon, frame } = setup();
+    const seen: string[] = [];
+    let landedFirst = false;
+    cc.onFlightEnd = (flight, outcome) => { landedFirst = cc.flight === null; seen.push(`${flight.destination?.body.name} ${flight.path} ${outcome}`); };
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2, path: 'overview' });
+    for (let i = 0; i < 9; i++) frame(0.1);
+    await told();
+    expect(cc.flight?.phase).toBe('approach');
+    expect(seen).toEqual([]);
+    for (let i = 0; i < 20; i++) frame(0.1);
+    await told();
+    expect(seen).toEqual(['Moon overview arrived']);
+    expect(landedFirst).toBe(true);
+  });
+
+  it('reports stopFlight, a cut and a newer flight as stopped', async () => {
+    const { cc, earth, moon, frame } = setup();
+    const seen = ends(cc);
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.stopFlight();
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.frame(earth, { scaleFactor: 1 });
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+    frame(0.1);
+    await told();
+    expect(seen).toEqual(['Moon direct stopped', 'Moon direct stopped', 'Moon direct stopped']);
+  });
+
+  it("reports the person's navigation as interrupted, and nothing without a flight", async () => {
+    const { cc, moon, frame, fire } = setup();
+    const seen = ends(cc);
+    const wheel = () => fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    frame(0.3);
+    wheel();
+    frame(0.05);
+    wheel();
+    frame(0.05);
+    await told();
+    expect(seen).toEqual(['Moon direct interrupted']);
+  });
+
+  it('names a flight the same from its start to its end, an overview included', async () => {
+    const { cc, moon, earth, frame } = setup();
+    const ended: { id: number; outcome: string }[] = [];
+    cc.onFlightEnd = (flight, outcome) => ended.push({ id: flight.id, outcome });
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2, path: 'overview' });
+    const first = cc.flight!.id;
+    for (let i = 0; i < 9; i++) frame(0.1);
+    expect(cc.flight?.id).toBe(first); // the approach is the same flight
+    for (let i = 0; i < 20; i++) frame(0.1);
+    cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+    const second = cc.flight!.id;
+    expect(second).not.toBe(first);
+    cc.stopFlight();
+    await told();
+    expect(ended).toEqual([{ id: first, outcome: 'arrived' }, { id: second, outcome: 'stopped' }]);
+  });
+
+  it('is safe to start another flight from the listener of a stopFlight', async () => {
+    const { cc, moon, earth, frame } = setup();
+    const seen: string[] = [];
+    cc.onFlightEnd = (flight, outcome) => {
+      seen.push(`${flight.id} ${outcome}`);
+      if (seen.length === 1) cc.flyTo(earth, { scaleFactor: 1, duration: 1 });
+    };
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    const first = cc.flight!.id;
+    cc.stopFlight();
+    await told();
+    // The listener's flight is the one now playing; stopFlight's own state
+    // (the stopped flight's destination left focused) was not applied over it.
+    expect(cc.flight?.destination).toBe(earth);
+    expect(cc.flight?.id).not.toBe(first);
+    for (let i = 0; i < 20; i++) frame(0.1);
+    await told();
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(`${first} stopped`);
+    expect(seen[1]).toMatch(/^\d+ arrived$/);
+    expect(seen[1]).not.toBe(`${first} arrived`);
+    expect(cc.trackedBody).toBe(earth);
+  });
+
+  it('tells arrival only once the landing is applied', async () => {
+    const { cc, moon, camera } = setup();
+    let seenState: { tracked: unknown; origin: unknown } | null = null;
+    cc.onFlightEnd = (_flight, outcome) => {
+      if (outcome === 'arrived') seenState = { tracked: cc.trackedBody, origin: cc.originBody };
+    };
+    cc.flyTo(moon, { scaleFactor: 1, duration: 0.5 });
+    // Advance the animation without the renderer's pre-frame landing step.
+    let now = performance.now();
+    for (let i = 0; i < 10; i++) {
+      now += 100;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+      cc.update();
+    }
+    expect(cc.flight).toBeNull();
+    await told();
+    expect(seenState).toBeNull(); // landed, but not yet applied
+    cc.applyPendingOriginSwitch();
+    await told();
+    expect(seenState).toBeNull(); // applied, but the mode is not yet resynced
+    cc.syncPendingModeFromCamera();
+    await told();
+    expect(seenState).toEqual({ tracked: moon, origin: moon });
+    expect(camera.position.length()).toBeGreaterThan(0);
+  });
+
+  it.each(['land', 'replace', 'drag', 'wheel', 'drag-before-update'] as const)(
+    'does not report success on pointer travel before landing: %s', async (action) => {
+      const { cc, moon, earth, fire, frame } = setup();
+      const seen = ends(cc);
+      cc.flyTo(moon, { scaleFactor: 1, duration: 0.5 });
+      let now = performance.now();
+      for (let i = 0; i < 10; i++) {
+        now += 100;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+        cc.update();
+      }
+      expect(cc.animating).toBe(false);
+      const pointer = { pointerId: 1, pointerType: 'mouse', button: 2, clientX: 0, clientY: 0,
+        pageX: 0, pageY: 0, preventDefault() {}, stopPropagation() {} };
+      fire('pointerdown', pointer);
+      fire('pointermove', { ...pointer, clientX: 1 }); // below the drag threshold
+      await told();
+      expect(seen).toEqual([]);
+      expect(cc.originBody).toBe(earth);
+      expect(cc.trackedBody).not.toBe(moon);
+      if (action === 'replace') cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+      if (action === 'drag' || action === 'drag-before-update') fire('pointermove', { ...pointer, clientX: 20 });
+      if (action === 'wheel') fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+      // Cover both a normal renderer frame and an update before it applies landing.
+      if (action === 'drag-before-update') cc.update();
+      frame(0.1);
+      await told();
+      expect(seen).toEqual([`Moon direct ${action === 'land' ? 'arrived' : action === 'replace' ? 'stopped' : 'interrupted'}`]);
+      if (action === 'land') expect(cc.originBody).toBe(moon);
+      frame(0.1);
+      await told();
+      expect(seen).toHaveLength(1);
+    });
+
+  it('reports a landing a later command took back as stopped', async () => {
+    const { cc, moon, earth } = setup();
+    const seen = ends(cc);
+    cc.flyTo(moon, { scaleFactor: 1, duration: 0.5 });
+    let now = performance.now();
+    for (let i = 0; i < 10; i++) {
+      now += 100;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+      cc.update();
+    }
+    cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+    await told();
+    expect(seen).toEqual(['Moon direct stopped']);
   });
 });
 
@@ -465,5 +638,66 @@ describe('camera frames', () => {
       expect(setModeForBody).toHaveBeenCalledWith(CameraModeName.BODY_FIXED, moon);
       expect(cc.originBody).toBe(moon);
     }
+  });
+});
+
+
+describe('manual camera input notifications between flights', () => {
+  it('reports navigation keys immediately but excludes typing and unrelated keys', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const { cc } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    const keydown = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const key = (code: string, target: object = {}, modifiers: object = {}) => keydown({ code, target, ...modifiers, preventDefault() {} } as unknown as Event);
+    key('KeyW', { tagName: 'TEXTAREA' });
+    key('KeyW', { isContentEditable: true });
+    key('Escape');
+    for (const modifiers of [{ metaKey: true }, { ctrlKey: true }]) {
+      key('KeyC', {}, modifiers);
+      expect(cc.keyboard.navigating).toBe(false);
+    }
+    expect(input).not.toHaveBeenCalled();
+    key('AltLeft', {}, { altKey: true });
+    expect(input).not.toHaveBeenCalled();
+    key('KeyW', {}, { altKey: true });
+    expect(input).toHaveBeenCalledOnce();
+    cc.keyboard.enabled = false;
+    key('KeyA');
+    expect(input).toHaveBeenCalledOnce();
+  });
+  it('retains Alt slow movement at 0.2 times the normal distance', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const keyboard = new KeyboardControls();
+    const down = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const up = events.mock.calls.filter(([type]) => type === 'keyup').at(-1)![1] as EventListener;
+    const key = (listener: EventListener, code: string, altKey = false) => listener({ code, altKey, target: {}, preventDefault() {} } as unknown as Event);
+    const camera = new THREE.PerspectiveCamera();
+    const target = new THREE.Vector3();
+    camera.position.set(0, 0, 10);
+    key(down, 'KeyW');
+    keyboard.update(camera, target, 0.1);
+    const normal = 10 - camera.position.z;
+    key(up, 'KeyW');
+    camera.position.set(0, 0, 10); target.set(0, 0, 0);
+    key(down, 'AltLeft', true); key(down, 'KeyW', true);
+    keyboard.update(camera, target, 0.1);
+    expect(10 - camera.position.z).toBeCloseTo(normal * 0.2, 10);
+    keyboard.dispose();
+  });
+  it('reports real wheel navigation when idle, excluding field-of-view-only input', () => {
+    const { cc, frame, fire } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: true, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    expect(input).toHaveBeenCalledOnce(); // before a model reply can race the next frame
+    frame(0.1);
+    expect(input).toHaveBeenCalledOnce();
+    expect(cc.flight).toBeNull();
   });
 });

@@ -1,0 +1,312 @@
+{
+  "name": "moonfall",
+  "catalog": "test-catalogs/moonfall-shackleton",
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "assets": {
+    "total": 8,
+    "settled": 8,
+    "loaded": 8,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 2039.699999988079
+  },
+  "views": {
+    "close": {
+      "physicalUnchanged": true,
+      "lightChangedPixels": 774252,
+      "debugRestorePixels": 0,
+      "restoredPixelDifference": 0,
+      "normal": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.100000023841858,
+          "p95": 11
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 3.301875,
+          "p95": 3.372
+        },
+        "gpuTimerAvailable": true
+      },
+      "hillshade": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9,
+          "p95": 11.100000023841858
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 3.056416,
+          "p95": 3.089916
+        },
+        "gpuTimerAvailable": true
+      },
+      "elevation": {
+        "cpuMs": {
+          "n": 60,
+          "median": 8.800000011920929,
+          "p95": 10.099999964237213
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.790458,
+          "p95": 2.891958
+        },
+        "gpuTimerAvailable": true
+      },
+      "selectedTiles": 122,
+      "tileIdsSha256": "7bcbba49545daded54a1358ea7fcb8318facb5683ef8d420c7ef50a9ac0ae74c",
+      "selectedTilesUnchanged": true,
+      "sourceVertices": 923910,
+      "sampled": 0,
+      "maxHeightErrorKm": 2.1327059585019015e-07,
+      "activation": {
+        "frames": 22,
+        "elapsedMs": {
+          "count": 22,
+          "p95": 7,
+          "maximum": 8.599999964237213
+        },
+        "maxTileMs": {
+          "count": 22,
+          "p95": 6.199999988079071,
+          "maximum": 8.5
+        }
+      }
+    },
+    "far": {
+      "physicalUnchanged": true,
+      "lightChangedPixels": 511854,
+      "debugRestorePixels": 0,
+      "restoredPixelDifference": 0,
+      "normal": {
+        "cpuMs": {
+          "n": 60,
+          "median": 10.199999988079071,
+          "p95": 12.199999988079071
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.359166,
+          "p95": 2.368125
+        },
+        "gpuTimerAvailable": true
+      },
+      "hillshade": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.899999976158142,
+          "p95": 11.900000035762787
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.200375,
+          "p95": 2.211624
+        },
+        "gpuTimerAvailable": true
+      },
+      "elevation": {
+        "cpuMs": {
+          "n": 60,
+          "median": 10.199999988079071,
+          "p95": 11.699999988079071
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.048249,
+          "p95": 2.057624
+        },
+        "gpuTimerAvailable": true
+      },
+      "selectedTiles": 108,
+      "tileIdsSha256": "0d608547fd8a769d155c991bf030b0674fb83e39f68e72a8bb89f888f1ebec2e",
+      "selectedTilesUnchanged": true,
+      "sourceVertices": 1291680,
+      "sampled": 0,
+      "maxHeightErrorKm": 4.2371834751975257e-07,
+      "activation": {
+        "frames": 16,
+        "elapsedMs": {
+          "count": 16,
+          "p95": 6.699999988079071,
+          "maximum": 6.699999988079071
+        },
+        "maxTileMs": {
+          "count": 16,
+          "p95": 5.600000023841858,
+          "maximum": 5.600000023841858
+        }
+      }
+    }
+  },
+  "errors": [],
+  "pick": {
+    "x": 200,
+    "y": 350,
+    "height": 1.142516843845595
+  },
+  "navigation": {
+    "diagnostics": {
+      "maxNormalDifference": 0,
+      "missing": 0,
+      "active": 48,
+      "beforeActive": 48,
+      "cameraDifference": 0
+    },
+    "imageryBefore": {
+      "version": "cube-imagery-composite-3f34a19541af7710",
+      "ready": true,
+      "textures": 285,
+      "pinnedTextures": 30,
+      "textureBytes": 105937920,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "maxTextureBytes": 167772160,
+      "requests": 285,
+      "bytes": 6517456,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 0,
+      "count": 0,
+      "budgetLimited": false,
+      "queued": 0,
+      "tiles": 48,
+      "splitTiles": 0,
+      "blocks": 110,
+      "extraDraws": 0,
+      "displayedLevels": {
+        "5": 1,
+        "6": 4,
+        "7": 17,
+        "8": 23,
+        "9": 22,
+        "10": 37
+      },
+      "wantedLevels": {
+        "5": 1,
+        "6": 6,
+        "7": 21,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "committedGroups": 0,
+      "waitingGroups": 0,
+      "updateMs": 4.199999988079071,
+      "blockGeometryBytes": 0,
+      "transitionTextureBytes": 1486848,
+      "protectedOverBudgetBytes": 0,
+      "gpuAllocatedBytes": 169145344,
+      "uploadMs": 492.8000002503395,
+      "gpuError": null,
+      "inheritedGlErrors": []
+    },
+    "imageryAfter": {
+      "version": "cube-imagery-composite-3f34a19541af7710",
+      "ready": true,
+      "textures": 285,
+      "pinnedTextures": 30,
+      "textureBytes": 105937920,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "maxTextureBytes": 167772160,
+      "requests": 285,
+      "bytes": 6517456,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 0,
+      "count": 0,
+      "budgetLimited": false,
+      "queued": 0,
+      "tiles": 48,
+      "splitTiles": 0,
+      "blocks": 110,
+      "extraDraws": 0,
+      "displayedLevels": {
+        "5": 1,
+        "6": 4,
+        "7": 17,
+        "8": 23,
+        "9": 22,
+        "10": 37
+      },
+      "wantedLevels": {
+        "5": 1,
+        "6": 6,
+        "7": 21,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "committedGroups": 0,
+      "waitingGroups": 0,
+      "updateMs": 4.099999964237213,
+      "blockGeometryBytes": 0,
+      "transitionTextureBytes": 1486848,
+      "protectedOverBudgetBytes": 0,
+      "gpuAllocatedBytes": 169145344,
+      "uploadMs": 492.8000002503395,
+      "gpuError": null,
+      "inheritedGlErrors": []
+    },
+    "sameTiles": true,
+    "changedPixels": 0
+  },
+  "mobile": {
+    "viewport": 390,
+    "documentWidth": 390,
+    "sectionWidth": 346,
+    "sectionLeft": 19.5,
+    "panelScroll": 361,
+    "dockScroll": 0,
+    "scrolling": {
+      "bodyScroll": 486,
+      "dockScroll": 0
+    }
+  }
+}

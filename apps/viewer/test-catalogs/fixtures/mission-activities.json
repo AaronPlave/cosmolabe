@@ -1,0 +1,14 @@
+{
+  "name": "Concurrent activity fixture",
+  "defaultTime": "2021-04-19T07:30:00Z",
+  "items": [
+    {"name":"Aircraft","trajectory":{"type":"FixedPoint","position":[0,0,0]},"geometry":{"type":"Globe","radius":1}},
+    {"name":"Rover","trajectory":{"type":"FixedPoint","position":[5,0,0]},"geometry":{"type":"Globe","radius":1}}
+  ],
+  "activities": [
+    {"version":1,"id":"fixture:flight","name":"Concurrent flight","kind":"flight","vehicle":"Aircraft","body":"Mars","temporality":"interval","timeSystem":"ET","start":672089519.3,"end":672089558.4,"provenance":{"source":"synthetic concurrency fixture","version":"1","authority":"authored","timing":"exact","limitations":"Synthetic test only; no flight telemetry."}},
+    {"version":1,"id":"fixture:drive","name":"Concurrent rover drive","kind":"drive","vehicle":"Rover","body":"Mars","temporality":"interval","timeSystem":"ET","start":672089529.3,"end":672089569.3,"provenance":{"source":"synthetic concurrency fixture","version":"1","authority":"authored","timing":"exact","limitations":"Synthetic test only; no rover operations claimed."}},
+    {"version":1,"id":"fixture:descent","name":"Manually authored descent","kind":"descent","vehicle":"Vehicle without trajectory","body":"Mars","temporality":"interval","timeSystem":"ET","start":672089550,"end":672089570,"provenance":{"source":"synthetic concurrency fixture","version":"1","authority":"authored","timing":"exact","limitations":"Manual metadata with no associated trajectory or scene object."}},
+    {"version":1,"id":"fixture:landing","name":"Landing milestone","kind":"landing","vehicle":"Vehicle without trajectory","body":"Mars","temporality":"instant","timeSystem":"ET","start":672089570,"end":672089570,"provenance":{"source":"synthetic concurrency fixture","version":"1","authority":"authored","timing":"exact","limitations":"Manual milestone; no reconstructed path."}}
+  ]
+}

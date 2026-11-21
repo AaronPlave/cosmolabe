@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "date": "2026-11-12",
+  "source": "4473f2f085222b0ebdbb0db6e89acc39932e2b67",
+  "frozenCasesSha256": "2d3a341e05cad7ea2593c483914956b1bfe73e0e3064b91c6ca76deec706f8a8",
+  "runtimeFixFile": "packages/control/src/capabilities.ts",
+  "runtimeFixSha256": "382b395fa620314530bff69fadaa7e34609e03c828c8b4e0f57784ab8b252c06",
+  "reportSha256": {
+    "baseline": "1b01631fbed515515d7f85eed887633c13f3459148344d05053352020350af0b",
+    "rerun": "2b58afdedf421f2648005f6f8f98be16c4da5bb714fd85c69352a6f47d3a8f2f",
+    "localChecks": "0d7f9ee76f28e2b34d8ca50759c65694c42712d2d2d91f339a72c08abbde9bfe"
+  },
+  "reportRetention": "Full reports and captures are temporary local files, not committed or durably archived. Hashes identify the reviewed files.",
+  "model": "claude-haiku-5-5",
+  "fallback": false,
+  "mode": "fixed",
+  "renderer": "Chromium SwiftShader; software WebGL, no physical GPU acceptance",
+  "cacheWarmth": "uncontrolled",
+  "review": "379-findings.md contains manual per-dimension verdicts and reasons; no automatic outcome rate",
+  "usage": {
+    "baseline": {
+      "requests": 68,
+      "requestedModels": [
+        "claude-haiku-5-5"
+      ],
+      "answeredModels": [
+        "claude-haiku-5-5"
+      ],
+      "uncachedInput": 164,
+      "cacheReads": 840164,
+      "cacheWrites": 81608,
+      "output": 18891,
+      "rawProcessed": 940827,
+      "estimatedUsd": 0.028064539999999995,
+      "byModel": {
+        "claude-haiku-5-5": {
+          "requests": 68,
+          "estimatedUsd": 0.028064539999999995
+        }
+      },
+      "actualBilledUsd": null
+    },
+    "rerun": {
+      "requests": 15,
+      "requestedModels": [
+        "claude-haiku-5-5"
+      ],
+      "answeredModels": [
+        "claude-haiku-5-5"
+      ],
+      "uncachedInput": 34,
+      "cacheReads": 224022,
+      "cacheWrites": 34137,
+      "output": 4063,
+      "rawProcessed": 262256,
+      "estimatedUsd": 0.008542245,
+      "byModel": {
+        "claude-haiku-5-5": {
+          "requests": 15,
+          "estimatedUsd": 0.008542245
+        }
+      },
+      "actualBilledUsd": null
+    },
+    "totalEstimatedUsd": 0.036606784999999996,
+    "actualBilledUsd": null
+  },
+  "baseline": [
+    {"task": "em-explore","rounds": 7,"latencyMs": 11460,"rawProcessedTokens": 86787,"estimatedUsd": 0.0032648550000000005,"status": "done","askVerdict": "partial","failedCalls": [{"operation": "camera.viewpoint*","code": "unknown-tool"},{"operation": "describeCapabilities","code": "invalid-input"},{"operation": "camera.viewpoint","code": "refused"}],"capturesReviewed": ["em-explore-0-0.png"]},
+    {"task": "em-context","rounds": 7,"latencyMs": 13932,"rawProcessedTokens": 85472,"estimatedUsd": 0.0025277299999999997,"status": "done","askVerdict": "verified","failedCalls": [],"capturesReviewed": ["em-context-0-0.png","em-context-0-1.png"]},
+    {"task": "em-ambiguous","rounds": 2,"latencyMs": 4526,"rawProcessedTokens": 22111,"estimatedUsd": 0.0005450100000000001,"status": "done","askVerdict": "no-change","failedCalls": [],"capturesReviewed": ["em-ambiguous-0-0.png"]},
+    {"task": "iss-explore","rounds": 6,"latencyMs": 10195,"rawProcessedTokens": 78753,"estimatedUsd": 0.0018971349999999999,"status": "done","askVerdict": "verified","failedCalls": [{"operation": "scene.getViewComposition","code": "unknown-tool"}],"capturesReviewed": ["iss-explore-0-0.png"]},
+    {"task": "iss-appearance","rounds": 6,"latencyMs": 15216,"rawProcessedTokens": 80231,"estimatedUsd": 0.002082535,"status": "done","askVerdict": "verified","failedCalls": [],"capturesReviewed": ["iss-appearance-0-0.png"]},
+    {"task": "iss-unsupported","rounds": 3,"latencyMs": 6788,"rawProcessedTokens": 36481,"estimatedUsd": 0.001021365,"status": "done","askVerdict": "no-change","failedCalls": [],"capturesReviewed": ["iss-unsupported-0-0.png"]},
+    {"task": "oem-investigate","rounds": 9,"latencyMs": 18432,"rawProcessedTokens": 142019,"estimatedUsd": 0.004060445,"status": "done","askVerdict": "verified","failedCalls": [],"capturesReviewed": ["oem-investigate-0-0.png"]},
+    {"task": "oem-compare","rounds": 10,"latencyMs": 24057,"rawProcessedTokens": 170046,"estimatedUsd": 0.005835874999999999,"status": "step-limit","askVerdict": "failed","failedCalls": [{"operation": "profiles.listProfiles()","code": "refused"},{"operation": "events.listEventQueries()","code": "refused"}],"capturesReviewed": ["oem-compare-0-0.png"]},
+    {"task": "oem-contact","rounds": 3,"latencyMs": 4740,"rawProcessedTokens": 35139,"estimatedUsd": 0.0008806450000000001,"status": "done","askVerdict": "no-change","failedCalls": [],"capturesReviewed": ["oem-contact-0-0.png"]},
+    {"task": "clipper-explore","rounds": 3,"latencyMs": 10954,"rawProcessedTokens": 36165,"estimatedUsd": 0.0010583,"status": "done","askVerdict": "verified","failedCalls": [],"capturesReviewed": ["clipper-explore-0-0.png"]},
+    {"task": "clipper-compare","rounds": 6,"latencyMs": 12892,"rawProcessedTokens": 88686,"estimatedUsd": 0.002904245,"status": "done","askVerdict": "unverified","failedCalls": [],"capturesReviewed": ["clipper-compare-0-0.png"]},
+    {"task": "clipper-science","rounds": 6,"latencyMs": 9367,"rawProcessedTokens": 78937,"estimatedUsd": 0.0019864,"status": "done","askVerdict": "no-change","failedCalls": [{"operation": "instruments.getInstrument","code": "invalid-input"},{"operation": "instruments.getInstrument","code": "invalid-input"},{"operation": "instruments.getInstrument","code": "invalid-input"},{"operation": "instruments.getInstrument","code": "invalid-input"}],"capturesReviewed": ["clipper-science-0-0.png"]}
+  ],
+  "rerun": [
+    {"task": "em-explore","rounds": 5,"latencyMs": 12265,"rawProcessedTokens": 68786,"estimatedUsd": 0.003088665,"status": "done","askVerdict": "partial","failedCalls": [],"capturesReviewed": ["em-explore-0-0.png"]},
+    {"task": "oem-compare","rounds": 10,"latencyMs": 16044,"rawProcessedTokens": 193470,"estimatedUsd": 0.0054535799999999995,"status": "step-limit","askVerdict": "failed","failedCalls": [{"operation": "camera.getViewpointInfo","code": "invalid-input"},{"operation": "camera.getViewpointInfo","code": "invalid-input"},{"operation": "profiles.sampleProfileData","code": "invalid-input"}],"capturesReviewed": ["oem-compare-0-0.png"]}
+  ],
+  "independentChecks": {
+    "clipper": [
+      {
+        "task": "clipper-explore",
+        "target": "Europa",
+        "reportedRangeKm": 1584.73393011446,
+        "independentMinimum": {
+          "rangeKm": 1584.7339301064844,
+          "et": 1003830456.8041664
+        },
+        "coarseSamples": 40001,
+        "finiteSamples": 40001,
+        "stepSeconds": 7798.61723851836,
+        "window": {
+          "start": 782198880.4723655,
+          "end": 1094143570.0131
+        },
+        "reportedEventState": {
+          "et": 1003830456.8034713,
+          "rangeKm": 1584.733930113473
+        }
+      },
+      {
+        "task": "clipper-compare",
+        "target": "Europa",
+        "reportedRangeKm": 1838.607708583299,
+        "independentMinimum": {
+          "rangeKm": 1838.607708630214,
+          "et": 985658652.6111904
+        },
+        "coarseSamples": 3001,
+        "finiteSamples": 3001,
+        "stepSeconds": 892.7996666666667,
+        "window": {
+          "start": 983361669.184,
+          "end": 986040068.184
+        },
+        "reportedEventState": {
+          "et": 985658652.6123381,
+          "rangeKm": 1838.6077085598622
+        }
+      },
+      {
+        "task": "clipper-compare",
+        "target": "Ganymede",
+        "reportedRangeKm": 442173.32551459403,
+        "independentMinimum": {
+          "rangeKm": 442173.32551466965,
+          "et": 983886916.6844829
+        },
+        "coarseSamples": 3001,
+        "finiteSamples": 3001,
+        "stepSeconds": 892.7996666666667,
+        "window": {
+          "start": 983361669.184,
+          "end": 986040068.184
+        },
+        "reportedEventState": {
+          "et": 983886916.6728802,
+          "rangeKm": 442173.3255144656
+        }
+      }
+    ],
+    "oem": {
+      "sampleCount": 32,
+      "maxNativeStateRangeErrorKm": 0,
+      "first": {
+        "et": 141851596.184117,
+        "expected": 750643.2553341101,
+        "rangeKm": 750643.2553341101,
+        "availability": {
+          "available": true
+        }
+      },
+      "last": {
+        "et": 142058812.18411705,
+        "expected": 1233531.7664712418,
+        "rangeKm": 1233531.7664712418,
+        "availability": {
+          "available": true
+        }
+      },
+      "sourceIntervalUtc": [
+        "2004-06-30T12:00:00",
+        "2004-07-02T11:58:00.000056"
+      ],
+      "limitation": "Finite native values outside this interval clamp to source endpoints and are not coverage evidence."
+    },
+    "imagery": [
+      {
+        "et": 847063869.184,
+        "surface": "waiting",
+        "layers": [
+          {
+            "id": "blue-marble",
+            "status": "ok",
+            "time": null,
+            "view": null
+          },
+          {
+            "id": "viirs-daily",
+            "status": "ok",
+            "time": {
+              "policy": "follow-simulation",
+              "cadence": "day",
+              "date": "2026-11-04",
+              "requestedDate": "2026-11-04",
+              "state": "exact",
+              "offsetDays": 0,
+              "pending": false,
+              "rangeStart": "2022-01-14",
+              "rangeEnd": null,
+              "illumination": "baked"
+            },
+            "view": null
+          }
+        ]
+      },
+      {
+        "et": 847150269.184,
+        "surface": "waiting",
+        "layers": [
+          {
+            "id": "blue-marble",
+            "status": "ok",
+            "time": null,
+            "view": null
+          },
+          {
+            "id": "viirs-daily",
+            "status": "idle",
+            "time": {
+              "policy": "follow-simulation",
+              "cadence": "day",
+              "date": "2026-11-05",
+              "requestedDate": "2026-11-05",
+              "state": "exact",
+              "offsetDays": 0,
+              "pending": false,
+              "rangeStart": "2022-01-14",
+              "rangeEnd": null,
+              "illumination": "baked"
+            },
+            "view": null
+          }
+        ]
+      }
+    ],
+    "stop": {
+      "providerCalls": 0,
+      "status": "Researching…",
+      "terminalStatus": "cancelled",
+      "selectionBefore": "Moon",
+      "selectionAfter": "Moon",
+      "lateMutation": false,
+      "comparison": "Full camera pose, ET and selection identical 500 ms after a held late reply was released."
+    }
+  },
+  "guidance": [
+    {"catalog": "earth-moon","examples": [{"kind": "show","label": "Show Earth Close","prompt": "Show the authored viewpoint \"Earth Close\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "show","label": "Show Lunar Orbit","prompt": "Show the authored viewpoint \"Lunar Orbit\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."}]},
+    {"catalog": "iss","examples": [{"kind": "show","label": "Show Earth from orbit","prompt": "Show the authored viewpoint \"Earth from orbit\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "show","label": "Show Regional view","prompt": "Show the authored viewpoint \"Regional view\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "inspect","label": "Inspect imagery on Earth","prompt": "What imagery is configured on \"Earth\", and what is its current loading status? Distinguish configuration from verified coverage.","evidence": "2 configured layers; current-view coverage not established."}]},
+    {"catalog": "oem-ingest","examples": [{"kind": "show","label": "Show SOI outbound","prompt": "Show the authored viewpoint \"SOI outbound\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "show","label": "Show Periapsis close-up","prompt": "Show the authored viewpoint \"Periapsis close-up\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "explore","label": "Compare Saturn–Sun center distance","prompt": "Show how the center distance between \"Saturn\" and \"Sun\" changes over the visible timeline. Report sampling limits and gaps.","evidence": "Positions available at the inspected epoch; interval coverage not certified. Center distance is not clearance."}]},
+    {"catalog": "europa-clipper","examples": [{"kind": "show","label": "Show Jupiter System Overview","prompt": "Show the authored viewpoint \"Jupiter System Overview\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "show","label": "Show Europa Close-up","prompt": "Show the authored viewpoint \"Europa Close-up\" and explain what is actually visible.","evidence": "Authored viewpoint available; resulting view not verified."},{"kind": "explore","label": "Compare Europa Clipper–Jupiter center distance","prompt": "Show how the center distance between \"Europa Clipper\" and \"Jupiter\" changes over the visible timeline. Report sampling limits and gaps.","evidence": "Positions available at the inspected epoch; interval coverage not certified. Center distance is not clearance."}]}
+  ],
+  "limits": [
+    "One attempt per task; two diagnostic reruns; no success-rate inference.",
+    "Single evaluator instrumentation review, no first-time-user comprehension study.",
+    "Initial selection cleared; follow-up tested tracking, time and camera context.",
+    "Stop checked with local scripted transport, not an extra live-provider task.",
+    "Independent range checks share loaded ephemerides; no external scientific accuracy certificate."
+  ]
+}

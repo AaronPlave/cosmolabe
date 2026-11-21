@@ -1,0 +1,321 @@
+{
+ "method": "Same cameras, epochs and layers on origin/main (4365adb9) and this branch (main merged), real viewer on software WebGL (SwiftShader), hosted terrain and imagery, each frame fully streamed (displayed imagery level at the wanted level, no fallback blocks, network idle twice 4 s apart). No provenance overrides: catalogs as shipped on each side. Differences are max-channel per pixel.",
+ "catalogs": [
+  "lro-moon",
+  "moonfall-shackleton",
+  "ingenuity-jezero",
+  "mars-imagery-jezero",
+  "msl-dingo-gap"
+ ],
+ "shots": [
+  {
+   "shot": "lro-moon/shk-t0",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    10,
+    10
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 21.3,
+   "lumaMain": 21.3
+  },
+  {
+   "shot": "lro-moon/shk-t2",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    10,
+    10
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 16.24,
+   "lumaMain": 16.24
+  },
+  {
+   "shot": "lro-moon/eq",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    6,
+    6
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 47.37,
+   "lumaMain": 47.37
+  },
+  {
+   "shot": "lro-moon/tr-hi-2500",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    2,
+    2
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 15.3,
+   "lumaMain": 15.3
+  },
+  {
+   "shot": "lro-moon/tr-hi-700",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    4,
+    4
+   ],
+   "meanAbs": 0.047,
+   "pctDiff>2": 0.126,
+   "pctDiff>16": 0.089,
+   "max": 135,
+   "lumaPR": 42.99,
+   "lumaMain": 42.97,
+   "rerun": "identical (0.000 mean, 0 px) on a second capture; the first differed by one place label (Rima Ariadaeus) fading in at capture time"
+  },
+  {
+   "shot": "lro-moon/tr-lo-2500",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    2,
+    2
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 8.49,
+   "lumaMain": 8.49
+  },
+  {
+   "shot": "lro-moon/tr-lo-700",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    4,
+    4
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 18.64,
+   "lumaMain": 18.64
+  },
+  {
+   "shot": "moonfall-shackleton/shk-oblique",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    10,
+    10
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 14.0,
+   "lumaMain": 14.0
+  },
+  {
+   "shot": "moonfall-shackleton/shk-wide",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    8,
+    8
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 10.41,
+   "lumaMain": 10.41
+  },
+  {
+   "shot": "ingenuity-jezero/jezero-oblique",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    11,
+    11
+   ],
+   "meanAbs": 0.014,
+   "pctDiff>2": 0.006,
+   "pctDiff>16": 0.0,
+   "max": 104,
+   "lumaPR": 71.43,
+   "lumaMain": 71.43
+  },
+  {
+   "shot": "ingenuity-jezero/jezero-wide",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    11,
+    11
+   ],
+   "meanAbs": 0.001,
+   "pctDiff>2": 0.001,
+   "pctDiff>16": 0.0,
+   "max": 5,
+   "lumaPR": 87.77,
+   "lumaMain": 87.77
+  },
+  {
+   "shot": "mars-imagery-jezero/jezero-oblique",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    null,
+    null
+   ],
+   "meanAbs": 0.017,
+   "pctDiff>2": 0.002,
+   "pctDiff>16": 0.0,
+   "max": 4,
+   "lumaPR": 90.86,
+   "lumaMain": 90.86
+  },
+  {
+   "shot": "msl-dingo-gap/gale-oblique",
+   "surface": [
+    "streamed",
+    "streamed"
+   ],
+   "settled": [
+    true,
+    true
+   ],
+   "level": [
+    10,
+    10
+   ],
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "pctDiff>16": 0.0,
+   "max": 0,
+   "lumaPR": 4.39,
+   "lumaMain": 4.39
+  }
+ ],
+ "globeAndTransition": [
+  {
+   "shot": "lro-moon/globe-hi-12000",
+   "surface": "preloading",
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "max": 0
+  },
+  {
+   "shot": "lro-moon/globe-hi-6000",
+   "surface": "streamed",
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "max": 0
+  },
+  {
+   "shot": "lro-moon/globe-lo-12000",
+   "surface": "preloading",
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "max": 0
+  },
+  {
+   "shot": "lro-moon/globe-lo-6000",
+   "surface": "streamed",
+   "meanAbs": 0.0,
+   "pctDiff>2": 0.0,
+   "max": 0
+  }
+ ],
+ "knownDifferences": [
+  "lro-moon/tr-hi-700 first capture: 973 px (0.126 %) in a 92x12 px place-label box (a label faded in); identical on a second capture",
+  "ingenuity-jezero/jezero-oblique 43 px (0.006 %, max 104), jezero-wide 0.001 % (max 5), mars-imagery-jezero 0.002 % (max 4): scattered edge pixels, no systematic region"
+ ],
+ "preexisting": "console 'Cannot read properties of undefined (reading width)' from three.js uploadTexture while the geographic overlay stack streams, identical on main"
+}

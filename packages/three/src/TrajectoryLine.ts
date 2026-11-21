@@ -37,6 +37,8 @@ export interface ColorSegment {
 }
 
 export interface TrajectoryLineOptions {
+  /** Placement provenance/coverage gate, also applied to cached paths and events. */
+  sampleAvailable?: (et: number) => boolean;
   /** Max number of rendered vertices. Default 32000. */
   maxPoints?: number;
   /**
@@ -69,6 +71,8 @@ export interface TrajectoryLineOptions {
   minTime?: number;
   /** Maximum time — freeze trail at this time (for completed arcs) */
   maxTime?: number;
+  /** Surface-flight trails stop at landing; explicit event leads still work. */
+  activeOnly?: boolean;
   /** Fixed position resolver that overrides the one passed to update() */
   fixedResolver?: PositionResolver;
   /** Fraction of trail (from oldest end) that fades to transparent (0-1, default 1.0 = full fade) */
@@ -82,6 +86,9 @@ export interface TrajectoryLineOptions {
   /** Pre-computed trajectory cache. When provided, samples are extracted from cache
    *  via binary search instead of live SPICE calls. */
   cache?: TrajectoryCache;
+  /** Cache-window refresh interval in trajectory seconds. Default 300;
+   * short surface flights can request their declared plot sampling interval. */
+  cacheResampleInterval?: number;
   /**
    * Treat the trajectory as a closed periodic orbit whose spatial extent doesn't change.
    * Sample once at first update; never resample. Skip per-frame tail too — the body's
@@ -179,6 +186,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
   // Pre-computed trajectory cache (null = live sampling)
   private cache: TrajectoryCache | null = null;
+  private readonly cacheResampleInterval: number;
   // Window indices into cache (set by recomputeSamples when cache is used)
   private cacheWindowLo = 0;
   private cacheWindowHi = 0;
@@ -198,14 +206,18 @@ export class TrajectoryLine extends THREE.Object3D {
   // Time bounds
   private readonly minTime?: number;
   private readonly maxTime?: number;
+  private readonly activeOnly: boolean;
   private readonly fixedResolver?: PositionResolver;
   private userVisible = true;
+  private readonly sampleAvailable?: (et: number) => boolean;
 
   constructor(body: Body, options: TrajectoryLineOptions = {}) {
     super();
     this.body = body;
+    this.sampleAvailable = options.sampleAvailable;
     this.name = `${body.name}_trajectory`;
     this.cache = options.cache ?? null;
+    this.cacheResampleInterval = Math.max(0, options.cacheResampleInterval ?? 300);
     // When a cache is provided, default buffer size to cache count (ensures the
     // full pre-computed dataset can be displayed). Explicit maxPoints still overrides.
     this.maxPoints =
@@ -228,6 +240,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this.orbitNumPoints = 300;
     this.minTime = options.minTime;
     this.maxTime = options.maxTime;
+    this.activeOnly = options.activeOnly ?? false;
     this.fixedResolver = options.fixedResolver;
     this.fadeFraction = options.fadeFraction ?? 1.0;
     this.subdivisionPixels = options.subdivisionPixels ?? 1;
@@ -375,6 +388,9 @@ export class TrajectoryLine extends THREE.Object3D {
     };
   }
 
+  /** The show/hide choice `setUserVisible` last made. */
+  get isUserVisible(): boolean { return this.userVisible; }
+
   setUserVisible(visible: boolean): void {
     this.userVisible = visible;
     this.visible = visible;
@@ -465,6 +481,19 @@ export class TrajectoryLine extends THREE.Object3D {
     };
   }
 
+  /** Independent of cached vertices: recheck placement before displaying them. */
+  sampleAvailableAt(et: number): boolean {
+    try { return this.sampleAvailable?.(et) ?? true; } catch { return false; }
+  }
+
+  private hideUnavailable(): void {
+    this.visible = false;
+    this.trailLine.geometry.setDrawRange(0, 0);
+    this.lead.hide();
+    this.lead.invalidate();
+    this._needsResample = true;
+  }
+
   /** Resolve through the exact fixed/fallback resolver used to draw this line. */
   positionAt(et: number, resolver?: PositionResolver): [number, number, number] {
     return this.resolveAt(et, this.fixedResolver ?? resolver);
@@ -508,6 +537,11 @@ export class TrajectoryLine extends THREE.Object3D {
     _canvasHeight?: number,
     vertexOffset?: [number, number, number],
   ): void {
+    const sampleEt = Math.max(this.minTime ?? -Infinity, Math.min(et, this.maxTime ?? Infinity));
+    if (!this.sampleAvailableAt(sampleEt)) {
+      this.hideUnavailable();
+      return;
+    }
     if (!this.userVisible) {
       this.lead.hide();
       return;
@@ -517,11 +551,11 @@ export class TrajectoryLine extends THREE.Object3D {
     const resolver = this.fixedResolver ?? resolvePos;
 
     // The trail is hidden before its arc starts and once its window has moved
-    // entirely past the arc's end. The lead is not: a future arc's path can be
-    // requested (an event on it) before the playhead reaches the arc.
+    // entirely past the arc's end (or at landing for activeOnly paths). The
+    // lead is not: an event can request it before the playhead reaches the arc.
     const trailActive =
       !(this.minTime != null && et < this.minTime) &&
-      !(this.maxTime != null && et - this.trailDuration > this.maxTime);
+      !(this.maxTime != null && (this.activeOnly ? et : et - this.trailDuration) > this.maxTime);
     this.trailLine.visible = trailActive;
     if (this.orbitLine) this.orbitLine.visible = trailActive;
     if (!trailActive) {
@@ -541,11 +575,10 @@ export class TrajectoryLine extends THREE.Object3D {
 
     if (this.cache) {
       // ── Cache path: throttled resample (binary search) + bridge + tail ──
-      const CACHE_RESAMPLE = 300; // 5 min — just a binary search, no SPICE calls
       const needsResample =
         this._needsResample ||
         this.lastComputedEt === -Infinity ||
-        Math.abs(et - this.lastComputedEt) >= CACHE_RESAMPLE;
+        Math.abs(et - this.lastComputedEt) >= this.cacheResampleInterval;
       if (needsResample) {
         this._needsResample = false;
         this.lastComputedEt = et;
@@ -600,6 +633,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // Phase 2: Apply offset and write to Float32 buffers
     this.applyOffset(scaleFactor, vertexOffset, camera);
+    if (!this.visible) return;
     this.updateLead(et, scaleFactor, resolver, vertexOffset, camera);
   }
 
@@ -622,6 +656,7 @@ export class TrajectoryLine extends THREE.Object3D {
       offset: vertexOffset ?? [0, 0, 0],
       resolve: (t) => this.resolveAt(t, resolver),
       cache: this.cache,
+      sampleAvailable: this.sampleAvailable ? t => this.sampleAvailableAt(t) : undefined,
       head: tail && tail.t === et ? tail : null,
       coverage: this.coverage(),
       color: this._activeColor,
@@ -943,6 +978,10 @@ export class TrajectoryLine extends THREE.Object3D {
         const cTimes = this.cache.times;
         const cPositions = this.cache.positions;
         for (let i = 0; i < count; i++) {
+          if (!this.sampleAvailableAt(this.cache.times[lo + i])) {
+            this.hideUnavailable();
+            return;
+          }
           const ci = (lo + i) * 3;
           this.trailPositions[i * 3] = (cPositions[ci] + offX) * scaleFactor;
           this.trailPositions[i * 3 + 1] =
@@ -1119,6 +1158,7 @@ export class TrajectoryLine extends THREE.Object3D {
     t: number,
     resolver?: PositionResolver,
   ): [number, number, number] {
+    if (!this.sampleAvailableAt(t)) return [NaN, NaN, NaN];
     if (resolver) {
       return resolver(this.body.name, t);
     }

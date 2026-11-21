@@ -59,7 +59,11 @@ function preferHit(hit: EventMarkerHit, best: EventMarkerHit | null): boolean {
 export type EventMarkerType = EventMarker['kind'];
 
 export interface EventMarkersOptions {
+  /** Recheck cached annotations against the owning path placement contract. */
+  sampleAvailable?: (et: number) => boolean;
   markerSize?: number;
+  /** Surface plot glyphs share physical scene depth; inertial annotations default on top. */
+  depthTest?: boolean;
   intervalSamples?: number;
   color?: THREE.ColorRepresentation;
   selectedColor?: THREE.ColorRepresentation;
@@ -72,6 +76,8 @@ export interface EventMarkersOptions {
    * interval sample.
    */
   path?: () => readonly DrawnTrail[];
+  /** Current local-plot to scene transform, shared by glyphs and drawn spans. */
+  transform?: () => THREE.Matrix4 | undefined;
 }
 
 /** Future geometry is available only to the selected or previewed event. */
@@ -605,6 +611,14 @@ export class EventMarkers extends THREE.Object3D {
     return this.visuals.find((item) => item.marker.id === id && item.marker.queryId === queryId)?.layout ?? null;
   }
 
+  /** Draw-enabled objects from the last update, not a pixel/occlusion guarantee. */
+  visibilityFor(id: string, queryId: string): { glyphs: number; spans: number } {
+    if (!this.visible) return { glyphs: 0, spans: 0 };
+    const visuals = this.visuals.filter(v => v.marker.id === id && v.marker.queryId === queryId);
+    return { glyphs: visuals.reduce((n, v) => n + v.sprites.filter(s => s.visible && s.material.opacity > 0).length, 0),
+      spans: this.selectedStroke.currentKey === `${queryId}\u0000${id}` && this.spanEmphasis.visible ? 1 : 0 };
+  }
+
   private isPreview(marker: EventMarker): boolean {
     return this.preview?.id === marker.id && this.preview.queryId === marker.queryId;
   }
@@ -633,7 +647,9 @@ export class EventMarkers extends THREE.Object3D {
       const emphasized = !!marker.selected || this.isPreview(marker);
       const range = emphasized && leadVisibility ? leadVisibility.range : visibleRange;
       visual.visibleRange = range;
-      const inRange = range !== null &&
+      const available = !this.options.sampleAvailable || visual.times.every(t => this.options.sampleAvailable!(t));
+      if (!available) visual.framePositions = null;
+      const inRange = available && range !== null &&
         visual.pieceStart <= range[1] && visual.pieceEnd >= range[0];
       if (!inRange) {
         visual.visibleRange = null;
@@ -676,6 +692,8 @@ export class EventMarkers extends THREE.Object3D {
           (pos[2] + vertexOffset[2]) * scaleFactor,
         );
       }
+      const transform = this.options.transform?.();
+      if (transform) for (const point of visual.points) point.applyMatrix4(transform);
       visual.layout = marker.temporality === 'interval' && camera && viewport
         ? intervalLayoutForPixels(this.projectedVisibleLength(visual, camera, viewport, projected))
         : 'full';
@@ -786,7 +804,12 @@ export class EventMarkers extends THREE.Object3D {
       return path
         .filter((run) => run.count > 1 &&
           run.times[0] < end && run.times[run.count - 1] > start)
-        .map((run) => ({ line: trailPolyline(run), start, end }));
+        .map((run) => {
+          const local = trailPolyline(run), transform = this.options.transform?.();
+          const line: Polyline = transform ? { count: local.count, time: local.time,
+            at: (i, out) => local.at(i, out).applyMatrix4(transform) } : local;
+          return { line, start, end };
+        });
     }
     return [{
       line: { count: visual.points.length, time: (i) => visual.times[i], at: (i, out) => out.copy(visual.points[i]) },
@@ -1093,7 +1116,7 @@ export class EventMarkers extends THREE.Object3D {
     const material = new THREE.SpriteMaterial({
       color,
       transparent: true,
-      depthTest: false,
+      depthTest: this.options.depthTest ?? false,
       depthWrite: false,
       sizeAttenuation: false,
     });

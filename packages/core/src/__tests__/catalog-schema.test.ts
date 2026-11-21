@@ -75,6 +75,11 @@ describe('shipped catalogs', () => {
 });
 
 describe('validateCatalog', () => {
+  it('recognizes the parsed surface plot frame, sampling and timeline settings', () => {
+    expect(validateCatalog(withItem({ trajectoryPlot: {
+      frame: 'BodyFixed', sampleInterval: '0.05s', timelineLabel: 'Flight',
+    } }))).toEqual([]);
+  });
   it('names the key, the node, the path and the fix for a misspelled field', () => {
     const [d, ...rest] = validateCatalog(withItem({
       trajectory: { type: 'Keplerian', semiMajorAxis: 7000, eccentrcity: 0.01 },
@@ -124,6 +129,31 @@ describe('validateCatalog', () => {
     }));
     expect(ds.map((d) => d.path)).toEqual(['$.items[0].geometry.terrain.imagery[0].levles']);
     expect(ds[0].suggestion).toBe('levels');
+  });
+
+  it('accepts the imagery illumination contract on terrain and on each imagery layer (#204)', () => {
+    expect(validateCatalog(withItem({
+      geometry: {
+        type: 'Globe', radius: 1737.4,
+        imagery: [{ url: 'x', illumination: 'baked' }],
+        terrain: { type: '3dtiles', url: 'y', illumination: 'reflectance', imagery: [{ url: 'x', illumination: 'unknown' }] },
+      },
+    }))).toEqual([]);
+  });
+
+  it('accepts terrain.solarShadows as a flag or a clipmap config, and catches a misspelt key (#205)', () => {
+    const terrain = (solarShadows: unknown) => withItem({ geometry: { type: 'Globe', radius: 1737.4, terrain: { type: '3dtiles', url: 'y', solarShadows } } });
+    expect(validateCatalog(terrain(true))).toEqual([]);
+    expect(validateCatalog(terrain({ levels: [{ halfKm: 8, size: 256 }, { halfKm: 64, size: 256 }], budgetMs: 2, biasKm: 0.002, maxAltitudeKm: 300 }))).toEqual([]);
+    const ds = validateCatalog(terrain({ levels: [{ halfKm: 8, sise: 256 }] }));
+    expect(ds.map((d) => d.suggestion)).toEqual(['size']);
+  });
+
+  it('accepts the optional orbital terrain shadow level', () => {
+    const catalog = withItem({ geometry: { type: 'Globe', radius: 1737.4, terrain: {
+      type: '3dtiles', url: 'y', orbitalSolarShadows: { halfKm: 1500, size: 256, maxAltitudeKm: 1150 },
+    } } });
+    expect(validateCatalog(catalog)).toEqual([]);
   });
 
   it('reports an unknown trajectory or rotation type, and its nearest spelling', () => {

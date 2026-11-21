@@ -281,3 +281,49 @@ describe('navigation verbs', () => {
     expect(err.message).toBe('line 1: jumpTo: no object named "Enceladas" (did you mean "Enceladus"?)');
   });
 });
+
+describe('places and imagery', () => {
+  it('goes to a place by its ref, flying unless told to jump', async () => {
+    const host = new FakeViewer();
+    await run(host, ['gotoPlace "[\\"titan-names\\",\\"42\\"]"', 'gotoPlace "[\\"titan-names\\",\\"42\\"]" jump'].join('\n'));
+    expect(host.calls).toEqual([
+      'gotoPlace("[\\"titan-names\\",\\"42\\"]", true, undefined)',
+      'gotoPlace("[\\"titan-names\\",\\"42\\"]", false, undefined)',
+    ]);
+    expect(host.selectedPlace).toBe('["titan-names","42"]');
+  });
+
+  it('answers a name typed where a ref belongs with the refs it finds', async () => {
+    const err = await failure(new FakeViewer(), 'gotoPlace "Kraken"');
+    expect(err.message).toBe('line 1: gotoPlace: no place with ref "Kraken" (matching places: Kraken Mare on Titan = "[\\"titan-names\\",\\"42\\"]")');
+    expect(err.problems[0].kind).toBe('unknown-target');
+  });
+
+  it('reports why a place that exists cannot be navigated to', async () => {
+    const err = await failure(new FakeViewer(), 'gotoPlace "[\\"titan-names\\",\\"43\\"]"');
+    expect(err.problems[0]).toMatchObject({ kind: 'failed', message: 'gotoPlace: frame mismatch' });
+  });
+
+  it('toggles an imagery layer and sets its opacity', async () => {
+    const host = new FakeViewer();
+    await run(host, ['showImagery Titan radar on', 'setImageryOpacity Titan radar 0.5'].join('\n'));
+    expect(host.imagery.Titan.layers[1]).toMatchObject({ visible: true, opacity: 0.5 });
+  });
+
+  it('names the layers there are when the layer is wrong, and the object when that is', async () => {
+    const host = new FakeViewer();
+    expect((await failure(host, 'showImagery Titan radr on')).message).toBe('line 1: showImagery: no imagery layer "radr" on Titan (did you mean "radar"?)');
+    expect((await failure(host, 'showImagery Titam radar on')).message).toBe('line 1: showImagery: no object named "Titam" (did you mean "Titan"?)');
+    expect((await failure(host, 'showImagery Saturn radar on')).message).toBe('line 1: showImagery: Saturn has no streamed imagery');
+  });
+
+  it('keeps the base layer on', async () => {
+    const err = await failure(new FakeViewer(), 'showImagery Titan iss off');
+    expect(err.message).toBe('line 1: showImagery: "iss" is the base layer and stays on');
+  });
+
+  it('refuses an opacity out of range as the viewer refusing it', async () => {
+    const err = await failure(new FakeViewer(), 'setImageryOpacity Titan radar 2');
+    expect(err.message).toBe('line 1: setImageryOpacity: the viewer refused Titan radar 2');
+  });
+});

@@ -6,12 +6,17 @@ import { surfaceNavigable, type UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
-  toggleProbe, clearProbePin, navigateToSurfacePoint, showNextInstrument,
+  toggleProbe, clearProbePin, navigateToSurfacePoint, showNextInstrument, applyViewPreset,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell, openTool } from './shell.svelte';
+import { shell, openTool, isToolAvailable } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
+import { shortcutFor } from './keymap';
+import { recordViewerLog } from './viewer-log.svelte';
+import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
+import { drawBody, startDrawing } from './geographic-editing.svelte';
+import { geographicFeatureName } from '@cosmolabe/core';
 
 export interface Command {
   id: string;
@@ -25,34 +30,42 @@ const r0 = getRenderer;
 
 /** Built-in commands */
 function getBuiltinCommands(): Command[] {
+  const center = vs.trackedBodyName ?? vs.selectedBodyName;
   return [
     // Catalog
-    { id: 'catalog:open', label: 'Open catalog…', shortcut: 'O', category: 'Catalog', execute: () => { shell.catalogBrowserOpen = true; } },
+    { id: 'catalog:open', label: 'Open catalog…', shortcut: shortcutFor('catalog:open'), category: 'Catalog', execute: () => { shell.catalogBrowserOpen = true; } },
 
     // Time
-    { id: 'time:play', label: vs.playing ? 'Pause' : 'Play', shortcut: 'Space', category: 'Time', execute: () => togglePlay() },
-    { id: 'time:reverse', label: 'Reverse', shortcut: 'R', category: 'Time', execute: () => reverse() },
-    { id: 'time:faster', label: 'Faster', shortcut: '↑', category: 'Time', execute: () => faster() },
-    { id: 'time:slower', label: 'Slower', shortcut: '↓', category: 'Time', execute: () => slower() },
-    { id: 'time:step-fwd', label: 'Step forward', shortcut: '→', category: 'Time', execute: () => stepForward() },
-    { id: 'time:step-back', label: 'Step backward', shortcut: '←', category: 'Time', execute: () => stepBackward() },
+    { id: 'time:play', label: vs.playing ? 'Pause' : 'Play', shortcut: shortcutFor('time:play'), category: 'Time', execute: () => togglePlay() },
+    { id: 'time:reverse', label: 'Reverse', shortcut: shortcutFor('time:reverse'), category: 'Time', execute: () => reverse() },
+    { id: 'time:faster', label: 'Faster', shortcut: shortcutFor('time:faster'), category: 'Time', execute: () => faster() },
+    { id: 'time:slower', label: 'Slower', shortcut: shortcutFor('time:slower'), category: 'Time', execute: () => slower() },
+    { id: 'time:step-fwd', label: 'Step forward', shortcut: shortcutFor('time:step-fwd'), category: 'Time', execute: () => stepForward() },
+    { id: 'time:step-back', label: 'Step backward', shortcut: shortcutFor('time:step-back'), category: 'Time', execute: () => stepBackward() },
 
     // Camera
-    { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: 'F', category: 'Camera', execute: () => flyToTracked() },
+    { id: 'cam:open', label: 'Camera panel', category: 'Camera', execute: () => openTool('camera') },
+    { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: shortcutFor('cam:fly-to'), category: 'Camera', execute: () => flyToTracked() },
     { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
     { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
-    { id: 'cam:go-to-coordinates', label: 'Go to coordinates…', category: 'Camera', execute: () => openTool('navigate') },
-    ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: 'Esc', category: 'Camera', execute: () => stopFlight() }] : []),
-    { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: 'M', category: 'Camera', execute: () => cycleCamera() },
-    { id: 'cam:reset', label: 'Reset to Free Orbit', shortcut: 'Esc', category: 'Camera', execute: () => resetCamera() },
+    ...(center ? (['top', 'sun', 'velocity'] as const).filter(preset => applyViewPreset(preset, center, { place: false }).ok).map(preset => ({
+      id: `cam:preset:${preset}`,
+      label: `${preset[0].toUpperCase()}${preset.slice(1)} view of ${center}`,
+      category: 'Camera',
+      execute: () => { const r = applyViewPreset(preset, center); if (!r.ok) recordViewerLog('warning', 'Camera view', `${preset} view of ${center} unavailable: ${r.reason}`); },
+    })) : []),
+    { id: 'cam:go-to-coordinates', label: 'Go to coordinates…', category: 'Camera', execute: () => { vs.navigateMode = 'coordinates'; openTool('navigate'); } },
+    ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: shortcutFor('cam:escape'), category: 'Camera', execute: () => stopFlight() }] : []),
+    { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: shortcutFor('cam:cycle'), category: 'Camera', execute: () => cycleCamera() },
+    { id: 'cam:reset', label: 'Reset to Free Orbit', shortcut: shortcutFor('cam:escape'), category: 'Camera', execute: () => resetCamera() },
     { id: 'cam:export', label: 'Export camera view (download JSON)', category: 'Camera', execute: (r) => exportCameraView(r) },
     { id: 'cam:import', label: 'Import camera view (from file)', category: 'Camera', execute: (r) => { void importCameraViewFromFile(r); } },
 
     // Display
-    { id: 'disp:traj', label: vs.showTrajectories ? 'Hide trajectories' : 'Show trajectories', shortcut: 'T', category: 'Display', execute: () => setDisplayOption('trajectories', !vs.showTrajectories) },
-    { id: 'disp:labels', label: vs.showLabels ? 'Hide labels' : 'Show labels', shortcut: 'L', category: 'Display', execute: () => setDisplayOption('labels', !vs.showLabels) },
-    { id: 'disp:grid', label: vs.showGrid ? 'Hide grid' : 'Show grid', shortcut: 'G', category: 'Display', execute: () => setDisplayOption('grid', !vs.showGrid) },
-    { id: 'disp:axes', label: vs.showAxes ? 'Hide axes' : 'Show axes', shortcut: 'X', category: 'Display', execute: () => setDisplayOption('axes', !vs.showAxes) },
+    { id: 'disp:traj', label: vs.showTrajectories ? 'Hide trajectories' : 'Show trajectories', shortcut: shortcutFor('disp:traj'), category: 'Display', execute: () => setDisplayOption('trajectories', !vs.showTrajectories) },
+    { id: 'disp:labels', label: vs.showLabels ? 'Hide labels' : 'Show labels', shortcut: shortcutFor('disp:labels'), category: 'Display', execute: () => setDisplayOption('labels', !vs.showLabels) },
+    { id: 'disp:grid', label: vs.showGrid ? 'Hide grid' : 'Show grid', shortcut: shortcutFor('disp:grid'), category: 'Display', execute: () => setDisplayOption('grid', !vs.showGrid) },
+    { id: 'disp:axes', label: vs.showAxes ? 'Hide axes' : 'Show axes', shortcut: shortcutFor('disp:axes'), category: 'Display', execute: () => setDisplayOption('axes', !vs.showAxes) },
 
     // Observations are contextual (shown while active, or when selected); this
     // keeps every one up to the clock instead — the pin-everything path.
@@ -62,16 +75,40 @@ function getBuiltinCommands(): Command[] {
     }},
 
     // Inspect
-    { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
+    { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: shortcutFor('probe:toggle'), category: 'Inspect', execute: () => toggleProbe() },
     ...(vs.probePin ? [
       { id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() },
       ...(surfaceNavigable(vs.probePin) ? [{ id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin', verb: 'frame' }); } }] : []),
     ] : []),
 
+    // Surface layers
+    { id: 'layers:open', label: 'Surface layers', category: 'Inspect', execute: () => openTool('layers') },
+    ...(drawBody() ? [
+      { id: 'draw:polygon', label: `Draw a polygon on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('polygon') },
+      { id: 'draw:path', label: `Draw a path on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('line') },
+      { id: 'draw:point', label: `Place a point on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('point') },
+    ] : []),
+    ...geographicSelectionCommands(),
+
+    ...(isToolAvailable('ask') ? [{ id: 'ask:open', label: 'Ask Cosmolabe…', category: 'Inspect', execute: () => openTool('ask') }] : []),
+
     // Instrument
-    { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
+    { id: 'instr:open', label: 'Open instrument view', shortcut: shortcutFor('instr:open'), category: 'Display', execute: () => openTool('instrument') },
     // Sensor cycling is an explicit palette action, separate from open/focus.
     { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: () => showNextInstrument() },
+  ];
+}
+
+/** Actions on the selected geographic feature, named after it. */
+function geographicSelectionCommands(): Command[] {
+  const found = findFeature(geo.selected);
+  if (!found || !geo.selected) return [];
+  const ref = geo.selected;
+  const name = geographicFeatureName(found.feature);
+  return [
+    { id: 'layers:fly', label: `Fly to ${name}`, category: 'Inspect', execute: () => { goToFeature(ref); } },
+    { id: 'layers:frame', label: `Frame ${name}`, category: 'Inspect', execute: () => { goToFeature(ref, { cut: true }); } },
+    { id: 'layers:deselect', label: 'Clear surface feature selection', shortcut: 'Esc', category: 'Inspect', execute: () => { clearGeographicSelection(); } },
   ];
 }
 
@@ -118,7 +155,11 @@ function getPluginCommands(): Command[] {
 
 /** All commands (built-in + plugin) */
 export function getCommands(): Command[] {
-  return [...getBuiltinCommands(), ...getReferenceCommands(), ...getPluginCommands()];
+  const viewpoints: Command[] = (getRenderer()?.cameraController.getViewpoints() ?? []).map(v => ({
+    id: `viewpoint:${v.name}`, label: v.name, category: 'Viewpoints',
+    execute: r => { r.applyNamedViewpoint(v.name, { animate: true }); },
+  }));
+  return [...getBuiltinCommands(), ...viewpoints, ...getReferenceCommands(), ...getPluginCommands()];
 }
 
 /** All command categories (for palette grouping) */

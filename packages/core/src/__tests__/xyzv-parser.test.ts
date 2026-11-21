@@ -128,8 +128,14 @@ withData('CatalogLoader with InterpolatedStates + resolveFile', () => {
     expect(result.bodies).toHaveLength(1);
     const voyager = result.bodies[0];
 
-    // Query state — Voyager 1 launched 1977, positions should be large (AU scale)
-    const et = -7e8; // ~1977-1978
+    // Evaluate inside the file's actual interval. A launch-era guess used to
+    // pass only because stateAt silently held the file's first endpoint.
+    const records = parseXyzv(readFileSync(VOYAGER1, 'utf-8'));
+    const et = (records[0].et + records[1].et) / 2;
+    expect(voyager.trajectory).toBeInstanceOf(InterpolatedStatesTrajectory);
+    expect(voyager.trajectory.stateAt(records[0].et).position).toEqual(records[0].position);
+    expect(voyager.trajectory.stateAt(records[0].et - 1).position.every(Number.isNaN)).toBe(true);
+    expect(voyager.trajectory.availabilityAt?.(records[0].et - 1)).toMatchObject({ available: false, reason: 'before-coverage' });
     const state = voyager.stateAt(et);
     expect(state.position[0]).not.toBe(0); // Not a FixedPoint fallback
     const dist = Math.sqrt(

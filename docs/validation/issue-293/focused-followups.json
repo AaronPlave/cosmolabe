@@ -1,0 +1,52 @@
+{
+  "catalogs": [
+    "ingenuity-jezero",
+    "moonfall-shackleton",
+    "msl-dingo-gap",
+    "fixtures/mission-activities"
+  ],
+  "errors": [],
+  "httpErrors": [],
+  "abortedRequests": 5,
+  "otherRequestFailures": [],
+  "touch": [
+    {
+      "catalog": "ingenuity-jezero",
+      "geometry": {
+        "inspectorBottom": 640,
+        "transportTop": 689,
+        "pageWidth": 390
+      },
+      "hasTouch": true,
+      "hover": false
+    },
+    {
+      "catalog": "msl-dingo-gap",
+      "geometry": {
+        "inspectorBottom": 619,
+        "transportTop": 668,
+        "pageWidth": 390
+      },
+      "hasTouch": true,
+      "hover": false
+    }
+  ],
+  "overlap": {
+    "records": 7,
+    "marks": 4,
+    "groupMembers": 4,
+    "selectedEveryOverflowMember": true
+  },
+  "details": {
+    "singleDisclosure": true,
+    "fullLimitationsVisible": true,
+    "rawEtInUi": false
+  },
+  "performance": {
+    "records": 10000,
+    "meanMs": 16.640833333631356,
+    "p95Ms": 17.600000023841858,
+    "marks": 4,
+    "options": 1
+  }
+}

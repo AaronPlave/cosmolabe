@@ -1,0 +1,551 @@
+{
+  "version": 1,
+  "kind": "locked-surface-plan",
+  "desired": {
+    "version": 1,
+    "kind": "desired-surface-plan",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "-180..180",
+      "referenceShape": {
+        "kind": "sphere",
+        "radiusKm": 3396.19
+      }
+    },
+    "layers": [
+      {
+        "id": "synthetic",
+        "name": "Synthetic Skyfall-style fixture; no actual mission geometry",
+        "body": "Mars",
+        "source": "embedded",
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "approach",
+              "properties": null,
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      -10,
+                      -10
+                    ],
+                    [
+                      10,
+                      -10
+                    ],
+                    [
+                      10,
+                      10
+                    ],
+                    [
+                      -10,
+                      10
+                    ],
+                    [
+                      -10,
+                      -10
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "landing",
+              "properties": null,
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      -1,
+                      -1
+                    ],
+                    [
+                      1,
+                      -1
+                    ],
+                    [
+                      1,
+                      1
+                    ],
+                    [
+                      -1,
+                      1
+                    ],
+                    [
+                      -1,
+                      -1
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "regions": [
+      {
+        "id": "approach",
+        "feature": {
+          "layerId": "synthetic",
+          "featureId": "string:approach"
+        },
+        "imagery": {
+          "gsdM": 500000
+        },
+        "elevation": {
+          "gsdM": 30000
+        },
+        "fallback": "allow-coarser"
+      },
+      {
+        "id": "landing",
+        "feature": {
+          "layerId": "synthetic",
+          "featureId": "string:landing"
+        },
+        "imagery": {
+          "gsdM": 15000
+        },
+        "elevation": {
+          "gsdM": 30000
+        },
+        "fallback": "allow-coarser"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "base",
+      "productId": "synthetic-base-v1",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "source",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -20,
+                    -20
+                  ],
+                  [
+                    20,
+                    -20
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    -20,
+                    20
+                  ],
+                  [
+                    -20,
+                    -20
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 333000,
+      "accuracyM": 1,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Generated synthetic fixture: base.tif",
+        "bytes": 259891,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "4097893bd4e7856028f9b4577da59457036481f575a758d8e93e0f43df73af70"
+        }
+      },
+      "license": {
+        "name": "Apache-2.0 synthetic fixture",
+        "attribution": "Cosmolabe diagnostic data; not observational Mars data"
+      }
+    },
+    {
+      "id": "detail",
+      "productId": "synthetic-detail-v1",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "source",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -20,
+                    -20
+                  ],
+                  [
+                    20,
+                    -20
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    -20,
+                    20
+                  ],
+                  [
+                    -20,
+                    -20
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 74000,
+      "accuracyM": 1,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Generated synthetic fixture: detail.tif",
+        "bytes": 4571,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "7046f6c8eceaa3997b82c9c5258c5aceb31f5fac084b8fb7eccf4ffdf4a46448"
+        }
+      },
+      "license": {
+        "name": "Apache-2.0 synthetic fixture",
+        "attribution": "Cosmolabe diagnostic data; not observational Mars data"
+      }
+    },
+    {
+      "id": "context",
+      "productId": "synthetic-context-v1",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "source",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -20,
+                    -20
+                  ],
+                  [
+                    20,
+                    -20
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    -20,
+                    20
+                  ],
+                  [
+                    -20,
+                    -20
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 333500,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Generated synthetic fixture: context.json",
+        "bytes": 571,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "7c82e1682e03ae71aa463e40820d78fc84916ae739ca6b250da0ddc870aea13a"
+        }
+      },
+      "license": {
+        "name": "Apache-2.0 synthetic fixture",
+        "attribution": "Cosmolabe diagnostic data; not observational Mars data"
+      }
+    },
+    {
+      "id": "detail-image",
+      "productId": "synthetic-detail-image-v1",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "source",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -20,
+                    -20
+                  ],
+                  [
+                    20,
+                    -20
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    -20,
+                    20
+                  ],
+                  [
+                    -20,
+                    -20
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 41700,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Generated synthetic fixture: detail-image.json",
+        "bytes": 587,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "d0bd2dd4cef31e5365307f6e8b4d5312607706303774d1294c0a8beef230733a"
+        }
+      },
+      "license": {
+        "name": "Apache-2.0 synthetic fixture",
+        "attribution": "Cosmolabe diagnostic data; not observational Mars data"
+      }
+    }
+  ],
+  "selections": [
+    {
+      "regionId": "approach",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 30000,
+      "resampling": "cubic",
+      "transformations": [
+        "identity"
+      ]
+    },
+    {
+      "regionId": "approach",
+      "channel": "imagery",
+      "sourceIds": [
+        "context"
+      ],
+      "outputGsdM": 500000,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    },
+    {
+      "regionId": "landing",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 30000,
+      "resampling": "cubic",
+      "transformations": [
+        "identity"
+      ]
+    },
+    {
+      "regionId": "landing",
+      "channel": "imagery",
+      "sourceIds": [
+        "detail-image"
+      ],
+      "outputGsdM": 15000,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    }
+  ],
+  "processing": {
+    "generator": {
+      "name": "cosmolabe-surface-build",
+      "version": "1"
+    },
+    "fusion": "residual-bias-none",
+    "parameters": {
+      "terrain": {
+        "base": "base",
+        "detail": "detail",
+        "globalLevel": 2,
+        "regions": [],
+        "blendM": 150000,
+        "fitStride": 2
+      },
+      "imagery": [
+        {
+          "sourceId": "context",
+          "globalLevel": 0,
+          "regions": [],
+          "visible": true,
+          "opacity": 1
+        },
+        {
+          "sourceId": "detail-image",
+          "globalLevel": 0,
+          "regions": [
+            "landing@0,0:1=2000,2=1500,3=1000,4=500"
+          ],
+          "visible": true,
+          "opacity": 1
+        }
+      ],
+      "gates": {
+        "maxOffsetM": 1,
+        "maxBoundaryStepM": 1,
+        "clearanceM": 100,
+        "controls": [
+          {
+            "lat": 0,
+            "lon": 0,
+            "heightM": 1000,
+            "toleranceM": 1
+          }
+        ]
+      },
+      "caveats": [
+        "Synthetic spherical Mars only; not the real ellipsoid foundation.",
+        "No observed HiRISE DTM at the synthetic landing site.",
+        "Independent image density exceeds terrain density; source-native resolution remains coarser than some output texels."
+      ]
+    }
+  },
+  "output": {
+    "representation": "tiled-raster-pyramid",
+    "formatVersion": "cosmolabe-cube-1",
+    "tileSize": 32,
+    "gutter": 2,
+    "imageryEncoding": "png",
+    "elevationEncoding": "float32"
+  },
+  "desiredIdentity": "sha256:59568d8eb7c7099c5c990bc90a174b6179e6defbec3dcd8a3f16e4f829e92af1",
+  "identity": "sha256:89c1e469b6359e2f89a28cae1e1c1697ef7e59062b0e97f2b7643235db95aebb"
+}

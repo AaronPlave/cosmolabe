@@ -109,7 +109,6 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
           fix(node.terrain, 'normalMapUrl');
           if (isObj(node.terrain.cubeSphere)) {
             fix(node.terrain.cubeSphere, 'cpuGrids');
-            if (isObj(node.terrain.cubeSphere.imagery)) fix(node.terrain.cubeSphere.imagery, 'url');
           }
           fixUrls(node.terrain.imagery);
         }

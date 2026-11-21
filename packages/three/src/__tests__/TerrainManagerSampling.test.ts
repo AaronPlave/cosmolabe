@@ -162,6 +162,19 @@ describe('TerrainManager CPU sampling wiring', () => {
 });
 
 describe('TerrainManager debug surface modes and metrics', () => {
+  it('reads surface residency without walking models, geometry or textures', () => {
+    const tm = makeManager();
+    const scene = new THREE.Group();
+    const walk = tm.tiles.forEachLoadedModel;
+    (tm.tiles as any).forEachLoadedModel = () => { throw new Error('expensive model walk'); };
+    expect(tm.surfaceStatus.tiles.loaded).toBe(0);
+    tm.tiles.dispatchEvent({ type: 'load-model', scene, tile: {} } as any);
+    expect(tm.surfaceStatus.tiles.loaded).toBe(1);
+    tm.tiles.dispatchEvent({ type: 'dispose-model', scene, tile: {} } as any);
+    expect(tm.surfaceStatus.tiles.loaded).toBe(0);
+    tm.tiles.forEachLoadedModel = walk;
+    tm.dispose();
+  });
   /** Neighbouring real z14 tiles at Jezero, plus their parent. */
   const JEZERO = [[14, 23432, 9870], [14, 23433, 9870], [13, 11716, 4935]] as const;
   const load = (tm: TerrainManager, z: number, x: number, y: number) => {

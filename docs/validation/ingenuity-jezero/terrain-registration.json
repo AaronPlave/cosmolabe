@@ -1,0 +1,63 @@
+{
+  "kind": "terrain-registration-source-comparison",
+  "referenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/DTM_MOLAtopography_DeltaGeoid_20m_Jezero_F05X_v7pt1_Eqc_latTs0_lon0.tif",
+  "inputs": {
+    "base": {
+      "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "bytes": 11384463908,
+      "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+    },
+    "detail": {
+      "file": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+      "bytes": 1839545409,
+      "sha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8"
+    },
+    "ctxLvs": {
+      "file": "ctx-dtm.tif",
+      "bytes": 9662387,
+      "sha256": "16a1aa66c3f48c1bca252795827db7b417876217aff0f5e1aff18027fab2327b"
+    }
+  },
+  "sampling": {
+    "method": "Every 256th native pixel centre, starting at (128,128); original detail mask; cubic comparison kernels",
+    "count": 4634,
+    "excluded": 2422,
+    "observationInputs": []
+  },
+  "detailMinusCtxM": {
+    "n": 4634,
+    "meanM": -0.3865177164062414,
+    "rmsM": 3.7390052604268837,
+    "p95AbsM": 7.581020333704191,
+    "maxAbsM": 18.317153970012896
+  },
+  "planeRemovedDetailMinusCtxM": {
+    "n": 4634,
+    "meanM": 7.505608562687289,
+    "rmsM": 10.6165140574386,
+    "p95AbsM": 21.689186168245257,
+    "maxAbsM": 33.69271992779704
+  },
+  "baseMinusCtxM": {
+    "n": 4634,
+    "meanM": 7.499505770699143,
+    "rmsM": 18.19156584816976,
+    "p95AbsM": 38.08724627401943,
+    "maxAbsM": 90.00752341051839
+  },
+  "fittedPlaneM": {
+    "n": 4634,
+    "meanM": -7.892126279093533,
+    "rmsM": 10.316048123086338,
+    "p95AbsM": 19.190027449917583,
+    "maxAbsM": 23.542836058119445
+  },
+  "decision": "Keep original authored HiRISE heights; do not subtract the fitted plane to the lower-resolution global base.",
+  "rationale": "The TRN production paper documents HiRISE vertical/tilt adjustment to CTX LVS, itself aligned to HRSC. Subtracting a new plane against another global raster would replace that control without an independent higher-quality reference. CTX comparison is corroboration of the published control chain, not independent absolute validation.",
+  "evidenceUrl": "https://www.hou.usra.edu/meetings/lpsc2020/pdf/2020.pdf",
+  "limitations": [
+    "Native post spacing is not effective terrain resolution or vertical accuracy.",
+    "Systematic grid sample is not exhaustive validation.",
+    "CTX and HiRISE share registration provenance; absolute accuracy remains unknown."
+  ]
+}

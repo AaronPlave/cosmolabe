@@ -2,6 +2,41 @@
   "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... Local-only experiments declare localOnly plus their catalog paths and are omitted from deployment bundles. See docs/data-hosting.md.",
   "version": 1,
   "datasets": {
+    "science-raster/moon-minirf-south-pole": {
+      "kind": "science-raster",
+      "name": "moon-minirf-south-pole",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-south-pole-49f0257b30403126",
+      "catalogPrefix": "data/moon-science/minirf-south-pole-49f0257b30403126/",
+      "build": "m2-49f0257b30403126"
+    },
+    "science-raster/moon-minirf-haworth": {
+      "kind": "science-raster",
+      "name": "moon-minirf-haworth",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-haworth-7109289e364b5297",
+      "catalogPrefix": "data/moon-science/minirf-haworth-7109289e364b5297/",
+      "build": "r1-7109289e364b5297"
+    },
+    "science-raster/moon-minirf-amundsen": {
+      "kind": "science-raster",
+      "name": "moon-minirf-amundsen",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/minirf-amundsen-bd39f3a1b49193e9",
+      "catalogPrefix": "data/moon-science/minirf-amundsen-bd39f3a1b49193e9/",
+      "build": "r1-bd39f3a1b49193e9"
+    },
+    "science-raster/moon-diviner-summer-max": {
+      "kind": "science-raster",
+      "name": "moon-diviner-summer-max",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/diviner-90a09af641e79b00",
+      "catalogPrefix": "data/moon-science/diviner-90a09af641e79b00/",
+      "build": "d1-90a09af641e79b00"
+    },
+    "science-raster/moon-psr": {
+      "kind": "science-raster",
+      "name": "moon-psr",
+      "localDir": "apps/viewer/test-catalogs/data/moon-science/psr-79496e2f44a49200",
+      "catalogPrefix": "data/moon-science/psr-79496e2f44a49200/",
+      "build": "p2-79496e2f44a49200"
+    },
     "terrain/mars-terrain-fused": {
       "kind": "terrain",
       "name": "mars-terrain-fused",
@@ -273,8 +308,86 @@
       "build": null,
       "localOnly": true,
       "catalogs": [
-        "experiments/mars-terrain-cube-jezero.json"
+        "experiments/mars-terrain-cube-jezero.json",
+        "mars-cube-imagery-experiment.json"
       ]
+    },
+    "cube-terrain/terrain-3846907d293e9e5d0b0243ce": {
+      "kind": "cube-terrain",
+      "name": "terrain-3846907d293e9e5d0b0243ce",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce",
+      "catalogPrefix": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/",
+      "build": "3846907d293e9e5d0b0243cefc2ed446"
+    },
+    "cube-imagery/imagery-04513d4681559e949e39e30f": {
+      "kind": "cube-imagery",
+      "name": "imagery-04513d4681559e949e39e30f",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f",
+      "catalogPrefix": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/",
+      "build": "04513d4681559e949e39e30fcaaaec3f"
+    },
+    "cube-imagery/imagery-11f675fe48a13579126bb3cd": {
+      "kind": "cube-imagery",
+      "name": "imagery-11f675fe48a13579126bb3cd",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd",
+      "catalogPrefix": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/",
+      "build": "11f675fe48a13579126bb3cd85c3cb42"
+    },
+    "cube-imagery/imagery-ab90c8bd749d673d3f786918": {
+      "kind": "cube-imagery",
+      "name": "imagery-ab90c8bd749d673d3f786918",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918",
+      "catalogPrefix": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/",
+      "build": "ab90c8bd749d673d3f7869185cbf5040"
+    },
+    "cube-imagery/imagery-4992e13935cc9898d6522634": {
+      "kind": "cube-imagery",
+      "name": "imagery-4992e13935cc9898d6522634",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634",
+      "catalogPrefix": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/",
+      "build": "4992e13935cc9898d65226349f2cf222"
+    },
+    "cube-terrain/terrain-207dcdb48c82b74acaad4fcb": {
+      "kind": "cube-terrain",
+      "name": "terrain-207dcdb48c82b74acaad4fcb",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb",
+      "catalogPrefix": "data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb/",
+      "build": "207dcdb48c82b74acaad4fcb22452b06"
+    },
+    "cube-imagery/imagery-df467b18c609f3ac702aaeaf": {
+      "kind": "cube-imagery",
+      "name": "imagery-df467b18c609f3ac702aaeaf",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf",
+      "catalogPrefix": "data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf/",
+      "build": "df467b18c609f3ac702aaeaf84eb0668"
+    },
+    "cube-imagery/imagery-65a14eef13d9c08962ea5879": {
+      "kind": "cube-imagery",
+      "name": "imagery-65a14eef13d9c08962ea5879",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/imagery-65a14eef13d9c08962ea5879",
+      "catalogPrefix": "data/curiosity-cube/imagery-65a14eef13d9c08962ea5879/",
+      "build": "65a14eef13d9c08962ea5879f795274b"
+    },
+    "cube-imagery/moon-imagery-cube-wac": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-wac",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-wac",
+      "catalogPrefix": "data/moon-imagery-cube-wac/",
+      "build": "cube-imagery-base-8382ea2b8d3b8ff4"
+    },
+    "cube-imagery/moon-imagery-cube-nac-independent": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-nac-independent",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-nac-independent",
+      "catalogPrefix": "data/moon-imagery-cube-nac-independent/",
+      "build": "cube-imagery-nac-48f50054db064666"
+    },
+    "cube-imagery/moon-imagery-cube-psr-nac-stretch": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-psr-nac-stretch",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-psr-nac-stretch",
+      "catalogPrefix": "data/moon-imagery-cube-psr-nac-stretch/",
+      "build": "cube-imagery-raster-997ebce1d5066c40"
     }
   }
 }

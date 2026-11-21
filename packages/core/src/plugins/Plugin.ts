@@ -1,3 +1,4 @@
+import type { PluginData } from './PluginData.js';
 import type { Universe } from '../Universe.js';
 
 export interface CosmolabePlugin {
@@ -12,5 +13,8 @@ export interface CosmolabePlugin {
    * scalar (number, boolean, or string); hosts adapt other value types before delivery.
    */
   onResourceUpdate?(resources: Record<string, number | boolean | string>): void;
+  /** Changed typed products supplied by the host. Omitted keys retain their
+   * previous values; scalar resources remain backward compatible. */
+  onDataUpdate?(data: Readonly<Record<string, PluginData<unknown>>>): void;
   dispose?(): void;
 }

@@ -1,0 +1,37 @@
+{
+  "kind": "sparse-pds-helicopter-geometry-check",
+  "flight": 12,
+  "inputs": {
+    "imageLabel": {
+      "file": "flight-12-pds-label.xml",
+      "bytes": 33283,
+      "sha256": "7ddeb356040bf613096919385d1552d72c0485169d94ab28c16be327957bed5d"
+    },
+    "places": {
+      "file": "best_tactical.csv",
+      "bytes": 171404,
+      "sha256": "9da19e4f70287fe0d33ba716ff2169c10447c30c7a048583f730e4155226cde9"
+    },
+    "terrain": {
+      "file": "fused.tif",
+      "bytes": 480068839,
+      "sha256": "37b3fccc8e89854ba8cbd186bc21b1b2717c39ec1d9dc1918ee4b93ba86236c6"
+    }
+  },
+  "site3PositionM": [
+    -685.1760938501047,
+    -600.4873717683491,
+    -10.574429
+  ],
+  "planetocentricLatDeg": 18.433067810705317,
+  "longitudeEastDeg": 77.44020520505222,
+  "observedImageElevationAreoidM": -2559.335571,
+  "unchangedTerrainAreoidM": -2569.615148126121,
+  "observedImageAglM": 10.279577126120785,
+  "imageStartUtc": "2021-08-16T12:59:10.537794Z",
+  "sourceSclk": 682390538.5789139,
+  "utcMinusNominalSclkSeconds": 276.1428802013397,
+  "clockCaveat": "Nominal J2000-epoch comparison only; no whole-mission clock calibration inferred. Original mission epochs remain approximate and unchanged.",
+  "geometryCaveat": "Position at one archived camera event; not continuous helicopter telemetry. The per-flight G-to-SITE transform is explicitly supplied by this label.",
+  "sourceUrl": "https://planetarydata.jpl.nasa.gov/img/data/mars2020/mars2020_helicam/data/sol/00174/ids/fdr/heli/HNM_0174_0682390538_578FDR_N0120001HELI01649_0000LUJ04.xml"
+}

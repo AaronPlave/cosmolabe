@@ -52,18 +52,11 @@ try {
     const chrome = await page.evaluate(async () => {
       const { getCurrentRenderer } = await import('/src/lib/loader.ts');
       const renderer = getCurrentRenderer(); renderer.renderFrame();
+      // Vectors drawing as intended float nothing over the scene: the readout is for problems.
       const element = document.querySelector('.cl-geographic-status');
-      const rect = element.getBoundingClientRect();
-      const overlaps = [...document.querySelectorAll('[data-scene-occluder]')].filter(other => {
-        const b = other.getBoundingClientRect();
-        return b.width && b.height && rect.left < b.right && rect.right > b.left && rect.top < b.bottom && rect.bottom > b.top;
-      }).map(other => other.className);
-      return { visible: getComputedStyle(element).visibility !== 'hidden',
-        bounds: rect.toJSON(), overlaps, readout: element.textContent };
+      return { shown: !!element && getComputedStyle(element).display !== 'none' && !!element.textContent, readout: element?.textContent ?? '' };
     });
-    assert.equal(chrome.visible, true, `${name}: readout should fit beside viewer chrome`);
-    assert.ok(chrome.bounds.width >= 250 && chrome.bounds.height <= 48, `${name}: readout should stay compact and readable after resize`);
-    assert.deepEqual(chrome.overlaps, [], `${name}: readout must clear viewer chrome`);
+    assert.equal(chrome.shown, false, `${name}: no routine vector readout over the scene`);
     result.chrome.push({ name, viewport, ...chrome });
     await page.screenshot({ path: `${output}/viewer-chrome-${name}.png` });
   }
@@ -74,6 +67,6 @@ try {
   assert.equal(result.hit?.kind, 'geographic-feature');
   assert.equal(result.hit?.layerId, 'jezero-science');
   assert.equal(result.hit?.featureId, 'string:science');
-  assert.match(result.readout, /reference globe/);
+  assert.equal(result.readout ?? '', '', 'no readout without a drawing problem');
   console.log(result);
 } finally { await browser.close(); }

@@ -26,6 +26,8 @@ export interface FrameOrientationSource {
    * `body:Moon`, `lvlh:LRO/MOON`.
    */
   readonly frameId: string;
+  /** Last reason `orientation` returned null, when a provider can explain it. */
+  readonly fault?: string | null;
   /**
    * Frame→world quaternion (THREE x,y,z,w order) at `ctx.et`, written into
    * `out`. Null when the frame cannot be evaluated (no SPICE, coverage gap,
@@ -62,11 +64,25 @@ export function frameToWorldQuat(
  * SPICE CK, TLE and catalog rotations alike.
  */
 export function bodyRotationFrame(bodyName: string): FrameOrientationSource {
+  let fault: string | null = null;
   return {
     frameId: `body:${bodyName}`,
+    get fault() { return fault; },
     orientation(ctx, out) {
+      fault = null;
       const bm = ctx.bodyMeshes.get(bodyName);
-      return bm ? bodyWorldOrientation(bm, ctx.et, out) : null;
+      if (!bm) {
+        fault = `Body "${bodyName}" is not loaded.`;
+        return null;
+      }
+      try {
+        const orientation = bodyWorldOrientation(bm, ctx.et, out);
+        if (!orientation) fault = `Body "${bodyName}" has no rotation model.`;
+        return orientation;
+      } catch (error) {
+        fault = errorMessage(error);
+        return null;
+      }
     },
   };
 }
@@ -78,17 +94,27 @@ export function bodyRotationFrame(bodyName: string): FrameOrientationSource {
  * applied exactly once.
  */
 export function spiceFrame(frameName: string, frames?: FrameRegistry): FrameOrientationSource {
+  let fault: string | null = null;
   return {
     frameId: `spice:${frameName}`,
+    get fault() { return fault; },
     orientation(ctx, out) {
-      if (!ctx.spice) return null;
+      fault = null;
+      if (!ctx.spice) {
+        fault = 'No SPICE instance is available.';
+        return null;
+      }
       let m: number[];
       try {
         m = ctx.spice.pxform('J2000', frameName, ctx.et);
-      } catch {
+      } catch (error) {
+        fault = errorMessage(error);
         return null;
       }
-      if (!m || m.length !== 9) return null;
+      if (!m || m.length !== 9) {
+        fault = `SPICE returned an invalid transform for "${frameName}".`;
+        return null;
+      }
       return frameToWorldQuat(mat3ToQuat(m as unknown as RotationMatrix), 'J2000', ctx.et, frames, out);
     },
   };
@@ -112,26 +138,42 @@ const MIN_LVLH_SIN_ANGLE = 1e-12;
  * still goes through `frameToWorldQuat` so every source shares one composition.
  */
 export function lvlhFrame(bodyName: string, centerBodyName: string): FrameOrientationSource {
+  let fault: string | null = null;
   return {
     frameId: `lvlh:${bodyName}/${centerBodyName}`,
+    get fault() { return fault; },
     orientation(ctx, out) {
-      if (!ctx.spice || !bodyName || !centerBodyName) return null;
+      fault = null;
+      if (!ctx.spice || !bodyName || !centerBodyName) {
+        fault = !ctx.spice ? 'No SPICE instance is available.' : 'The LVLH body or center is missing.';
+        return null;
+      }
       let state: readonly number[];
       try {
         state = ctx.spice.spkezr(bodyName, ctx.et, 'ECLIPJ2000', 'NONE', centerBodyName).state;
-      } catch {
+      } catch (error) {
+        fault = errorMessage(error);
         return null;
       }
-      if (state.length !== 6 || !state.every(Number.isFinite)) return null;
+      if (state.length !== 6 || !state.every(Number.isFinite)) {
+        fault = `SPICE returned an invalid state for "${bodyName}" relative to "${centerBodyName}".`;
+        return null;
+      }
       const rScale = Math.max(Math.abs(state[0]), Math.abs(state[1]), Math.abs(state[2]));
       const vScale = Math.max(Math.abs(state[3]), Math.abs(state[4]), Math.abs(state[5]));
-      if (rScale === 0 || vScale === 0) return null;
+      if (rScale === 0 || vScale === 0) {
+        fault = `The state for "${bodyName}" relative to "${centerBodyName}" is degenerate.`;
+        return null;
+      }
       // Scale before normalizing so finite extreme magnitudes cannot overflow
       // or underflow the lengths or cross product.
       _r.set(state[0] / rScale, state[1] / rScale, state[2] / rScale).normalize();
       _v.set(state[3] / vScale, state[4] / vScale, state[5] / vScale).normalize();
       _normal.crossVectors(_r, _v);
-      if (_normal.lengthSq() <= MIN_LVLH_SIN_ANGLE ** 2) return null;
+      if (_normal.lengthSq() <= MIN_LVLH_SIN_ANGLE ** 2) {
+        fault = `The orbit plane for "${bodyName}" relative to "${centerBodyName}" is undefined.`;
+        return null;
+      }
       _normal.normalize();
       _nadir.copy(_r).normalize().negate();
       _along.crossVectors(_normal, _nadir).normalize();
@@ -144,4 +186,8 @@ export function lvlhFrame(bodyName: string, centerBodyName: string): FrameOrient
       return frameToWorldQuat(mat3ToQuat(toLvlh), 'ECLIPJ2000', ctx.et, undefined, out);
     },
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -30,6 +30,23 @@ it('retains a metre-scale lattice edge at Mars body-fixed scale without admittin
   expect(surface.intersectRay({ ...fixture.ray, direction: [outside[0] - o.xKm, outside[1] - o.yKm, outside[2] - o.zKm] }, { maxMeshErrorKm: 0.001 }).kind).toBe('miss');
 });
 
+it('exposes bounded triangle chunks without changing synchronous intersections', () => {
+  const count=1024, positions=new Float64Array(count*9), indices=new Uint32Array(count*3);
+  for(let i=0;i<count;i++) {
+    positions.set([i,0,0,i+1,0,0,i,1,0],i*9);
+    indices.set([i*3,i*3+1,i*3+2],i*3);
+  }
+  const surface=new CpuMeshSurface(metadata,{positionsKm:positions,indices},{meshDeviationBoundKm:0});
+  const ray:SurfaceRay={origin:{xKm:0,yKm:0,zKm:1},direction:[0,0,-1],nearKm:0,farKm:2};
+  const chunks=surface.intersectRaySteps(ray,options);
+  chunks.next();chunks.next();chunks.next();
+  expect(surface.trianglesTested).toBeLessThanOrEqual(128);
+  chunks.return({kind:'unavailable',reason:'budget',metadata});
+  const all=surface.intersectRaySteps(ray,options);
+  let step=all.next();while(!step.done)step=all.next();
+  expect(step.value).toEqual(surface.intersectRay(ray,options));
+});
+
 it('fits acceleration into spare memory without excluding a near-budget globe grid', () => {
   const width = 385, indexCount = (width - 1) ** 2 * 6;
   const meshBytes = width ** 2 * 24 + indexCount * 4;

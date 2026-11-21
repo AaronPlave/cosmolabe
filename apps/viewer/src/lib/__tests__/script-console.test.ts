@@ -72,6 +72,38 @@ describe('ScriptRunner', () => {
     expect(h.calls).toEqual(['deselect', 'gotoObject Mooon']);
   });
 
+  it('waits for event readiness before capture and forwards panel Stop to the shared predicate', async () => {
+    const h = fakeHost(), { r } = runner();
+    const request = { kind: 'event' as const, reference: { scene: 1, query: 'q', id: 'r', revision: 2 }, et: 42, policy: 'native-draw' as const };
+    const source = `waitUntilReady ${JSON.stringify(JSON.stringify(request))} 0.1\nscreenshot event`;
+    const capture = vi.fn(() => ({ dataUrl: 'data:image/png;base64,dGVzdA==' }));
+    h.host.screenshot = capture;
+    let observed = false;
+    h.host.waitUntilReady = (input, opts) => new Promise(resolve => {
+      const finish = (status: 'ready' | 'cancelled' | 'timed-out') => {
+        clearTimeout(timer); opts?.signal?.removeEventListener('abort', abort);
+        resolve({ scene: 1, request: input, status, missing: status === 'ready' ? [] : ['No event observation'], limitations: [] });
+      };
+      const abort = () => finish('cancelled');
+      const timer = setTimeout(() => finish(observed ? 'ready' : 'timed-out'), opts?.timeoutMs);
+      opts?.signal?.addEventListener('abort', abort);
+      expect(input).toEqual(request);
+    });
+    const success = r.run(source, h.host);
+    await flush(); expect(capture).not.toHaveBeenCalled();
+    observed = true; await vi.advanceTimersByTimeAsync(100);
+    expect(await success).toMatchObject({ phase: 'done', completed: 2, captures: 1 }); capture.mockClear();
+    observed = false;
+    const timeout = r.run(source, h.host);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await timeout).toMatchObject({ phase: 'failed', completed: 0, lines: { 1: 'error' } });
+    expect(capture).not.toHaveBeenCalled();
+    const cancelled = r.run(source, h.host); await flush();
+    r.stop('user pressed Stop');
+    expect(await cancelled).toMatchObject({ phase: 'cancelled', completed: 0, captures: 0 });
+    expect(capture).not.toHaveBeenCalled(); expect(h.loadListeners.size).toBe(0); expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('uses its own timer for wait, and counts it down', async () => {
     const h = fakeHost();
     const { r, states } = runner();

@@ -37,7 +37,7 @@
  *
  * Run `npm run build` first (it imports packages/three/dist).
  *
- *   node scripts/validate-cube-terrain.mjs [--dir DIR] [--out DIR] [--seed N] [--boundary-regression FILE]
+ *   node scripts/validate-cube-terrain.mjs [--dir DIR] [--out DIR] [--seed N] [--boundary-regression FILE] [--clearance-m 50]
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -69,6 +69,8 @@ const R_M = (manifest.geometry?.referenceRadiusKm ?? manifest.datum.referenceSha
 const ELLIPSOID = manifest.datum.referenceShape.kind === 'ellipsoid';
 const { geodeticToBodyFixed, bodyFixedToGeodetic } = await import(pathToFileURL(join(ROOT, 'packages/three/dist/TerrainSampler.js')).href);
 const studyPoint = args.site ? args.site.split(',').map(Number) : [-89.67, 129.78];
+const CLEARANCE_M = Number(args['clearance-m'] ?? 50);
+if (!Number.isFinite(CLEARANCE_M) || CLEARANCE_M <= 0 || CLEARANCE_M > 500) throw new Error('--clearance-m must be in (0, 500] metres');
 if (ELLIPSOID && !args.site) throw new Error('ellipsoidal validation requires --site GEODETIC_LAT,LON');
 const radialDatum = { referenceShape: { kind: 'sphere', radiusKm: R_M / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' };
 const FACES = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
@@ -480,11 +482,12 @@ const own = (label, points) => {
 };
 const shackleton = studyPoint;
 const before = source.coverage(...shackleton);
-gate(before.state === 'parent-fallback' && before.residentLevel === Math.min(2, manifest.maxLevel) && before.availableLevel === manifest.maxLevel,
-  `Shackleton must start on the level-2 fallback, got ${JSON.stringify(before)}`);
+const initialLevel = Math.min(2, before.availableLevel);
+gate(before.state === (before.availableLevel > initialLevel ? 'parent-fallback' : 'finest') && before.residentLevel === initialLevel,
+  `Study point must start on its resident level (or finest when already resident), got ${JSON.stringify(before)}`);
 for (const [lat, lon] of [shackleton, [-90, 0], [0, 180], [-45, 0], [-35.26438968, 45], [0, 0], [-60, -180]]) await source.request(lat, lon);
 const after = source.coverage(...shackleton);
-gate(after.state === 'finest' && after.residentLevel === manifest.maxLevel, `Shackleton must reach the finest level, got ${JSON.stringify(after)}`);
+gate(after.state === 'finest' && after.residentLevel === before.availableLevel, `Study point must reach its finest available level, got ${JSON.stringify(after)}`);
 own('south pole, any longitude', [[-90, 0], [-90, 90], [-90, 137], [-90, 180], [-90, -180], [-90, -45], [-90, 360]]);
 own('north pole, any longitude', [[90, 0], [90, 90], [90, -180], [90, 270]]);
 own('antimeridian equator', [[0, 180], [0, -180], [0, 540], [0, -540]]);
@@ -498,7 +501,7 @@ const expected = cubeTileId(cubeTileAt(cubeFaceToDirection(ec.face, ec.u, ec.v),
 gate(edgeOwner.tileId === expected, `px/nz edge must belong to ${expected}, got ${edgeOwner.tileId}`);
 console.log(`ownership: ${ownership.map(o => `${o.label} → ${o.tileId}`).join('; ')}`);
 
-const cps = Object.entries(ELLIPSOID ? {} : JSON.parse(readFileSync(join(ROOT, 'scripts/data/moon-elevations.json'), 'utf8'))).map(([k, m]) => {
+const cps = Object.entries(ELLIPSOID || product.coordinates?.body !== 'Moon' ? {} : JSON.parse(readFileSync(join(ROOT, 'scripts/data/moon-elevations.json'), 'utf8'))).map(([k, m]) => {
   const [lat, lon] = k.split(',').map(Number); return { lat, lon, lolaM: m };
 });
 for (const cp of cps) await source.request(cp.lat, cp.lon);
@@ -526,9 +529,9 @@ function bruteForce(ray, hit) {
     const id = cubeTileId(cubeTileAt(unit(q), level));
     if (tiles.has(id)) ids.add(id);
   }
-  return Math.min(...[...ids].map(id => bruteForceTile(ray, id)));
+  return Math.min(...[...ids].map(id => bruteForceTile(ray, id, { roundingEnvelope: true })));
 }
-function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false } = {}) {
+function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false, roundingEnvelope = false } = {}) {
   let glb = glbCache.get(tileId);
   if (!glb) { const [f, L, x, y] = tileId.split('/'); glbCache.set(tileId, glb = readGlb(join(DIR, f, L, x, `${y}.glb`))); }
   const o = [ray.origin.xKm * 1000, ray.origin.yKm * 1000, ray.origin.zKm * 1000], d = unit(ray.direction);
@@ -544,11 +547,18 @@ function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false 
       const det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
       if (Math.abs(det) < 1e-12) continue;
       const tv = [o[0] - A[0], o[1] - A[1], o[2] - A[2]];
+      // Adjacent float32 tile offsets can move a shared edge to either side
+      // of the exact CPU lattice. Compare within the same measured rounding
+      // envelope used by the shared-vertex and ray-distance gates, rather than
+      // a fixed barycentric margin whose physical width changes with LOD.
+      const roundingM = roundingEnvelope ? 2 * tiles.get(tileId).f32TolM : 0;
+      const uTolerance = Math.max(1e-6, roundingM * norm(e2) / Math.abs(det));
+      const vTolerance = Math.max(1e-6, roundingM * norm(e1) / Math.abs(det));
       const u = (tv[0] * pv[0] + tv[1] * pv[1] + tv[2] * pv[2]) / det;
-      if (u < -1e-6 || u > 1 + 1e-6) continue;
+      if (u < -uTolerance || u > 1 + uTolerance) continue;
       const qv = [tv[1] * e1[2] - tv[2] * e1[1], tv[2] * e1[0] - tv[0] * e1[2], tv[0] * e1[1] - tv[1] * e1[0]];
       const v = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) / det;
-      if (v < -1e-6 || u + v > 1 + 1e-6) continue;
+      if (v < -vTolerance || u + v > 1 + uTolerance + vTolerance) continue;
       const t = (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) / det;
       if (t > 0 && t < best) { best = t; bestTri = tri; }
     }
@@ -588,7 +598,7 @@ for (const [site, lat0, lon0, spreadKm] of sites) {
     const radialVsGlbM = SIMPLIFIED ? bruteForce({ origin: { xKm: 0, yKm: 0, zKm: 0 }, direction: unit(hp), nearKm: 0, farKm: 1e4 }, hit) - norm(hp) * 1000 : null;
     if (SIMPLIFIED) gate(Math.abs(radialVsGlbM) <= statedDeviationM.get(hit.tileId) + 0.05, `${site} pick ${k}: rendered ${radialVsGlbM.toFixed(3)} m radially from the CPU hit, stated ${statedDeviationM.get(hit.tileId)} m`);
     if (!Number.isFinite(brute)) failures.push(`${site} pick ${k}: no float32 triangle hit in ${hit.tileId} at ${JSON.stringify(hit.position)} (CPU distance ${hit.distanceKm} km, triangle ${hit.triangleIndex})`);
-    const cam = cameraPositionFromSurfacePick(hit, 0.05, true);
+    const cam = cameraPositionFromSurfacePick(hit, CLEARANCE_M / 1000, true);
     const camR = norm([cam.xKm, cam.yKm, cam.zKm]);
     const camGeo = bodyFixedToGeodetic(cam, datum);
     const camLat = camGeo.latDeg, camLon = camGeo.lonDeg;
@@ -602,7 +612,7 @@ for (const [site, lat0, lon0, spreadKm] of sites) {
   }
 }
 const pickStats = stats(pickRows.map(r => r.pickVsGlbM));
-const losStats = stats(pickRows.map(r => r.lineOfSightM - 50));
+const losStats = stats(pickRows.map(r => r.lineOfSightM - CLEARANCE_M));
 const clearanceMin = Math.min(...pickRows.map(r => r.clearanceAboveSampleM));
 gate(pickRows.every(r => r.detail === 'coarse'), 'partial-coverage hits must stay provisional (coarse)');
 // Unsimplified, the CPU surface is the emitted lattice; simplified, it is not (gated radially above).
@@ -611,10 +621,10 @@ const pickRadialStats = SIMPLIFIED ? stats(pickRows.map(r => r.radialVsGlbM)) : 
 if (SIMPLIFIED) console.log(`picking (simplified): CPU hit vs emitted triangles along the ray ${fmt(pickStats)}; radially ${fmt(pickRadialStats)}`);
 // Placement is gated; full clearance along the normal is measured: the #148
 // consumer places a camera, it does not certify a swept volume, and nearby
-// relief in a concave spot can come closer than the requested 50 m.
+// relief in a concave spot can come closer than the requested clearance.
 gate(clearanceMin > 0, `clearance camera below the CPU surface (${clearanceMin} m)`);
-const fullClearance = pickRows.filter(r => r.lineOfSightM != null && Math.abs(r.lineOfSightM - 50) < 0.01).length;
-console.log(`picking: ${pickRows.length} rays, CPU vs float32 triangles ${fmt(pickStats)}; clearance: ${fullClearance}/${pickRows.length} see their hit at 50 m, LOS error ${fmt(losStats)}; min height above CPU sample ${clearanceMin.toFixed(2)} m`);
+const fullClearance = pickRows.filter(r => r.lineOfSightM != null && Math.abs(r.lineOfSightM - CLEARANCE_M) < 0.01).length;
+console.log(`picking: ${pickRows.length} rays, CPU vs float32 triangles ${fmt(pickStats)}; clearance: ${fullClearance}/${pickRows.length} see their hit at ${CLEARANCE_M} m, LOS error ${fmt(losStats)}; min height above CPU sample ${clearanceMin.toFixed(2)} m`);
 
 // Picks and clearance at the mitigated boundaries themselves: rays aimed at the
 // worst-gap vertex of mixed-level edges (fine levels 7–12, same- and cross-face),
@@ -652,8 +662,8 @@ for (const w of chosen) {
     }
     const pair = (triangles) => [w.tile, w.against].map(id => bruteForceTile(ray, id, { triangles, withIndex: true })).sort((a, b) => a.t - b.t)[0];
     const withSkirts = pair('all'), surfaceOnly = pair('surface');
-    // Clearance: the #148 camera 50 m along the CPU hit normal, then straight down onto the rendered pair.
-    const cam = cameraPositionFromSurfacePick(hit, 0.05, true);
+    // Clearance: the #148 camera along the CPU hit normal, then straight down onto the rendered pair.
+    const cam = cameraPositionFromSurfacePick(hit, CLEARANCE_M / 1000, true);
     const down = { origin: cam, direction: [-hit.normal[0], -hit.normal[1], -hit.normal[2]], nearKm: 0, farKm: 5 };
     const renderedBelow = [w.tile, w.against].map(id => bruteForceTile(down, id, { triangles: 'all' })).reduce((a, b) => Math.min(a, b));
     boundaryRows.push({ tile: w.tile, edge: w.edge, against: w.against, crossFace: w.crossFace, levels: [t.L, w.coarseLevel], gapM: worstGap,
@@ -685,12 +695,12 @@ const boundaryStats = {
   skirtHitOverEdgeGap: stats(onPair.filter(r => r.renderedOnSkirt).map(r => Math.abs(r.renderedMinusCpuM) / Math.max(r.gapM, 1e-3))),
   renderedOnSkirt: onPair.filter(r => r.renderedOnSkirt).length,
   throughCrackWithoutSkirts: onPair.filter(r => r.throughCrackWithoutSkirts).length,
-  renderedClearanceM: stats(boundaryRows.filter(r => r.renderedClearanceM != null).map(r => r.renderedClearanceM - 50)),
+  renderedClearanceM: stats(boundaryRows.filter(r => r.renderedClearanceM != null).map(r => r.renderedClearanceM - CLEARANCE_M)),
   renderedClearanceMinM: Math.min(...boundaryRows.map(r => r.renderedClearanceM ?? Infinity)),
 };
 console.log(`boundary picks: ${boundaryStats.raysOnPair}/${boundaryStats.rays} rays on the pair at ${chosen.length} worst mixed-level edges; rendered − CPU ${fmt(boundaryStats.renderedMinusCpuM)}; `
   + `${boundaryStats.renderedOnSkirt} rendered hits on a skirt (rendered − CPU ${fmt(boundaryStats.skirtHitRenderedMinusCpuM)}), ${boundaryStats.throughCrackWithoutSkirts} would pass through the crack without skirts; `
-  + `rendered clearance − 50 m ${fmt(boundaryStats.renderedClearanceM)} (min ${boundaryStats.renderedClearanceMinM.toFixed(2)} m)`);
+  + `rendered clearance − ${CLEARANCE_M} m ${fmt(boundaryStats.renderedClearanceM)} (min ${boundaryStats.renderedClearanceMinM.toFixed(2)} m)`);
 
 // ---------------------------------------------------------------------------
 
@@ -713,14 +723,14 @@ const report = {
     samplesPerTile: PER_TILE, byLevel: cpuVsTriStats },
   representationVsFusedField: product.representationErrorM,
   ownership: { shackletonBefore: before, shackletonAfter: after, cases: ownership },
-  controlPoints: { reference: ELLIPSOID ? 'Mars source controls validated by validate_mars_cube.py; no lunar controls used' : 'scripts/data/moon-elevations.json — LOLA LDEM 118 m nearest pixel (MoonFall waypoints)', stats: controlStats, rows: controlRows },
-  picking: { rays: pickRows.length, cpuVsFloat32Triangles: pickStats, clearanceM: 0.05 * 1000, raysWithFullClearance: fullClearance, lineOfSightErrorM: losStats,
+  controlPoints: { reference: product.coordinates?.body !== 'Moon' ? 'Source-specific controls are validated by the build caller; no lunar controls used' : 'scripts/data/moon-elevations.json — LOLA LDEM 118 m nearest pixel (MoonFall waypoints)', stats: controlStats, rows: controlRows },
+  picking: { rays: pickRows.length, cpuVsFloat32Triangles: pickStats, clearanceM: CLEARANCE_M, raysWithFullClearance: fullClearance, lineOfSightErrorM: losStats,
     minHeightAboveCpuSampleM: clearanceMin, rows: pickRows },
   skirts: SKIRTS ? { description: product.mesh.skirts, builder: product.skirtGaps, coverage: { pairs: skirtCover.pairs, samples: skirtCover.samples,
     uncovered: skirtCover.uncovered.length, radialGapM: stats(skirtCover.gapRadialM), marginM: stats(skirtCover.marginM),
     minMarginM: skirtCover.marginM.reduce((a, b) => Math.min(a, b), Infinity), higherSide: skirtCover.coveredBy } } : null,
   mixedLodCrackPairsByDeltaLevel: crackDeltaHistogram,
-  boundaryPicks: { note: 'rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair',
+  boundaryPicks: { note: `rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera ${CLEARANCE_M} m along the CPU normal, straight down onto the rendered pair`,
     ...boundaryStats, unavailable: boundaryUnavailable, rows: boundaryRows },
   sourceStats: source.stats,
   failures,
