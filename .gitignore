@@ -135,3 +135,4 @@ apps/viewer/test-catalogs/data/earth-bluemarble-cube/
 /work/debug-*.mjs
 /work/decode-bench.mjs
 /work/mars-draft.log
+/work/dev-server.log
