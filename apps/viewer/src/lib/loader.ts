@@ -26,9 +26,13 @@ import {
 import { createHeritageSpice, kernelNameFromUrl, type HeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
-import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
+import { GeometrySearchWorker, setVirtualImageryWorkerFactory, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
+import VirtualImageryRelayWorker from '../workers/virtual-imagery-relay.ts?worker';
+
+// Virtual cube imagery (#136) resamples XYZ/WMTS sources off the render thread.
+setVirtualImageryWorkerFactory(() => new VirtualImageryRelayWorker());
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {

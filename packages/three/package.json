@@ -35,7 +35,8 @@
       "development": "./src/index.ts",
       "import": "./dist/index.js"
     },
-    "./src/workers/spice-cache.worker": "./src/workers/spice-cache.worker.ts"
+    "./src/workers/spice-cache.worker": "./src/workers/spice-cache.worker.ts",
+    "./src/workers/virtual-imagery.worker": "./src/workers/virtual-imagery.worker.ts"
   },
   "files": [
     "dist",
@@ -57,7 +58,6 @@
     "cspice-wasm": "*",
     "@cosmolabe/control": "*",
     "three-mesh-bvh": "0.9.16"
-
   },
   "peerDependencies": {
     "three": "^0.183.2"

@@ -1,0 +1,306 @@
+/** Browser acceptance for virtual cube imagery (#136) over coarse cube terrain.
+ *
+ * Build the local fixtures first (gitignored):
+ *   /usr/bin/python3.12 scripts/terrain/coarse_cube_fixture.py mars  --source <mola dir> --work <dir>
+ *   /usr/bin/python3.12 scripts/terrain/coarse_cube_fixture.py earth --source <etopo dir> --work <dir>
+ *   /usr/bin/python3.12 scripts/terrain/cube_imagery.py xyz --source <bluemarble-3857.json> \
+ *     --out apps/viewer/test-catalogs/data/earth-bluemarble-cube --body Earth --frame IAU_EARTH --radius-km 6378.137 --global-level 3
+ * Serve:  DEV_DATA_MODE=local npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5196
+ * Run:    node scripts/test-virtual-cube-imagery.mjs [mars|earth|all] [outDir]
+ *
+ * Mars uses the live upstream XYZ services (Trek Viking/HiRISE, Esri CTX); Earth uses
+ * live NASA GIBS for two real days and a deterministic mock (one colour per UTC day,
+ * delayed responses) for gaps, failures, cancellation and race conditions.
+ * GPU: software GL by default (frame times are then SwiftShader, not GPU timings).
+ * VIRTUAL_IMAGERY_GPU=metal|hardware launches with a real GPU for Metal/desktop numbers.
+ */
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import sharp from 'sharp';
+
+const [which = 'all', output = 'work/virtual-cube-imagery'] = process.argv.slice(2);
+const base = process.env.VIRTUAL_IMAGERY_URL ?? 'http://127.0.0.1:5196';
+const gpu = process.env.VIRTUAL_IMAGERY_GPU ?? 'software';
+await mkdir(output, { recursive: true });
+const args = gpu === 'metal' ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu']
+  : gpu === 'hardware' ? ['--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+const browser = await chromium.launch({ headless: true, args, executablePath: process.env.CL_CHROMIUM ?? (gpu === 'software' ? '/opt/pw-browsers/chromium' : undefined) });
+const result = { gpu, base, startedAt: new Date().toISOString(), mars: null, earth: null, errors: [] };
+const round = (v, d = 3) => (typeof v === 'number' ? Number(v.toFixed(d)) : v);
+
+async function open(catalog, bodyName) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  page.setDefaultTimeout(180_000);
+  const requests = [];
+  page.on('pageerror', e => { result.errors.push(`${bodyName}: ${e.message}`); console.error(e.message); });
+  page.on('console', m => { if (/GL_INVALID|INVALID_OPERATION|Shader Error/.test(m.text())) result.errors.push(`${bodyName}: ${m.text()}`); });
+  page.on('request', r => { if (/astro\.arcgis|trek\.nasa|gibs\.earthdata/.test(r.url())) requests.push(r.url()); });
+  await page.goto(`${base}/?catalog=test-catalogs/experiments/${catalog}`, { timeout: 180_000 });
+  await page.waitForFunction(b => window.renderer?.getBodyMesh(b)?.terrainManager?.cubeImageryStats?.ready, bodyName, { timeout: 180_000 });
+  await page.evaluate(async b => { await window.renderer.getBodyMesh(b).terrainManager.cubeImageryLayer.ready; window.cosmo.setPlaying(false); window.cosmo.select(b); }, bodyName);
+  const api = {
+    page, requests,
+    async settle(allowBudget = true, timeout = 180_000) {
+      await page.waitForFunction(({ b, allowBudget }) => {
+        const t = window.renderer.getBodyMesh(b).terrainManager, n = t.metrics.network, i = t.cubeImageryStats;
+        return t.tiles.visibleTiles.size > 0 && n.queued + n.downloading + n.parsing === 0 && i && i.inFlight === 0 &&
+          (i.queued === 0 || (allowBudget && i.budgetLimited)) && (!i.sourceCache || (i.sourceCache.inFlight === 0 && i.sourceCache.queued === 0));
+      }, { b: bodyName, allowBudget }, { timeout, polling: 250 });
+      await page.waitForTimeout(400);
+    },
+    /** Camera `altitudeKm` above the physical surface hit along the local vertical, looking down, north up. */
+    pose: (lat, lon, altitudeKm, fov = 40) => page.evaluate(async ({ b, lat, lon, altitudeKm, fov }) => {
+      const r = window.renderer, body = r.getBodyMesh(b), t = body.terrainManager, V = r.camera.position.constructor;
+      window.cosmo.setPlaying(false); window.cosmo.untrack();
+      const rad = Math.PI / 180, d = [Math.cos(lat * rad) * Math.cos(lon * rad), Math.cos(lat * rad) * Math.sin(lon * rad), Math.sin(lat * rad)];
+      const R = t.bodyRadiusKm + 30;
+      const ray = { origin: { xKm: d[0] * R, yKm: d[1] * R, zKm: d[2] * R }, direction: d.map(x => -x), nearKm: 0, farKm: 120 };
+      await t.cube.surface.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
+      const hit = body.intersectTerrainRay(ray, { maxMeshErrorKm: 0 });
+      if (hit?.kind !== 'hit') throw new Error('No physical surface for pose: ' + JSON.stringify(hit));
+      window.virtualImageryRay = ray;
+      const target = [hit.position.xKm, hit.position.yKm, hit.position.zKm];
+      const centre = new V(); body.getWorldPosition(centre);
+      const toWorld = ([x, y, z]) => new V(x, z, -y).applyQuaternion(body.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+      const eye = toWorld(target.map((x, i) => x + d[i] * altitudeKm)), aim = toWorld(target), c = r.camera, controls = r.cameraController.controls;
+      controls.enableDamping = false; controls.target.copy(aim); c.fov = fov; c.updateProjectionMatrix(); c.position.copy(eye);
+      const north = [-Math.sin(lat * rad) * Math.cos(lon * rad), -Math.sin(lat * rad) * Math.sin(lon * rad), Math.cos(lat * rad)];
+      c.up.copy(toWorld(north).sub(centre).normalize()); c.lookAt(aim); c.updateMatrixWorld(true);
+      return hit;
+    }, { b: bodyName, lat, lon, altitudeKm, fov }),
+    snapshot: () => page.evaluate(async ({ b, root }) => {
+      const { directionToCubeFace } = await import(root + '/packages/three/src/surface/CubeSphere.ts');
+      const { texelGroundSizeKm } = await import(root + '/packages/three/src/surface/CubeImagery.ts');
+      const r = window.renderer, body = r.getBodyMesh(b), t = body.terrainManager, layer = t.cubeImageryLayer, renderer = r.getContext().webglRenderer;
+      const ids = [...t.tiles.visibleTiles].map(x => x.content?.uri).filter(Boolean).sort();
+      const geometryLevels = ids.map(u => Number(/\/(\d+)\/\d+\/\d+\.glb/.exec(u)?.[1] ?? -1));
+      const attributes = [...t.tiles.visibleTiles].flatMap(tile => {
+        const out = [];
+        tile.engineData?.scene?.traverse(o => { if (o.isMesh) out.push([o.geometry.getAttribute('position').uuid, o.geometry.getAttribute('position').count]); });
+        return out;
+      }).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+      const ray = window.virtualImageryRay, cpuHit = body.intersectTerrainRay(ray, { maxMeshErrorKm: 0 });
+      const radiusKm = Math.hypot(cpuHit.position.xKm, cpuHit.position.yKm, cpuHit.position.zKm);
+      const d = [ray.origin.xKm, ray.origin.yKm, ray.origin.zKm].map(v => v / Math.hypot(ray.origin.xKm, ray.origin.yKm, ray.origin.zKm));
+      const face = directionToCubeFace(d), tileSize = layer.manifest.tileSize;
+      const centre = layer.sampleAt(d).map(s => ({ id: s.id, enabled: s.enabled, level: s.level,
+        transparent: s.texture ? (s.texture.image?.width ?? 0) <= 1 : null,
+        displayedMetersPerPixel: s.level >= 0 ? texelGroundSizeKm(s.level, face.u, face.v, radiusKm, tileSize) * 1000 : null }));
+      const stats = t.cubeImageryStats;
+      return { ids, maxGeometryLevel: Math.max(...geometryLevels), geometryTiles: ids.length, attributes, cpuHit: cpuHit.position, centre,
+        layers: body.imageryLayers.map(l => ({ id: l.id, status: l.status, requests: l.requests, failedTiles: l.failedTiles, view: l.view, date: l.temporal?.date ?? null })),
+        virtual: layer.virtualSources.map(v => ({ id: v.id, date: v.date, coverage: v.coverage, stats: v.stats, degradedResident: v.degradedResident })),
+        imagery: { requests: stats.requests, textures: stats.textures, textureBytes: stats.textureBytes, maxTextureBytes: stats.maxTextureBytes,
+          gpuAllocatedBytes: stats.gpuAllocatedBytes, failures: stats.failures, aborted: stats.aborted, evicted: stats.evicted, budgetLimited: stats.budgetLimited,
+          baseUncoveredBlocks: stats.baseUncoveredBlocks, maxDisplayedLevel: stats.maxDisplayedLevel, displayedLevels: stats.displayedLevels, updateMs: stats.updateMs,
+          sourceCache: stats.sourceCache, virtualTiles: stats.virtualTiles },
+        draws: renderer.info.render.calls, textureCount: renderer.info.memory.textures, terrainBytes: t.tiles.lruCache.cachedBytes };
+    }, { b: bodyName, root: '/@fs' + process.cwd() }),
+    cap: level => page.evaluate(({ b, level }) => window.renderer.getBodyMesh(b).terrainManager.cubeImageryLayer.setOptions({ maxLevel: level }), { b: bodyName, level }),
+    shot: name => page.locator('canvas').first().screenshot({ path: `${output}/${name}.png` }),
+    async timing(frames = 60) {
+      return page.evaluate(async frames => {
+        const r = window.renderer, old = r.renderFrame, gl = r.getContext().webglRenderer.getContext(), cpu = [];
+        r.renderFrame = function (...a) { gl.finish(); const s = performance.now(); const v = old.apply(this, a); gl.finish(); cpu.push(performance.now() - s); return v; };
+        try { for (let i = 0; i < frames; i++) await new Promise(requestAnimationFrame); } finally { r.renderFrame = old; }
+        cpu.sort((x, y) => x - y);
+        return { frames: cpu.length, medianMs: cpu[cpu.length >> 1], p95Ms: cpu[Math.floor(cpu.length * 0.95)] };
+      }, frames);
+    },
+  };
+  return api;
+}
+
+/** Fixed terrain, imagery capped at the deepest drawn geometry level, then uncapped: imagery-only refinement. */
+async function independence(api, name, site, layerId) {
+  await api.cap(3); await api.pose(site.lat, site.lon, site.altitudeKm); await api.settle();
+  const geometryLevel = (await api.snapshot()).maxGeometryLevel;
+  await api.cap(geometryLevel); await api.settle();
+  const coarse = await api.snapshot(); await api.shot(`${name}-capped-L${geometryLevel}`);
+  const before = api.requests.length;
+  await api.cap(undefined); await api.settle();
+  const fine = await api.snapshot(); await api.shot(`${name}-native`);
+  const timing = await api.timing();
+  const layer = fine.centre.find(c => c.id === layerId), coverage = fine.virtual.find(v => v.id === layerId)?.coverage;
+  // Terrain geometry and CPU surface are untouched by imagery refinement.
+  assert.deepEqual(fine.ids, coarse.ids, `${name}: terrain tile set changed with imagery`);
+  assert.deepEqual(fine.attributes, coarse.attributes, `${name}: terrain buffers changed with imagery`);
+  assert.deepEqual(fine.cpuHit, coarse.cpuHit, `${name}: CPU surface hit changed with imagery`);
+  assert.ok(layer.level > fine.maxGeometryLevel, `${name}: ${layerId} level ${layer.level} not finer than geometry ${fine.maxGeometryLevel}`);
+  return { site, geometryLevel: fine.maxGeometryLevel, geometryTiles: fine.geometryTiles, layer, coverage, upstreamRequests: api.requests.length - before,
+    coarse: { centre: coarse.centre, imagery: coarse.imagery, draws: coarse.draws }, fine: { centre: fine.centre, imagery: fine.imagery, draws: fine.draws, layers: fine.layers, virtual: fine.virtual }, timing };
+}
+
+async function mars() {
+  const api = await open('mars-virtual-imagery', 'Mars');
+  const out = { sites: {}, cycle: [], outage: null };
+  const sites = {
+    gale: { lat: -4.59, lon: 137.44, altitudeKm: 1.5, note: 'py/nx face seam (135°E), southern hemisphere' },
+    olympus: { lat: 18.4, lon: -133.8, altitudeKm: 1.5, note: 'nx face, northern hemisphere, high relief' },
+    hale: { lat: -35.7, lon: -36.4, altitudeKm: 1.5, note: 'px face, southern mid-latitude' },
+    korolev: { lat: 73.0, lon: 164.5, altitudeKm: 1.5, note: 'pz face, northern high latitude' },
+    antimeridian: { lat: 4.0, lon: 179.9, altitudeKm: 1.5, note: 'source antimeridian wrap on the nx face' },
+  };
+  for (const [name, site] of Object.entries(sites)) {
+    console.log('mars', name);
+    out.sites[name] = await independence(api, `mars-${name}`, site, 'ctx-global');
+    const c = out.sites[name];
+    console.log(`  geometry L${c.geometryLevel}; CTX L${c.layer.level} (${round(c.layer.displayedMetersPerPixel, 2)} m/px), transparent=${c.layer.transparent}; native ${round(c.coverage.nativeMetersPerPixel, 2)} m/px`);
+  }
+  // HiRISE: a regional source inside its bounds, deeper than CTX.
+  out.sites.jezero = await independence(api, 'mars-jezero-hirise', { lat: 18.4447, lon: 77.4508, altitudeKm: 0.3, note: 'regional HiRISE bounds' }, 'jezero-hirise');
+  // Region changes: residency stays bounded.
+  for (let pass = 0; pass < 2; pass++) for (const [name, s] of Object.entries(sites)) {
+    await api.pose(s.lat, s.lon, s.altitudeKm); await api.settle();
+    const snap = await api.snapshot();
+    out.cycle.push({ pass, name, textureBytes: snap.imagery.textureBytes, gpuAllocatedBytes: snap.imagery.gpuAllocatedBytes, sourceCacheBytes: snap.imagery.sourceCache.residentBytes,
+      textures: snap.imagery.textures, draws: snap.draws, evicted: snap.imagery.evicted, terrainBytes: snap.terrainBytes });
+    assert.ok(snap.imagery.sourceCache.residentBytes <= snap.imagery.sourceCache.maxBytes, 'source cache over budget');
+  }
+  // Optional source outage at a new site: base coverage holds, the layer reports it, recovery restores detail.
+  const syrtis = { lat: 8.4, lon: 69.5, altitudeKm: 1.5 };
+  await api.page.route(/astro\.arcgis\.com/, route => route.abort('failed'));
+  await api.pose(syrtis.lat, syrtis.lon, syrtis.altitudeKm); await api.settle(true, 240_000);
+  const down = await api.snapshot(); await api.shot('mars-outage-ctx');
+  await api.page.unroute(/astro\.arcgis\.com/);
+  await api.page.evaluate(() => window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.retryFailed());
+  await api.settle(); await api.page.waitForTimeout(1000); await api.settle();
+  const up = await api.snapshot(); await api.shot('mars-outage-recovered');
+  out.outage = { site: syrtis, down: { centre: down.centre, layers: down.layers, baseUncoveredBlocks: down.imagery.baseUncoveredBlocks },
+    recovered: { centre: up.centre, layers: up.layers } };
+  assert.equal(down.imagery.baseUncoveredBlocks, 0, 'base coverage lost during optional outage');
+  assert.ok(up.centre.find(c => c.id === 'ctx-global').level > down.centre.find(c => c.id === 'ctx-global').level, 'CTX did not recover after outage');
+  await api.page.close();
+  return out;
+}
+
+/** Deterministic GIBS: one colour per day, delayed so day switches race in-flight requests. */
+const COLOURS = { '2026-11-01': [255, 0, 0], '2026-11-02': [0, 255, 0], '2026-11-03': [0, 0, 255], '2026-11-05': [255, 255, 0] };
+const GAP = '2026-11-04';
+const solidCache = new Map();
+const solid = async (rgb, format = 'jpeg') => {
+  const key = rgb.join() + format;
+  if (!solidCache.has(key)) solidCache.set(key, await sharp({ create: { width: 256, height: 256, channels: 3, background: { r: rgb[0], g: rgb[1], b: rgb[2] } } })[format]().toBuffer());
+  return solidCache.get(key);
+};
+
+async function earth() {
+  const api = await open('earth-virtual-imagery', 'Earth');
+  const out = { live: {}, sites: {}, mock: {} };
+  const day = (d) => api.page.evaluate(d => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { date: d }), d);
+  const centrePixel = async () => {
+    const png = await api.page.locator('canvas').first().screenshot();
+    const { data, info } = await sharp(png).extract({ left: 650, top: 400, width: 100, height: 100 }).raw().toBuffer({ resolveWithObject: true });
+    const mean = [0, 1, 2].map(c => { let s = 0; for (let i = c; i < data.length; i += info.channels) s += data[i]; return s / (data.length / info.channels); });
+    return { mean: mean.map(v => round(v, 1)), buffer: data };
+  };
+  // Live GIBS: two real days at a fixed camera; rendered pixels and requests both change.
+  const california = { lat: 36.5, lon: -121.9, altitudeKm: 400, fov: 30 };
+  await api.pose(california.lat, california.lon, california.altitudeKm, california.fov);
+  for (const d of ['2026-11-03', '2026-11-04']) {
+    const before = api.requests.length;
+    await day(d); await api.settle();
+    const snap = await api.snapshot(), px = await centrePixel(); await api.shot(`earth-live-${d}`);
+    const dated = api.requests.slice(before).filter(u => u.includes('VIIRS_NOAA20'));
+    out.live[d] = { requests: dated.length, allThisDay: dated.every(u => u.includes(`/${d}/`)), centre: snap.centre, pixel: px.mean, virtual: snap.virtual };
+    assert.ok(dated.length > 0 && out.live[d].allThisDay, `live ${d}: requests not for that day`);
+    out.live[d].raw = px.buffer;
+  }
+  const a = out.live['2026-11-03'].raw, b = out.live['2026-11-04'].raw;
+  let changed = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 12) changed++;
+  out.live.changedFraction = round(changed / a.length, 3);
+  delete out.live['2026-11-03'].raw; delete out.live['2026-11-04'].raw;
+  assert.ok(out.live.changedFraction > 0.05, 'two live days rendered the same pixels');
+  // `latest` through the EPSG:4326 capabilities layer: the provider's newest day (less latency), its own grid and {Time}.
+  {
+    const before = api.requests.length;
+    await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerVisible('viirs-latest-4326', true));
+    await api.page.waitForFunction(() => window.renderer.getBodyMesh('Earth').imageryLayers.find(l => l.id === 'viirs-latest-4326').temporal?.date, null, { timeout: 120_000 });
+    await api.settle();
+    const snap = await api.snapshot(); await api.shot('earth-live-latest-4326');
+    const layer = snap.layers.find(l => l.id === 'viirs-latest-4326'), info = await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').imageryLayers.find(l => l.id === 'viirs-latest-4326').temporal);
+    const dated = api.requests.slice(before).filter(u => u.includes('/epsg4326/') && u.includes('VIIRS_NOAA20'));
+    out.live.latest = { date: layer.date, temporal: info, requests: dated.length, allThatDay: dated.every(u => u.includes(`/${layer.date}/`)),
+      matrices: [...new Set(dated.map(u => u.split('/250m/')[1]?.split('/')[0]))], centre: snap.centre.find(c => c.id === 'viirs-latest-4326'),
+      coverage: snap.virtual.find(v => v.id === 'viirs-latest-4326')?.coverage };
+    assert.equal(info.policy, 'latest');
+    assert.ok(dated.length > 0 && out.live.latest.allThatDay, 'latest: requests not for the resolved day');
+    await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerVisible('viirs-latest-4326', false));
+  }
+  // Registration and imagery-only refinement at several latitudes and seams (cube-native base + 3857 + 4326 layers).
+  for (const [name, site] of Object.entries({
+    himalaya: { lat: 28.0, lon: 86.9, altitudeKm: 25 }, seam45E: { lat: 12.0, lon: 45.0, altitudeKm: 25 },
+    scandinavia: { lat: 66.0, lon: 16.0, altitudeKm: 25 }, fiji: { lat: -17.5, lon: 179.5, altitudeKm: 25 },
+  })) {
+    console.log('earth', name);
+    out.sites[name] = await independence(api, `earth-${name}`, site, 'viirs-daily');
+    out.sites[name].coastlines = out.sites[name].fine.centre.find(c => c.id === 'coastlines');
+  }
+  // Mock provider: gaps, failures, cancellation and races.
+  await api.page.route(/gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/VIIRS/, async route => {
+    const d = /\/default\/(\d{4}-\d{2}-\d{2})\//.exec(route.request().url())?.[1];
+    await new Promise(r => setTimeout(r, 350));
+    const cors = { 'access-control-allow-origin': '*' };
+    if (d === GAP) return route.fulfill({ status: 404, headers: cors, body: '' });
+    if (d === '2026-11-05' && /\/[0-9]+\/[0-9]*[02468]\.jpeg$/.test(route.request().url())) return route.fulfill({ status: 503, headers: cors, body: '' });
+    return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: cors, body: await solid(COLOURS[d] ?? [255, 0, 255]) });
+  });
+  await api.pose(california.lat, california.lon, 1500, 40);
+  const mockRequests = () => api.requests.filter(u => u.includes('VIIRS_NOAA20'));
+  // Rapid switching: only the final day may be requested after it, drawn or kept resident.
+  const textures0 = (await api.snapshot()).imagery;
+  for (const d of ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-01', '2026-11-02']) { await day(d); await api.page.waitForTimeout(60); }
+  const marker = mockRequests().length;
+  await day('2026-11-03'); await api.settle();
+  const raced = await api.snapshot(), racedPixel = await centrePixel(); await api.shot('earth-mock-race-final-day');
+  const after = mockRequests().slice(marker);
+  out.mock.race = { requestsAfterFinalSwitch: after.length, onlyFinalDay: after.every(u => u.includes('/2026-11-03/')), date: raced.virtual.find(v => v.id === 'viirs-daily').date,
+    pixel: racedPixel.mean, aborted: raced.imagery.aborted, sourceCache: raced.imagery.sourceCache };
+  assert.ok(out.mock.race.onlyFinalDay, 'a superseded day was requested after the final switch');
+  assert.ok(racedPixel.mean[2] > racedPixel.mean[0] + 20 && racedPixel.mean[2] > racedPixel.mean[1] + 20, 'final (blue) day not dominant: stale day drawn');
+  // Repeated scrubbing does not grow residency.
+  const residency = [];
+  for (let i = 0; i < 8; i++) { await day(i % 2 ? '2026-11-01' : '2026-11-02'); await api.settle(); const s = await api.snapshot(); residency.push({ textureBytes: s.imagery.textureBytes, gpuAllocatedBytes: s.imagery.gpuAllocatedBytes, sourceCacheBytes: s.imagery.sourceCache.residentBytes }); }
+  out.mock.scrub = { before: { textureBytes: textures0.textureBytes, gpuAllocatedBytes: textures0.gpuAllocatedBytes }, residency };
+  assert.ok(residency.at(-1).gpuAllocatedBytes <= residency[1].gpuAllocatedBytes * 1.25, 'GPU pages grew across date switches');
+  // Missing day (404): transparent, Blue Marble shows, no other day fetched.
+  const gapMarker = mockRequests().length;
+  await day(GAP); await api.settle();
+  const gap = await api.snapshot(), gapPixel = await centrePixel(); await api.shot('earth-mock-gap-day');
+  const gapRequests = mockRequests().slice(gapMarker);
+  out.mock.gap = { requests: gapRequests.length, onlyGapDay: gapRequests.every(u => u.includes(`/${GAP}/`)), centre: gap.centre, pixel: gapPixel.mean, layer: gap.layers.find(l => l.id === 'viirs-daily') };
+  assert.ok(out.mock.gap.onlyGapDay, 'another day was fetched in place of a missing day');
+  assert.equal(gap.centre.find(c => c.id === 'blue-marble-cube').enabled, 1, 'cube-native base not shown under a missing day');
+  // Failed tiles (503 on half the tiles): reported, never another day.
+  const failMarker = mockRequests().length;
+  await day('2026-11-05'); await api.settle(true, 240_000);
+  const failed = await api.snapshot(); await api.shot('earth-mock-failed-tiles');
+  out.mock.failed = { onlyThisDay: mockRequests().slice(failMarker).every(u => u.includes('/2026-11-05/')), layer: failed.layers.find(l => l.id === 'viirs-daily'), sourceCache: failed.imagery.sourceCache };
+  assert.ok(out.mock.failed.onlyThisDay, 'failed tiles were filled from another day');
+  // Follow-simulation and terrain identity across date changes.
+  await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { policy: 'follow-simulation' }));
+  const t0 = await api.snapshot();
+  await api.page.evaluate(() => window.cosmo.setTime({ kind: 'calendar', text: '2026-11-02T12:00:00Z' }));
+  await api.page.waitForFunction(() => window.renderer.getBodyMesh('Earth').imageryLayers.find(l => l.id === 'viirs-daily').temporal?.date === '2026-11-02', null, { timeout: 30_000 });
+  await api.settle();
+  const t1 = await api.snapshot();
+  out.mock.follow = { date: t1.layers.find(l => l.id === 'viirs-daily').date };
+  assert.deepEqual(t1.ids, t0.ids, 'terrain tiles changed across a date change');
+  assert.deepEqual(t1.cpuHit, t0.cpuHit, 'CPU surface changed across a date change');
+  await api.page.close();
+  return out;
+}
+
+try {
+  if (which === 'mars' || which === 'all') result.mars = await mars();
+  if (which === 'earth' || which === 'all') result.earth = await earth();
+  result.passed = result.errors.length === 0;
+} catch (error) {
+  result.passed = false; result.failure = String(error?.stack ?? error); console.error(error);
+} finally {
+  await writeFile(`${output}/result.json`, JSON.stringify(result, null, 2));
+  await browser.close();
+  console.log(`wrote ${output}/result.json; passed=${result.passed}`);
+  if (!result.passed) process.exitCode = 1;
+}

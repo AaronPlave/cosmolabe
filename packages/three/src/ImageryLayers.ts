@@ -200,7 +200,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       visible: base || cfg.visible !== false,
       opacity: clampOpacity(cfg.opacity ?? 1),
       bounds: cfg.bounds ?? null,
-      latitudeConvention: cfg.type === 'cube' ? 'planetocentric' : 'geodetic',
+      latitudeConvention: cfg.type === 'cube' ? 'planetocentric' : cfg.latitudeConvention ?? 'geodetic',
       minZoom: cfg.minZoom ?? 0,
       maxLevel: (cfg.levels ?? 8) - 1,
       metersPerPixel: nativeMetersPerPixel(cfg, equatorialRadiusKm),

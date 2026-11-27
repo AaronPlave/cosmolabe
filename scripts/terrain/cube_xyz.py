@@ -1,4 +1,7 @@
-"""Bounded EPSG:4326 XYZ -> cube adapter for planetary *planetocentric* imagery.
+"""Bounded EPSG:4326 / EPSG:3857 XYZ -> cube adapter.
+
+The source latitude convention is always declared: planetocentric (planetary
+mosaics), or geodetic on explicitly declared ellipsoid radii (Earth services).
 
 Uses the existing cube layout, pixel/gutter convention and pyramid writer. Source
 HTTP responses are cached on disk; decoded windows live only for one output tile.
@@ -20,11 +23,19 @@ from osgeo import gdal
 gdal.UseExceptions()
 
 
+MERCATOR_MAX_LAT = math.degrees(math.atan(math.sinh(math.pi)))
+
+
 def validate(config):
-    if config.get('type', 'xyz') != 'xyz' or config.get('projection', 'EPSG:4326') != 'EPSG:4326':
-        raise ValueError('cube XYZ adapter requires an explicit EPSG:4326 XYZ source')
-    if config.get('latitudeConvention') != 'planetocentric':
-        raise ValueError('declare latitudeConvention=planetocentric; never infer source latitude from the terrain ellipsoid')
+    if config.get('type', 'xyz') != 'xyz' or config.get('projection', 'EPSG:4326') not in ('EPSG:4326', 'EPSG:3857'):
+        raise ValueError('cube XYZ adapter requires an explicit EPSG:4326 or EPSG:3857 XYZ source')
+    convention = config.get('latitudeConvention')
+    if convention not in ('planetocentric', 'geodetic'):
+        raise ValueError('declare latitudeConvention (planetocentric or geodetic); never infer source latitude from the terrain ellipsoid')
+    if convention == 'geodetic':
+        radii = config.get('ellipsoidRadiiKm')
+        if not (isinstance(radii, list) and len(radii) == 2 and all(isinstance(r, (int, float)) and r > 0 for r in radii) and radii[1] <= radii[0]):
+            raise ValueError('geodetic sources declare ellipsoidRadiiKm [equatorial, polar]')
     for token in ('{z}', '{x}', '{y}'):
         if token not in config.get('url', ''):
             raise ValueError(f'source URL missing {token}')
@@ -33,10 +44,19 @@ def validate(config):
     return config
 
 
-def source_pixel(lon, lat, level, dimension):
-    """Pixel centres are integers. XYZ y grows south; longitude wraps at ±180°."""
-    across = 2 ** (level + 1) * dimension
+def tiles_across(level, projection='EPSG:4326'):
+    return 2 ** level if projection == 'EPSG:3857' else 2 ** (level + 1)
+
+
+def source_pixel(lon, lat, level, dimension, projection='EPSG:4326'):
+    """Pixel centres are integers. XYZ y grows south; longitude wraps at ±180°.
+    Web Mercator rows follow the Mercator ordinate; beyond its latitude limit the
+    caller masks the sample (no data), it is never clamped into the top row."""
+    across = tiles_across(level, projection) * dimension
     down = 2 ** level * dimension
+    if projection == 'EPSG:3857':
+        y = np.degrees(np.arcsinh(np.tan(np.radians(np.clip(lat, -MERCATOR_MAX_LAT, MERCATOR_MAX_LAT)))))
+        return (lon + 180) / 360 * across - 0.5, np.clip((180 - y) / 360 * down - 0.5, 0, down - 1)
     return ((lon + 180) / 360 * across - 0.5,
             np.clip((90 - lat) / 180 * down - 0.5, 0, down - 1))
 
@@ -163,21 +183,25 @@ def sample(config, lon, lat, level, cache, read=read_tile):
     Source responses stay separate, preserving alpha and the layer's provenance.
     """
     dim = config.get('dimension', 256)
-    px, py = source_pixel(lon, lat, level, dim)
+    projection = config.get('projection', 'EPSG:4326')
+    across = tiles_across(level, projection)
+    px, py = source_pixel(lon, lat, level, dim, projection)
     x0, y0 = np.floor(px).astype(np.int64), np.floor(py).astype(np.int64)
     fx, fy = px - x0, py - y0
     num = np.zeros(lon.shape + (3,), np.float64)
     alpha = np.zeros(lon.shape, np.float64)
     cover = in_bounds(lon, lat, config.get('bounds'))
+    if projection == 'EPSG:3857':
+        cover &= np.abs(lat) <= MERCATOR_MAX_LAT
     decoded = {}
     for dx, dy, weights in ((0, 0, (1-fx)*(1-fy)), (1, 0, fx*(1-fy)), (0, 1, (1-fx)*fy), (1, 1, fx*fy)):
-        cols = (x0 + dx) % (2 ** (level + 1) * dim)
+        cols = (x0 + dx) % (across * dim)
         rows = np.clip(y0 + dy, 0, 2 ** level * dim - 1)
         tx, ty = cols // dim, rows // dim
-        ids = tx + ty * 2 ** (level + 1)
+        ids = tx + ty * across
         for tile_id in np.unique(ids[cover]):
             mask = (ids == tile_id) & cover
-            x, y = int(tile_id % 2 ** (level + 1)), int(tile_id // 2 ** (level + 1))
+            x, y = int(tile_id % across), int(tile_id // across)
             if tile_id not in decoded:
                 decoded[tile_id] = read(config, cache, level, x, y)
             image = decoded[tile_id]
@@ -195,9 +219,15 @@ def tile(config_path, face, level, x, y, tile_size, gutter, supersample):
     config = validate(json.load(open(config_path)))
     u, v = pixel_samples(level, x, y, tile_size, gutter, supersample)
     lon, lat = lonlat(directions(face, u, v))
+    if config['latitudeConvention'] == 'geodetic':
+        # Zero-height point on the declared ellipsoid along the geocentric ray.
+        a, c = config['ellipsoidRadiiKm']
+        lat = np.degrees(np.arctan(np.tan(np.radians(np.clip(lat, -89.999999, 89.999999))) * (a * a) / (c * c)))
     # Match the face-centre output texel; never request above the source's limit.
+    # A Mercator level spans 360° in 2^z tiles, twice the geographic tile width.
+    mercator = 1 if config.get('projection', 'EPSG:4326') == 'EPSG:3857' else 0
     source_level = min(config.get('levels', 8) - 1,
-                       max(0, level + math.ceil(math.log2(math.pi * tile_size / config.get('dimension', 256)))))
+                       max(0, level + mercator + math.ceil(math.log2(math.pi * tile_size / config.get('dimension', 256)))))
     n = tile_size + 2 * gutter
     if source_level < config.get('minZoom', 0):
         return np.zeros((n, n, 4), np.uint8)

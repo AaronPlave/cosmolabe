@@ -1,0 +1,171 @@
+{
+  "name": "Mars virtual cube imagery over coarse terrain (#136)",
+  "version": "1.1",
+  "description": "Issue #136 validation fixture: original Viking / global CTX / Jezero HiRISE XYZ services resampled in the browser into virtual cube tiles over a deliberately coarse MOLA MEGDR 16 px/deg cube terrain (global level 5, ~2.6 km vertices). No preprocessed imagery, no terrain added for imagery. Local, unlisted; build with scripts/terrain/coarse_cube_fixture.py mars.",
+  "defaultTime": "2021-07-05T09:00:08Z",
+  "defaultViewpoint": "Gale crater (seam py/nx)",
+  "items": [
+    {
+      "name": "Mars globe",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 14000,
+      "latitude": 10,
+      "longitude": 140
+    },
+    {
+      "name": "Gale crater (seam py/nx)",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3402,
+      "latitude": -4.59,
+      "longitude": 137.44
+    },
+    {
+      "name": "Olympus Mons caldera",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3420,
+      "latitude": 18.4,
+      "longitude": -133.8
+    },
+    {
+      "name": "Hale crater (south)",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3400,
+      "latitude": -35.7,
+      "longitude": -36.4
+    },
+    {
+      "name": "Korolev crater (north)",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3392,
+      "latitude": 73.0,
+      "longitude": 164.5
+    },
+    {
+      "name": "Antimeridian, Elysium",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3398,
+      "latitude": 4.0,
+      "longitude": 179.9
+    },
+    {
+      "name": "Jezero (regional HiRISE)",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3398,
+      "latitude": 18.4447,
+      "longitude": 77.4508
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Mars"
+      },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Builtin"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
+        "baseMap": "../textures/mars.dds",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global · Viking",
+            "description": "Viking MDIM 2.1 colour mosaic (EPSG:4326 XYZ, resampled to virtual cube tiles)",
+            "resolutionMeters": 232,
+            "attribution": "NASA Trek",
+            "latitudeConvention": "planetocentric",
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+            "levels": 8
+          },
+          {
+            "id": "ctx-global",
+            "name": "Global · CTX",
+            "description": "Murray Lab CTX global mosaic (EPSG:4326 XYZ, resampled to virtual cube tiles); upstream gaps stay transparent",
+            "resolutionMeters": 5,
+            "attribution": "Esri / Caltech Murray Lab",
+            "latitudeConvention": "planetocentric",
+            "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+            "levels": 13,
+            "dimension": 512,
+            "minZoom": 5
+          },
+          {
+            "id": "jezero-hirise",
+            "name": "Jezero · HiRISE",
+            "description": "Mars 2020 Jezero HiRISE orthomosaic (regional, virtual cube tiles)",
+            "resolutionMeters": 0.25,
+            "attribution": "NASA Trek",
+            "latitudeConvention": "planetocentric",
+            "bounds": [
+              77.22,
+              18.31,
+              77.58,
+              18.67
+            ],
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "levels": 17,
+            "minZoom": 9
+          }
+        ],
+        "terrain": {
+          "type": "3dtiles",
+          "frame": "IAU_MARS",
+          "url": "../data/mars-coarse-cube/tileset-measured.json",
+          "datum": {
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "errorTarget": 3,
+          "fadeDurationMs": 0,
+          "cubeSphere": {
+            "cpuGrids": "../data/mars-coarse-cube/cpu-grids.json",
+            "residentLevel": 1,
+            "imagery": {
+              "maxTextureBytes": 268435456,
+              "maxConcurrentRequests": 6
+            }
+          }
+        },
+        "atmosphere": "Mars"
+      }
+    }
+  ]
+}

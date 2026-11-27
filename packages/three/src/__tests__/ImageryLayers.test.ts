@@ -174,11 +174,18 @@ describe('TerrainManager imagery layer controls', () => {
   const plugin = (tm: TerrainManager) => (tm.tiles as unknown as { getPluginByName(n: string): Plugin }).getPluginByName('IMAGE_OVERLAY_PLUGIN');
   const dispatch = (tm: TerrainManager, e: Record<string, unknown>) => (tm.tiles as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(e);
 
-  it('rejects a cube product mixed with geographic imagery explicitly', () => {
-    expect(() => make({ type: '3dtiles', url: 'https://example.invalid/tileset.json',
-      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json' },
+  it('rejects a cube product without cube terrain, and draws a mixed stack with the cube renderer (#136)', () => {
+    expect(() => make({ type: 'quantized-mesh', url: 'https://example.invalid/t/',
       imagery: [{ type: 'cube', url: 'https://example.invalid/imagery.json' }, { url: CTX }],
-    })).toThrow('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
+    })).toThrow('Cube imagery sources require cubeSphere terrain');
+    const tm = make({ type: '3dtiles', url: 'https://example.invalid/tileset.json',
+      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json' },
+      imagery: [{ type: 'cube', url: 'https://example.invalid/imagery.json' }, { url: CTX, id: 'ctx' }],
+    });
+    // Non-cube layers become virtual cube sources of the same stack; no geographic overlay is built.
+    expect(tm.cubeImageryLayer).not.toBeNull();
+    expect(tm.imageryLayers.map(l => l.id)).toEqual(['layer-0', 'ctx']);
+    tm.dispose();
   });
 
   it('only builds overlays for layers that start on', async () => {

@@ -1,0 +1,183 @@
+{
+  "name": "Earth cube terrain with mixed-projection, dated imagery (#136)",
+  "version": "1.1",
+  "description": "Issue #136 validation fixture: coarse ETOPO 2022 cube terrain (global level 4, real relief) with a cube-native Blue Marble product, live NASA GIBS VIIRS NOAA-20 daily true colour (Web Mercator, follows simulation time) and GIBS Coastlines (EPSG:4326 WMTS capabilities grid) resampled in the browser into virtual cube tiles. Local, unlisted; build with scripts/terrain/coarse_cube_fixture.py earth and scripts/terrain/cube_imagery.py xyz.",
+  "defaultTime": "2026-11-04T11:30:00Z",
+  "defaultViewpoint": "Earth from orbit",
+  "items": [
+    {
+      "name": "Earth from orbit",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 15000,
+      "latitude": 20,
+      "longitude": 10
+    },
+    {
+      "name": "Himalaya (relief)",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6800,
+      "latitude": 28.0,
+      "longitude": 86.9
+    },
+    {
+      "name": "Face seam (px/py, 45°E)",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6700,
+      "latitude": 12.0,
+      "longitude": 45.0
+    },
+    {
+      "name": "Scandinavia (high latitude)",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6700,
+      "latitude": 66.0,
+      "longitude": 16.0
+    },
+    {
+      "name": "Antimeridian, Fiji",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6650,
+      "latitude": -17.5,
+      "longitude": 179.5
+    },
+    {
+      "name": "Central California coast",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 6600,
+      "latitude": 36.5,
+      "longitude": -121.9
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "rotationModel": {
+        "type": "Builtin"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          6378.137,
+          6378.137,
+          6356.752
+        ],
+        "baseMap": "../textures/earth-5k.jpg",
+        "atmosphere": "Earth",
+        "imagery": [
+          {
+            "id": "blue-marble-cube",
+            "name": "Blue Marble (cube product)",
+            "type": "cube",
+            "attribution": "NASA GIBS",
+            "description": "Blue Marble Shaded Relief and Bathymetry, preprocessed into cube tiles (static composite, no acquisition date)",
+            "url": "../data/earth-bluemarble-cube/imagery.json"
+          },
+          {
+            "id": "viirs-daily",
+            "name": "VIIRS daily true colour",
+            "attribution": "NASA GIBS · VIIRS NOAA-20",
+            "resolutionMeters": 250,
+            "description": "NOAA-20 VIIRS corrected reflectance, true colour, Web Mercator; resampled into virtual cube tiles per acquisition day",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/2026-11-04/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg",
+            "levels": 9,
+            "projection": "EPSG:3857",
+            "latitudeConvention": "geodetic",
+            "temporal": {
+              "semantics": "acquisition",
+              "cadence": "day",
+              "policy": "follow-simulation",
+              "start": "2022-01-14",
+              "end": "present",
+              "latencyDays": 1,
+              "outOfRange": "hide",
+              "illumination": "baked"
+            }
+          },
+          {
+            "id": "coastlines",
+            "name": "Coastlines (EPSG:4326 WMTS)",
+            "attribution": "NASA GIBS · OpenStreetMap",
+            "description": "GIBS Coastlines 15 m from the EPSG:4326 capabilities grid (2×1, 3×2, 5×3… tiles); transparent PNG overlay",
+            "type": "wmts-capabilities",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/wmts.cgi?SERVICE=WMTS&REQUEST=GetCapabilities",
+            "layer": "Coastlines_15m",
+            "tileMatrixSet": "15.625m",
+            "latitudeConvention": "geodetic"
+          },
+          {
+            "id": "viirs-latest-4326",
+            "name": "VIIRS latest (EPSG:4326 WMTS)",
+            "attribution": "NASA GIBS · VIIRS NOAA-20",
+            "resolutionMeters": 250,
+            "description": "The same VIIRS product through the EPSG:4326 capabilities document (about 5 MB, fetched only when switched on): provider range, gaps and Latest available; GIBS 4326 matrices (2×1, 3×2, 5×3…)",
+            "type": "wmts-capabilities",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/wmts.cgi?SERVICE=WMTS&REQUEST=GetCapabilities",
+            "layer": "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
+            "tileMatrixSet": "250m",
+            "latitudeConvention": "geodetic",
+            "visible": false,
+            "temporal": {
+              "semantics": "acquisition",
+              "cadence": "day",
+              "policy": "latest",
+              "latencyDays": 1,
+              "outOfRange": "hide",
+              "illumination": "baked"
+            }
+          }
+        ],
+        "terrain": {
+          "type": "3dtiles",
+          "url": "../data/earth-coarse-cube/tileset-measured.json",
+          "datum": {
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "errorTarget": 3,
+          "fadeDurationMs": 0,
+          "cubeSphere": {
+            "cpuGrids": "../data/earth-coarse-cube/cpu-grids.json",
+            "residentLevel": 1,
+            "imagery": {
+              "maxTextureBytes": 268435456,
+              "maxConcurrentRequests": 6
+            }
+          }
+        }
+      }
+    }
+  ]
+}

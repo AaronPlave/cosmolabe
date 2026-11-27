@@ -122,3 +122,11 @@ __pycache__/
 
 # Generated and content-addressed lunar science products.
 apps/viewer/test-catalogs/data/moon-science/
+
+# Local #136 virtual cube imagery fixtures and evidence work (scripts/terrain/coarse_cube_fixture.py)
+apps/viewer/test-catalogs/data/mars-coarse-cube/
+apps/viewer/test-catalogs/data/earth-coarse-cube/
+apps/viewer/test-catalogs/data/earth-bluemarble-cube/
+/work/virtual-cube-imagery*/
+/work/gate/
+/work/smoke.mjs

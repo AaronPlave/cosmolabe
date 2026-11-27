@@ -180,8 +180,11 @@ export function imageryLevelFor(texelAtLevel0Km: number, distanceKm: number, pix
 
 /** Tile ids a product holds, with ancestor lookups. */
 export class CubeImageryAvailability {
-  private readonly ids: Set<string>;
-  constructor(tiles: Iterable<string>, readonly minLevel = 0, readonly maxLevel = MAX_LEVEL) { this.ids = new Set(tiles); }
+  private readonly ids: { has(id: string): boolean; readonly size?: number };
+  /** A finite tile list, or a computed set-like inventory (virtual sources, #136). */
+  constructor(tiles: Iterable<string> | { has(id: string): boolean }, readonly minLevel = 0, readonly maxLevel = MAX_LEVEL) {
+    this.ids = typeof (tiles as Iterable<string>)[Symbol.iterator] === 'function' && !(tiles instanceof Set) ? new Set(tiles as Iterable<string>) : tiles as { has(id: string): boolean };
+  }
   has(a: ImageryAddress): boolean { return this.ids.has(cubeTileId(a)); }
   /** `a` itself or its deepest present ancestor; null only above the product's root level. */
   deepestAncestor(a: ImageryAddress): ImageryAddress | null {
@@ -195,7 +198,8 @@ export class CubeImageryAvailability {
     for (let i = 0; i < 4; i++) if (this.ids.has(cubeTileId({ face: a.face, level: a.level + 1, x: 2 * a.x + (i & 1), y: 2 * a.y + (i >> 1) }))) return true;
     return false;
   }
-  get size(): number { return this.ids.size; }
+  /** Tile count of a finite inventory; Infinity for a computed one. */
+  get size(): number { return this.ids.size ?? Infinity; }
 }
 
 /** A square of a geometry tile drawn with one imagery tile. `level ≥` the geometry level; `image` is what it wants. */
