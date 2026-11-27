@@ -1,0 +1,93 @@
+{
+  "site": {
+    "name": "Gale crater",
+    "lat": -4.59,
+    "lon": 137.44,
+    "note": "py/nx face seam"
+  },
+  "source": {
+    "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+    "levels": 13,
+    "dimension": 512,
+    "minZoom": 5,
+    "latitudeConvention": "planetocentric"
+  },
+  "browserLevel": 13,
+  "B_buildDerived": {
+    "region": "gale@-4.59,137.44:1=600,2=400,3=250,4=150,5=80,6=40,7=20,8=10,9=5,10=3,11=2,12=1.5,13=1.2",
+    "wallSeconds": 70.9,
+    "cpuSeconds": 38.1,
+    "workers": 1,
+    "tiles": 107,
+    "tilesByLevel": {
+      "0": 6,
+      "1": 2,
+      "2": 2,
+      "3": 2,
+      "4": 6,
+      "5": 5,
+      "6": 6,
+      "7": 6,
+      "8": 6,
+      "9": 5,
+      "10": 7,
+      "11": 9,
+      "12": 16,
+      "13": 29
+    },
+    "upstreamResponses": 83,
+    "upstreamBytes": 8382018,
+    "storedObjects": 107,
+    "storedBytes": 2920664,
+    "meanTileBytes": 27296,
+    "finestLevelTiles": 29,
+    "planetWideAtBrowserLevel": {
+      "tiles": 402653184,
+      "storedTB": 11.0,
+      "note": "all six faces to the browser's deepest level, at this region's mean tile size; excludes coarser levels (+33 %)"
+    }
+  },
+  "A_virtual": {
+    "upstreamRequests": 67,
+    "sourceCache": {
+      "requests": 174,
+      "bytes": 11840479,
+      "hits": 105,
+      "nodata": 0,
+      "failures": 0,
+      "aborted": 0,
+      "residentBytes": 80740352,
+      "maxBytes": 100663296,
+      "tiles": 134,
+      "inFlight": 0,
+      "queued": 0,
+      "evicted": 40,
+      "decodeMs": 175744.60000000708
+    },
+    "virtualTiles": {
+      "produced": 92,
+      "degraded": 0,
+      "sourceLimited": 0,
+      "planMs": 1880,
+      "resampleMs": 2667.599999995902,
+      "maxTileMs": 659.2000000011176
+    },
+    "storedObjects": 0,
+    "storedBytes": 0,
+    "displayedLevel": 13,
+    "displayedMetersPerPixel": 2.3668439545017743,
+    "coverage": {
+      "kind": "virtual",
+      "projection": "geographic",
+      "latitudeConvention": "planetocentric",
+      "nativeMatrix": "12",
+      "nativeMetersPerPixel": 5.087588097665367,
+      "firstMatrix": "5",
+      "minLevel": 4,
+      "maxLevel": 13,
+      "cubeMetersPerPixel": 3.238859176635742,
+      "bounds": null
+    },
+    "gpu": "software"
+  }
+}

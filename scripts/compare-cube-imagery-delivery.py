@@ -9,13 +9,14 @@ acceptance run (scripts/test-virtual-cube-imagery.mjs result.json, Mars site `ga
   /usr/bin/python3.12 scripts/compare-cube-imagery-delivery.py --browser work/virtual-cube-imagery/result.json \
       --work work/gate --out docs/validation/virtual-cube-imagery/gate.json
 
-Reports wall time, upstream requests and bytes, stored objects and bytes, and extrapolates
+Reports wall and CPU time (CPU is robust to a busy machine), upstream requests and bytes, stored objects and bytes, and extrapolates
 B's object count and storage to a planet-wide native pyramid at the browser's level. It
 does not publish anything.
 """
 import argparse
 import json
 import math
+import resource
 import subprocess
 import sys
 import time
@@ -28,7 +29,7 @@ CTX = {'id': 'ctx-global', 'type': 'xyz', 'projection': 'EPSG:4326', 'levels': 1
 # The browser camera: 1.5 km above Gale, 40° field of view, 1400×900 px. A region is a disc per
 # level; radii cover the viewport footprint (~1.8 km across) at fine levels and the cube
 # tiles holding it at coarse ones, which is what the browser requests on the way down.
-REGION = 'gale@-4.59,137.44:4=150,5=80,6=40,7=20,8=10,9=5,10=3,11=2,12=1.5,13=1.2'
+REGION = 'gale@-4.59,137.44:1=600,2=400,3=250,4=150,5=80,6=40,7=20,8=10,9=5,10=3,11=2,12=1.5,13=1.2'
 
 
 def main():
@@ -44,11 +45,13 @@ def main():
         raise SystemExit(f'Use a fresh --work (found {out} or {cache})')
     config = work / 'ctx.json'
     config.write_text(json.dumps({**CTX, 'cache': str(cache)}, indent=2))
-    started = time.time()
+    started, usage = time.time(), resource.getrusage(resource.RUSAGE_CHILDREN)
     subprocess.run([sys.executable, str(ROOT / 'scripts/terrain/cube_imagery.py'), 'xyz', '--source', str(config), '--out', str(out),
                     '--body', 'Mars', '--frame', 'IAU_MARS', '--radius-km', '3396.19', '--global-level', '0', '--region', REGION,
                     '--supersample', '2', '--workers', str(a.workers)], check=True, cwd=ROOT)
     wall = time.time() - started
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu = (after.ru_utime - usage.ru_utime) + (after.ru_stime - usage.ru_stime)
     manifest = json.loads((out / 'imagery.json').read_text())
     tiles = manifest['tiles']
     levels = {}
@@ -69,7 +72,7 @@ def main():
         'source': {k: CTX[k] for k in ('url', 'levels', 'dimension', 'minZoom', 'latitudeConvention')},
         'browserLevel': deepest,
         'B_buildDerived': {
-            'region': REGION, 'wallSeconds': round(wall, 1), 'workers': a.workers, 'tiles': len(tiles), 'tilesByLevel': levels,
+            'region': REGION, 'wallSeconds': round(wall, 1), 'cpuSeconds': round(cpu, 1), 'workers': a.workers, 'tiles': len(tiles), 'tilesByLevel': levels,
             'upstreamResponses': len(responses), 'upstreamBytes': upstream_bytes, 'storedObjects': len(tiles), 'storedBytes': stored,
             'meanTileBytes': round(per_tile), 'finestLevelTiles': finest_tiles,
             'planetWideAtBrowserLevel': {'tiles': planet, 'storedTB': round(planet * per_tile / 1e12, 1),

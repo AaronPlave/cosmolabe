@@ -334,8 +334,10 @@ function planAt(grid: ProjectedSourceGrid, a: ImageryAddress, opts: PlanOptions,
     ratioX = Math.max(ratioX, step(sourcePosition(grid, matrix, texelLonLat(grid, a, c + 1, r, opts))));
     ratioY = Math.max(ratioY, step(sourcePosition(grid, matrix, texelLonLat(grid, a, c, r + 1, opts))));
   }
-  const samplesX = Math.max(1, Math.min(maxSamples, Math.ceil(ratioX - 0.25)));
-  const samplesY = Math.max(1, Math.min(maxSamples, Math.ceil(ratioY - 0.25)));
+  // Up to 1.5 source pixels per texel step stay one bilinear sample (mild minification,
+  // which the GPU's mipmaps also absorb); beyond that, a box filter.
+  const samplesX = Math.max(1, Math.min(maxSamples, Math.ceil(ratioX - 0.5)));
+  const samplesY = Math.max(1, Math.min(maxSamples, Math.ceil(ratioY - 0.5)));
   // Corner lattice, in one tight loop: face point → lon/lat → projected → pixel.
   const n = span + 1, lx = new Float64Array(n * n), ly = new Float64Array(n * n);
   const [N, U, V] = cubeFaceBasis(a.face), size = 2 / 2 ** a.level, u0 = -1 + a.x * size, v1 = -1 + (a.y + 1) * size, step = size / T;
@@ -462,17 +464,41 @@ export interface DecodedSourceTile { width: number; height: number; data: Uint8A
  * transparency, never another source's or day's pixels.
  */
 export function resample(plan: ReprojectionPlan, tile: (col: number, row: number) => DecodedSourceTile | undefined): Uint8Array {
+  const out = new Uint8Array(plan.span * plan.span * 4);
+  resampleRows(plan, tile, out, 0, plan.span);
+  return out;
+}
+
+/**
+ * The same, in row chunks that yield to the event loop between them, so a
+ * worker answers aborts and date changes within milliseconds instead of after
+ * a whole tile. Rejects with AbortError as soon as `signal` aborts.
+ */
+export async function resampleYielding(plan: ReprojectionPlan, tile: (col: number, row: number) => DecodedSourceTile | undefined, signal: AbortSignal, rowsPerChunk = 24): Promise<Uint8Array> {
+  const out = new Uint8Array(plan.span * plan.span * 4);
+  const cache = new Map<number, DecodedSourceTile | 'empty' | null>();
+  for (let j = 0; j < plan.span; j += rowsPerChunk) {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    resampleRows(plan, tile, out, j, Math.min(plan.span, j + rowsPerChunk), cache);
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+  }
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  return out;
+}
+
+function resampleRows(plan: ReprojectionPlan, tile: (col: number, row: number) => DecodedSourceTile | undefined, out: Uint8Array, rowStart: number, rowEnd: number,
+  resolved = new Map<number, DecodedSourceTile | 'empty' | null>()): void {
   const { span, matrix, samplesX, samplesY } = plan;
-  const out = new Uint8Array(span * span * 4);
   const wrap = wrapPixels(matrix);
   const pixelsX = matrix.cols * matrix.tileWidth, pixelsY = matrix.rows * matrix.tileHeight;
   const tw = matrix.tileWidth, th = matrix.tileHeight;
-  // Tiles resolved once, row-major by (row, col) key.
-  const resolved = new Map<number, DecodedSourceTile | null>();
-  const tileAt = (col: number, row: number): DecodedSourceTile | null => {
+  // Tiles resolved once, row-major by (row, col) key. EMPTY: a declared gap or fully
+  // transparent tile (zero alpha, still valid); null: missing or failed (invalid).
+  const EMPTY = 'empty' as const;
+  const tileAt = (col: number, row: number): DecodedSourceTile | typeof EMPTY | null => {
     const key = row * matrix.cols + col;
     let t = resolved.get(key);
-    if (t === undefined) { const d = tile(col, row); t = d && d.data && d.width === tw && d.height === th ? d : d?.data ? scaled(d, tw, th) : null; resolved.set(key, t); }
+    if (t === undefined) { const d = tile(col, row); t = !d ? null : !d.data ? EMPTY : d.width === tw && d.height === th ? d : scaled(d, tw, th); resolved.set(key, t); }
     return t;
   };
   let r = 0, gr = 0, b = 0, al = 0;
@@ -482,12 +508,13 @@ export function resample(plan: ReprojectionPlan, tile: (col: number, row: number
     if (wrap) { if (gx < 0) gx += wrap; else if (gx >= wrap) gx -= wrap; } else if (gx < 0) gx = 0; else if (gx >= pixelsX) gx = pixelsX - 1;
     const col = (gx / tw) | 0, row = (gy / th) | 0, t = tileAt(col, row);
     if (!t) return false;
+    if (t === EMPTY) return true; // contributes zero alpha
     const d = t.data!, o = ((gy - row * th) * tw + (gx - col * tw)) * 4, a = d[o + 3] * w;
     r += d[o] * a; gr += d[o + 1] * a; b += d[o + 2] * a; al += a;
     return true;
   };
   const per = samplesX * samplesY;
-  for (let j = 0; j < span; j++) {
+  for (let j = rowStart; j < rowEnd; j++) {
     const outRow = span - 1 - j;
     for (let i = 0; i < span; i++) {
       let sr = 0, sg = 0, sb = 0, sa = 0;
@@ -501,7 +528,7 @@ export function resample(plan: ReprojectionPlan, tile: (col: number, row: number
         const col = Math.floor(x0 / tw), row = Math.floor(y0 / th);
         if (x0 >= 0 && y0 >= 0 && x0 + 1 < (col + 1) * tw && y0 + 1 < (row + 1) * th && y0 + 1 < pixelsY && (wrap ? x0 + 1 < wrap : x0 + 1 < pixelsX)) {
           const t = tileAt(col, row);
-          if (!t) continue;
+          if (!t || t === EMPTY) continue;
           const d = t.data!, lx0 = x0 - col * tw, ly0 = y0 - row * th, o = (ly0 * tw + lx0) * 4, o2 = o + tw * 4;
           const w00 = (1 - tx) * (1 - ty) * d[o + 3], w10 = tx * (1 - ty) * d[o + 7], w01 = (1 - tx) * ty * d[o2 + 3], w11 = tx * ty * d[o2 + 7];
           sr += d[o] * w00 + d[o + 4] * w10 + d[o2] * w01 + d[o2 + 4] * w11;
@@ -521,7 +548,6 @@ export function resample(plan: ReprojectionPlan, tile: (col: number, row: number
       }
     }
   }
-  return out;
 }
 
 /** A served tile of another size, nearest-resampled to the declared size so indexing stays exact. */

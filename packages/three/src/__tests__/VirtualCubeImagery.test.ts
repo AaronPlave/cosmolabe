@@ -81,6 +81,16 @@ describe('SourceTileCache', () => {
     expect(s.requests.length).toBeGreaterThan(before);
   }, 20_000);
 
+  it('keeps fully transparent tiles as gaps, not decoded zeros', async () => {
+    const s = server();
+    const decode = async () => ({ width: 64, height: 64, data: new Uint8ClampedArray(64 * 64 * 4) });
+    const cache = new SourceTileCache({ fetchImpl: s.fetchImpl, decode });
+    const tile = await cache.get('https://t/empty', new AbortController().signal);
+    expect(tile.data).toBeNull();
+    expect(cache.stats).toMatchObject({ transparent: 1, tiles: 1 });
+    expect(cache.stats.residentBytes).toBeLessThan(1024);
+  });
+
   it('bounds concurrency and decoded bytes', async () => {
     const s = server(); s.setHold(true);
     const cache = new SourceTileCache({ fetchImpl: s.fetchImpl, decode: s.decode, maxConcurrent: 2, maxBytes: 64 * 3 });
@@ -116,6 +126,23 @@ describe('VirtualCubeSource', () => {
     s.release();
     expect((await pending).name).toBe('AbortError');
   });
+
+  it('abandons a failed tile\'s other source requests', async () => {
+    const s = server(url => (url.endsWith('/1/0/0.png') ? 404 : 200));
+    s.setHold(true);
+    const geographic: TerrainImageryConfig = { type: 'xyz', levels: 1, dimension: 4, url: 'https://t/{z}/{y}/{x}.png', latitudeConvention: 'planetocentric' };
+    const cache = new SourceTileCache({ fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/0/0/0.png')) throw new TypeError('network down'); // no parent at level 0
+      return s.fetchImpl(input, init);
+    }) as typeof fetch, decode: s.decode, retryFailedMs: 60_000 });
+    const source = new VirtualCubeSource(geographic, options(cache));
+    await source.ready;
+    // The px face reads tiles (0,0) and (1,0) at level 0: one fails at once, the other is held.
+    await expect(source.produce({ face: 'px', level: 0, x: 0, y: 0 }, new AbortController().signal)).rejects.toThrow();
+    await tick();
+    expect(cache.stats.aborted).toBe(1); // the held request was abandoned, not left running
+    s.release();
+  }, 20_000);
 
   it('fails closed for a dated layer whose URL cannot carry the day', async () => {
     const s = server();

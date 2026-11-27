@@ -131,6 +131,21 @@ describe('virtual cube tile reprojection', () => {
     // Declared gap (404): data null → transparent too.
     const declared = resample(plan, () => ({ width: 4, height: 4, data: null }));
     expect(declared.every(v => v === 0)).toBe(true);
+    // Next to a declared gap, data keeps its colour and fades in alpha (premultiplied), never erodes to nothing;
+    // next to a missing (failed) tile the blended texel is dropped.
+    const fine = planReprojection(grid, address, { tileSize: 32, gutter: 0, ellipsoid: null, maxSamples: 1 });
+    const nearGap = resample(fine, (col) => (west(col) ? solid(255, 0, 0, 255) : { width: 4, height: 4, data: null }));
+    const nearMissing = resample(fine, (col) => (west(col) ? solid(255, 0, 0, 255) : undefined));
+    let soft = 0, dropped = 0;
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) {
+      const [lon] = directionToSourceLonLat(texelCenterDirection(address, i, j, 32, 0), 'planetocentric', null);
+      if (lon > 0 || lon < -12) continue; // west texels whose bilinear footprint reaches the east tile
+      const o = ((32 - 1 - j) * 32 + i) * 4;
+      if (nearGap[o + 3] > 0 && nearGap[o + 3] < 255) { soft++; expect(nearGap[o]).toBe(255); }
+      if (nearMissing[o + 3] === 0) dropped++;
+    }
+    expect(soft).toBeGreaterThan(0);
+    expect(dropped).toBeGreaterThan(0);
   });
 
   it('upsamples a failed tile from the matching part of its parent', () => {

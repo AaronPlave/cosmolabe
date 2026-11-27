@@ -130,6 +130,7 @@ apps/viewer/test-catalogs/data/earth-bluemarble-cube/
 /work/virtual-cube-imagery*/
 /work/vci-*
 /work/gate/
+/work/gate.log
 /work/smoke.mjs
 /work/debug-*.mjs
 /work/decode-bench.mjs

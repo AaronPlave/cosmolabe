@@ -4,7 +4,7 @@ import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { ImageryAddress } from './surface/CubeImagery.js';
 import {
   DEFAULT_MAX_SOURCE_PIXELS, VirtualImageryInventory, affordableMatrix, geocentricDataBounds, mercatorY, parentSourceTile, planReprojection,
-  resample, sourcePixelAngle, upsampleFromParent, virtualLevelRange, xyzSourceGrid,
+  resampleYielding, sourcePixelAngle, upsampleFromParent, virtualLevelRange, xyzSourceGrid,
   type DecodedSourceTile, type ProjectedSourceGrid, type SourceLatitudeConvention, type SourceMatrix, type VirtualLevelRange,
 } from './surface/ProjectedImagery.js';
 
@@ -46,8 +46,9 @@ interface CacheEntry {
 }
 
 export interface SourceTileCacheStats {
-  /** Network requests started, completed bytes, cache hits, declared gaps (404/204), failures and abandoned requests. */
-  requests: number; bytes: number; hits: number; nodata: number; failures: number; aborted: number;
+  /** Network requests started, completed bytes, cache hits, declared gaps (404/204), fully transparent
+   * tiles kept as gaps, failures and abandoned requests. */
+  requests: number; bytes: number; hits: number; nodata: number; transparent: number; failures: number; aborted: number;
   /** Decoded bytes resident, their budget, resident tiles, and requests in flight / waiting.
    * `decodeMs` is wall time from response body to decoded pixels, including any wait
    * for the thread that also plans and resamples tiles: a queueing figure, not codec cost. */
@@ -67,7 +68,7 @@ export class SourceTileCache {
   private readonly queue: CacheEntry[] = [];
   private active = 0;
   private clock = 0;
-  private counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 };
+  private counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 };
   readonly maxBytes: number;
   readonly maxConcurrent: number;
   private readonly retryFailedMs: number;
@@ -90,7 +91,7 @@ export class SourceTileCache {
     return { ...this.counters, residentBytes, maxBytes: this.maxBytes, tiles, inFlight, queued: this.queue.length };
   }
 
-  resetCounters(): void { this.counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 }; }
+  resetCounters(): void { this.counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 }; }
 
   /** Forget remembered failures so the next request retries (explicit recovery). */
   retryFailed(prefix?: string): void {
@@ -141,7 +142,8 @@ export class SourceTileCache {
       const e = this.queue.shift()!;
       if (e.consumers <= 0 || this.entries.get(e.url) !== e) continue;
       e.state = 'loading'; this.active++; this.counters.requests++;
-      void this.load(e).finally(() => { this.active--; this.pump(); });
+      // Refill from a task, not a microtask: aborts already queued as messages run first.
+      void this.load(e).finally(() => { this.active--; setTimeout(() => this.pump(), 0); });
     }
   }
 
@@ -162,6 +164,9 @@ export class SourceTileCache {
         tile = await this.decode(blob, e.controller.signal);
         this.counters.decodeMs += performance.now() - started;
         if (!tile.data || tile.width < 1 || tile.height < 1 || tile.data.length !== tile.width * tile.height * 4) throw new Error('Malformed decoded source tile');
+        // Sparse overlays (coastlines, labels, regional mosaics) serve many fully
+        // transparent tiles: keep them as transparent gaps, not megabytes of zeros.
+        if (fullyTransparent(tile.data)) { tile = { width: tile.width, height: tile.height, data: null }; this.counters.transparent++; }
       }
       if (this.entries.get(e.url) !== e) return;
       e.state = 'ready'; e.tile = tile; e.bytes = tile.data ? tile.data.byteLength : 64; e.lastUsed = ++this.clock;
@@ -191,6 +196,11 @@ export class SourceTileCache {
       this.entries.delete(e.url); total -= e.bytes; this.counters.evicted++;
     }
   }
+}
+
+function fullyTransparent(data: Uint8Array | Uint8ClampedArray): boolean {
+  for (let i = 3; i < data.length; i += 4) if (data[i] !== 0) return false;
+  return true;
 }
 
 /** A `/default/YYYY-MM-DD/` REST segment (GIBS-style) that a day replaces. */
@@ -288,7 +298,23 @@ export interface VirtualSourceDescriptor {
  * resident ancestor and retries later, instead of drawing a hole as data.
  * Pure of DOM state: runs in a worker or on the main thread.
  */
-export async function produceVirtualTile(source: VirtualSourceDescriptor, address: ImageryAddress, date: string | undefined, cache: SourceTileCache, signal: AbortSignal): Promise<VirtualTileResult> {
+export async function produceVirtualTile(source: VirtualSourceDescriptor, address: ImageryAddress, date: string | undefined, cache: SourceTileCache, outer: AbortSignal): Promise<VirtualTileResult> {
+  // Abandon this tile's remaining source requests as soon as it fails or is aborted:
+  // a failed tile must not keep (old-day) fetches alive with nothing waiting for them.
+  const local = new AbortController();
+  const forward = () => local.abort(outer.reason);
+  if (outer.aborted) forward(); else outer.addEventListener('abort', forward, { once: true });
+  try {
+    return await produceWith(source, address, date, cache, local.signal);
+  } catch (error) {
+    local.abort();
+    throw error;
+  } finally {
+    outer.removeEventListener('abort', forward);
+  }
+}
+
+async function produceWith(source: VirtualSourceDescriptor, address: ImageryAddress, date: string | undefined, cache: SourceTileCache, signal: AbortSignal): Promise<VirtualTileResult> {
   const { grid, tileSize, gutter, ellipsoid, maxSourcePixels } = source;
   const url = (m: SourceMatrix, col: number, row: number) => buildTileUrl(source.url, m, col, row, date);
   const started = performance.now();
@@ -330,7 +356,7 @@ export async function produceVirtualTile(source: VirtualSourceDescriptor, addres
   }));
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   const resampleStarted = performance.now();
-  const data = resample(plan, (col, row) => tiles.get(`${plan.matrix.index}/${col}/${row}`));
+  const data = await resampleYielding(plan, (col, row) => tiles.get(`${plan.matrix.index}/${col}/${row}`), signal);
   const resampleMs = performance.now() - resampleStarted;
   return { data, span: plan.span, matrix: plan.matrix.id, wantedMatrix: grid.matrices[plan.wantedMatrix].id, sourceTiles: plan.tiles.length,
     degradedTiles: degraded, nodataTiles: nodata, planMs, resampleMs };
@@ -370,7 +396,7 @@ export type VirtualWorkerReply =
   /** Unsolicited while busy, so the render thread never reads a stale idle cache. */
   | { type: 'stats'; stats: SourceTileCacheStats };
 
-const EMPTY_STATS: SourceTileCacheStats = { requests: 0, bytes: 0, hits: 0, nodata: 0, failures: 0, aborted: 0, residentBytes: 0, maxBytes: 0, tiles: 0, inFlight: 0, queued: 0, evicted: 0, decodeMs: 0 };
+const EMPTY_STATS: SourceTileCacheStats = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, residentBytes: 0, maxBytes: 0, tiles: 0, inFlight: 0, queued: 0, evicted: 0, decodeMs: 0 };
 
 /**
  * Production in dedicated workers: fetch, decode, plan and resample all leave

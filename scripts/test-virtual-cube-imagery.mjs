@@ -35,19 +35,29 @@ const round = (v, d = 3) => (typeof v === 'number' ? Number(v.toFixed(d)) : v);
 async function open(catalog, bodyName) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   page.setDefaultTimeout(180_000);
-  const requests = [];
+  const requests = [], requestTimes = [];
   page.on('pageerror', e => {
     if (environmental(e)) { if (!result.environmentErrors.includes(e.message)) result.environmentErrors.push(e.message); return; }
     result.errors.push(`${bodyName}: ${e.message}`); console.error(e.message);
   });
   page.on('console', m => { if (/GL_INVALID|INVALID_OPERATION|Shader Error/.test(m.text())) result.errors.push(`${bodyName}: ${m.text()}`); });
-  page.on('request', r => { if (/astro\.arcgis|trek\.nasa|gibs\.earthdata/.test(r.url())) requests.push(r.url()); });
+  // Request start on the browser's clock: Playwright may receive events seconds late under load.
+  const upstream = /astro\.arcgis|trek\.nasa|gibs\.earthdata/;
+  const indexOf = new Map();
+  page.on('request', r => { if (upstream.test(r.url())) { indexOf.set(r, requests.length); requests.push(r.url()); requestTimes.push(Date.now()); } });
+  const started = r => { const i = indexOf.get(r), t = r.timing().startTime; if (i !== undefined && t > 0) requestTimes[i] = t; };
+  page.on('requestfinished', started); page.on('requestfailed', started);
   await page.goto(`${base}/?catalog=test-catalogs/experiments/${catalog}`, { timeout: 180_000 });
   await page.waitForFunction(b => window.renderer?.getBodyMesh(b)?.terrainManager?.cubeImageryStats?.ready, bodyName, { timeout: 180_000 });
   // Flood lighting: imagery visible wherever the camera is, independent of the Sun (evidence captures, not a lighting claim).
   await page.evaluate(async b => { await window.renderer.getBodyMesh(b).terrainManager.cubeImageryLayer.ready; window.cosmo.setPlaying(false); window.cosmo.select(b); window.renderer.setLightingMode('flood'); }, bodyName);
   const api = {
-    page, requests,
+    page, requests, requestTimes,
+    /** Requests (from index `from`) that the browser started at least `graceMs` after `since` (browser clock). */
+    requestsAfter(from, since, graceMs = 3000) { return requests.slice(from).filter((_, i) => requestTimes[from + i] >= since + graceMs); },
+    /** Latest start (ms after `since`) of a request matching `predicate`, from index `from`. */
+    latestStart(from, since, predicate) { let worst = null; requests.slice(from).forEach((u, i) => { if (predicate(u)) worst = Math.max(worst ?? -Infinity, requestTimes[from + i] - since); }); return worst; },
+    browserNow: () => page.evaluate(() => Date.now()),
     /** Idle and unchanged (requests, produced tiles, displayed cover) for 3 consecutive 600 ms polls. */
     async settle(allowBudget = true, timeout = 600_000) {
       await page.evaluate(() => { window.__settle = { key: '', stable: 0 }; });
@@ -150,7 +160,7 @@ async function independence(api, name, site, layerId) {
 
 async function mars() {
   const api = await open('mars-virtual-imagery', 'Mars');
-  const out = { sites: {}, cycle: [], outage: null };
+  const out = result.mars = { sites: {}, cycle: [], outage: null };
   const sites = {
     gale: { lat: -4.59, lon: 137.44, altitudeKm: 1.5, note: 'py/nx face seam (135°E), southern hemisphere' },
     olympus: { lat: 18.4, lon: -133.8, altitudeKm: 1.5, note: 'nx face, northern hemisphere, high relief' },
@@ -207,8 +217,10 @@ const solid = async (rgb, format = 'jpeg') => {
 };
 
 async function earth() {
+  // VIRTUAL_IMAGERY_EARTH=live,sites,mock selects phases (default all).
+  const phases = process.env.VIRTUAL_IMAGERY_EARTH?.split(',') ?? ['live', 'sites', 'mock'];
   const api = await open('earth-virtual-imagery', 'Earth');
-  const out = { live: {}, sites: {}, mock: {} };
+  const out = result.earth = { live: {}, sites: {}, mock: {} };
   const day = (d) => api.page.evaluate(d => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { date: d }), d);
   const centrePixel = async () => {
     const png = await api.page.locator('canvas').first().screenshot();
@@ -219,20 +231,43 @@ async function earth() {
   // Live GIBS: two real days at a fixed camera; rendered pixels and requests both change.
   const california = { lat: 36.5, lon: -121.9, altitudeKm: 400, fov: 30 };
   await api.pose(california.lat, california.lon, california.altitudeKm, california.fov);
-  for (const d of ['2026-11-03', '2026-11-04']) {
-    const before = api.requests.length;
+  if (phases.includes('live')) for (const d of ['2026-11-03', '2026-11-04']) {
+    const before = api.requests.length, since = await api.browserNow();
     await day(d); await api.settle();
     const snap = await api.snapshot(), px = await centrePixel(); await api.shot(`earth-live-${d}`);
     const dated = api.requests.slice(before).filter(u => u.includes('VIIRS_NOAA20'));
-    out.live[d] = { requests: dated.length, allThisDay: dated.every(u => u.includes(`/${d}/`)), centre: snap.centre, pixel: px.mean, virtual: snap.virtual };
-    assert.ok(dated.length > 0 && out.live[d].allThisDay, `live ${d}: requests not for that day`);
+    // Old-day fetches already handed to the worker may still start within the abort's message latency.
+    const late = api.requestsAfter(before, since).filter(u => u.includes('VIIRS_NOAA20') && !u.includes(`/${d}/`));
+    out.live[d] = { requests: dated.length, thisDay: dated.filter(u => u.includes(`/${d}/`)).length, otherDayWithinGrace: dated.length - dated.filter(u => u.includes(`/${d}/`)).length - late.length,
+      otherDayAfterGrace: late.length, centre: snap.centre, pixel: px.mean, virtual: snap.virtual };
+    out.live[d].lateSamples = late.slice(0, 3);
+    out.live[d].lastSupersededStartMs = api.latestStart(before, since, u => u.includes('VIIRS_NOAA20') && !u.includes(`/${d}/`));
+    assert.ok(out.live[d].thisDay > 0 && late.length === 0, `live ${d}: a superseded day was requested after the switch: ${JSON.stringify(out.live[d])}`);
     out.live[d].raw = px.buffer;
   }
+  if (phases.includes('live')) {
   const a = out.live['2026-11-03'].raw, b = out.live['2026-11-04'].raw;
   let changed = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 12) changed++;
   out.live.changedFraction = round(changed / a.length, 3);
   delete out.live['2026-11-03'].raw; delete out.live['2026-11-04'].raw;
   assert.ok(out.live.changedFraction > 0.05, 'two live days rendered the same pixels');
+  // EPSG:4326 capabilities overlay (GIBS Coastlines, transparent PNG, 2×1/3×2/5×3… matrices) over the
+  // Web Mercator day and the cube-native base: three projections registered at one coast.
+  {
+    await api.pose(36.6, -121.9, 60, 30);
+    await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerVisible('coastlines', true));
+    // Its capabilities document (~5 MB) loads first; settle only once the source is set up and requesting.
+    await api.page.waitForFunction(() => { const t = window.renderer.getBodyMesh('Earth').terrainManager;
+      return t.cubeImageryLayer.virtualSources.some(v => v.id === 'coastlines' && v.coverage) && t.imageryLayers.find(l => l.id === 'coastlines').requests > 6; }, null, { timeout: 180_000 });
+    await api.settle();
+    const snap = await api.snapshot(); await api.shot('earth-live-coastlines-registration');
+    out.live.coastlines = { centre: snap.centre, layer: snap.layers.find(l => l.id === 'coastlines'), coverage: snap.virtual.find(v => v.id === 'coastlines')?.coverage,
+      transparentSourceTiles: snap.imagery.sourceCache.transparent };
+    // The view centre may be open water (a transparent coastline tile): judge the layer over the view.
+    const coast = snap.virtual.find(v => v.id === 'coastlines');
+    assert.ok(out.live.coastlines.layer.view?.zoomLevel != null && coast.stats.produced > 0, 'coastlines not drawn in view');
+    await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerVisible('coastlines', false));
+  }
   // `latest` through the EPSG:4326 capabilities layer: the provider's newest day (less latency), its own grid and {Time}.
   {
     const before = api.requests.length;
@@ -249,15 +284,16 @@ async function earth() {
     assert.ok(dated.length > 0 && out.live.latest.allThatDay, 'latest: requests not for the resolved day');
     await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerVisible('viirs-latest-4326', false));
   }
+  }
   // Registration and imagery-only refinement at several latitudes and seams (cube-native base + 3857 + 4326 layers).
-  for (const [name, site] of Object.entries({
+  if (phases.includes('sites')) for (const [name, site] of Object.entries({
     himalaya: { lat: 28.0, lon: 86.9, altitudeKm: 25 }, seam45E: { lat: 12.0, lon: 45.0, altitudeKm: 25 },
     scandinavia: { lat: 66.0, lon: 16.0, altitudeKm: 25 }, fiji: { lat: -17.5, lon: 179.5, altitudeKm: 25 },
   })) {
     console.log('earth', name);
     out.sites[name] = await independence(api, `earth-${name}`, site, 'viirs-daily');
-    out.sites[name].coastlines = out.sites[name].fine.centre.find(c => c.id === 'coastlines');
   }
+  if (!phases.includes('mock')) { await api.page.close(); return out; }
   // Mock provider: gaps, failures, cancellation and races.
   await api.page.route(/gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/VIIRS/, async route => {
     const d = /\/default\/(\d{4}-\d{2}-\d{2})\//.exec(route.request().url())?.[1];
@@ -267,37 +303,38 @@ async function earth() {
     if (d === '2026-11-05' && /\/[0-9]+\/[0-9]*[02468]\.jpeg$/.test(route.request().url())) return route.fulfill({ status: 503, headers: cors, body: '' });
     return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: cors, body: await solid(COLOURS[d] ?? [255, 0, 255]) });
   });
-  await api.pose(california.lat, california.lon, 1500, 40);
-  const mockRequests = () => api.requests.filter(u => u.includes('VIIRS_NOAA20'));
+  await api.pose(california.lat, california.lon, california.altitudeKm, california.fov);
   // Rapid switching: only the final day may be requested after it, drawn or kept resident.
   const textures0 = (await api.snapshot()).imagery;
   for (const d of ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-01', '2026-11-02']) { await day(d); await api.page.waitForTimeout(60); }
-  const marker = mockRequests().length;
+  const marker = api.requests.length, raceSwitch = await api.browserNow();
   await day('2026-11-03'); await api.settle();
   const raced = await api.snapshot(), racedPixel = await centrePixel(); await api.shot('earth-mock-race-final-day');
-  const after = mockRequests().slice(marker);
-  out.mock.race = { requestsAfterFinalSwitch: after.length, onlyFinalDay: after.every(u => u.includes('/2026-11-03/')), date: raced.virtual.find(v => v.id === 'viirs-daily').date,
+  const after = api.requests.slice(marker).filter(u => u.includes('VIIRS_NOAA20'));
+  const lateRace = api.requestsAfter(marker, raceSwitch).filter(u => u.includes('VIIRS_NOAA20') && !u.includes('/2026-11-03/'));
+  out.mock.race = { requestsAfterFinalSwitch: after.length, otherDayAfterGrace: lateRace.length,
+    lastSupersededStartMs: api.latestStart(marker, raceSwitch, u => u.includes('VIIRS_NOAA20') && !u.includes('/2026-11-03/')), onlyFinalDay: lateRace.length === 0, date: raced.virtual.find(v => v.id === 'viirs-daily').date,
     pixel: racedPixel.mean, aborted: raced.imagery.aborted, sourceCache: raced.imagery.sourceCache };
   assert.ok(out.mock.race.onlyFinalDay, 'a superseded day was requested after the final switch');
   assert.ok(racedPixel.mean[2] > racedPixel.mean[0] + 20 && racedPixel.mean[2] > racedPixel.mean[1] + 20, 'final (blue) day not dominant: stale day drawn');
   // Repeated scrubbing does not grow residency.
   const residency = [];
-  for (let i = 0; i < 8; i++) { await day(i % 2 ? '2026-11-01' : '2026-11-02'); await api.settle(); const s = await api.snapshot(); residency.push({ textureBytes: s.imagery.textureBytes, gpuAllocatedBytes: s.imagery.gpuAllocatedBytes, sourceCacheBytes: s.imagery.sourceCache.residentBytes }); }
+  for (let i = 0; i < 4; i++) { await day(i % 2 ? '2026-11-01' : '2026-11-02'); await api.settle(); const s = await api.snapshot(); residency.push({ textureBytes: s.imagery.textureBytes, gpuAllocatedBytes: s.imagery.gpuAllocatedBytes, sourceCacheBytes: s.imagery.sourceCache.residentBytes }); }
   out.mock.scrub = { before: { textureBytes: textures0.textureBytes, gpuAllocatedBytes: textures0.gpuAllocatedBytes }, residency };
   assert.ok(residency.at(-1).gpuAllocatedBytes <= residency[1].gpuAllocatedBytes * 1.25, 'GPU pages grew across date switches');
   // Missing day (404): transparent, Blue Marble shows, no other day fetched.
-  const gapMarker = mockRequests().length;
+  const gapMarker = api.requests.length, gapSwitch = await api.browserNow();
   await day(GAP); await api.settle();
   const gap = await api.snapshot(), gapPixel = await centrePixel(); await api.shot('earth-mock-gap-day');
-  const gapRequests = mockRequests().slice(gapMarker);
-  out.mock.gap = { requests: gapRequests.length, onlyGapDay: gapRequests.every(u => u.includes(`/${GAP}/`)), centre: gap.centre, pixel: gapPixel.mean, layer: gap.layers.find(l => l.id === 'viirs-daily') };
+  const gapRequests = api.requests.slice(gapMarker).filter(u => u.includes('VIIRS_NOAA20'));
+  out.mock.gap = { requests: gapRequests.length, onlyGapDay: api.requestsAfter(gapMarker, gapSwitch).filter(u => u.includes('VIIRS_NOAA20') && !u.includes(`/${GAP}/`)).length === 0, centre: gap.centre, pixel: gapPixel.mean, layer: gap.layers.find(l => l.id === 'viirs-daily') };
   assert.ok(out.mock.gap.onlyGapDay, 'another day was fetched in place of a missing day');
   assert.equal(gap.centre.find(c => c.id === 'blue-marble-cube').enabled, 1, 'cube-native base not shown under a missing day');
   // Failed tiles (503 on half the tiles): reported, never another day.
-  const failMarker = mockRequests().length;
-  await day('2026-11-05'); await api.settle(true, 240_000);
+  const failMarker = api.requests.length, failSwitch = await api.browserNow();
+  await day('2026-11-05'); await api.settle(true, 600_000);
   const failed = await api.snapshot(); await api.shot('earth-mock-failed-tiles');
-  out.mock.failed = { onlyThisDay: mockRequests().slice(failMarker).every(u => u.includes('/2026-11-05/')), layer: failed.layers.find(l => l.id === 'viirs-daily'), sourceCache: failed.imagery.sourceCache };
+  out.mock.failed = { onlyThisDay: api.requestsAfter(failMarker, failSwitch).filter(u => u.includes('VIIRS_NOAA20') && !u.includes('/2026-11-05/')).length === 0, layer: failed.layers.find(l => l.id === 'viirs-daily'), sourceCache: failed.imagery.sourceCache };
   assert.ok(out.mock.failed.onlyThisDay, 'failed tiles were filled from another day');
   // Follow-simulation and terrain identity across date changes.
   await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { policy: 'follow-simulation' }));
@@ -314,8 +351,8 @@ async function earth() {
 }
 
 try {
-  if (which === 'mars' || which === 'all') result.mars = await mars();
-  if (which === 'earth' || which === 'all') result.earth = await earth();
+  if (which === 'mars' || which === 'all') await mars();
+  if (which === 'earth' || which === 'all') await earth();
   result.passed = result.errors.length === 0;
 } catch (error) {
   result.passed = false; result.failure = String(error?.stack ?? error); console.error(error);

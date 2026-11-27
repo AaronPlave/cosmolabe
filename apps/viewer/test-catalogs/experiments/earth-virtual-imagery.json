@@ -92,7 +92,7 @@
         "radii": [
           6378.137,
           6378.137,
-          6356.752
+          6356.752314245
         ],
         "baseMap": "../textures/earth-5k.jpg",
         "atmosphere": "Earth",
@@ -135,7 +135,8 @@
             "url": "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/wmts.cgi?SERVICE=WMTS&REQUEST=GetCapabilities",
             "layer": "Coastlines_15m",
             "tileMatrixSet": "15.625m",
-            "latitudeConvention": "geodetic"
+            "latitudeConvention": "geodetic",
+            "visible": false
           },
           {
             "id": "viirs-latest-4326",
