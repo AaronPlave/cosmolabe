@@ -83,7 +83,7 @@ async function run() {
     if (comments.some(c => (c.body || '').includes(MARKER))) return;
     await api('POST', '/issues/' + number + '/comments', { body: MARKER + '\n' + message });
   }
-  async function process(issue) {
+  async function processIssue(issue) {
     if (issue.pull_request || issue.number <= 323) return;
     let declaration;
     try {
@@ -131,10 +131,10 @@ async function run() {
   }
   if (mode === 'audit') {
     const issues = await pages('/issues?state=open');
-    for (const issue of issues) await process(issue);
+    for (const issue of issues) await processIssue(issue);
   } else {
     const payload = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
-    if (payload.issue) await process(payload.issue);
+    if (payload.issue) await processIssue(payload.issue);
   }
   console.log(summary.join('\n') || 'No relationship changes needed.');
   if (process.env.GITHUB_STEP_SUMMARY) {
