@@ -8,9 +8,11 @@ They are local, gitignored validation fixtures, not published terrain products.
   mars   MOLA MEGDR 16 px/deg median topography (MEGT90N000EB, metres above the MEG016
          areoid) on the IAU 2000 Mars ellipsoid with the #245 areoid-radial convention
          (MEGA90N000EB areoid radius). Global level 5: ~2.6 km vertex spacing.
-  earth  ETOPO 2022 60-arc-second surface elevation (EGM2008 geoid heights, used as
-         heights above WGS84 — a ≤ ±110 m datum approximation stated here, irrelevant
-         at this vertex spacing) with the ellipsoid-normal convention. Global level 4.
+  earth  ETOPO 2022 60-arc-second surface elevation block-averaged to 4′ (EGM2008 geoid
+         heights, used as heights above WGS84 — a ≤ ±110 m datum approximation stated here,
+         irrelevant at this vertex spacing) with the ellipsoid-normal convention. Global
+         level 3: ~20 km vertex spacing (dem.py's ellipsoid-normal sampling is the slow
+         step; coarse relief is what the fixture needs).
 
 Sources (public, no auth):
   https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/
@@ -37,7 +39,7 @@ DEM = str(ROOT / 'scripts/terrain/dem.py')
 BODIES = {
     'mars': dict(radius=3396190.0, polar=3376200.0, body='Mars', frame='IAU_MARS', level=5, convention='areoid-radial',
                  gcs='GEOGCS["Mars 2000 sphere",DATUM["D_Mars_2000_Sphere",SPHEROID["Mars_2000_Sphere_IAU_IAG",3396190,0]],PRIMEM["Reference_Meridian",0],UNIT["degree",0.0174532925199433]]'),
-    'earth': dict(radius=6378137.0, polar=6356752.314245, body='Earth', frame='IAU_EARTH', level=4, convention='ellipsoid-normal',
+    'earth': dict(radius=6378137.0, polar=6356752.314245, body='Earth', frame='IAU_EARTH', level=3, convention='ellipsoid-normal',
                   gcs=None),
 }
 
@@ -87,8 +89,14 @@ def earth_base(src, work):
             a, lat, dlat = a[::-1], lat[::-1], -dlat
         gt = (float(lon[0]) - dlon / 2, dlon, 0, float(lat[0]) - dlat / 2, 0, dlat)
     assert abs(gt[0] + 180) < 1e-6 and abs(gt[3] - 90) < 1e-6, gt
+    # Block-average 60″ to 4′ (~7.4 km): the fixture needs coarse real relief, at the same
+    # source scale as the Mars MEGDR, not ETOPO's full 1.85 km grid.
+    k = 4
+    h, w = a.shape
+    a = a[:h // k * k, :w // k * k].reshape(h // k, k, w // k, k).mean(axis=(1, 3), dtype=np.float64).astype(np.float32)
+    gt = (gt[0], gt[1] * k, 0, gt[3], 0, gt[5] * k)
     srs = osr.SpatialReference(); srs.ImportFromEPSG(4326)
-    out = work / 'earth-etopo60.tif'
+    out = work / 'earth-etopo4m.tif'
     write_geographic(out, np.ascontiguousarray(a), gt, srs.ExportToWkt())
     return out, None
 

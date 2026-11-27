@@ -128,5 +128,9 @@ apps/viewer/test-catalogs/data/mars-coarse-cube/
 apps/viewer/test-catalogs/data/earth-coarse-cube/
 apps/viewer/test-catalogs/data/earth-bluemarble-cube/
 /work/virtual-cube-imagery*/
+/work/vci-*
 /work/gate/
 /work/smoke.mjs
+/work/debug-*.mjs
+/work/decode-bench.mjs
+/work/mars-draft.log

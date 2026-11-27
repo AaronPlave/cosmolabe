@@ -1,7 +1,7 @@
 {
   "name": "Earth cube terrain with mixed-projection, dated imagery (#136)",
   "version": "1.1",
-  "description": "Issue #136 validation fixture: coarse ETOPO 2022 cube terrain (global level 4, real relief) with a cube-native Blue Marble product, live NASA GIBS VIIRS NOAA-20 daily true colour (Web Mercator, follows simulation time) and GIBS Coastlines (EPSG:4326 WMTS capabilities grid) resampled in the browser into virtual cube tiles. Local, unlisted; build with scripts/terrain/coarse_cube_fixture.py earth and scripts/terrain/cube_imagery.py xyz.",
+  "description": "Issue #136 validation fixture: coarse ETOPO 2022 cube terrain (4′ average, global level 3: ~20 km vertices, real relief) with a cube-native Blue Marble product, live NASA GIBS VIIRS NOAA-20 daily true colour (Web Mercator, follows simulation time) and GIBS Coastlines (EPSG:4326 WMTS capabilities grid) resampled in the browser into virtual cube tiles. Local, unlisted; build with scripts/terrain/coarse_cube_fixture.py earth and scripts/terrain/cube_imagery.py xyz.",
   "defaultTime": "2026-11-04T11:30:00Z",
   "defaultViewpoint": "Earth from orbit",
   "items": [

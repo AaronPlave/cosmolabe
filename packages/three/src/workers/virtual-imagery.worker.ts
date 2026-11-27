@@ -13,6 +13,16 @@ let cache = new SourceTileCache();
 const sources = new Map<string, VirtualSourceDescriptor>();
 const jobs = new Map<number, AbortController>();
 const post = (reply: VirtualWorkerReply, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(reply, transfer);
+// While anything is in flight, report cache state periodically (and once more when it drains).
+let ticker: ReturnType<typeof setInterval> | null = null;
+const watch = () => {
+  if (ticker) return;
+  ticker = setInterval(() => {
+    const stats = cache.stats;
+    post({ type: 'stats', stats });
+    if (!jobs.size && !stats.inFlight && !stats.queued) { clearInterval(ticker!); ticker = null; }
+  }, 250);
+};
 
 self.onmessage = async (event: MessageEvent<VirtualWorkerRequest>) => {
   const msg = event.data;
@@ -25,6 +35,7 @@ self.onmessage = async (event: MessageEvent<VirtualWorkerRequest>) => {
     case 'produce': {
       const controller = new AbortController();
       jobs.set(msg.id, controller);
+      watch();
       try {
         const source = sources.get(msg.key);
         if (!source) throw new Error(`Unknown virtual imagery source ${msg.key}`);

@@ -26,28 +26,44 @@ await mkdir(output, { recursive: true });
 const args = gpu === 'metal' ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu']
   : gpu === 'hardware' ? ['--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const browser = await chromium.launch({ headless: true, args, executablePath: process.env.CL_CHROMIUM ?? (gpu === 'software' ? '/opt/pw-browsers/chromium' : undefined) });
-const result = { gpu, base, startedAt: new Date().toISOString(), mars: null, earth: null, errors: [] };
+const result = { gpu, base, startedAt: new Date().toISOString(), mars: null, earth: null, errors: [], environmentErrors: [] };
+const only = process.env.VIRTUAL_IMAGERY_SITES?.split(',') ?? null;
+// SwiftShader has no S3TC: a compressed DDS static base map has no decodable image there. Not imagery-path errors.
+const environmental = (e) => gpu === 'software' && /reading 'width'/.test(e.message) && /uploadTexture/.test(e.stack ?? '');
 const round = (v, d = 3) => (typeof v === 'number' ? Number(v.toFixed(d)) : v);
 
 async function open(catalog, bodyName) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   page.setDefaultTimeout(180_000);
   const requests = [];
-  page.on('pageerror', e => { result.errors.push(`${bodyName}: ${e.message}`); console.error(e.message); });
+  page.on('pageerror', e => {
+    if (environmental(e)) { if (!result.environmentErrors.includes(e.message)) result.environmentErrors.push(e.message); return; }
+    result.errors.push(`${bodyName}: ${e.message}`); console.error(e.message);
+  });
   page.on('console', m => { if (/GL_INVALID|INVALID_OPERATION|Shader Error/.test(m.text())) result.errors.push(`${bodyName}: ${m.text()}`); });
   page.on('request', r => { if (/astro\.arcgis|trek\.nasa|gibs\.earthdata/.test(r.url())) requests.push(r.url()); });
   await page.goto(`${base}/?catalog=test-catalogs/experiments/${catalog}`, { timeout: 180_000 });
   await page.waitForFunction(b => window.renderer?.getBodyMesh(b)?.terrainManager?.cubeImageryStats?.ready, bodyName, { timeout: 180_000 });
-  await page.evaluate(async b => { await window.renderer.getBodyMesh(b).terrainManager.cubeImageryLayer.ready; window.cosmo.setPlaying(false); window.cosmo.select(b); }, bodyName);
+  // Flood lighting: imagery visible wherever the camera is, independent of the Sun (evidence captures, not a lighting claim).
+  await page.evaluate(async b => { await window.renderer.getBodyMesh(b).terrainManager.cubeImageryLayer.ready; window.cosmo.setPlaying(false); window.cosmo.select(b); window.renderer.setLightingMode('flood'); }, bodyName);
   const api = {
     page, requests,
-    async settle(allowBudget = true, timeout = 180_000) {
+    /** Idle and unchanged (requests, produced tiles, displayed cover) for 3 consecutive 600 ms polls. */
+    async settle(allowBudget = true, timeout = 600_000) {
+      await page.evaluate(() => { window.__settle = { key: '', stable: 0 }; });
       await page.waitForFunction(({ b, allowBudget }) => {
         const t = window.renderer.getBodyMesh(b).terrainManager, n = t.metrics.network, i = t.cubeImageryStats;
-        return t.tiles.visibleTiles.size > 0 && n.queued + n.downloading + n.parsing === 0 && i && i.inFlight === 0 &&
+        const idle = t.tiles.visibleTiles.size > 0 && n.queued + n.downloading + n.parsing === 0 && i && i.inFlight === 0 &&
           (i.queued === 0 || (allowBudget && i.budgetLimited)) && (!i.sourceCache || (i.sourceCache.inFlight === 0 && i.sourceCache.queued === 0));
-      }, { b: bodyName, allowBudget }, { timeout, polling: 250 });
-      await page.waitForTimeout(400);
+        const key = idle ? JSON.stringify([i.requests, i.virtualTiles?.produced, i.displayedLevels, i.sourceCache?.requests]) : '';
+        const s = window.__settle;
+        s.stable = idle && key === s.key ? s.stable + 1 : 0; s.key = key;
+        return s.stable >= 3;
+      }, { b: bodyName, allowBudget }, { timeout, polling: 600 }).catch(async error => {
+        const state = await page.evaluate(b => { const t = window.renderer.getBodyMesh(b).terrainManager, i = t.cubeImageryStats;
+          return { network: t.metrics.network, inFlight: i.inFlight, queued: i.queued, budgetLimited: i.budgetLimited, failures: i.failures, sourceCache: i.sourceCache, layers: t.imageryLayers.map(l => [l.id, l.status, l.requests, l.failedTiles]) }; }, bodyName);
+        throw new Error(`settle timed out: ${JSON.stringify(state)}`, { cause: error });
+      });
     },
     /** Camera `altitudeKm` above the physical surface hit along the local vertical, looking down, north up. */
     pose: (lat, lon, altitudeKm, fov = 40) => page.evaluate(async ({ b, lat, lon, altitudeKm, fov }) => {
@@ -140,16 +156,21 @@ async function mars() {
     olympus: { lat: 18.4, lon: -133.8, altitudeKm: 1.5, note: 'nx face, northern hemisphere, high relief' },
     hale: { lat: -35.7, lon: -36.4, altitudeKm: 1.5, note: 'px face, southern mid-latitude' },
     korolev: { lat: 73.0, lon: 164.5, altitudeKm: 1.5, note: 'pz face, northern high latitude' },
-    antimeridian: { lat: 4.0, lon: 179.9, altitudeKm: 1.5, note: 'source antimeridian wrap on the nx face' },
+    antimeridian: { lat: 4.0, lon: 179.9, altitudeKm: 1.5, note: 'near the source antimeridian on the nx face' },
+    // Views straddling the seams themselves (a ~2 km wide view must contain the line).
+    seam135: { lat: -4.59, lon: 135.0, altitudeKm: 1.5, note: 'on the py/nx cube-face edge (135°E), west of Gale' },
+    wrap180: { lat: 4.0, lon: 180.0, altitudeKm: 1.5, note: 'on the source antimeridian (±180°): longitude wrap mid-view' },
   };
   for (const [name, site] of Object.entries(sites)) {
+    if (only && !only.includes(name)) continue;
     console.log('mars', name);
     out.sites[name] = await independence(api, `mars-${name}`, site, 'ctx-global');
     const c = out.sites[name];
     console.log(`  geometry L${c.geometryLevel}; CTX L${c.layer.level} (${round(c.layer.displayedMetersPerPixel, 2)} m/px), transparent=${c.layer.transparent}; native ${round(c.coverage.nativeMetersPerPixel, 2)} m/px`);
   }
   // HiRISE: a regional source inside its bounds, deeper than CTX.
-  out.sites.jezero = await independence(api, 'mars-jezero-hirise', { lat: 18.4447, lon: 77.4508, altitudeKm: 0.3, note: 'regional HiRISE bounds' }, 'jezero-hirise');
+  if (!only || only.includes('jezero')) out.sites.jezero = await independence(api, 'mars-jezero-hirise', { lat: 18.4447, lon: 77.4508, altitudeKm: 0.3, note: 'regional HiRISE bounds' }, 'jezero-hirise');
+  if (only) { await api.page.close(); return out; }
   // Region changes: residency stays bounded.
   for (let pass = 0; pass < 2; pass++) for (const [name, s] of Object.entries(sites)) {
     await api.pose(s.lat, s.lon, s.altitudeKm); await api.settle();

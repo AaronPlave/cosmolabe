@@ -48,7 +48,9 @@ interface CacheEntry {
 export interface SourceTileCacheStats {
   /** Network requests started, completed bytes, cache hits, declared gaps (404/204), failures and abandoned requests. */
   requests: number; bytes: number; hits: number; nodata: number; failures: number; aborted: number;
-  /** Decoded bytes resident, their budget, resident tiles, and requests in flight / waiting. */
+  /** Decoded bytes resident, their budget, resident tiles, and requests in flight / waiting.
+   * `decodeMs` is wall time from response body to decoded pixels, including any wait
+   * for the thread that also plans and resamples tiles: a queueing figure, not codec cost. */
   residentBytes: number; maxBytes: number; tiles: number; inFlight: number; queued: number;
   evicted: number; decodeMs: number;
 }
@@ -364,59 +366,91 @@ export type VirtualWorkerRequest =
   | { type: 'retryFailed' } | { type: 'resetCounters' };
 export type VirtualWorkerReply =
   | { type: 'tile'; id: number; result: VirtualTileResult; stats: SourceTileCacheStats }
-  | { type: 'error'; id: number; message: string; aborted: boolean; stats: SourceTileCacheStats };
+  | { type: 'error'; id: number; message: string; aborted: boolean; stats: SourceTileCacheStats }
+  /** Unsolicited while busy, so the render thread never reads a stale idle cache. */
+  | { type: 'stats'; stats: SourceTileCacheStats };
 
 const EMPTY_STATS: SourceTileCacheStats = { requests: 0, bytes: 0, hits: 0, nodata: 0, failures: 0, aborted: 0, residentBytes: 0, maxBytes: 0, tiles: 0, inFlight: 0, queued: 0, evicted: 0, decodeMs: 0 };
 
 /**
- * Production in a dedicated worker: fetch, decode, plan and resample all leave
- * the render thread; finished tiles return as transferred buffers. The worker
- * owns the shared source cache, so deduplication spans every layer it serves.
+ * Production in dedicated workers: fetch, decode, plan and resample all leave
+ * the render thread; finished tiles return as transferred buffers. Each worker
+ * owns a source cache. A cube tile is routed by its source and its ancestor
+ * three levels up, so neighbouring tiles (which share source tiles) meet the
+ * same cache while distant regions and other sources resample in parallel.
  */
 export class WorkerExecutor implements VirtualTileExecutor {
   private nextId = 1;
-  private readonly pending = new Map<number, { resolve: (r: VirtualTileResult) => void; reject: (e: unknown) => void }>();
-  private readonly sent = new Set<string>();
-  private last: SourceTileCacheStats = { ...EMPTY_STATS };
+  private readonly pending = new Map<number, { worker: number; resolve: (r: VirtualTileResult) => void; reject: (e: unknown) => void }>();
+  private readonly sent: Array<Set<string>>;
+  private readonly last: SourceTileCacheStats[];
   private failed: Error | null = null;
-  constructor(private readonly worker: Worker, cache: { maxBytes?: number; maxConcurrent?: number; retryFailedMs?: number } = {}) {
-    this.last.maxBytes = cache.maxBytes ?? 96 * 2 ** 20;
-    worker.onmessage = (event: MessageEvent<VirtualWorkerReply>) => {
-      const reply = event.data, job = this.pending.get(reply.id);
-      this.last = reply.stats;
-      if (!job) return;
-      this.pending.delete(reply.id);
-      if (reply.type === 'tile') job.resolve(reply.result);
-      else job.reject(reply.aborted ? new DOMException(reply.message, 'AbortError') : new Error(reply.message));
-    };
-    worker.onerror = (event) => {
-      this.failed = new Error(`Virtual imagery worker failed: ${event.message ?? 'unknown error'}`);
-      for (const job of this.pending.values()) job.reject(this.failed);
-      this.pending.clear();
-    };
-    worker.postMessage({ type: 'init', ...cache } satisfies VirtualWorkerRequest);
+  private readonly workers: Worker[];
+  constructor(workers: Worker | Worker[], cache: { maxBytes?: number; maxConcurrent?: number; retryFailedMs?: number } = {}) {
+    this.workers = Array.isArray(workers) ? workers : [workers];
+    if (!this.workers.length) throw new Error('WorkerExecutor needs at least one worker');
+    // The budgets are for the whole pool: split them across workers.
+    const n = this.workers.length;
+    const share = { ...cache, maxBytes: Math.floor((cache.maxBytes ?? 96 * 2 ** 20) / n), maxConcurrent: Math.max(2, Math.ceil((cache.maxConcurrent ?? 8) / n)) };
+    this.sent = this.workers.map(() => new Set());
+    this.last = this.workers.map(() => ({ ...EMPTY_STATS, maxBytes: share.maxBytes }));
+    this.workers.forEach((worker, index) => {
+      worker.onmessage = (event: MessageEvent<VirtualWorkerReply>) => {
+        const reply = event.data;
+        this.last[index] = reply.stats;
+        if (reply.type === 'stats') return;
+        const job = this.pending.get(reply.id);
+        if (!job) return;
+        this.pending.delete(reply.id);
+        if (reply.type === 'tile') job.resolve(reply.result);
+        else job.reject(reply.aborted ? new DOMException(reply.message, 'AbortError') : new Error(reply.message));
+      };
+      worker.onerror = (event) => {
+        this.failed = new Error(`Virtual imagery worker failed: ${event.message ?? 'unknown error'}`);
+        for (const job of this.pending.values()) job.reject(this.failed);
+        this.pending.clear();
+      };
+      worker.postMessage({ type: 'init', ...share } satisfies VirtualWorkerRequest);
+    });
+  }
+  private route(key: string, address: ImageryAddress): number {
+    if (this.workers.length === 1) return 0;
+    const shift = Math.min(3, address.level);
+    const id = `${key}|${address.face}/${address.level - shift}/${address.x >> shift}/${address.y >> shift}`;
+    let hash = 2166136261;
+    for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619) >>> 0;
+    return hash % this.workers.length;
   }
   produce(key: string, source: VirtualSourceDescriptor, address: ImageryAddress, date: string | undefined, signal: AbortSignal): Promise<VirtualTileResult> {
     if (this.failed) return Promise.reject(this.failed);
     if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
-    if (!this.sent.has(key)) { this.worker.postMessage({ type: 'source', key, source } satisfies VirtualWorkerRequest); this.sent.add(key); }
+    const index = this.route(key, address), worker = this.workers[index];
+    if (!this.sent[index].has(key)) { worker.postMessage({ type: 'source', key, source } satisfies VirtualWorkerRequest); this.sent[index].add(key); }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      const onAbort = () => { this.worker.postMessage({ type: 'abort', id } satisfies VirtualWorkerRequest); };
+      const onAbort = () => { worker.postMessage({ type: 'abort', id } satisfies VirtualWorkerRequest); };
       signal.addEventListener('abort', onAbort, { once: true });
       this.pending.set(id, {
+        worker: index,
         resolve: r => { signal.removeEventListener('abort', onAbort); resolve(r); },
         reject: e => { signal.removeEventListener('abort', onAbort); reject(e); },
       });
-      this.worker.postMessage({ type: 'produce', id, key, address, date } satisfies VirtualWorkerRequest);
+      worker.postMessage({ type: 'produce', id, key, address, date } satisfies VirtualWorkerRequest);
     });
   }
-  get stats() { return { ...this.last }; }
-  retryFailed() { this.worker.postMessage({ type: 'retryFailed' } satisfies VirtualWorkerRequest); }
-  resetCounters() { this.worker.postMessage({ type: 'resetCounters' } satisfies VirtualWorkerRequest); }
+  /** Pool totals. */
+  get stats(): SourceTileCacheStats {
+    const total = { ...EMPTY_STATS };
+    for (const s of this.last) for (const k of Object.keys(total) as Array<keyof SourceTileCacheStats>) total[k] += s[k];
+    return total;
+  }
+  get size(): number { return this.workers.length; }
+  retryFailed() { for (const w of this.workers) w.postMessage({ type: 'retryFailed' } satisfies VirtualWorkerRequest); }
+  resetCounters() { for (const w of this.workers) w.postMessage({ type: 'resetCounters' } satisfies VirtualWorkerRequest); }
   dispose() {
     for (const job of this.pending.values()) job.reject(new DOMException('Disposed', 'AbortError'));
-    this.pending.clear(); this.worker.terminate();
+    this.pending.clear();
+    for (const w of this.workers) w.terminate();
   }
 }
 

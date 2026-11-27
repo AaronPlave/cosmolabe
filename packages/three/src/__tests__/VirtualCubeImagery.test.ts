@@ -211,6 +211,26 @@ describe('WorkerExecutor protocol', () => {
   });
 });
 
+describe('WorkerExecutor pool routing', () => {
+  it('keeps neighbouring tiles on one worker cache and spreads distant ones, with pooled stats', () => {
+    const posted: Array<Array<{ type: string; address?: ImageryAddress }>> = [[], [], []];
+    const workers = posted.map(log => ({ onmessage: null, onerror: null, terminate: vi.fn(), postMessage: (m: { type: string; address?: ImageryAddress }) => log.push(m) }));
+    const executor = new WorkerExecutor(workers as unknown as Worker[], { maxBytes: 3 << 20, maxConcurrent: 9 });
+    const source = { grid: null, url: { template: '', tms: false, dimensions: {} }, tileSize: 8, gutter: 1, ellipsoid: null, maxSourcePixels: 1 } as unknown as VirtualSourceDescriptor;
+    const go = (a: ImageryAddress) => { void executor.produce('s', source, a, undefined, new AbortController().signal).catch(() => {}); };
+    // Four siblings and their children share a level-(L−3) ancestor: one worker.
+    for (let x = 64; x < 66; x++) for (let y = 64; y < 66; y++) go({ face: 'px', level: 10, x, y });
+    const busy = posted.map(log => log.filter(m => m.type === 'produce').length);
+    expect(busy.filter(n => n > 0)).toHaveLength(1);
+    for (let i = 0; i < 24; i++) go({ face: (['px', 'nx', 'py', 'ny', 'pz', 'nz'] as const)[i % 6], level: 10, x: i * 40, y: i * 13 });
+    expect(posted.filter(log => log.some(m => m.type === 'produce')).length).toBeGreaterThan(1);
+    // Budgets are split across the pool; stats are its totals.
+    expect(posted.every(log => log[0].type === 'init')).toBe(true);
+    expect(executor.stats.maxBytes).toBe(3 << 20);
+    executor.dispose();
+  });
+});
+
 /** A cube product listing every tile to level 1 (a base). */
 function cubeManifest(): CubeImageryManifest {
   const tiles: string[] = [];

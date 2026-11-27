@@ -12,7 +12,7 @@ import { selectImageryBlocks } from './surface/CubeImagerySelection.js';
 import { CubeImageryPages, type ImageryPage } from './CubeImageryPages.js';
 import { ImageryRefinement, imageryParent, type ImageryCover } from './surface/ImageryRefinement.js';
 import {
-  CubeImageryAvailability, blockBoundingSphere, blockBoundingBox, boxBeyondHorizon, imageryTileRect, imageryTileUri,
+  CubeImageryAvailability, blockBoundingSphere, blockBoundingBox, blockRectInTile, boxBeyondHorizon, imageryTileRect, imageryTileUri,
   parseImageryAddress, tileProjectiveBasis, validateCubeImageryManifest, directionToTexel, texelGroundSizeKm,
   type CubeImageryManifest, type ImageryAddress, type Vec3,
 } from './surface/CubeImagery.js';
@@ -52,7 +52,11 @@ export interface CubeImageryConfig {
   maxConcurrentSourceRequests?: number;
   /** Upper bound on decoded source pixels one virtual cube tile may read. Default 9 × 512². */
   maxSourcePixels?: number;
+  /** Resampling workers (when the host registered a worker factory). Default: half the cores, 1–3. */
+  virtualWorkers?: number;
 }
+
+const defaultVirtualWorkers = () => Math.max(1, Math.min(3, Math.floor((globalThis.navigator?.hardwareConcurrency ?? 2) / 2)));
 
 /** Diagnostics of one virtual (resampled) source. */
 export interface VirtualSourceReport { id: string; date: string | null | undefined; coverage: VirtualSourceCoverage | null; stats: VirtualSourceStats; degradedResident: number }
@@ -161,6 +165,45 @@ interface MeshRecord {
   originalMaterial?: THREE.Material;
   baseCompile: THREE.Material['onBeforeCompile']; cacheKey: () => string;
   radiusRangeKm: [number, number];
+  /** Conservative surface radius min/max, km, per cell of a RADIUS_GRID² grid over the tile's (s, t). */
+  radiusGrid: { min: Float32Array; max: Float32Array };
+}
+/** Cells per side of a mesh's local radius grid. A cell spans several vertex spacings. */
+const RADIUS_GRID = 16;
+
+/**
+ * Conservative local radius bounds of a terrain mesh over its tile's (s, t):
+ * each surface vertex widens its own cell and its neighbours, so every triangle
+ * touching a cell (vertex spacing ≤ cell size) lies within that cell's bounds.
+ * `st` holds each vertex's tile coordinates, `radiusKm` its distance from the centre.
+ */
+export function buildRadiusGrid(st: ArrayLike<number>, radiusKm: ArrayLike<number>, count: number): { min: Float32Array; max: Float32Array } {
+  const min = new Float32Array(RADIUS_GRID * RADIUS_GRID).fill(Infinity), max = new Float32Array(RADIUS_GRID * RADIUS_GRID).fill(-Infinity);
+  for (let i = 0; i < count; i++) {
+    const r = radiusKm[i], ci = Math.floor(st[2 * i] * RADIUS_GRID), cj = Math.floor(st[2 * i + 1] * RADIUS_GRID);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const x = ci + di, y = cj + dj;
+      if (x < 0 || y < 0 || x >= RADIUS_GRID || y >= RADIUS_GRID) continue;
+      const k = y * RADIUS_GRID + x;
+      if (r < min[k]) min[k] = r;
+      if (r > max[k]) max[k] = r;
+    }
+  }
+  return { min, max };
+}
+
+/** Radius bounds under a local rectangle `[s0, s1, t0, t1]`; null when a cell holds no vertex (no proof). */
+export function radiusGridRange(grids: ReadonlyArray<{ min: Float32Array; max: Float32Array }>, rect: readonly [number, number, number, number]): [number, number] | null {
+  const [s0, s1, t0, t1] = rect;
+  const i0 = Math.max(0, Math.floor(s0 * RADIUS_GRID)), i1 = Math.min(RADIUS_GRID - 1, Math.ceil(s1 * RADIUS_GRID) - 1);
+  const j0 = Math.max(0, Math.floor(t0 * RADIUS_GRID)), j1 = Math.min(RADIUS_GRID - 1, Math.ceil(t1 * RADIUS_GRID) - 1);
+  let lo = Infinity, hi = -Infinity;
+  for (const g of grids) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const k = j * RADIUS_GRID + i;
+    if (!(g.min[k] <= g.max[k])) return null;
+    lo = Math.min(lo, g.min[k]); hi = Math.max(hi, g.max[k]);
+  }
+  return lo <= hi ? [lo, hi] : null;
 }
 interface TileRecord { scene: THREE.Object3D; address: ImageryAddress; meshes: MeshRecord[] }
 
@@ -360,7 +403,7 @@ export class CubeImageryLayer {
   private readonly tiles = new Map<object, TileRecord>();
   private readonly shared = { debug: { value: 0 }, srgb: { value: 1 } };
   private readonly manifestAbort = new AbortController();
-  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers' | 'virtualTileSize' | 'virtualGutter' | 'sourceCacheBytes' | 'maxConcurrentSourceRequests' | 'maxSourcePixels'>> & { maxLevel: number | undefined };
+  private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel' | 'layers' | 'virtualTileSize' | 'virtualGutter' | 'sourceCacheBytes' | 'maxConcurrentSourceRequests' | 'maxSourcePixels' | 'virtualWorkers'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly sources: Source[];
   private readonly order: Source[];
@@ -436,7 +479,7 @@ export class CubeImageryLayer {
     const cacheOptions = { maxBytes: config.sourceCacheBytes, maxConcurrent: config.maxConcurrentSourceRequests, retryFailedMs: config.retryFailedMs };
     const factory = deps.sourceCache ? null : virtualImageryWorkerFactory();
     this.executor = !this.sources.some(isVirtual) ? null
-      : factory ? new WorkerExecutor(factory(), cacheOptions)
+      : factory ? new WorkerExecutor(Array.from({ length: config.virtualWorkers ?? defaultVirtualWorkers() }, () => factory()), cacheOptions)
         : new InThreadExecutor(deps.sourceCache ?? new SourceTileCache(cacheOptions));
     this.order = [...this.sources];
     this.loadTexture = deps.loadTexture ?? ((url, signal) => loadImageBitmapTexture(url, signal, this.manifest!.tileSize + 2 * this.manifest!.gutter));
@@ -667,6 +710,17 @@ export class CubeImageryLayer {
         uvw[3 * i + 2] = p[0] * basis.n[0] + p[1] * basis.n[1] + p[2] * basis.n[2];
       }
       mesh.geometry.setAttribute('cubeImageryUvw', new THREE.BufferAttribute(uvw, 3));
+      // Local radius bounds for imagery blocks finer than this tile: each surface vertex
+      // widens its own cell and its neighbours, so every triangle touching a cell (vertex
+      // spacing ≤ cell size) lies within that cell's bounds. Coarse tiles span kilometres
+      // of relief; without this, a block far to the side of a nadir view looks near and in view.
+      const st = new Float32Array(2 * surfaceVertices), radii = new Float32Array(surfaceVertices);
+      for (let i = 0; i < surfaceVertices; i++) {
+        _v.fromBufferAttribute(position, i).applyMatrix4(_m);
+        radii[i] = _v.length() / 1000;
+        st[2 * i] = uvw[3 * i] / uvw[3 * i + 2]; st[2 * i + 1] = uvw[3 * i + 1] / uvw[3 * i + 2];
+      }
+      const radiusGrid = buildRadiusGrid(st, radii, surfaceVertices);
       const originalMaterial = mesh.material;
       const uniforms = this.makeUniforms(address);
       const existing = this.materialBindings.get(originalMaterial);
@@ -687,7 +741,7 @@ export class CubeImageryLayer {
       const bound = this.attachImagery(material, baseCompile, cacheKey, uniforms);
       this.materialHooks.set(material, { baseCompile, cacheKey });
       record.meshes.push({ mesh, material, uniforms: bound, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000],
-        ...(conflicting ? { originalMaterial } : {}) });
+        radiusGrid, ...(conflicting ? { originalMaterial } : {}) });
     });
     this.tiles.set(key, record);
   }
@@ -814,11 +868,22 @@ export class CubeImageryLayer {
         if (!a.level) break; a = imageryParent(a);
       }
     }
+    const leafTiles = new Map(drawn.map(tile => [cubeTileId(tile.address), tile] as const));
+    // A block finer than its drawn geometry tile: the grid cells under its footprint.
+    const gridRange = (tile: TileRecord, block: ImageryAddress) => radiusGridRange(tile.meshes.map(m => m.radiusGrid), blockRectInTile(tile.address, block));
     const localRanges = new Map<string, readonly [number, number]>();
     const rangeFor = (address: ImageryAddress): readonly [number, number] => {
       const key = cubeTileId(address), cached = localRanges.get(key); if (cached) return cached;
       let a = address, result: readonly [number, number] = radiusRangeKm;
-      for (;;) { const r = envelopes.get(cubeTileId(a)); if (r) { result = r; break; } if (!a.level) break; a = imageryParent(a); }
+      for (;;) {
+        const id = cubeTileId(a), r = envelopes.get(id);
+        if (r) {
+          const leaf = a.level < address.level ? leafTiles.get(id) : undefined;
+          result = (leaf && gridRange(leaf, address)) || r;
+          break;
+        }
+        if (!a.level) break; a = imageryParent(a);
+      }
       localRanges.set(key, result); return result;
     };
     const visible = (a: ImageryAddress): boolean => {
