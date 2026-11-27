@@ -6,7 +6,8 @@ import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
 import type { WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { InThreadExecutor, SourceTileCache, VirtualCubeSource, WorkerExecutor, virtualImageryWorkerFactory, type SourceTileCacheStats, type VirtualSourceCoverage, type VirtualSourceStats, type VirtualTileExecutor } from './VirtualCubeImagery.js';
+import { InThreadExecutor, SourceTileCache, UndatableSourceError, VirtualCubeSource, VirtualSourceConfigError, WorkerExecutor, virtualImageryWorkerFactory, type SourceTileCacheStats, type VirtualSourceCoverage, type VirtualSourceStats, type VirtualTileExecutor, type VirtualTileResult } from './VirtualCubeImagery.js';
+import { sourceLatitudeToGeocentric } from './surface/ProjectedImagery.js';
 import { cubeTileId, cubeFaceBasis, type CubeFace } from './surface/CubeSphere.js';
 import { selectImageryBlocks } from './surface/CubeImagerySelection.js';
 import { CubeImageryPages, type ImageryPage } from './CubeImageryPages.js';
@@ -43,7 +44,9 @@ export interface CubeImageryConfig {
   /** Cap on the imagery level used (default: the manifest's). For fixed-level comparisons. */
   maxLevel?: number;
   /** Tile size and gutter of virtual cube tiles when the base is not a cube product
-   * (otherwise the base product's). Default 256 and 4. */
+   * (otherwise the base product's). Default 256 and 4, the `cube_imagery.py`
+   * defaults, so native cube products can stack over a virtual base; a native
+   * product of another tile size or gutter is refused with the mismatch named. */
   virtualTileSize?: number;
   virtualGutter?: number;
   /** Decoded source-tile cache shared by all virtual sources, bytes. Default 96 MiB. */
@@ -59,7 +62,15 @@ export interface CubeImageryConfig {
 const defaultVirtualWorkers = () => Math.max(1, Math.min(3, Math.floor((globalThis.navigator?.hardwareConcurrency ?? 2) / 2)));
 
 /** Diagnostics of one virtual (resampled) source. */
-export interface VirtualSourceReport { id: string; date: string | null | undefined; coverage: VirtualSourceCoverage | null; stats: VirtualSourceStats; degradedResident: number }
+export interface VirtualSourceReport {
+  id: string; date: string | null | undefined; coverage: VirtualSourceCoverage | null; stats: VirtualSourceStats;
+  /** Resident tiles drawn partly from parent source tiles (refreshed on backoff and by `retryFailed`). */
+  degradedResident: number;
+  /** Tiles that cannot be produced within the read budget at any matrix (their ancestor is shown). */
+  limitedTiles: number;
+  /** Setup failure (e.g. capabilities outage); retried by `retryFailed` or re-enabling the layer. */
+  setupError: string | null;
+}
 
 export interface CubeImageryStats {
   version: string | null;
@@ -130,11 +141,16 @@ type TextureLoader = (url: string, signal: AbortSignal) => Promise<{ texture: TH
 interface Source {
   index: number; baseUrl: string; manifest: CubeImageryManifest | null;
   availability: CubeImageryAvailability | null; refinement: ImageryRefinement | null;
-  cover: ImageryCover[]; info: ImageryLayerInfo; setupFailed: boolean;
+  cover: ImageryCover[]; info: ImageryLayerInfo; setupFailed: boolean; setupError: string | null;
   /** Non-cube layer resampled into cube tiles (#136); null for a cube product. */
   config: TerrainImageryConfig; virtual: VirtualCubeSource | null;
   /** Acquisition day: undefined time-independent, null nothing to show. */
   date: string | null | undefined;
+  /** Declared bounds as geocentric lon/lat (what the cube renderer compares with
+   * geocentric directions); `info.bounds` keeps the declared values for the UI. */
+  renderBounds: [number, number, number, number] | null;
+  /** Linear-light tint multiplied into this source's pixels (`color`); white by default. */
+  tint: THREE.Color;
 }
 interface Entry {
   source: Source; id: string; address: ImageryAddress;
@@ -143,11 +159,16 @@ interface Entry {
   controller: AbortController | null; failedAt: number; failures: number;
   /** A virtual tile partly drawn from coarser parent source tiles. */
   degraded: boolean;
+  /** Cannot be produced within the read budget at any matrix: deterministic, never retried. */
+  limited: boolean;
+  /** Degraded tiles are produced again on backoff; the displayed texture stays until a replacement commits. */
+  refreshing: AbortController | null; refreshes: number; refreshedAt: number;
+  replacement: { texture: THREE.Texture; bytes: number; transparent: boolean; opaque: boolean; degraded: boolean } | null;
 }
 interface SourceUniforms {
   root: { value: number }; enabled: { value: number }; srgb: { value: number };
   fallback: { value: Int32Array };
-  opacity: { value: number }; bounded: { value: number }; bounds: { value: THREE.Vector4 };
+  opacity: { value: number }; bounded: { value: number }; bounds: { value: THREE.Vector4 }; tint: { value: THREE.Color };
   /** 1 when this source's pixels carry their own lighting and are shown as-is (#204). */
   asIs: { value: number };
 }
@@ -209,7 +230,7 @@ interface TileRecord { scene: THREE.Object3D; address: ImageryAddress; meshes: M
 
 /** Compatibility for physical picking. All imagery now draws on original meshes. */
 export function isDrawnCubeImagerySource(_object: THREE.Object3D): boolean { return false; }
-const CACHE_KEY = '_cubeimg_pages_v3';
+const CACHE_KEY = '_cubeimg_pages_v4';
 const DEBUG_CODE: Record<CubeImageryDebug, number> = { none: 0, unlit: 1, level: 2 };
 const FACES: CubeFace[] = ['px','nx','py','ny','pz','nz'];
 const _bodyFrustum = new THREE.Frustum(), _box = new THREE.Box3();
@@ -265,7 +286,7 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
   shader.vertexShader = VERTEX_PARS + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCubeImageryUvw = cubeImageryUvw;');
   const pars = layers.map((_, i) => `uniform int cubeLayer${i}_root; uniform ivec4 cubeLayer${i}_fallback; uniform float cubeLayer${i}_enabled;
     uniform float cubeLayer${i}_bounded; uniform vec4 cubeLayer${i}_bounds;
-    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity; uniform float cubeLayer${i}_asIs;`).join('\n');
+    uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity; uniform float cubeLayer${i}_asIs; uniform vec3 cubeLayer${i}_tint;`).join('\n');
   let fragment = FRAGMENT_PARS + pars + '\n' + shader.fragmentShader;
   fragment = fragment.replace('void main() {', 'void main() {\n  vec4 cubeImageryTexel = vec4(0.0); float shownLevel = -1.0;');
   const coordinates = `
@@ -288,7 +309,7 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
           bool longitude = b.x <= b.z ? lonLat.x >= b.x && lonLat.x <= b.z : lonLat.x >= b.x || lonLat.x <= b.z;
           if (!longitude || lonLat.y < b.y || lonLat.y > b.w) alpha = 0.0;
         }
-        vec3 color = cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb;
+        vec3 color = (cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb) * cubeLayer${i}_tint;
         // Each source lights (or not) by its own provenance, weighted by its coverage.
         surfaceAsIsLayer(diffuseColor.rgb, color * alpha, cubeLayer${i}_asIs, alpha);
         diffuseColor.rgb = mix(diffuseColor.rgb, color, alpha);
@@ -360,6 +381,33 @@ function virtualTexture(data: Uint8Array, span: number): THREE.Texture {
   texture.unpackAlignment = 4;
   texture.needsUpdate = true;
   return texture;
+}
+
+/**
+ * Declared bounds as geocentric lon/lat. A non-cube source's bounds are in its
+ * latitude convention: geodetic latitude maps to geocentric independently of
+ * longitude on an ellipsoid of revolution (tan φc = (c²/a²) tan φd) and
+ * monotonically, so converting the two latitude edges is exact. Cube products
+ * are geocentric already.
+ */
+export function renderBounds(config: TerrainImageryConfig, bounds: readonly number[] | null, ellipsoidM: readonly [number, number] | null): [number, number, number, number] | null {
+  if (!bounds) return null;
+  const [w, south, e, north] = bounds;
+  if ((config.type ?? 'xyz') === 'cube') return [w, south, e, north];
+  const convention = config.latitudeConvention ?? 'geodetic';
+  return [w, sourceLatitudeToGeocentric(south, convention, ellipsoidM), e, sourceLatitudeToGeocentric(north, convention, ellipsoidM)];
+}
+
+/** Body identities as products declare them ("Mars", "MARS"). */
+const sameBody = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
+    const timer = setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve(); }, ms);
+    const onAbort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /** Conservative spherical-cap test; exact source clipping happens per fragment. */
@@ -450,7 +498,8 @@ export class CubeImageryLayer {
   private readonly executor: VirtualTileExecutor | null;
   constructor(config: CubeImageryConfig, deps: {
     frame?: string; fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number;
-    /** Body radii `[a, c]` in metres, for geodetic non-cube sources; body id for a manifest synthesized without a cube base. */
+    /** Body radii `[a, c]` in metres, for geodetic non-cube sources. Body id of the terrain: the identity of
+     * synthesized virtual manifests, so native cube products of the same body stack over a virtual base. */
     ellipsoidM?: readonly [number, number]; bodyId?: string;
     /** Shared source cache (tests inject fetch/decode); WMTS capabilities loader and callback per layer. */
     sourceCache?: SourceTileCache;
@@ -471,8 +520,10 @@ export class CubeImageryLayer {
     if (configs.length === 0 || configs.length > 4) throw new Error('Cube imagery supports one to four sources');
     this.sources = describeImageryLayers(configs, deps.radiusKm ?? 1).map((info, index) => ({
       index, info, baseUrl: new URL(configs[index].url, globalThis.location?.href ?? 'http://localhost/').href,
-      manifest: null, availability: null, refinement: null, cover: [], setupFailed: false,
+      manifest: null, availability: null, refinement: null, cover: [], setupFailed: false, setupError: null,
       config: configs[index], virtual: null, date: undefined,
+      renderBounds: renderBounds(configs[index], info.bounds, deps.ellipsoidM ?? null),
+      tint: new THREE.Color(configs[index].color ?? 0xffffff),
     }));
     const isVirtual = (s: Source) => (s.config.type ?? 'xyz') !== 'cube';
     // Virtual sources resample in a worker when the host registered one, else in-thread.
@@ -495,6 +546,8 @@ export class CubeImageryLayer {
     // never lists tiles; `availabilityFor` asks the source's inventory.
     const synthesize = async (source: Source, reference: CubeImageryManifest | null): Promise<CubeImageryManifest> => {
       const tileSize = reference?.tileSize ?? config.virtualTileSize ?? 256, gutter = reference?.gutter ?? config.virtualGutter ?? 4;
+      // A failed setup (capabilities outage, say) is never reused: retry or re-enable makes a fresh source.
+      if (source.virtual?.setupFailed) source.virtual = null;
       if (!source.virtual) {
         source.virtual = new VirtualCubeSource(source.config, {
           tileSize, gutter, ellipsoid: deps.ellipsoidM ?? null, radiusKm: deps.radiusKm ?? 1, executor: this.executor!,
@@ -506,14 +559,27 @@ export class CubeImageryLayer {
         source.virtual.setDate(source.date);
         await source.virtual.ready;
       } catch (error) {
-        // A day the source cannot carry is not shown, and not reported as shown.
-        source.date = source.date ? null : source.date;
+        // A day the source cannot carry is not shown, and not reported as shown. Any
+        // other failure (an outage) keeps the requested day for the retry.
+        if (error instanceof UndatableSourceError) source.date = source.date ? null : source.date;
         throw error;
       }
       return this.virtualManifest(source, reference, tileSize, gutter, deps.frame, deps.bodyId);
     };
+    // The mandatory base waits out an outage, a virtual one included: its setup
+    // (capabilities) is retried with backoff unless the configuration cannot work.
+    const synthesizeBase = async (): Promise<CubeImageryManifest> => {
+      for (let attempt = 0; ; attempt++) {
+        try { return await synthesize(this.sources[0], null); }
+        catch (error) {
+          if (this.disposed || error instanceof VirtualSourceConfigError) throw error;
+          this.sources[0].setupFailed = true;
+          await abortableDelay(Math.min(30_000, 1000 * 2 ** attempt), this.manifestAbort.signal);
+        }
+      }
+    };
     const baseManifest = isVirtual(this.sources[0])
-      ? synthesize(this.sources[0], null)
+      ? synthesizeBase()
       : fetchManifest(this.sources[0].baseUrl, true).then(validateCubeImageryManifest);
     const loading = new Set<Source>();
     const loadSource = async (source: Source): Promise<void> => {
@@ -533,17 +599,20 @@ export class CubeImageryLayer {
         const referenceCrs = effectiveCrs(reference);
         if (deps.frame && frame !== deps.frame) throw new Error(`Cube imagery frame ${frame} does not match terrain frame ${deps.frame}`);
         if (this.disposed) return;
-        if (reference.bodyId !== manifest.bodyId || referenceCrs.scheme !== scheme || referenceCrs.frame !== frame ||
-          reference.registration.pixelConvention !== manifest.registration.pixelConvention ||
-          reference.tileSize !== manifest.tileSize || reference.gutter !== manifest.gutter) {
-          throw new Error('Cube imagery sources must share body, registration, tile size and gutter');
-        }
+        const mismatch = [
+          sameBody(reference.bodyId, manifest.bodyId) ? '' : `body ${manifest.bodyId || '(none)'} ≠ ${reference.bodyId || '(none)'}`,
+          referenceCrs.scheme === scheme && referenceCrs.frame === frame ? '' : `registration ${scheme}/${frame} ≠ ${referenceCrs.scheme}/${referenceCrs.frame}`,
+          reference.registration.pixelConvention === manifest.registration.pixelConvention ? '' : `pixel convention ${manifest.registration.pixelConvention} ≠ ${reference.registration.pixelConvention}`,
+          reference.tileSize === manifest.tileSize && reference.gutter === manifest.gutter ? ''
+            : `tile ${manifest.tileSize}+${manifest.gutter} ≠ ${reference.tileSize}+${reference.gutter}${this.sources[0].virtual ? ' (virtual base: set cubeSphere.imagery.virtualTileSize/virtualGutter)' : ''}`,
+        ].filter(Boolean);
+        if (mismatch.length) throw new Error(`Cube imagery sources must share body, registration, tile size and gutter: ${source.info.id} has ${mismatch.join('; ')}`);
         // Optional sources never establish readiness or replace the base reference.
         if (source.index === 0) this.manifest = manifest;
         source.manifest = manifest;
         source.availability = this.availabilityFor(manifest, source);
         source.refinement = this.refinementFor(source);
-        source.setupFailed = false;
+        source.setupFailed = false; source.setupError = null;
         if (source.virtual) {
           // Source zooms stay as configured; report what the source natively serves.
           source.info.metersPerPixel = source.virtual.coverage?.nativeMetersPerPixel ?? null;
@@ -555,6 +624,7 @@ export class CubeImageryLayer {
         source.info.attribution ||= manifest.source.attribution ?? '';
       } catch (error) {
         source.setupFailed = true;
+        source.setupError = String((error as Error)?.message ?? error);
         if (source.index === 0) throw error;
       } finally {
         loading.delete(source);
@@ -585,9 +655,9 @@ export class CubeImageryLayer {
 
   get imageryLayers(): ImageryLayerInfo[] {
     return this.order.map(source => {
-      const { info, setupFailed } = source;
-      const failedTiles = [...this.entries.values()].filter(e => e.source === source && e.state === 'failed').length;
-      return { ...info, failedTiles, bounds: info.bounds ? [...info.bounds] : null,
+      const { info, setupFailed, setupError } = source;
+      const failedTiles = [...this.entries.values()].filter(e => e.source === source && e.state === 'failed' && !e.limited).length;
+      return { ...info, failedTiles, bounds: info.bounds ? [...info.bounds] : null, setupError: setupFailed ? setupError : null,
         status: layerStatus(info.requests, failedTiles, setupFailed), view: info.view ? { ...info.view } : null };
     });
   }
@@ -657,6 +727,8 @@ export class CubeImageryLayer {
     return this.sources.filter(s => s.virtual).map(s => ({
       id: s.info.id, date: s.date, coverage: s.virtual!.coverage, stats: s.virtual!.stats,
       degradedResident: [...this.entries.values()].filter(e => e.source === s && e.state === 'ready' && e.degraded).length,
+      limitedTiles: [...this.entries.values()].filter(e => e.source === s && e.limited).length,
+      setupError: s.virtual?.setupError ? String((s.virtual.setupError as Error)?.message ?? s.virtual.setupError) : null,
     }));
   }
 
@@ -822,6 +894,14 @@ export class CubeImageryLayer {
       this.uploadsPaused = false; this.gpuError = null;
       for (const e of this.entries.values()) e.uploadBlocked = false;
     }
+    // A refreshed degraded tile replaces its page within this update, before the
+    // page table is published: no frame shows neither the old nor the new pixels.
+    if (!this.uploadsPaused) for (const e of this.entries.values()) if (e.replacement && e.state === 'ready') {
+      const r = e.replacement; e.replacement = null;
+      pages.forget(e.id); e.texture?.dispose(); (e.texture?.image as ImageBitmap | null)?.close?.();
+      e.texture = r.texture; e.bytes = r.bytes; e.transparent = r.transparent; e.opaque = r.opaque; e.degraded = r.degraded; e.uploadBlocked = false;
+      this.coverageCache.clear();
+    }
     // A decoded texture is not yet usable by the shader. Upload before the
     // replacement tree observes readiness, then publish one coherent page table.
     for (const e of this.entries.values()) if (!this.uploadsPaused && e.state === 'ready' && e.texture && !e.uploadBlocked) {
@@ -916,7 +996,7 @@ export class CubeImageryLayer {
       const priorFallbacks = fallbackBlocks, priorFailures = failedBlocks;
       source.info.view = source.info.visible ? { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull: false } : null;
       if (!source.info.visible || source.info.opacity <= 0 || !source.manifest || !source.refinement || source.date === null) { source.cover = []; continue; }
-      const sourceVisible = (a: ImageryAddress) => visible(a) && cubeBlockOverlapsBounds(a, source.info.bounds);
+      const sourceVisible = (a: ImageryAddress) => visible(a) && cubeBlockOverlapsBounds(a, source.renderBounds);
       const targets: ImageryAddress[] = this.selectionCache.get(source.index) ?? [];
       if (!this.selectionCache.has(source.index) && useImagery && drawn.length) for (const face of FACES) {
         const leaves = selectImageryBlocks({ geometry: { face, level: 0, x: 0, y: 0 }, radiusRangeKm, radiusRangeFor: rangeFor, cameraKm, pixelAngleRad,
@@ -997,11 +1077,15 @@ export class CubeImageryLayer {
         if (source.index === 0 && !(root?.state === 'ready' && pages.has(root.id)) && !complete(target, covering)) baseUncoveredBlocks++;
         if (!this.coveredByUpperSource(target, source) &&
           (covering.length ? covering.some(c => c.image.level < target.level) : !root || root.address.level < target.level)) fallbackBlocks++;
-        if (this.entries.get(id(target))?.state === 'failed') failedBlocks++;
+        const targetEntry = this.entries.get(id(target));
+        if (targetEntry?.state === 'failed' && !targetEntry.limited) failedBlocks++;
       }
       if (source.info.view) {
+        // Shown from parent source tiles, or coarser than the target because the
+        // read budget makes the target unavailable: both are "lower resolution".
         let degradedShown = 0;
         for (const c of source.cover) if (this.entries.get(id(c.image))?.degraded) degradedShown++;
+        for (const target of targets) if (this.entries.get(id(target))?.limited) degradedShown++;
         source.info.view.inCoverage = targets.length > 0;
         source.info.view.zoomLevel = source.cover.length ? Math.max(...source.cover.map(c => c.image.level)) : null;
         source.info.view.degradedTiles = fallbackBlocks - priorFallbacks + degradedShown;
@@ -1021,8 +1105,9 @@ export class CubeImageryLayer {
         u.root.value = binding.root; u.fallback.value.set(binding.image);
         u.enabled.value = useImagery && s.info.visible && s.info.opacity > 0 && (binding.root >= 0 || binding.image[0] !== -1) ? 1 : 0;
         u.srgb.value = s.manifest?.colorSpace === 'srgb' ? 1 : 0;
-        u.opacity.value = s.info.opacity; u.bounded.value = s.info.bounds ? 1 : 0;
-        u.bounds.value.fromArray(s.info.bounds ?? [-180, -90, 180, 90]);
+        u.opacity.value = s.info.opacity; u.bounded.value = s.renderBounds ? 1 : 0;
+        u.bounds.value.fromArray(s.renderBounds ?? [-180, -90, 180, 90]);
+        u.tint.value.copy(s.tint);
         u.asIs.value = imageryAsIsWeight(s.info.illumination, this.lightingMode, this.imageryLightingMode);
       }
     }
@@ -1064,7 +1149,7 @@ export class CubeImageryLayer {
     const cacheKey = `${source.index}:${cubeTileId(address)}`, cached = this.coverageCache.get(cacheKey);
     if (cached !== undefined) return cached;
     for (const upper of this.order.slice(this.order.indexOf(source) + 1)) {
-      if (!upper.info.visible || upper.info.opacity !== 1 || !cubeBlockInsideBounds(address, upper.info.bounds)) continue;
+      if (!upper.info.visible || upper.info.opacity !== 1 || !cubeBlockInsideBounds(address, upper.renderBounds)) continue;
       const complete = (a: ImageryAddress, candidates: ImageryCover[]): boolean => {
         const containing = candidates.find(c => containsAddress(c.patch, a));
         if (containing) return this.entries.get(`${upper.index}:${cubeTileId(containing.image)}`)?.opaque === true;
@@ -1082,7 +1167,7 @@ export class CubeImageryLayer {
     const point = directionToTexel(direction, 30, 1, 0).address;
     return this.order.map(source => {
       const e = this.displayedAt(source, point);
-      return { id: source.info.id, enabled: source.info.visible && source.info.opacity > 0 && !!e && !!this.pages?.has(e.id) && cubeBlockOverlapsBounds(point, source.info.bounds) ? 1 : 0,
+      return { id: source.info.id, enabled: source.info.visible && source.info.opacity > 0 && !!e && !!this.pages?.has(e.id) && cubeBlockOverlapsBounds(point, source.renderBounds) ? 1 : 0,
         level: e?.address.level ?? -1, address: e?.address ?? null, texture: e?.texture ?? null, opacity: source.info.opacity,
         coveredByOpaqueUpper: this.coveredByUpperSource(point, source) };
     });
@@ -1123,7 +1208,10 @@ export class CubeImageryLayer {
   }
   resetCounters(): void { this.counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 }; this.executor?.resetCounters(); }
   retryFailed(): void {
-    for (const [id, e] of this.entries) if (e.state === 'failed') this.entries.delete(id);
+    for (const [id, e] of this.entries) if (e.state === 'failed' && !e.limited) this.entries.delete(id);
+    // Degraded tiles were drawn from parent source tiles: produce them again now.
+    // Their current pixels stay displayed until a replacement commits.
+    for (const e of this.entries.values()) if (e.degraded) { e.refreshes = 0; e.refreshedAt = -Infinity; }
     for (const e of this.entries.values()) e.uploadBlocked = false;
     this.uploadsPaused = false;
     this.executor?.retryFailed();
@@ -1203,7 +1291,7 @@ export class CubeImageryLayer {
     return {
       cubeImageryToBody: { value: new THREE.Matrix3().set(u[0] * size, v[0] * size, n[0] + u0*u[0] + v0*v[0], u[1] * size, v[1] * size, n[1] + u0*u[1] + v0*v[1], u[2] * size, v[2] * size, n[2] + u0*u[2] + v0*v[2]) },
       cubeGeometryAddress: { value: new Int32Array([address.level, address.x, address.y]) },
-      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) }, asIs: { value: 0 } })),
+      layers: this.sources.map(() => ({ root: { value: -1 }, fallback: { value: new Int32Array([-1, 0, 0, 0]) }, enabled: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) }, asIs: { value: 0 }, tint: { value: new THREE.Color(1, 1, 1) } })),
       cubeImageryDebug: this.shared.debug, cubePages: { value: this.pages?.array ?? this.emptyPages }, cubePageTable: { value: this.pages?.tableUniform.value ?? this.emptyPageTable }, cubePagePixels: { value: new THREE.Vector2() },
     };
   }
@@ -1233,7 +1321,7 @@ export class CubeImageryLayer {
       }
     }
     const estimate = this.manifest ? Math.round((this.manifest.tileSize + 2 * this.manifest.gutter) ** 2 * 4 * 4 / 3) : 0;
-    let loading = [...this.entries.values()].filter(e => e.state === 'loading').length;
+    let loading = [...this.entries.values()].filter(e => e.state === 'loading' || e.refreshing).length;
     const capacity = this.pages?.capacity ?? Math.max(this.coarseWanted().length + 4, Math.floor(this.options.maxTextureBytes / estimate) + 4);
     let budgetLimited = false;
     for (const group of groups) {
@@ -1258,14 +1346,44 @@ export class CubeImageryLayer {
         this.reserved.delete(id); this.request(id, this.coarseWanted().includes(id)); loading++;
       }
     }
+    // Degraded tiles still in use refresh on the failure backoff, within the request limit.
+    for (const e of this.entries.values()) {
+      if (loading >= this.options.maxConcurrentRequests) break;
+      if (e.state === 'ready' && e.degraded && !e.refreshing && !e.replacement && this.cacheReferences.has(e.id) && this.refreshDue(e)) { this.refresh(e); loading++; }
+    }
     return { count: [...wanted].filter(id => !this.entries.has(id)).length, budgetLimited };
+  }
+  private refreshDue(e: Entry): boolean { return e.refreshes < 4 && performance.now() - e.refreshedAt > this.options.retryFailedMs * 2 ** Math.min(e.refreshes, 5); }
+  private refresh(e: Entry): void {
+    const source = e.source;
+    if (!source.virtual) return;
+    const controller = new AbortController();
+    e.refreshing = controller;
+    source.virtual.produce(e.address, controller.signal).then(result => {
+      if (this.disposed || this.entries.get(e.id) !== e || e.refreshing !== controller) return;
+      const made = this.virtualReady(result);
+      e.refreshes = made.degraded ? e.refreshes + 1 : 0; e.refreshedAt = performance.now();
+      e.replacement?.texture.dispose();
+      e.replacement = made;
+    }).catch((error: unknown) => {
+      if ((error as { name?: string })?.name === 'AbortError') return;
+      e.refreshes++; e.refreshedAt = performance.now();
+    }).finally(() => { if (e.refreshing === controller) e.refreshing = null; });
+  }
+  /** A produced virtual tile as a texture plus its alpha class. */
+  private virtualReady(result: VirtualTileResult): { texture: THREE.Texture; bytes: number; transparent: boolean; opaque: boolean; degraded: boolean } {
+    let texture = virtualTexture(result.data, result.span);
+    const alpha = imageAlphaClass(texture), transparent = alpha === 'transparent';
+    if (transparent) { texture.dispose(); texture = new THREE.DataTexture(new Uint8Array(4), 1, 1); }
+    return { texture, bytes: transparent ? 0 : Math.round(result.span * result.span * 4 * 4 / 3), transparent, opaque: alpha === 'opaque', degraded: result.degradedTiles > 0 };
   }
   private retryDue(e: Entry): boolean { return e.failures < 4 && performance.now() - e.failedAt > this.options.retryFailedMs * 2 ** (Math.min(e.failures, 5) - 1); }
   private request(id: string, pinned: boolean): void {
     const [sourceId, tileId] = id.split(':'), source = this.sources[Number(sourceId)];
     if (!source.manifest) return;
     const address = parseImageryAddress(tileId), controller = new AbortController();
-    const entry: Entry = { source, id, address, state: 'loading', texture: null, transparent: false, opaque: false, uploadBlocked: false, bytes: 0, lastUsed: 0, lastWanted: this.frame, pinned, controller, failedAt: 0, failures: this.entries.get(id)?.failures ?? 0, degraded: false };
+    const entry: Entry = { source, id, address, state: 'loading', texture: null, transparent: false, opaque: false, uploadBlocked: false, bytes: 0, lastUsed: 0, lastWanted: this.frame, pinned, controller, failedAt: 0, failures: this.entries.get(id)?.failures ?? 0,
+      degraded: false, limited: false, refreshing: null, refreshes: 0, refreshedAt: 0, replacement: null };
     this.entries.set(id, entry); this.counters.requests++; source.info.requests++;
     const load = source.virtual
       ? source.virtual.produce(address, controller.signal).then(result => {
@@ -1284,16 +1402,21 @@ export class CubeImageryLayer {
         texture.dispose(); (texture.image as ImageBitmap | null)?.close?.();
         entry.texture = new THREE.DataTexture(new Uint8Array(4), 1, 1);
       } else entry.texture = texture;
-      entry.state = 'ready'; entry.bytes = entry.transparent ? 0 : bytes; entry.controller = null;
+      entry.state = 'ready'; entry.bytes = entry.transparent ? 0 : bytes; entry.controller = null; entry.refreshedAt = performance.now();
       this.counters.bytes += downloadBytes;
     }).catch((error: unknown) => {
       if (this.entries.get(id) !== entry) return;
       if ((error as { name?: string })?.name === 'AbortError') { this.entries.delete(id); return; }
       entry.state = 'failed'; entry.failedAt = performance.now(); entry.failures++; entry.controller = null;
+      // Beyond the read budget at every matrix: deterministic, so never retried and
+      // reported as lower resolution (the ancestor stays), not as a failure.
+      if ((error as { code?: string })?.code === 'source-budget') { entry.limited = true; entry.failures = Infinity; return; }
       this.counters.failures++; source.info.failedTiles++;
     });
   }
   private releaseTexture(e: Entry): void {
+    e.refreshing?.abort(); e.refreshing = null;
+    e.replacement?.texture.dispose(); e.replacement = null;
     this.pages?.forget(e.id);
     e.texture?.dispose(); (e.texture?.image as ImageBitmap | null)?.close?.(); e.texture = null;
   }

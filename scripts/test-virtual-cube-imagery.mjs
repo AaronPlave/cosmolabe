@@ -154,7 +154,12 @@ async function independence(api, name, site, layerId) {
   assert.deepEqual(fine.attributes, coarse.attributes, `${name}: terrain buffers changed with imagery`);
   assert.deepEqual(fine.cpuHit, coarse.cpuHit, `${name}: CPU surface hit changed with imagery`);
   assert.ok(layer.level > fine.maxGeometryLevel, `${name}: ${layerId} level ${layer.level} not finer than geometry ${fine.maxGeometryLevel}`);
-  return { site, geometryLevel: fine.maxGeometryLevel, geometryTiles: fine.geometryTiles, layer, coverage, upstreamRequests: api.requests.length - before,
+  // Actual source detail, not just a level: the displayed texel resolves the source pixel
+  // here (Mercator pixels shrink with cos φ; geographic keep their meridian size).
+  const sourceMetersPerPixelHere = coverage.nativeMetersPerPixel * (coverage.projection === 'mercator' ? Math.cos(site.lat * Math.PI / 180) : 1);
+  assert.ok(layer.displayedMetersPerPixel <= sourceMetersPerPixelHere * 1.1,
+    `${name}: ${layerId} shows ${round(layer.displayedMetersPerPixel, 1)} m texels over a ${round(sourceMetersPerPixelHere, 1)} m source pixel`);
+  return { site, geometryLevel: fine.maxGeometryLevel, geometryTiles: fine.geometryTiles, layer, coverage, sourceMetersPerPixelHere, upstreamRequests: api.requests.length - before,
     coarse: { centre: coarse.centre, imagery: coarse.imagery, draws: coarse.draws }, fine: { centre: fine.centre, imagery: fine.imagery, draws: fine.draws, layers: fine.layers, virtual: fine.virtual }, timing };
 }
 

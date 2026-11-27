@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cubeTileAt } from '../surface/CubeSphere.js';
 import { texelCenterDirection, type ImageryAddress } from '../surface/CubeImagery.js';
 import {
-  MERCATOR_MAX_LATITUDE, VirtualImageryInventory, affordableMatrix, chooseMatrix, directionToSourceLonLat, geocentricDataBounds, mercatorLatitude, mercatorY,
+  MERCATOR_MAX_LATITUDE, SourceBudgetError, VirtualImageryInventory, affordableMatrix, maxTilesFor, sourcePixelAngle, tileMaxLevel, chooseMatrix, directionToSourceLonLat, geocentricDataBounds, mercatorLatitude, mercatorY,
   planReprojection, resample, sourceLatitudeToGeocentric, texelSamplePosition, sourcePosition, upsampleFromParent, virtualLevelRange, xyzSourceGrid,
   type DecodedSourceTile, type ProjectedSourceGrid,
 } from '../surface/ProjectedImagery.js';
@@ -25,7 +25,7 @@ describe('projected source grids', () => {
     const z12 = ctx.matrices[12];
     expect([z12.cols, z12.rows, z12.dx]).toEqual([8192, 4096, 180 / (4096 * 512)]);
     // 5.09 m source pixels: level 13 is the first whose face-centre texel (3.2 m) is no coarser.
-    expect(virtualLevelRange(ctx, 256)).toEqual({ minLevel: 4, maxLevel: 13 });
+    expect(virtualLevelRange(ctx, 256)).toEqual({ minLevel: 4, maxLevel: 13, equatorMaxLevel: 13 });
     expect(virtualLevelRange(ctx, 256, 9).maxLevel).toBe(9);
     expect(virtualLevelRange(mercator, 256).minLevel).toBe(0);
   });
@@ -59,6 +59,13 @@ describe('virtual cube tile reprojection', () => {
   ];
   for (const [name, address] of cases) it(`registers every texel centre, gutters included: ${name}`, () => {
     for (const grid of [ctx, mercator]) {
+      if (grid === ctx && name === 'south pole') {
+        // A geographic polar cap spans every longitude: beyond the read budget, so it is
+        // unavailable and refused before any request, never planned at the coarsest matrix anyway.
+        expect(affordableMatrix(grid, address, { ...opts, ellipsoid: null })).toBeNull();
+        expect(() => planReprojection(grid, address, { ...opts, ellipsoid: null, maxSamples: 1 })).toThrow(SourceBudgetError);
+        continue;
+      }
       const plan = planReprojection(grid, address, { ...opts, ellipsoid: grid === mercator ? WGS84 : null, maxSamples: 1 });
       expect(plan.samplesX * plan.samplesY).toBe(1);
       let checked = 0;
@@ -167,5 +174,82 @@ describe('virtual cube tile reprojection', () => {
     expect(inventory.available.has(id(cubeTileAt([-1, 0, 0], 10)))).toBe(false);
     expect(inventory.available.has(id({ ...inside, level: 13, x: inside.x * 8, y: inside.y * 8 }))).toBe(true);
     expect(inventory.available.has(id({ ...inside, level: 14, x: inside.x * 16, y: inside.y * 16 }))).toBe(false); // beyond native
+  });
+});
+
+describe('latitude-dependent depth and strict read budget (#398 review)', () => {
+  const T = 256, g = 4, viirs = xyzSourceGrid({ projection: 'mercator', levels: 9, tileSize: 256, latitudeConvention: 'geodetic' });
+  const range = virtualLevelRange(viirs, T);
+  const inventory = new VirtualImageryInventory(range, geocentricDataBounds(viirs, WGS84), () => true, a => tileMaxLevel(viirs, T, a, range));
+  const id = (a: ImageryAddress) => `${a.face}/${a.level}/${a.x}/${a.y}`;
+  const direction = (lat: number, lon = 30): [number, number, number] => {
+    const p = lat * Math.PI / 180, l = lon * Math.PI / 180;
+    return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)];
+  };
+  const deepest = (lat: number) => { let level = 0; while (inventory.available.has(id(cubeTileAt(direction(lat), level + 1)))) level++; return level; };
+
+  it('offers deeper Mercator levels where pixels shrink with cos φ, and keeps native detail there', () => {
+    expect(range.equatorMaxLevel).toBe(deepest(0));
+    const d66 = deepest(66), d80 = deepest(80);
+    // 2.46× finer at 66°, 5.76× at 80°: at least one and two more levels than at the equator.
+    expect(d66).toBeGreaterThanOrEqual(range.equatorMaxLevel + 1);
+    expect(d80).toBeGreaterThanOrEqual(range.equatorMaxLevel + 2);
+    expect(d80).toBeLessThanOrEqual(range.maxLevel);
+    for (const lat of [0, 66, 80]) {
+      const a = cubeTileAt(direction(lat), deepest(lat));
+      const plan = planReprojection(viirs, a, { tileSize: T, gutter: g, ellipsoid: WGS84 });
+      // Actual source detail, not just the level: the finest matrix is read, and no texel
+      // spans more than 1.5 source pixels (no box filter), so native detail is retained.
+      expect(plan.matrix.index).toBe(viirs.matrices.length - 1);
+      expect(plan.samplesX * plan.samplesY).toBe(1);
+      // Not deeper than useful: one level up, the texel is coarser than the source pixel.
+      const finest = viirs.matrices.at(-1)!;
+      expect(2 / (T * 2 ** (deepest(lat) - 1))).toBeGreaterThan(sourcePixelAngle(viirs, finest, lat + 0.75));
+    }
+    // Texel at the tile centre vs the source pixel there: the deepest level resolves the
+    // source pixel; the equatorial cap at 66° and 80° would be coarser (detail thrown away).
+    const centreTexel = (a: ImageryAddress) => {
+      const c = g + T / 2, p = texelCenterDirection(a, c, c, T, g), q = texelCenterDirection(a, c + 1, c, T, g);
+      return Math.acos(Math.min(1, p[0] * q[0] + p[1] * q[1] + p[2] * q[2]));
+    };
+    const finest = viirs.matrices.at(-1)!;
+    for (const lat of [66, 80]) {
+      expect(centreTexel(cubeTileAt(direction(lat), deepest(lat)))).toBeLessThanOrEqual(sourcePixelAngle(viirs, finest, lat) * 1.07);
+      expect(centreTexel(cubeTileAt(direction(lat), range.equatorMaxLevel))).toBeGreaterThan(sourcePixelAngle(viirs, finest, lat));
+    }
+  });
+
+  it('keeps availability a tree: every available tile has an available-topology parent', () => {
+    for (const lat of [0, 30, 55, 66, 72, 80, 84, -70]) for (const lon of [-170, -45, 10, 100]) {
+      for (let level = 1; level <= range.maxLevel; level++) {
+        const a = cubeTileAt(direction(lat, lon), level);
+        if (!inventory.topology.has(id(a))) continue;
+        const parent = cubeTileAt(direction(lat, lon), level - 1);
+        expect(inventory.topology.has(id(parent))).toBe(true);
+      }
+    }
+  });
+
+  it('never plans a read beyond the budget, including polar caps and wide gutters', () => {
+    const ctxGrid = xyzSourceGrid({ projection: 'geographic', levels: 13, tileSize: 512, minZoom: 5, latitudeConvention: 'planetocentric' });
+    const cases: ImageryAddress[] = [];
+    for (const lat of [0, 45, 70, 85, 89.5, -89.9]) for (const level of [3, 5, 7, 9]) cases.push(cubeTileAt(direction(lat, 77), level));
+    cases.push(cubeTileAt([0, 0, 1], 6), cubeTileAt([0, 0, -1], 8), { face: 'px', level: 4, x: 15, y: 15 });
+    let planned = 0, refused = 0;
+    for (const grid of [ctxGrid, viirs]) for (const maxSourcePixels of [512 * 512, 4 * 256 * 256, 9 * 512 * 512]) for (const gutter of [4, 24]) {
+      for (const a of cases) {
+        const options = { tileSize: T, gutter, ellipsoid: WGS84, maxSourcePixels };
+        try {
+          const plan = planReprojection(grid, a, options);
+          expect(plan.tiles.length).toBeLessThanOrEqual(maxTilesFor(plan.matrix, options));
+          planned++;
+        } catch (error) {
+          expect(error).toBeInstanceOf(SourceBudgetError);
+          refused++;
+        }
+      }
+    }
+    expect(planned).toBeGreaterThan(100);
+    expect(refused).toBeGreaterThan(0);
   });
 });

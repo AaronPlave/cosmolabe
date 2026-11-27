@@ -57,27 +57,52 @@ already accepts.
   high latitude, or coarse levels), an anisotropic box filter of up to 4×4 sub-samples
   per texel prevents aliasing. Bilinear sampling uses premultiplied alpha. A virtual source offers cube
   levels down to the shallowest level whose face-centre texel is no coarser than the
-  source's finest pixel. Screen-space error decides whether that depth is requested.
+  source's finest pixel *where the tile is*. Geographic pixels keep their meridian size
+  at every latitude. Web Mercator pixels shrink with cos φ (2.46× finer at 66°, 5.76× at
+  80°), so the useful depth is computed per tile from the greatest latitude it reaches:
+  deeper toward the poles, never less than the equatorial depth, and monotone down the
+  tree. Screen-space error decides whether that depth is requested.
 * **Availability without a tile list.** A tile exists when its level is inside the
   source's range and it can overlap valid source data: declared `bounds`, and the
   Mercator latitude limit. Lookups are computed and memoised, so a new region costs
   nothing up front and no planet-wide tile index is downloaded.
-* **Read budget and poles.** A cube tile may read at most 9 × 512² decoded source pixels
-  (nine 512-px or 36 256-px tiles). If a tile would exceed that at its wanted matrix, a
-  coarser one is used and counted as *source-limited*. In a geographic source, a cap that
-  contains a pole spans every longitude. Where even the first data matrix exceeds the
-  budget there, the tile is *unavailable*, so the layers beneath show through and
-  nothing is fetched. Web Mercator holds no data poleward of 85.05°, which is
-  transparent and never a smeared top row.
+* **Read budget and poles (a hard limit).** A cube tile may read at most 9 × 512²
+  decoded source pixels (nine 512-px or 36 256-px tiles). Availability uses a cheap
+  estimate (a 9×9 lattice, plus every column of the polar rows when the tile holds a
+  pole), but the planned bilinear tile list is the authority. Before any request, the
+  plan's actual tile count is checked against the budget, and a coarser matrix is
+  planned if it does not fit. The tile is then counted *source-limited*, shown as *Lower
+  res*. If no data matrix fits, the tile is refused (`SourceBudgetError`). Its ancestor
+  stays on screen, the layer reports *Lower res* rather than a failure, and the tile is
+  never retried, since the outcome is deterministic. In a geographic source, a cap that
+  contains a pole spans every longitude, so that cap is unavailable and the layers
+  beneath show through. Web Mercator holds no data poleward of 85.05°, which is
+  transparent and never a smeared top row (the cube equivalent of `endCaps: false`).
 * **Failures are never data.** A declared gap (HTTP 404/204) is cached as transparent.
   A failed or corrupt tile is drawn from its true parent, up to three levels up,
   upsampled. That cube tile is counted *degraded*, shows as *Lower res*, and never
-  counts as native. If no parent loads, the cube tile fails, the resident ancestor stays
+  counts as native. A degraded tile still in use is produced again on the failure
+  backoff, and at once by `retryFailed()`. Its current pixels stay on screen until the
+  replacement is uploaded, and the swap happens within one update, before the page table
+  is published. A fine-tile outage therefore recovers without moving the camera or
+  changing the day. If no parent loads, the cube tile fails, the resident ancestor stays
   on screen, and the tile is retried with backoff. A failed mandatory base keeps the
-  static map (`baseUncoveredBlocks`). `retryFailed()` recovers explicitly.
+  static map (`baseUncoveredBlocks`). Remembered source failures are bounded (1024 by
+  default, oldest forgotten first), so a long outage across many tiles and days cannot
+  grow the cache.
+* **Setup outages are not permanent.** A WMTS capabilities failure is not cached. In
+  TerrainManager, a rejected capabilities request is forgotten. A failed virtual source
+  is recreated on `retryFailed()` or when the layer is re-enabled, keeping its requested
+  day. Only a day the URL cannot carry clears the day. A virtual *base* waits out the
+  outage with backoff, like a native base manifest. A configuration that cannot work
+  (unsupported type, projection or CRS; missing layer or matrix set; no RESTful
+  template) is refused at once (`VirtualSourceConfigError`), and the layer's
+  `setupError` says why.
 * **Shared, bounded work.** Source tiles live in a deduplicating cache keyed by full
   request URL, which carries the source, matrix, tile and day. The defaults are 96 MiB
-  decoded and 8 concurrent requests, split across the worker pool. A request shared by
+  decoded and 8 concurrent requests. Both are split exactly across the worker pool: the
+  shares sum to the configured totals, and the pool never runs more workers than
+  concurrent requests allowed. A request shared by
   several cube tiles is aborted only when all of them abandon it, and a failed cube tile
   abandons its remaining requests. Fully transparent source tiles (common in sparse
   overlays) are kept as transparent gaps, not decoded zeros. Fetching, decoding,
@@ -94,6 +119,19 @@ already accepts.
   its own cell and its neighbours. Previously, a nadir view 0.3 km above Jezero asked
   for about 850 level-16 HiRISE blocks to cover about 15 visible ones, because an
   envelope kilometres thick put distant blocks inside the view cone.
+* **Bounds on an ellipsoid.** A non-cube layer's `bounds` are in its latitude convention.
+  The cube renderer compares geocentric directions, so it converts the latitude edges:
+  tan φc = (c²/a²) tan φd, which is exact and monotone on an ellipsoid of revolution and
+  independent of longitude. The converted bounds are used for selection, shader
+  clipping, opaque upper-source suppression and `sampleAt()`. The UI keeps the declared
+  values. On Earth and Mars the two differ by up to about 0.19° and 0.34°, roughly 20 km.
+* **Mixed stacks in both orders.** A native cube product can sit over a virtual base,
+  for example a mission-region product over global virtual CTX, as well as the reverse.
+  The synthesized virtual manifest carries the terrain body's identity, which
+  TerrainManager passes through, and the stack's registration. Virtual tiles default to
+  256 px with a 4 px gutter, the `cube_imagery.py` defaults. A native product with
+  another body, registration, tile size or gutter is refused, and its `setupError` names
+  the mismatch (and `virtualTileSize`/`virtualGutter` for a virtual base).
 * **Time (#214).** Dated layers keep the existing contract: `fixed`, `follow-simulation`,
   and `latest` for `wmts-capabilities`, plus the provider range, gaps, latency,
   throttling and labels. A day change replaces the layer's cube tiles atomically:
@@ -116,20 +154,33 @@ already accepts.
 The requested GSD is a fourth, desired quantity and never counts as proof of any of
 these three. Parent fallback is never counted as native.
 
+### Existing imagery options over cube terrain
+
+All imagery on cube terrain now goes through the cube renderer. No existing catalog
+combined cube terrain with non-cube imagery, since the previous code refused mixed
+stacks and every catalog's cube stack is all-cube. Per option:
+
+| Option | Over cube terrain |
+|---|---|
+| `type` | `cube`, `xyz`, `tms`, `wmts`, `wmts-capabilities`. `wms` is refused with a clear error. |
+| `projection` | `EPSG:4326` (default) or `EPSG:3857`. Anything else is refused, never treated as geographic. |
+| WMTS matrix set CRS | `EPSG:4326`/`CRS84` and `EPSG:3857`, the CRSs whose extents the capabilities parser converts. Others (e.g. polar stereographic `EPSG:3413`) are refused. |
+| `color` (tint) | Applied per source in the cube shader, in linear light. |
+| `opacity`, `visible`, `bounds`, `attribution`, `name`, `illumination` | As before (bounds converted, see above). |
+| `time`, `temporal` | Through the cube renderer's atomic day switch (#214 contract). |
+| `endCaps` | Mercator polar caps are transparent (the lower layers show), as with `endCaps: false`. |
+| `transparent`, `format`, `styles`, `version`, `crs` | WMS-only. |
+| Layer count | One to four sources per stack, sharing one texture budget, as for cube stacks. |
+
 ## Evidence
 
-Run results (screenshots stay local; the figures are derived from them):
-[`results/mars.json`](results/mars.json),
-[`results/earth-live-and-sites.json`](results/earth-live-and-sites.json),
-[`results/earth-mock.json`](results/earth-mock.json),
-[`results/earth-terrain-identity.json`](results/earth-terrain-identity.json).
-The Earth phases ran separately (`VIRTUAL_IMAGERY_EARTH=live,sites`, `mock` and `identity`)
-so that a failure late in a phase did not repeat the hour before it.
+The committed evidence is the screenshots below, the gate data and these tables. Full
+run outputs (`result.json`, every screenshot) come from the acceptance script into its
+output directory and are not committed.
 
 ### Mars: arbitrary valid CTX locations over coarse terrain
 
 ![CTX capped at the terrain level vs native, Gale](mars-gale.jpg)
-![Across the 135°E cube-face edge](mars-seam135.jpg)
 ![Jezero HiRISE level 16 over level-5 terrain](mars-jezero-hirise.jpg)
 
 Fixture: `experiments/mars-virtual-imagery` with original upstream services (Trek Viking

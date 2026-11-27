@@ -43,7 +43,8 @@ self.onmessage = async (event: MessageEvent<VirtualWorkerRequest>) => {
         post({ type: 'tile', id: msg.id, result, stats: cache.stats }, [result.data.buffer]);
       } catch (error) {
         const aborted = (error as { name?: string })?.name === 'AbortError' || controller.signal.aborted;
-        post({ type: 'error', id: msg.id, message: String((error as Error)?.message ?? error), aborted, stats: cache.stats });
+        const code = (error as { code?: string })?.code === 'source-budget' ? 'source-budget' as const : undefined;
+        post({ type: 'error', id: msg.id, message: String((error as Error)?.message ?? error), aborted, code, stats: cache.stats });
       } finally {
         jobs.delete(msg.id);
       }

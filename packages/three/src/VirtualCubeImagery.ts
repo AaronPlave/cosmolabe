@@ -3,8 +3,8 @@ import { fetchWithRetry } from './fetchWithRetry.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
 import type { ImageryAddress } from './surface/CubeImagery.js';
 import {
-  DEFAULT_MAX_SOURCE_PIXELS, VirtualImageryInventory, affordableMatrix, geocentricDataBounds, mercatorY, parentSourceTile, planReprojection,
-  resampleYielding, sourcePixelAngle, upsampleFromParent, virtualLevelRange, xyzSourceGrid,
+  DEFAULT_MAX_SOURCE_PIXELS, SourceBudgetError, VirtualImageryInventory, affordableMatrix, geocentricDataBounds, mercatorY, parentSourceTile, planReprojection,
+  resampleYielding, sourcePixelAngle, tileMaxLevel, upsampleFromParent, virtualLevelRange, xyzSourceGrid,
   type DecodedSourceTile, type ProjectedSourceGrid, type SourceLatitudeConvention, type SourceMatrix, type VirtualLevelRange,
 } from './surface/ProjectedImagery.js';
 
@@ -15,6 +15,19 @@ import {
  * tile cache deduplicates requests across overlapping cube tiles and layers;
  * decoding, reprojection and request concurrency are bounded.
  */
+
+/**
+ * A virtual source's configuration cannot work (unsupported type, projection or
+ * CRS; missing layer or tile matrix set; no RESTful template; a date the URL
+ * cannot carry). Unlike a network or capabilities outage, retrying cannot help.
+ */
+export class VirtualSourceConfigError extends Error {
+  constructor(message: string) { super(message); this.name = 'VirtualSourceConfigError'; }
+}
+/** A day was asked of a source whose URL cannot carry one. */
+export class UndatableSourceError extends VirtualSourceConfigError {
+  constructor(message: string) { super(message); this.name = 'UndatableSourceError'; }
+}
 
 export type SourceTileDecoder = (blob: Blob, signal: AbortSignal) => Promise<DecodedSourceTile>;
 
@@ -54,6 +67,8 @@ export interface SourceTileCacheStats {
    * for the thread that also plans and resamples tiles: a queueing figure, not codec cost. */
   residentBytes: number; maxBytes: number; tiles: number; inFlight: number; queued: number;
   evicted: number; decodeMs: number;
+  /** Remembered failures (for backoff), bounded by `maxFailedEntries`; oldest are forgotten first. */
+  failedEntries: number;
 }
 
 /**
@@ -71,24 +86,26 @@ export class SourceTileCache {
   private counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 };
   readonly maxBytes: number;
   readonly maxConcurrent: number;
+  readonly maxFailedEntries: number;
   private readonly retryFailedMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly decode: SourceTileDecoder;
 
-  constructor(options: { maxBytes?: number; maxConcurrent?: number; retryFailedMs?: number; fetchImpl?: typeof fetch; decode?: SourceTileDecoder } = {}) {
+  constructor(options: { maxBytes?: number; maxConcurrent?: number; maxFailedEntries?: number; retryFailedMs?: number; fetchImpl?: typeof fetch; decode?: SourceTileDecoder } = {}) {
     this.maxBytes = options.maxBytes ?? 96 * 2 ** 20;
-    this.maxConcurrent = options.maxConcurrent ?? 8;
+    this.maxConcurrent = Math.max(1, Math.floor(options.maxConcurrent ?? 8));
+    this.maxFailedEntries = Math.max(0, Math.floor(options.maxFailedEntries ?? 1024));
     this.retryFailedMs = options.retryFailedMs ?? 30_000;
     this.fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
     this.decode = options.decode ?? decodeImageBlob;
   }
 
   get stats(): SourceTileCacheStats {
-    let residentBytes = 0, tiles = 0, inFlight = 0;
+    let residentBytes = 0, tiles = 0, inFlight = 0, failedEntries = 0;
     for (const e of this.entries.values()) {
-      if (e.state === 'ready') { residentBytes += e.bytes; tiles++; } else if (e.state === 'loading') inFlight++;
+      if (e.state === 'ready') { residentBytes += e.bytes; tiles++; } else if (e.state === 'loading') inFlight++; else if (e.state === 'failed') failedEntries++;
     }
-    return { ...this.counters, residentBytes, maxBytes: this.maxBytes, tiles, inFlight, queued: this.queue.length };
+    return { ...this.counters, residentBytes, maxBytes: this.maxBytes, tiles, inFlight, queued: this.queue.length, failedEntries };
   }
 
   resetCounters(): void { this.counters = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, evicted: 0, decodeMs: 0 }; }
@@ -178,11 +195,23 @@ export class SourceTileCache {
         return;
       }
       this.counters.failures++;
-      if (this.entries.get(e.url) === e) { e.state = 'failed'; e.failedAt = performance.now(); e.failures++; e.error = error; }
+      if (this.entries.get(e.url) === e) {
+        e.state = 'failed'; e.failedAt = performance.now(); e.failures++; e.error = error;
+        this.forgetOldFailures();
+      }
       for (const w of e.waiters.splice(0)) w.reject(error);
     } finally {
       e.consumers = 0;
     }
+  }
+
+  /** Failures are remembered only for backoff; a long outage across many tiles and days must not grow without bound. */
+  private forgetOldFailures(): void {
+    let failed = 0;
+    for (const e of this.entries.values()) if (e.state === 'failed') failed++;
+    if (failed <= this.maxFailedEntries) return;
+    const oldest = [...this.entries.values()].filter(e => e.state === 'failed').sort((a, b) => a.failedAt - b.failedAt);
+    for (const e of oldest.slice(0, failed - this.maxFailedEntries)) this.entries.delete(e.url);
   }
 
   private evict(): void {
@@ -257,9 +286,11 @@ export interface VirtualSourceCoverage {
   nativeMetersPerPixel: number;
   /** First source matrix with data. */
   firstMatrix: string;
-  /** Cube levels offered and the face-centre texel size at the deepest. */
+  /** Cube levels offered and the face-centre texel size at the deepest. For Mercator, `maxLevel`
+   * is reached only toward the data's latitude limit; `equatorMaxLevel` is the equatorial depth. */
   minLevel: number;
   maxLevel: number;
+  equatorMaxLevel: number;
   cubeMetersPerPixel: number;
   /** Geocentric data bounds (null: global within the projection). */
   bounds: [number, number, number, number] | null;
@@ -392,11 +423,21 @@ export type VirtualWorkerRequest =
   | { type: 'retryFailed' } | { type: 'resetCounters' };
 export type VirtualWorkerReply =
   | { type: 'tile'; id: number; result: VirtualTileResult; stats: SourceTileCacheStats }
-  | { type: 'error'; id: number; message: string; aborted: boolean; stats: SourceTileCacheStats }
+  | { type: 'error'; id: number; message: string; aborted: boolean; code?: 'source-budget'; stats: SourceTileCacheStats }
   /** Unsolicited while busy, so the render thread never reads a stale idle cache. */
   | { type: 'stats'; stats: SourceTileCacheStats };
 
-const EMPTY_STATS: SourceTileCacheStats = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, residentBytes: 0, maxBytes: 0, tiles: 0, inFlight: 0, queued: 0, evicted: 0, decodeMs: 0 };
+const EMPTY_STATS: SourceTileCacheStats = { requests: 0, bytes: 0, hits: 0, nodata: 0, transparent: 0, failures: 0, aborted: 0, residentBytes: 0, maxBytes: 0, tiles: 0, inFlight: 0, queued: 0, evicted: 0, decodeMs: 0, failedEntries: 0 };
+
+/**
+ * Split pool budgets exactly: worker shares sum to the configured totals, so the
+ * pool never holds more bytes or concurrent requests than asked. The pool uses
+ * at most one worker per allowed concurrent request.
+ */
+export function splitBudget(total: number, workers: number): number[] {
+  const n = Math.max(1, workers), base = Math.floor(total / n), extra = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
 
 /**
  * Production in dedicated workers: fetch, decode, plan and resample all leave
@@ -413,13 +454,17 @@ export class WorkerExecutor implements VirtualTileExecutor {
   private failed: Error | null = null;
   private readonly workers: Worker[];
   constructor(workers: Worker | Worker[], cache: { maxBytes?: number; maxConcurrent?: number; retryFailedMs?: number } = {}) {
-    this.workers = Array.isArray(workers) ? workers : [workers];
-    if (!this.workers.length) throw new Error('WorkerExecutor needs at least one worker');
-    // The budgets are for the whole pool: split them across workers.
+    const all = Array.isArray(workers) ? [...workers] : [workers];
+    if (!all.length) throw new Error('WorkerExecutor needs at least one worker');
+    // The budgets are for the whole pool: split them exactly across workers, and
+    // never run more workers than concurrent requests allowed (each needs one).
+    const maxConcurrent = Math.max(1, Math.floor(cache.maxConcurrent ?? 8));
+    for (const extra of all.splice(Math.min(all.length, maxConcurrent))) extra.terminate();
+    this.workers = all;
     const n = this.workers.length;
-    const share = { ...cache, maxBytes: Math.floor((cache.maxBytes ?? 96 * 2 ** 20) / n), maxConcurrent: Math.max(2, Math.ceil((cache.maxConcurrent ?? 8) / n)) };
+    const concurrency = splitBudget(maxConcurrent, n), bytes = splitBudget(Math.floor(cache.maxBytes ?? 96 * 2 ** 20), n);
     this.sent = this.workers.map(() => new Set());
-    this.last = this.workers.map(() => ({ ...EMPTY_STATS, maxBytes: share.maxBytes }));
+    this.last = this.workers.map((_, i) => ({ ...EMPTY_STATS, maxBytes: bytes[i] }));
     this.workers.forEach((worker, index) => {
       worker.onmessage = (event: MessageEvent<VirtualWorkerReply>) => {
         const reply = event.data;
@@ -429,14 +474,15 @@ export class WorkerExecutor implements VirtualTileExecutor {
         if (!job) return;
         this.pending.delete(reply.id);
         if (reply.type === 'tile') job.resolve(reply.result);
-        else job.reject(reply.aborted ? new DOMException(reply.message, 'AbortError') : new Error(reply.message));
+        else job.reject(reply.aborted ? new DOMException(reply.message, 'AbortError')
+          : reply.code === 'source-budget' ? new SourceBudgetError(reply.message) : new Error(reply.message));
       };
       worker.onerror = (event) => {
         this.failed = new Error(`Virtual imagery worker failed: ${event.message ?? 'unknown error'}`);
         for (const job of this.pending.values()) job.reject(this.failed);
         this.pending.clear();
       };
-      worker.postMessage({ type: 'init', ...share } satisfies VirtualWorkerRequest);
+      worker.postMessage({ type: 'init', retryFailedMs: cache.retryFailedMs, maxBytes: bytes[index], maxConcurrent: concurrency[index] } satisfies VirtualWorkerRequest);
     });
   }
   private route(key: string, address: ImageryAddress): number {
@@ -497,6 +543,8 @@ export class VirtualCubeSource {
   /** `undefined`: time-independent; `null`: no day to show (requests nothing); otherwise the UTC day drawn. */
   date: string | null | undefined = undefined;
   readonly ready: Promise<void>;
+  /** Why setup failed (capabilities outage, unsupported configuration); null while pending or ready. */
+  setupError: unknown = null;
   private descriptor: VirtualSourceDescriptor | null = null;
   private generation = 0;
   private static keys = 0;
@@ -504,8 +552,13 @@ export class VirtualCubeSource {
   private counters: VirtualSourceStats = { produced: 0, degraded: 0, sourceLimited: 0, planMs: 0, resampleMs: 0, maxTileMs: 0 };
 
   constructor(readonly config: TerrainImageryConfig, private readonly options: VirtualSourceOptions) {
-    this.ready = this.setup();
+    this.ready = this.setup().catch((error: unknown) => { this.setupError = error; throw error; });
+    // Setup failure is reported through `ready` to whoever awaits it; never as an unhandled rejection.
+    this.ready.catch(() => {});
   }
+
+  /** Setup failed; a new source must be created to try again. */
+  get setupFailed(): boolean { return this.setupError !== null; }
 
   get stats(): VirtualSourceStats { return { ...this.counters }; }
 
@@ -519,7 +572,7 @@ export class VirtualCubeSource {
     return {
       kind: 'virtual', projection: grid.projection, latitudeConvention: grid.latitudeConvention,
       nativeMatrix: finest.id, nativeMetersPerPixel: sourcePixelAngle(grid, finest, 0) * this.options.radiusKm * 1000,
-      firstMatrix: grid.matrices[grid.minMatrix].id, minLevel: range.minLevel, maxLevel: range.maxLevel,
+      firstMatrix: grid.matrices[grid.minMatrix].id, minLevel: range.minLevel, maxLevel: range.maxLevel, equatorMaxLevel: range.equatorMaxLevel,
       cubeMetersPerPixel: 2 / (this.options.tileSize * 2 ** range.maxLevel) * this.options.radiusKm * 1000,
       bounds: geocentricDataBounds(grid, this.options.ellipsoid),
     };
@@ -546,16 +599,20 @@ export class VirtualCubeSource {
     const latitudeConvention: SourceLatitudeConvention = cfg.latitudeConvention ?? 'geodetic';
     let grid: ProjectedSourceGrid, url: UrlSpec;
     if (type === 'xyz' || type === 'tms' || type === 'wmts') {
-      const projection = (cfg.projection ?? 'EPSG:4326') === 'EPSG:3857' ? 'mercator' : 'geographic';
+      const declared = cfg.projection ?? 'EPSG:4326';
+      if (declared !== 'EPSG:4326' && declared !== 'EPSG:3857') {
+        throw new VirtualSourceConfigError(`Imagery projection "${declared}" cannot be resampled onto cube terrain; use EPSG:4326 or EPSG:3857`);
+      }
+      const projection = declared === 'EPSG:3857' ? 'mercator' : 'geographic';
       grid = xyzSourceGrid({ projection, levels: cfg.levels ?? 8, tileSize: cfg.dimension ?? 256, minZoom: cfg.minZoom, latitudeConvention, bounds: cfg.bounds ?? null });
       url = { template: cfg.url, tms: type === 'tms', dimensions: {} };
     } else if (type === 'wmts-capabilities') {
-      if (!this.options.fetchCapabilities) throw new Error('WMTS capabilities source needs a capabilities loader');
+      if (!this.options.fetchCapabilities) throw new VirtualSourceConfigError('WMTS capabilities source needs a capabilities loader');
       const capabilities = await this.options.fetchCapabilities(cfg.url);
       this.options.onCapabilities?.(capabilities);
       ({ grid, url } = capabilitiesGrid(capabilities, cfg, latitudeConvention));
     } else {
-      throw new Error(`Imagery type "${type}" cannot be drawn over cube terrain; use cube, xyz, tms, wmts or wmts-capabilities`);
+      throw new VirtualSourceConfigError(`Imagery type "${type}" cannot be drawn over cube terrain; use cube, xyz, tms, wmts or wmts-capabilities`);
     }
     if (this.date) assertDatable(url.template, this.date);
     const { tileSize, gutter, ellipsoid } = this.options;
@@ -564,7 +621,9 @@ export class VirtualCubeSource {
     this.descriptor = { grid, url, tileSize, gutter, ellipsoid, maxSourcePixels };
     this.range = virtualLevelRange(grid, tileSize, this.options.maxLevel);
     const planOptions = { tileSize, gutter, ellipsoid, maxSourcePixels };
-    this.inventory = new VirtualImageryInventory(this.range, geocentricDataBounds(grid, ellipsoid), a => affordableMatrix(grid, a, planOptions) !== null);
+    const range = this.range;
+    this.inventory = new VirtualImageryInventory(range, geocentricDataBounds(grid, ellipsoid), a => affordableMatrix(grid, a, planOptions) !== null,
+      a => tileMaxLevel(grid, tileSize, a, range));
   }
 
   /** Produce one cube tile of the current day through the configured executor. */
@@ -585,7 +644,7 @@ export class VirtualCubeSource {
 
 function assertDatable(template: string, date: string): void {
   if (!template.includes('{Time}') && !DATED_SEGMENT.test(template)) {
-    throw new Error(`the tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date ${date} cannot take effect`);
+    throw new UndatableSourceError(`the tile URL has no /default/YYYY-MM-DD/ segment or {Time} dimension, so the date ${date} cannot take effect`);
   }
 }
 
@@ -594,13 +653,21 @@ export function capabilitiesGrid(capabilities: WMTSCapabilitiesResult, cfg: Terr
   grid: ProjectedSourceGrid; template: string; url: UrlSpec;
 } {
   const layer = cfg.layer ? capabilities.layers.find(l => l.identifier === cfg.layer) : capabilities.layers[0];
-  if (!layer) throw new Error(`WMTS layer ${cfg.layer ?? '(first)'} not found`);
+  if (!layer) throw new VirtualSourceConfigError(`WMTS layer ${cfg.layer ?? '(first)'} not found`);
   const set = (cfg.tileMatrixSet ? layer.tileMatrixSets.find(t => t?.identifier === cfg.tileMatrixSet) : layer.tileMatrixSets[0]) as unknown as {
     identifier: string; supportedCRS: string;
     tileMatrices: Array<{ identifier: string; tileWidth: number; tileHeight: number; matrixWidth: number; matrixHeight: number; bounds: number[] }>;
   } | undefined;
-  if (!set) throw new Error(`WMTS tile matrix set ${cfg.tileMatrixSet ?? '(first)'} not found`);
-  const mercator = /3857|900913|GoogleMaps/i.test(set.supportedCRS) || /GoogleMaps/i.test(set.identifier);
+  if (!set) throw new VirtualSourceConfigError(`WMTS tile matrix set ${cfg.tileMatrixSet ?? '(first)'} not found`);
+  // Only the CRSs whose matrix extents the capabilities parser converts to degrees:
+  // EPSG:3857 (metres → degrees) and geographic EPSG:4326 / CRS84. Anything else
+  // (polar stereographic, other projected or planetary CRSs) is refused, never guessed.
+  const crs = set.supportedCRS ?? '';
+  const mercator = /:3857$/i.test(crs.trim());
+  const geographic = /EPSG:{1,2}(\d+:)?4326$|CRS:?84$/i.test(crs.trim());
+  if (!mercator && !geographic) {
+    throw new VirtualSourceConfigError(`WMTS tile matrix set ${set.identifier} uses ${crs || 'an undeclared CRS'}; cube terrain resamples only EPSG:4326/CRS84 and EPSG:3857 matrix sets`);
+  }
   const deg = 180 / Math.PI;
   // Upstream parses each matrix's extent to radians [west, south, east, north].
   const matrices: SourceMatrix[] = set.tileMatrices.map((tm, index) => {
@@ -610,7 +677,7 @@ export function capabilitiesGrid(capabilities: WMTSCapabilitiesResult, cfg: Terr
       x0: w, y0, dx: (e - w) / (tm.matrixWidth * tm.tileWidth), dy: (y0 - y1) / (tm.matrixHeight * tm.tileHeight) };
   });
   const resource = layer.resourceUrls.find(r => !r.resourceType || r.resourceType === 'tile') ?? layer.resourceUrls[0];
-  if (!resource?.template) throw new Error('WMTS layer has no RESTful tile template');
+  if (!resource?.template) throw new VirtualSourceConfigError('WMTS layer has no RESTful tile template');
   const style = layer.styles.find(s => s.isDefault)?.identifier ?? layer.styles[0]?.identifier ?? 'default';
   const template = resource.template.replaceAll('{TileMatrixSet}', set.identifier).replaceAll('{Style}', style);
   const minZoom = Math.max(0, Math.min(matrices.length - 1, cfg.minZoom ?? 0));

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CubeImageryLayer } from '../CubeImageryLayer.js';
-import { InThreadExecutor, SourceTileCache, VirtualCubeSource, WorkerExecutor, buildTileUrl, capabilitiesGrid, produceVirtualTile, type VirtualWorkerRequest, type VirtualWorkerReply, type VirtualSourceDescriptor } from '../VirtualCubeImagery.js';
+import { CubeImageryLayer, cubeBlockInsideBounds, cubeBlockOverlapsBounds, renderBounds } from '../CubeImageryLayer.js';
+import { InThreadExecutor, SourceTileCache, VirtualCubeSource, VirtualSourceConfigError, WorkerExecutor, buildTileUrl, capabilitiesGrid, produceVirtualTile, splitBudget, type VirtualWorkerRequest, type VirtualWorkerReply, type VirtualSourceDescriptor } from '../VirtualCubeImagery.js';
+import { SourceBudgetError } from '../surface/ProjectedImagery.js';
 import { cubeFaceToDirection, cubeTileAt, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
 import { imageryTileRect, type CubeImageryManifest, type ImageryAddress } from '../surface/CubeImagery.js';
 import type { DecodedSourceTile } from '../surface/ProjectedImagery.js';
@@ -400,5 +401,286 @@ describe('TerrainManager: dated non-cube layers over cube terrain', () => {
       await vi.waitFor(() => expect(tm.imageryLayers.find(l => l.id === 'daily')!.status).toBe('failed'));
       expect(tm.cubeImageryLayer!.virtualSources.find(v => v.id === 'daily')?.date ?? null).toBeNull();
     } finally { tm.dispose(); vi.unstubAllGlobals(); }
+  });
+});
+
+/** Review regressions (#398): stacks, ellipsoidal bounds, recovery, strict limits. */
+describe('virtual imagery review regressions', () => {
+  const direction = (latDeg: number, lonDeg = 0): [number, number, number] => {
+    const p = latDeg * Math.PI / 180, l = lonDeg * Math.PI / 180;
+    return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)];
+  };
+  /** One geometry tile under a camera 2000 km above `dir`; `frame(n)` updates and lets work settle. */
+  function view(layer: CubeImageryLayer, dir: [number, number, number], level = 2) {
+    const address = cubeTileAt(dir, level);
+    const tileSet = new THREE.Group(), scene = geometryTile(address);
+    tileSet.add(scene); layer.addTile(scene, scene, address);
+    const cam = new THREE.PerspectiveCamera(60, 1.6, 1, 1e8);
+    cam.position.set(...dir.map(c => c * (R + 2_000_000)) as [number, number, number]);
+    cam.up.set(0, 0, 1); if (Math.abs(dir[2]) > 0.99) cam.up.set(1, 0, 0);
+    cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+    return async (n = 1) => { for (let i = 0; i < n; i++) { layer.update(cam, tileSet.matrixWorld, 2 * Math.tan(Math.PI / 6) / 800, null); await tick(); await tick(); } };
+  }
+  const texture = async () => ({ texture: new THREE.Texture(), bytes: Math.round(10 * 10 * 4 * 4 / 3), downloadBytes: 1 });
+  const GLOBAL: TerrainImageryConfig = { id: 'global', type: 'xyz', projection: 'EPSG:4326', levels: 6, dimension: 4, url: 'https://tiles.test/global/{z}/{y}/{x}.png', latitudeConvention: 'planetocentric' };
+
+  describe('P1: a virtual base under native cube products', () => {
+    const region: TerrainImageryConfig = { id: 'mission', type: 'cube', url: 'http://test/mission/imagery.json', bounds: [-20, -20, 20, 20] };
+    it('stacks a native mission-region product over global virtual imagery of the same body', async () => {
+      const s = server();
+      const layer = new CubeImageryLayer({ url: GLOBAL.url, layers: [GLOBAL, region], residentLevel: 0, virtualTileSize: 8, virtualGutter: 1 },
+        { frame: 'IAU_MOON', bodyId: 'Moon', fetchManifest: async () => cubeManifest(), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl: s.fetchImpl, decode: s.decode }) });
+      await layer.ready;
+      const frame = view(layer, [1, 0, 0]);
+      await vi.waitFor(async () => {
+        await frame();
+        expect(layer.imageryLayers.map(l => l.status)).toEqual(['ok', 'ok']);
+        expect(layer.virtualSources[0].stats.produced).toBeGreaterThan(0);
+        expect(layer.stats.textures).toBeGreaterThan(6); // virtual base roots and native mission pages
+      });
+      expect(layer.productMetadata).not.toBeNull();
+      layer.dispose();
+    });
+    it('names the mismatch when the body or the virtual tile size differs', async () => {
+      for (const [deps, cfg, expected] of [
+        [{ bodyId: 'Mars' }, {}, /body Moon ≠ Mars/],
+        [{ bodyId: 'Moon' }, { virtualTileSize: 16 }, /tile 8\+1 ≠ 16\+1 \(virtual base: set cubeSphere.imagery.virtualTileSize/],
+      ] as const) {
+        const layer = new CubeImageryLayer({ url: GLOBAL.url, layers: [GLOBAL, region], residentLevel: 0, virtualTileSize: 8, virtualGutter: 1, ...cfg },
+          { frame: 'IAU_MOON', ...deps, fetchManifest: async () => cubeManifest(), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl: server().fetchImpl, decode: server().decode }) });
+        await layer.ready;
+        await vi.waitFor(() => expect(layer.imageryLayers[1].status).toBe('failed'));
+        // The base keeps working; the overlay alone is refused, with its reason.
+        expect(layer.imageryLayers[0].status).not.toBe('failed');
+        expect(layer.imageryLayers[1].setupError).toMatch(expected);
+        layer.dispose();
+      }
+    });
+    it('TerrainManager passes the terrain body to the cube renderer', async () => {
+      const { TerrainManager } = await import('../TerrainManager.js');
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('imagery.json') ? Response.json({ ...cubeManifest(), bodyId: 'Earth', registration: { ...cubeManifest().registration, crsId: 'cosmolabe:cube-gnomonic-1/IAU_EARTH' } }) : new Response('', { status: 404 })));
+      const tm = new TerrainManager({ type: '3dtiles', url: 'https://example.invalid/t/tileset.json', bodyId: 'Earth', frame: 'IAU_EARTH', datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+        cubeSphere: { cpuGrids: 'https://example.invalid/t/cpu-grids.json', residentLevel: 0, imagery: { virtualTileSize: 8, virtualGutter: 1 } },
+        imagery: [{ ...GLOBAL, id: 'base' }, { id: 'mission', type: 'cube', url: 'https://example.invalid/i/imagery.json' }] }, [6378.137, 6378.137, 6356.752], undefined as unknown as THREE.WebGLRenderer);
+      try {
+        await tm.cubeImageryLayer!.ready;
+        await vi.waitFor(() => expect((tm.cubeImageryLayer as unknown as { sources: Array<{ manifest: unknown; setupFailed: boolean }> }).sources[1].manifest).not.toBeNull());
+        expect(tm.cubeImageryLayer!.imageryLayers.map(l => l.status)).not.toContain('failed');
+      } finally { tm.dispose(); vi.unstubAllGlobals(); }
+    });
+  });
+
+  describe('P1: geodetic bounds in the cube renderer', () => {
+    // Strongly flattened so the conventions differ by degrees: geocentric 41° is geodetic ≈ 47°.
+    const ellipsoid: [number, number] = [R, 0.9 * R];
+    const declared: [number, number, number, number] = [-60, 45, 60, 80];
+    const regional: TerrainImageryConfig = { id: 'regional', type: 'xyz', projection: 'EPSG:4326', levels: 6, dimension: 4, url: 'https://tiles.test/r/{z}/{y}/{x}.png', bounds: declared, latitudeConvention: 'geodetic' };
+    it('converts declared geodetic latitude edges to geocentric, longitudes and cube products unchanged', () => {
+      const geocentric = renderBounds(regional, declared, ellipsoid)!;
+      expect(geocentric[1]).toBeCloseTo(Math.atan(0.81 * Math.tan(45 * Math.PI / 180)) * 180 / Math.PI, 9); // ≈ 39.0°
+      expect([geocentric[0], geocentric[2]]).toEqual([-60, 60]);
+      expect(renderBounds({ ...regional, latitudeConvention: 'planetocentric' }, declared, ellipsoid)).toEqual(declared);
+      expect(renderBounds({ type: 'cube', url: '' }, declared, ellipsoid)).toEqual(declared);
+      // A tile wholly between geocentric 39.5° and 44°: inside the source (geodetic 45.6–50°), outside the raw numbers.
+      const tile = cubeTileAt(direction(41.5, 0), 6);
+      expect(cubeBlockOverlapsBounds(tile, declared)).toBe(false);
+      expect(cubeBlockOverlapsBounds(tile, geocentric)).toBe(true);
+      expect(cubeBlockInsideBounds(tile, geocentric)).toBe(true);
+    });
+    it('draws a mid-latitude geodetic regional layer where its data is, not where its raw numbers are', async () => {
+      const s = server();
+      const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', layers: [{ id: 'base', type: 'cube', url: 'http://test/imagery.json' }, regional], residentLevel: 0 },
+        { frame: 'IAU_MOON', bodyId: 'Moon', ellipsoidM: ellipsoid, fetchManifest: async () => cubeManifest(), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl: s.fetchImpl, decode: s.decode }) });
+      await layer.ready;
+      const frame = view(layer, direction(41, 0));
+      await vi.waitFor(async () => { await frame(); expect(layer.sampleAt(direction(41, 0))[1].enabled).toBe(1); });
+      // Below the converted southern edge (geocentric 39.0°) the layer is clipped.
+      expect(layer.sampleAt(direction(37, 0))[1].enabled).toBe(0);
+      layer.dispose();
+    });
+  });
+
+  describe('P1: degraded tiles recover without moving the camera', () => {
+    async function degradedStack(retryFailedMs: number) {
+      let down = true;
+      const s = server();
+      // Fine source tiles (z ≥ 3) are corrupt while down; their parents stay healthy.
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input), z = Number(/\/(\d+)\/\d+\/\d+\.jpg$/.exec(url)?.[1] ?? 0);
+        return s.fetchImpl(down && z >= 3 ? `${url}#corrupt` : url, init);
+      }) as typeof fetch;
+      const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', layers: [{ id: 'base', type: 'cube', url: 'http://test/imagery.json' }, XYZ], residentLevel: 0, retryFailedMs },
+        { fetchManifest: async () => ({ ...cubeManifest(), maxLevel: 1 }), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl, decode: s.decode, retryFailedMs }) });
+      layer.setSourceDate('daily', '2024-06-02');
+      await layer.ready;
+      const frame = view(layer, [1, 0, 0], 3);
+      await vi.waitFor(async () => { await frame(); expect(layer.virtualSources[0].degradedResident).toBeGreaterThan(0); }, { timeout: 10_000 });
+      return { layer, frame, up: () => { down = false; } };
+    }
+    it('retryFailed refreshes parent-filled tiles; the old pixels stay until the replacement commits', async () => {
+      const { layer, frame, up } = await degradedStack(60_000);
+      const probe = cubeFaceToDirection('px', 0.02, 0.02) as [number, number, number];
+      await vi.waitFor(async () => { await frame(); expect(layer.sampleAt(probe)[1].enabled).toBe(1); });
+      await frame(5);
+      expect(layer.virtualSources[0].degradedResident).toBeGreaterThan(0); // no recovery before the backoff
+      up();
+      layer.retryFailed();
+      await vi.waitFor(async () => {
+        await frame();
+        expect(layer.sampleAt(probe)[1].enabled).toBe(1); // never a frame without the layer's pixels
+        expect(layer.virtualSources[0].degradedResident).toBe(0);
+      }, { timeout: 10_000 });
+      expect(layer.imageryLayers[1].view?.degradedTiles).toBe(0);
+      layer.dispose();
+    });
+    it('recovers on the failure backoff alone', async () => {
+      const { layer, frame, up } = await degradedStack(40);
+      up();
+      await vi.waitFor(async () => { await frame(); expect(layer.virtualSources[0].degradedResident).toBe(0); }, { timeout: 10_000 });
+      layer.dispose();
+    });
+  });
+
+  describe('P1: capabilities outages are not permanent', () => {
+    const rad = Math.PI / 180;
+    const caps = { layers: [{ identifier: 'VIIRS', boundingBox: { bounds: [-180 * rad, -90 * rad, 180 * rad, 90 * rad] },
+      resourceUrls: [{ template: 'https://gibs/wmts/VIIRS/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpg', resourceType: 'tile', format: 'image/jpeg' }],
+      styles: [{ identifier: 'default', isDefault: true }], dimensions: [{ identifier: 'Time', defaultValue: '2026-11-26', values: [], uom: '', current: false }],
+      tileMatrixSets: [{ identifier: 'g', supportedCRS: 'urn:ogc:def:crs:OGC:1.3:CRS84', tileMatrices: [0, 1, 2, 3].map(z => ({ identifier: String(z), tileWidth: 4, tileHeight: 4, matrixWidth: 2 * 2 ** z, matrixHeight: 2 ** z,
+        bounds: [-180 * rad, -90 * rad, 180 * rad, 90 * rad] })) }] }] };
+    const wmts: TerrainImageryConfig = { id: 'daily', type: 'wmts-capabilities', url: 'https://gibs/caps.xml', layer: 'VIIRS', tileMatrixSet: 'g' };
+    it('an optional source retries setup on retryFailed and on re-enable, keeping its requested day', async () => {
+      let outages = 2;
+      const fetchCapabilities = vi.fn(async () => { if (outages-- > 0) throw new Error('503 capabilities'); return caps as never; });
+      const s = server();
+      const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', layers: [{ id: 'base', type: 'cube', url: 'http://test/imagery.json' }, wmts], residentLevel: 0 },
+        { fetchManifest: async () => cubeManifest(), loadTexture: texture, fetchCapabilities, sourceCache: new SourceTileCache({ fetchImpl: s.fetchImpl, decode: s.decode }) });
+      layer.setSourceDate('daily', '2024-06-03');
+      await layer.ready;
+      const frame = view(layer, [1, 0, 0]);
+      await vi.waitFor(() => expect(layer.imageryLayers[1].status).toBe('failed'));
+      expect(layer.virtualSources[0]).toMatchObject({ date: '2024-06-03' });
+      expect(layer.virtualSources[0].setupError).toMatch(/503/);
+      layer.retryFailed(); // second outage
+      await vi.waitFor(() => expect(fetchCapabilities).toHaveBeenCalledTimes(2));
+      await frame(2);
+      expect(layer.imageryLayers[1].status).toBe('failed');
+      layer.setLayerVisible('daily', false); layer.setLayerVisible('daily', true); // re-enable: recovers
+      await vi.waitFor(async () => { await frame(); expect(layer.virtualSources[0].stats.produced).toBeGreaterThan(0); });
+      expect(layer.virtualSources[0]).toMatchObject({ date: '2024-06-03', setupError: null });
+      expect(s.requests.length).toBeGreaterThan(0);
+      expect(s.requests.every(u => u.includes('/default/2024-06-03/'))).toBe(true);
+      layer.dispose();
+    });
+    it('a virtual base waits out a capabilities outage like a native base', async () => {
+      let outages = 1;
+      const fetchCapabilities = vi.fn(async () => { if (outages-- > 0) throw new Error('capabilities unreachable'); return caps as never; });
+      const layer = new CubeImageryLayer({ url: wmts.url, layers: [{ ...wmts, id: 'base' }], residentLevel: 0, virtualTileSize: 8, virtualGutter: 1 },
+        { fetchCapabilities, sourceCache: new SourceTileCache({ fetchImpl: server().fetchImpl, decode: server().decode }) });
+      await layer.ready; // resolves after the retry, never rejects for a transient outage
+      expect(fetchCapabilities).toHaveBeenCalledTimes(2);
+      expect(layer.stats.manifestFailed).toBe(false);
+      layer.dispose();
+    }, 10_000);
+    it('a configuration that cannot work is refused at once, not retried', async () => {
+      const fetchCapabilities = vi.fn(async () => caps as never);
+      const layer = new CubeImageryLayer({ url: wmts.url, layers: [{ ...wmts, id: 'base', layer: 'MISSING' }], residentLevel: 0 },
+        { fetchCapabilities, sourceCache: new SourceTileCache() });
+      await expect(layer.ready).rejects.toBeInstanceOf(VirtualSourceConfigError);
+      expect(fetchCapabilities).toHaveBeenCalledTimes(1);
+      layer.dispose();
+    });
+    it('TerrainManager forgets a failed capabilities request', async () => {
+      const { TerrainManager } = await import('../TerrainManager.js');
+      const fetchMock = vi.fn(async () => new Response('', { status: 503 }));
+      vi.stubGlobal('fetch', fetchMock);
+      const tm = new TerrainManager({ type: '3dtiles', url: 'https://example.invalid/t/tileset.json', datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' } }, [1737.4, 1737.4, 1737.4], undefined as unknown as THREE.WebGLRenderer);
+      try {
+        const load = (tm as unknown as { fetchCapabilities(url: string): Promise<unknown> }).fetchCapabilities.bind(tm);
+        await load('https://caps.test/wmts.xml').catch(() => {});
+        await tick();
+        const calls = fetchMock.mock.calls.length;
+        await load('https://caps.test/wmts.xml').catch(() => {});
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(calls);
+      } finally { tm.dispose(); vi.unstubAllGlobals(); }
+    });
+  });
+
+  describe('P2: strict resource limits and diagnostics', () => {
+    it('forgets the oldest remembered failures beyond the bound', async () => {
+      const s = server();
+      const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => s.fetchImpl(`${String(input)}#corrupt`, init)) as typeof fetch;
+      const cache = new SourceTileCache({ fetchImpl, decode: s.decode, maxFailedEntries: 5 });
+      for (let i = 0; i < 20; i++) await cache.get(`https://t/day-${i}/0/0/0.png`, new AbortController().signal).catch(() => {});
+      expect(cache.stats.failures).toBe(20);
+      expect(cache.stats.failedEntries).toBe(5);
+    });
+    it('splits pool concurrency and bytes exactly, never running more workers than requests allowed', () => {
+      expect(splitBudget(8, 3)).toEqual([3, 3, 2]);
+      expect(splitBudget(100, 3).reduce((a, b) => a + b)).toBe(100);
+      const inits: Array<{ maxConcurrent?: number; maxBytes?: number }> = [];
+      const workers = [0, 1, 2].map(() => ({ onmessage: null, onerror: null, terminate: vi.fn(), postMessage: (m: { type: string; maxConcurrent?: number; maxBytes?: number }) => { if (m.type === 'init') inits.push(m); } }));
+      const executor = new WorkerExecutor(workers as unknown as Worker[], { maxBytes: 1000, maxConcurrent: 2 });
+      expect(executor.size).toBe(2);
+      expect(workers[2].terminate).toHaveBeenCalled();
+      expect(inits.reduce((n, m) => n + m.maxConcurrent!, 0)).toBe(2);
+      expect(inits.reduce((n, m) => n + m.maxBytes!, 0)).toBe(1000);
+      executor.dispose();
+    });
+    it('a tile beyond the read budget shows its ancestor as lower resolution, not a failure, and is not retried', async () => {
+      const s = server();
+      const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', layers: [{ id: 'base', type: 'cube', url: 'http://test/imagery.json' }, XYZ], residentLevel: 0 },
+        { fetchManifest: async () => cubeManifest(), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl: s.fetchImpl, decode: s.decode }) });
+      layer.setSourceDate('daily', '2024-06-02');
+      await layer.ready;
+      const virtual = (layer as unknown as { sources: Array<{ virtual: VirtualCubeSource }> }).sources[1].virtual;
+      const produce = virtual.produce.bind(virtual);
+      let refused = 0;
+      virtual.produce = (a, signal) => { if (a.level >= 2) { refused++; return Promise.reject(new SourceBudgetError('over budget')); } return produce(a, signal); };
+      const frame = view(layer, [1, 0, 0]);
+      await vi.waitFor(async () => { await frame(); expect(layer.virtualSources[0].limitedTiles).toBeGreaterThan(0); });
+      await frame(3);
+      const info = layer.imageryLayers[1];
+      expect(info.status).toBe('ok');
+      expect(info.view!.degradedTiles).toBeGreaterThan(0); // "Lower res"
+      expect(info.view!.missingTiles).toBe(0);
+      expect(layer.stats.failures).toBe(0);
+      const before = refused;
+      layer.retryFailed(); await frame(5);
+      expect(refused).toBe(before);
+      layer.dispose();
+    });
+    it('reports a worker-side budget refusal as SourceBudgetError', async () => {
+      const worker = { onmessage: null as ((e: MessageEvent<VirtualWorkerReply>) => void) | null, onerror: null, terminate: vi.fn(),
+        postMessage(msg: VirtualWorkerRequest) { if (msg.type === 'produce') queueMicrotask(() => worker.onmessage?.({ data: { type: 'error', id: msg.id, message: 'over', aborted: false, code: 'source-budget', stats: { ...new SourceTileCache().stats } } } as MessageEvent<VirtualWorkerReply>)); } };
+      const executor = new WorkerExecutor(worker as unknown as Worker);
+      await expect(executor.produce('k', {} as VirtualSourceDescriptor, { face: 'px', level: 1, x: 0, y: 0 }, undefined, new AbortController().signal)).rejects.toBeInstanceOf(SourceBudgetError);
+      executor.dispose();
+    });
+  });
+
+  describe('compatibility of existing layer options over cube terrain', () => {
+    it('refuses projections and WMTS CRSs it cannot resample instead of guessing geographic', async () => {
+      const source = new VirtualCubeSource({ ...XYZ, projection: 'EPSG:3413' }, options(new SourceTileCache()));
+      await expect(source.ready).rejects.toBeInstanceOf(VirtualSourceConfigError);
+      const rad = Math.PI / 180;
+      const arctic = { layers: [{ identifier: 'L', resourceUrls: [{ template: 'https://x/{TileMatrix}/{TileRow}/{TileCol}.png' }], styles: [], dimensions: [],
+        tileMatrixSets: [{ identifier: '1km', supportedCRS: 'urn:ogc:def:crs:EPSG::3413', tileMatrices: [{ identifier: '0', tileWidth: 512, tileHeight: 512, matrixWidth: 2, matrixHeight: 2, bounds: [0, 0, rad, rad] }] }] }] };
+      expect(() => capabilitiesGrid(arctic as never, { url: '' }, 'geodetic')).toThrow(/EPSG::3413.*EPSG:4326\/CRS84 and EPSG:3857/);
+      const mercator = { ...arctic, layers: [{ ...arctic.layers[0], tileMatrixSets: [{ ...arctic.layers[0].tileMatrixSets[0], supportedCRS: 'urn:ogc:def:crs:EPSG::3857' }] }] };
+      expect(capabilitiesGrid(mercator as never, { url: '' }, 'geodetic').grid.projection).toBe('mercator');
+    });
+    it('applies a layer tint (color) to virtual and cube sources', async () => {
+      const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', layers: [{ id: 'base', type: 'cube', url: 'http://test/imagery.json', color: 0xff0000 }, { ...XYZ, color: 0x00ff00 }], residentLevel: 0 },
+        { fetchManifest: async () => cubeManifest(), loadTexture: texture, sourceCache: new SourceTileCache({ fetchImpl: server().fetchImpl, decode: server().decode }) });
+      await layer.ready;
+      const frame = view(layer, [1, 0, 0]);
+      await frame();
+      const record = [...(layer as unknown as { tiles: Map<object, { meshes: Array<{ uniforms: { layers: Array<{ tint: { value: THREE.Color } }> } }> }> }).tiles.values()][0];
+      const [base, overlay] = record.meshes[0].uniforms.layers;
+      expect(base.tint.value.getHex()).toBe(0xff0000);
+      expect(overlay.tint.value.getHex()).toBe(0x00ff00);
+      layer.dispose();
+    });
   });
 });

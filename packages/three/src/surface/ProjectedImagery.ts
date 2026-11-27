@@ -120,17 +120,61 @@ export function cubeLevelForSourcePixel(pixelAngleRad: number, tileSize: number)
   return Math.max(0, Math.min(30, Math.ceil(Math.log2(2 / (tileSize * pixelAngleRad)) - 0.1)));
 }
 
-export interface VirtualLevelRange { minLevel: number; maxLevel: number }
+/**
+ * Cube levels a source supports. `maxLevel` is the deepest level anywhere;
+ * `equatorMaxLevel` the deepest at the equator. They differ for Mercator, whose
+ * pixels shrink with cos φ (2.5× finer at 66°, 5.8× at 80°): there the useful
+ * depth depends on the tile (`tileMaxLevel`). Below `minLevel` the source's
+ * first data matrix would need too many tiles per cube tile.
+ */
+export interface VirtualLevelRange { minLevel: number; maxLevel: number; equatorMaxLevel: number }
 
-/** Cube levels a source supports. Below `minLevel` the source's first data matrix would need too many tiles per cube tile. */
+/** Greatest |latitude| (geocentric, degrees) a tile can reach, gutters included, within about 0.3°. */
+export function tileMaxAbsLatitude(a: ImageryAddress): number {
+  const [N, U, V] = cubeFaceBasis(a.face), size = 2 / 2 ** a.level, u0 = -1 + a.x * size, v0 = -1 + a.y * size;
+  const pole = ([[0, 0, 1], [0, 0, -1]] as Vec3[]).some(d => { const t = cubeTileAt(d, a.level); return t.face === a.face && t.x === a.x && t.y === a.y; });
+  if (pole) return 90;
+  // |z| over a great-circle-bounded tile without a pole peaks on its boundary; 16 samples per edge.
+  let best = 0;
+  for (let k = 0; k <= 16; k++) for (const [u, v] of [[u0 + k * size / 16, v0], [u0 + k * size / 16, v0 + size], [u0, v0 + k * size / 16], [u0 + size, v0 + k * size / 16]]) {
+    const x = N[0] + u * U[0] + v * V[0], y = N[1] + u * U[1] + v * V[1], z = N[2] + u * U[2] + v * V[2];
+    best = Math.max(best, Math.abs(Math.atan2(z, Math.hypot(x, y))) / RAD);
+  }
+  return best;
+}
+
+/** Latitude margin (degrees) covering boundary sampling, gutters and the geodetic/geocentric difference. */
+const LATITUDE_MARGIN = 0.75;
+
+/**
+ * Deepest useful level of one tile: where the cube texel is no coarser than the
+ * finest source pixel the tile can hold. Geographic pixels keep their
+ * meridian size at every latitude; Mercator pixels shrink with cos φ, so a
+ * high-latitude tile may go deeper than an equatorial one. Monotone: a tile
+ * never allows less depth than its descendants.
+ */
+export function tileMaxLevel(grid: ProjectedSourceGrid, tileSize: number, a: ImageryAddress, range: VirtualLevelRange): number {
+  if (grid.projection !== 'mercator' || range.maxLevel === range.equatorMaxLevel) return range.maxLevel;
+  const finest = grid.matrices[grid.matrices.length - 1];
+  const lat = Math.min(tileMaxAbsLatitude(a) + LATITUDE_MARGIN, dataMaxAbsLatitude(grid));
+  return Math.max(range.equatorMaxLevel, Math.min(range.maxLevel, cubeLevelForSourcePixel(sourcePixelAngle(grid, finest, lat), tileSize)));
+}
+
+/** Greatest |latitude| holding source data (source convention, degrees). */
+function dataMaxAbsLatitude(grid: ProjectedSourceGrid): number {
+  const limit = grid.projection === 'mercator' ? MERCATOR_MAX_LATITUDE : 90;
+  return grid.bounds ? Math.min(limit, Math.max(Math.abs(grid.bounds[1]), Math.abs(grid.bounds[3]))) : limit;
+}
+
 export function virtualLevelRange(grid: ProjectedSourceGrid, tileSize: number, maxLevelOverride?: number): VirtualLevelRange {
   const finest = grid.matrices[grid.matrices.length - 1], coarsest = grid.matrices[grid.minMatrix];
-  let maxLevel = cubeLevelForSourcePixel(sourcePixelAngle(grid, finest, 0), tileSize);
-  if (maxLevelOverride != null) maxLevel = Math.min(maxLevel, Math.max(0, Math.floor(maxLevelOverride)));
+  const cap = (level: number) => maxLevelOverride != null ? Math.min(level, Math.max(0, Math.floor(maxLevelOverride))) : level;
+  const equatorMaxLevel = cap(cubeLevelForSourcePixel(sourcePixelAngle(grid, finest, 0), tileSize));
+  const maxLevel = cap(cubeLevelForSourcePixel(sourcePixelAngle(grid, finest, dataMaxAbsLatitude(grid)), tileSize));
   // Two levels coarser than the first data matrix keeps a cube tile within a few
   // source tiles per side (4× downsampling, area-filtered).
-  const minLevel = grid.minMatrix === 0 ? 0 : Math.max(0, Math.min(maxLevel, cubeLevelForSourcePixel(sourcePixelAngle(grid, coarsest, 0), tileSize) - 2));
-  return { minLevel, maxLevel };
+  const minLevel = grid.minMatrix === 0 ? 0 : Math.max(0, Math.min(equatorMaxLevel, cubeLevelForSourcePixel(sourcePixelAngle(grid, coarsest, 0), tileSize) - 2));
+  return { minLevel, maxLevel, equatorMaxLevel };
 }
 
 /** Conservative spherical-cap overlap of a cube tile with geocentric lon/lat bounds (degrees). */
@@ -173,12 +217,14 @@ export class VirtualImageryInventory {
   readonly topology: TileIdSet;
   constructor(readonly range: VirtualLevelRange, readonly dataBounds: readonly number[] | null,
     /** Whether a tile can be produced within the read budget (see `affordableMatrix`); default always. */
-    affordable: (a: ImageryAddress) => boolean = () => true) {
+    affordable: (a: ImageryAddress) => boolean = () => true,
+    /** Deepest useful level of a tile (see `tileMaxLevel`); default `range.maxLevel`. */
+    maxLevelAt: (a: ImageryAddress) => number = () => range.maxLevel) {
     const memo = new Map<string, ImageryAddress | null>(), producible = new Map<string, boolean>();
     const covered = (id: string): ImageryAddress | null => {
       let hit = memo.get(id);
       if (hit !== undefined) return hit;
-      try { const a = parseImageryAddress(id); hit = a.level <= range.maxLevel && capOverlapsBounds(a, dataBounds) ? a : null; } catch { hit = null; }
+      try { const a = parseImageryAddress(id); hit = a.level <= range.maxLevel && capOverlapsBounds(a, dataBounds) && (a.level <= range.equatorMaxLevel || a.level <= maxLevelAt(a)) ? a : null; } catch { hit = null; }
       if (memo.size > 65536) memo.clear();
       memo.set(id, hit); return hit;
     };
@@ -275,18 +321,33 @@ export function planReprojection(grid: ProjectedSourceGrid, a: ImageryAddress, o
   const span = opts.tileSize + 2 * opts.gutter;
   const maxSamples = opts.maxSamples ?? 4;
   const wantedMatrix = chooseMatrix(grid, a, opts);
-  const m = affordableMatrix(grid, a, opts, wantedMatrix);
-  return planAt(grid, a, opts, grid.matrices[m ?? grid.minMatrix], span, maxSamples, wantedMatrix);
+  let m = affordableMatrix(grid, a, opts, wantedMatrix);
+  // The estimate picks a starting matrix; the planned tile list is the authority.
+  // Nothing is requested unless the actual bilinear read fits the budget.
+  while (m !== null) {
+    const plan = planAt(grid, a, opts, grid.matrices[m], span, maxSamples, wantedMatrix);
+    if (plan.tiles.length <= maxTilesFor(plan.matrix, opts)) return plan;
+    m = m > grid.minMatrix ? m - 1 : null;
+  }
+  throw new SourceBudgetError(`cube tile ${a.face}/${a.level}/${a.x}/${a.y} needs more than the source read budget at every data matrix`);
+}
+
+/** A cube tile cannot be produced within `maxSourcePixels` at any data matrix. Deterministic: retrying cannot help. */
+export class SourceBudgetError extends Error {
+  readonly code = 'source-budget';
+  constructor(message: string) { super(message); this.name = 'SourceBudgetError'; }
 }
 
 export const DEFAULT_MAX_SOURCE_PIXELS = 9 * 512 * 512;
-const maxTilesFor = (matrix: SourceMatrix, opts: Pick<PlanOptions, 'maxSourcePixels'>) =>
+export const maxTilesFor = (matrix: SourceMatrix, opts: Pick<PlanOptions, 'maxSourcePixels'>) =>
   Math.max(1, Math.floor((opts.maxSourcePixels ?? DEFAULT_MAX_SOURCE_PIXELS) / (matrix.tileWidth * matrix.tileHeight)));
 
 /**
  * Source tiles a cube tile reads at a matrix, estimated from a 9×9 lattice
  * of texel centres (gutters included) plus, when the tile holds a pole, every
- * column of the polar rows: a cap around a pole spans all longitudes.
+ * column of the polar rows: a cap around a pole spans all longitudes. An
+ * estimate for availability and the starting matrix only; `planReprojection`
+ * enforces the budget on the actual planned tile list.
  */
 export function estimateSourceTiles(grid: ProjectedSourceGrid, a: ImageryAddress, matrix: SourceMatrix, opts: PlanOptions): number {
   const span = opts.tileSize + 2 * opts.gutter, tiles = new Set<string>();

@@ -1124,7 +1124,7 @@ export class TerrainManager {
     // virtual cube tiles on demand (#136), in one stack with shared budgets.
     if (config.cubeSphere && imageryConfigs.length) {
       this.cubeImagery = new CubeImageryLayer({ ...config.cubeSphere!.imagery, url: imageryConfigs[0].url, layers: imageryConfigs }, {
-        frame: config.frame, radiusKm: rxKm, ellipsoidM: [rxKm * 1000, rzKm * 1000],
+        frame: config.frame, radiusKm: rxKm, ellipsoidM: [rxKm * 1000, rzKm * 1000], bodyId: config.bodyId,
         fetchCapabilities: url => this.fetchCapabilities(url),
         onCapabilities: (id, capabilities) => {
           this.discoverAvailability(id, capabilities);
@@ -2453,6 +2453,9 @@ export class TerrainManager {
     if (!p) {
       p = new WMTSCapabilitiesLoader().loadAsync(url) as Promise<WMTSCapabilitiesResult>;
       this.capabilitiesCache.set(url, p);
+      // An outage must not be cached: a later retry or re-enable asks the server again.
+      const pending = p;
+      pending.catch(() => { if (this.capabilitiesCache.get(url) === pending) this.capabilitiesCache.delete(url); });
     }
     return p;
   }

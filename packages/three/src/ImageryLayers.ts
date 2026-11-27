@@ -66,6 +66,8 @@ export interface ImageryLayerInfo {
   source: ImageryLayerSource;
   /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
   view: ImageryLayerView | null;
+  /** Why the layer could not be set up (shown with a `failed` status); absent or null otherwise. */
+  setupError?: string | null;
   /** Source-time state of a time-indexed layer (#214); absent or null for time-independent imagery. */
   temporal?: ImageryLayerTime | null;
 }
