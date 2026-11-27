@@ -53,9 +53,9 @@ already accepts.
   computed exactly.
 * **Detail.** Each cube tile reads the coarsest source matrix that is at least as fine
   as its finest texel on the meridian, capped at the source's deepest level. Where the
-  source is finer than a texel along an axis (geographic sources at high latitude, or
-  coarse levels), an anisotropic box filter of up to 4×4 sub-samples per texel prevents
-  aliasing. Bilinear sampling uses premultiplied alpha. A virtual source offers cube
+  source is finer than a texel along an axis by more than 1.5× (geographic sources at
+  high latitude, or coarse levels), an anisotropic box filter of up to 4×4 sub-samples
+  per texel prevents aliasing. Bilinear sampling uses premultiplied alpha. A virtual source offers cube
   levels down to the shallowest level whose face-centre texel is no coarser than the
   source's finest pixel. Screen-space error decides whether that depth is requested.
 * **Availability without a tile list.** A tile exists when its level is inside the
@@ -75,14 +75,25 @@ already accepts.
   counts as native. If no parent loads, the cube tile fails, the resident ancestor stays
   on screen, and the tile is retried with backoff. A failed mandatory base keeps the
   static map (`baseUncoveredBlocks`). `retryFailed()` recovers explicitly.
-* **Shared, bounded work.** One deduplicating source-tile cache is keyed by full request
-  URL, which carries the source, matrix, tile and day. Its defaults are 96 MiB decoded
-  and 8 concurrent requests. A request shared by several cube tiles is aborted only when
-  all of them abandon it. Fetching, decoding, planning and resampling run in a worker,
-  and finished tiles come back as transferred buffers. Hosts register the worker with
-  `setVirtualImageryWorkerFactory` (the viewer does so in `loader.ts`). Without a
-  registered worker, tiles are produced in-thread. Cube textures stay in the existing
-  shared page budget.
+* **Shared, bounded work.** Source tiles live in a deduplicating cache keyed by full
+  request URL, which carries the source, matrix, tile and day. The defaults are 96 MiB
+  decoded and 8 concurrent requests, split across the worker pool. A request shared by
+  several cube tiles is aborted only when all of them abandon it, and a failed cube tile
+  abandons its remaining requests. Fully transparent source tiles (common in sparse
+  overlays) are kept as transparent gaps, not decoded zeros. Fetching, decoding,
+  planning and resampling run in a small worker pool (half the cores, 1–3). A cube tile
+  is routed by source and by its ancestor three levels up, so neighbours share one
+  worker's cache. Resampling yields between row chunks, so aborts and day changes are
+  answered promptly, and finished tiles come back as transferred buffers. Hosts register
+  the worker with `setVirtualImageryWorkerFactory` (the viewer does so in `loader.ts`).
+  Without a registered worker, tiles are produced in-thread. Cube textures stay in the
+  existing shared page budget.
+* **Selection over coarse terrain.** Imagery block culling and level selection bound
+  each block by the terrain under it, not by its whole geometry tile. Each mesh carries
+  a conservative 16×16 grid of radius min/max over its tile, where every vertex widens
+  its own cell and its neighbours. Previously, a nadir view 0.3 km above Jezero asked
+  for about 850 level-16 HiRISE blocks to cover about 15 visible ones, because an
+  envelope kilometres thick put distant blocks inside the view cone.
 * **Time (#214).** Dated layers keep the existing contract: `fixed`, `follow-simulation`,
   and `latest` for `wmts-capabilities`, plus the provider range, gaps, latency,
   throttling and labels. A day change replaces the layer's cube tiles atomically:
@@ -106,6 +117,14 @@ The requested GSD is a fourth, desired quantity and never counts as proof of any
 these three. Parent fallback is never counted as native.
 
 ## Evidence
+
+Run results (screenshots stay local; the figures are derived from them):
+[`results/mars.json`](results/mars.json),
+[`results/earth-live-and-sites.json`](results/earth-live-and-sites.json),
+[`results/earth-mock.json`](results/earth-mock.json),
+[`results/earth-terrain-identity.json`](results/earth-terrain-identity.json).
+The Earth phases ran separately (`VIRTUAL_IMAGERY_EARTH=live,sites`, `mock` and `identity`)
+so that a failure late in a phase did not repeat the hour before it.
 
 ### Mars: arbitrary valid CTX locations over coarse terrain
 
@@ -228,7 +247,22 @@ That is coarser than the product's nominal 250 m, and the coverage report states
 The cube-native base stops at its built level 3. Both layers draw in the same frame and
 share one budget.
 
-<!-- EARTH-MOCK -->
+**Deterministic provider** (the GIBS VIIRS route answered from the test with one solid colour per UTC day, after a 350 ms delay, so on-screen pixels say which day was drawn):
+
+![Mock provider: race, missing day, failing tiles](earth-mock-cases.jpg)
+
+| Case | Result |
+|---|---|
+| Five day switches 60 ms apart, then a sixth (2026-11-03) | Only the final day is drawn: the centre pixel is [0, 0, 144], final-day blue with no other day's red or green. No superseded-day request started after the 3 s grace (the last at 1.3 s); 126 source requests were abandoned. |
+| Four settled switches between two days | GPU pages stayed at 257 MiB, resident textures at 59 MiB, and the source cache at its 96 MiB budget. Nothing grew. |
+| A day the provider answers with 404 | Only that day was requested (188 requests). The VIIRS tile is transparent, never another day, and the cube-native Blue Marble shows through. |
+| A day with 503 on half its tiles | The layer reports `partial`. 66 tiles in view are drawn from true parent source tiles (*Lower res*) and none from another day; 169 source failures are remembered with backoff. |
+| `follow-simulation`, clock moved to 2026-11-02 | The layer showed 2026-11-02. |
+
+**Terrain across day changes** (live GIBS, same camera and clock, days 2026-11-02 → 2026-11-04 → 2026-11-02):
+the 36 visible terrain tiles, their 36 vertex buffers and the CPU surface hit
+were identical after each switch, while the layer showed 2026-11-02, 2026-11-04, 2026-11-02.
+
 
 
 ## Limits and caveats
@@ -276,7 +310,7 @@ MEGA90N000EB from `pds-geosciences.wustl.edu`, and ETOPO 2022 60″ surface from
 /usr/bin/python3.12 scripts/terrain/cube_imagery.py xyz --source <bluemarble-3857.json> \
   --out apps/viewer/test-catalogs/data/earth-bluemarble-cube --body Earth --frame IAU_EARTH --radius-km 6378.137 --global-level 3
 DEV_DATA_MODE=local npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5196
-node scripts/test-virtual-cube-imagery.mjs all work/virtual-cube-imagery     # software GL here
+node scripts/test-virtual-cube-imagery.mjs all work/virtual-cube-imagery     # software GL here; VIRTUAL_IMAGERY_SITES / VIRTUAL_IMAGERY_EARTH select parts
 VIRTUAL_IMAGERY_GPU=metal node scripts/test-virtual-cube-imagery.mjs all work/virtual-cube-imagery-metal
 /usr/bin/python3.12 scripts/compare-cube-imagery-delivery.py --browser work/virtual-cube-imagery/result.json --work work/gate --out docs/validation/virtual-cube-imagery/gate.json
 npx vitest run packages/three/src/__tests__/ProjectedImagery.test.ts packages/three/src/__tests__/VirtualCubeImagery.test.ts

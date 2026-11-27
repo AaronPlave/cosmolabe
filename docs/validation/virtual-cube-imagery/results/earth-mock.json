@@ -1,0 +1,162 @@
+{
+ "gpu": "software",
+ "base": "http://127.0.0.1:5196",
+ "startedAt": "2026-11-27T18:54:49.142Z",
+ "mars": null,
+ "earth": {
+  "live": {},
+  "sites": {},
+  "mock": {
+   "race": {
+    "requestsAfterFinalSwitch": 191,
+    "otherDayAfterGrace": 0,
+    "lastSupersededStartMs": 1304,
+    "onlyFinalDay": true,
+    "date": "2026-11-03",
+    "pixel": [
+     0,
+     0,
+     144
+    ],
+    "aborted": 0,
+    "sourceCache": {
+     "requests": 469,
+     "bytes": 477184,
+     "hits": 346,
+     "nodata": 246,
+     "transparent": 0,
+     "failures": 0,
+     "aborted": 126,
+     "residentBytes": 55328128,
+     "maxBytes": 100663296,
+     "tiles": 457,
+     "inFlight": 0,
+     "queued": 0,
+     "evicted": 0,
+     "decodeMs": 524118.800000038
+    }
+   },
+   "scrub": {
+    "before": {
+     "textureBytes": 4832256,
+     "gpuAllocatedBytes": 269879296
+    },
+    "residency": [
+     {
+      "textureBytes": 61704192,
+      "gpuAllocatedBytes": 269879296,
+      "sourceCacheBytes": 86253952
+     },
+     {
+      "textureBytes": 61704192,
+      "gpuAllocatedBytes": 269879296,
+      "sourceCacheBytes": 100663296
+     },
+     {
+      "textureBytes": 61704192,
+      "gpuAllocatedBytes": 269879296,
+      "sourceCacheBytes": 100663296
+     },
+     {
+      "textureBytes": 61704192,
+      "gpuAllocatedBytes": 269879296,
+      "sourceCacheBytes": 100663296
+     }
+    ]
+   },
+   "gap": {
+    "requests": 188,
+    "onlyGapDay": true,
+    "centre": [
+     {
+      "id": "blue-marble-cube",
+      "enabled": 1,
+      "level": 3,
+      "transparent": false,
+      "displayedMetersPerPixel": 3843.505945322483
+     },
+     {
+      "id": "viirs-daily",
+      "enabled": 1,
+      "level": 7,
+      "transparent": true,
+      "displayedMetersPerPixel": 240.2191215826552
+     },
+     {
+      "id": "coastlines",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     },
+     {
+      "id": "viirs-latest-4326",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     }
+    ],
+    "pixel": [
+     20,
+     37.2,
+     55.3
+    ],
+    "layer": {
+     "id": "viirs-daily",
+     "status": "ok",
+     "requests": 147,
+     "failedTiles": 0,
+     "view": {
+      "inCoverage": true,
+      "zoomLevel": 7,
+      "missingTiles": 0,
+      "degradedTiles": 0,
+      "cacheFull": false
+     },
+     "date": "2026-11-04"
+    }
+   },
+   "failed": {
+    "onlyThisDay": true,
+    "layer": {
+     "id": "viirs-daily",
+     "status": "partial",
+     "requests": 149,
+     "failedTiles": 1,
+     "view": {
+      "inCoverage": true,
+      "zoomLevel": 7,
+      "missingTiles": 0,
+      "degradedTiles": 66,
+      "cacheFull": false
+     },
+     "date": "2026-11-05"
+    },
+    "sourceCache": {
+     "requests": 1558,
+     "bytes": 955292,
+     "hits": 2460,
+     "nodata": 434,
+     "transparent": 0,
+     "failures": 169,
+     "aborted": 126,
+     "residentBytes": 100151040,
+     "maxBytes": 100663296,
+     "tiles": 570,
+     "inFlight": 0,
+     "queued": 0,
+     "evicted": 807,
+     "decodeMs": 2281864.3000000194
+    }
+   },
+   "follow": {
+    "date": "2026-11-02"
+   }
+  }
+ },
+ "errors": [],
+ "environmentErrors": [],
+ "passed": false,
+ "failure": "AssertionError [ERR_ASSERTION]: terrain tiles changed across a date change\n+ actual - expected\n\n  [\n    'nx/1/0/0.glb',\n    'nx/1/0/1.glb',\n    'nx/1/1/1.glb',\n    'nx/2/2/0.glb',\n    'nx/2/2/1.glb',\n-   'nx/2/3/0.glb',\n    'nx/2/3/1.glb',\n+   'nx/3/6/0.glb',\n+   'nx/3/6/1.glb',\n+   'nx/3/7/0.glb',\n+   'nx/3/7/1.glb',\n    'ny/1/0/0.glb',\n    'ny/1/1/0.glb',\n+   'ny/1/1/1.glb',\n    'ny/2/0/2.glb',\n    'ny/2/1/2.glb',\n-   'ny/2/2/2.glb',\n-   'ny/2/2/3.glb',\n-   'ny/2/3/2.glb',\n-   'ny/2/3/3.glb',\n    'ny/3/0/6.glb',\n    'ny/3/0/7.glb',\n    'ny/3/1/6.glb',\n    'ny/3/1/7.glb',\n    'ny/3/2/6.glb',\n\n    at earth (file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:347:10)\n    at async file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:355:45"
+}

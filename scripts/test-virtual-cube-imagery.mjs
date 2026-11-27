@@ -218,7 +218,7 @@ const solid = async (rgb, format = 'jpeg') => {
 
 async function earth() {
   // VIRTUAL_IMAGERY_EARTH=live,sites,mock selects phases (default all).
-  const phases = process.env.VIRTUAL_IMAGERY_EARTH?.split(',') ?? ['live', 'sites', 'mock'];
+  const phases = process.env.VIRTUAL_IMAGERY_EARTH?.split(',') ?? ['live', 'sites', 'identity', 'mock'];
   const api = await open('earth-virtual-imagery', 'Earth');
   const out = result.earth = { live: {}, sites: {}, mock: {} };
   const day = (d) => api.page.evaluate(d => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { date: d }), d);
@@ -293,6 +293,19 @@ async function earth() {
     console.log('earth', name);
     out.sites[name] = await independence(api, `earth-${name}`, site, 'viirs-daily');
   }
+  // Terrain geometry and CPU surface across day changes: same camera, same clock, two real days.
+  if (phases.includes('identity')) {
+    await api.pose(california.lat, california.lon, california.altitudeKm, california.fov);
+    const snaps = [];
+    for (const d of ['2026-11-02', '2026-11-04', '2026-11-02']) { await day(d); await api.settle(); snaps.push(await api.snapshot()); }
+    for (const snap of snaps.slice(1)) {
+      assert.deepEqual(snap.ids, snaps[0].ids, 'terrain tiles changed across a date change');
+      assert.deepEqual(snap.attributes, snaps[0].attributes, 'terrain buffers changed across a date change');
+      assert.deepEqual(snap.cpuHit, snaps[0].cpuHit, 'CPU surface changed across a date change');
+    }
+    out.identity = { days: ['2026-11-02', '2026-11-04', '2026-11-02'], terrainTiles: snaps[0].ids.length, vertexBuffers: snaps[0].attributes.length,
+      cpuHit: snaps[0].cpuHit, viirsDates: snaps.map(s => s.layers.find(l => l.id === 'viirs-daily').date), unchanged: true };
+  }
   if (!phases.includes('mock')) { await api.page.close(); return out; }
   // Mock provider: gaps, failures, cancellation and races.
   await api.page.route(/gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/VIIRS/, async route => {
@@ -336,16 +349,12 @@ async function earth() {
   const failed = await api.snapshot(); await api.shot('earth-mock-failed-tiles');
   out.mock.failed = { onlyThisDay: api.requestsAfter(failMarker, failSwitch).filter(u => u.includes('VIIRS_NOAA20') && !u.includes('/2026-11-05/')).length === 0, layer: failed.layers.find(l => l.id === 'viirs-daily'), sourceCache: failed.imagery.sourceCache };
   assert.ok(out.mock.failed.onlyThisDay, 'failed tiles were filled from another day');
-  // Follow-simulation and terrain identity across date changes.
+  // Follow-simulation: the layer takes the simulation's UTC day. (Moving the clock rotates the
+  // body under a world-fixed camera, so terrain identity is checked in the 'identity' phase instead.)
   await api.page.evaluate(() => window.renderer.getBodyMesh('Earth').setImageryLayerTime('viirs-daily', { policy: 'follow-simulation' }));
-  const t0 = await api.snapshot();
   await api.page.evaluate(() => window.cosmo.setTime({ kind: 'calendar', text: '2026-11-02T12:00:00Z' }));
   await api.page.waitForFunction(() => window.renderer.getBodyMesh('Earth').imageryLayers.find(l => l.id === 'viirs-daily').temporal?.date === '2026-11-02', null, { timeout: 30_000 });
-  await api.settle();
-  const t1 = await api.snapshot();
-  out.mock.follow = { date: t1.layers.find(l => l.id === 'viirs-daily').date };
-  assert.deepEqual(t1.ids, t0.ids, 'terrain tiles changed across a date change');
-  assert.deepEqual(t1.cpuHit, t0.cpuHit, 'CPU surface changed across a date change');
+  out.mock.follow = { date: '2026-11-02' };
   await api.page.close();
   return out;
 }

@@ -1,0 +1,1577 @@
+{
+ "gpu": "software",
+ "base": "http://127.0.0.1:5196",
+ "startedAt": "2026-11-27T18:07:14.872Z",
+ "mars": null,
+ "earth": {
+  "live": {
+   "2026-11-03": {
+    "requests": 202,
+    "thisDay": 195,
+    "otherDayWithinGrace": 7,
+    "otherDayAfterGrace": 0,
+    "centre": [
+     {
+      "id": "blue-marble-cube",
+      "enabled": 1,
+      "level": 3,
+      "transparent": false,
+      "displayedMetersPerPixel": 3843.505945322483
+     },
+     {
+      "id": "viirs-daily",
+      "enabled": 1,
+      "level": 7,
+      "transparent": false,
+      "displayedMetersPerPixel": 240.2191215826552
+     },
+     {
+      "id": "coastlines",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     },
+     {
+      "id": "viirs-latest-4326",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     }
+    ],
+    "pixel": [
+     105.6,
+     106.2,
+     105.8
+    ],
+    "virtual": [
+     {
+      "id": "viirs-daily",
+      "date": "2026-11-03",
+      "coverage": {
+       "kind": "virtual",
+       "projection": "mercator",
+       "latitudeConvention": "geodetic",
+       "nativeMatrix": "8",
+       "nativeMetersPerPixel": 611.49622628141,
+       "firstMatrix": "0",
+       "minLevel": 0,
+       "maxLevel": 7,
+       "cubeMetersPerPixel": 389.29058837890625,
+       "bounds": [
+        -180,
+        -85.0179431850052,
+        180,
+        85.0179431850052
+       ]
+      },
+      "stats": {
+       "produced": 147,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 2337.300000011921,
+       "resampleMs": 241958.39999999106,
+       "maxTileMs": 14560.900000002235
+      },
+      "degradedResident": 0
+     }
+    ],
+    "lateSamples": [],
+    "lastSupersededStartMs": 2664
+   },
+   "2026-11-04": {
+    "requests": 188,
+    "thisDay": 188,
+    "otherDayWithinGrace": 0,
+    "otherDayAfterGrace": 0,
+    "centre": [
+     {
+      "id": "blue-marble-cube",
+      "enabled": 1,
+      "level": 3,
+      "transparent": false,
+      "displayedMetersPerPixel": 3843.505945322483
+     },
+     {
+      "id": "viirs-daily",
+      "enabled": 1,
+      "level": 7,
+      "transparent": false,
+      "displayedMetersPerPixel": 240.2191215826552
+     },
+     {
+      "id": "coastlines",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     },
+     {
+      "id": "viirs-latest-4326",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     }
+    ],
+    "pixel": [
+     16.7,
+     16.7,
+     16.5
+    ],
+    "virtual": [
+     {
+      "id": "viirs-daily",
+      "date": "2026-11-04",
+      "coverage": {
+       "kind": "virtual",
+       "projection": "mercator",
+       "latitudeConvention": "geodetic",
+       "nativeMatrix": "8",
+       "nativeMetersPerPixel": 611.49622628141,
+       "firstMatrix": "0",
+       "minLevel": 0,
+       "maxLevel": 7,
+       "cubeMetersPerPixel": 389.29058837890625,
+       "bounds": [
+        -180,
+        -85.0179431850052,
+        180,
+        85.0179431850052
+       ]
+      },
+      "stats": {
+       "produced": 294,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 4676.5,
+       "resampleMs": 488841.70000001043,
+       "maxTileMs": 14560.900000002235
+      },
+      "degradedResident": 0
+     }
+    ],
+    "lateSamples": [],
+    "lastSupersededStartMs": null
+   },
+   "changedFraction": 0.955,
+   "coastlines": {
+    "centre": [
+     {
+      "id": "blue-marble-cube",
+      "enabled": 1,
+      "level": 3,
+      "transparent": false,
+      "displayedMetersPerPixel": 3839.5341146028873
+     },
+     {
+      "id": "viirs-daily",
+      "enabled": 1,
+      "level": 7,
+      "transparent": false,
+      "displayedMetersPerPixel": 239.97088216268045
+     },
+     {
+      "id": "coastlines",
+      "enabled": 1,
+      "level": 10,
+      "transparent": true,
+      "displayedMetersPerPixel": 29.996360270335057
+     },
+     {
+      "id": "viirs-latest-4326",
+      "enabled": 0,
+      "level": -1,
+      "transparent": null,
+      "displayedMetersPerPixel": null
+     }
+    ],
+    "layer": {
+     "id": "coastlines",
+     "status": "ok",
+     "requests": 191,
+     "failedTiles": 0,
+     "view": {
+      "inCoverage": true,
+      "zoomLevel": 10,
+      "missingTiles": 0,
+      "degradedTiles": 0,
+      "cacheFull": false
+     },
+     "date": null
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "geographic",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "12",
+     "nativeMetersPerPixel": 15.287405657035249,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 12,
+     "cubeMetersPerPixel": 12.16533088684082,
+     "bounds": null
+    },
+    "transparentSourceTiles": 240
+   },
+   "latest": {
+    "date": "2026-11-26",
+    "temporal": {
+     "semantics": "acquisition",
+     "cadence": "day",
+     "policy": "latest",
+     "policies": [
+      "fixed",
+      "follow-simulation",
+      "latest"
+     ],
+     "illumination": "baked",
+     "outOfRange": "hide",
+     "requestedDate": "2026-11-26",
+     "date": "2026-11-26",
+     "state": "exact",
+     "offsetDays": 0,
+     "range": {
+      "start": "2018-01-05",
+      "end": "2026-11-27",
+      "intervals": [
+       [
+        "2018-01-05",
+        "2018-02-21"
+       ],
+       [
+        "2018-02-24",
+        "2018-03-12"
+       ],
+       [
+        "2018-03-14",
+        "2019-12-31"
+       ],
+       [
+        "2020-01-02",
+        "2022-01-12"
+       ],
+       [
+        "2022-01-14",
+        "2026-11-27"
+       ]
+      ],
+      "source": "provider"
+     },
+     "pending": false,
+     "pendingDate": null,
+     "switches": 0
+    },
+    "requests": 56,
+    "allThatDay": true,
+    "matrices": [
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8"
+    ],
+    "centre": {
+     "id": "viirs-latest-4326",
+     "enabled": 1,
+     "level": 8,
+     "transparent": false,
+     "displayedMetersPerPixel": 119.98544108134023
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "geographic",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "8",
+     "nativeMetersPerPixel": 244.59849051256398,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 8,
+     "cubeMetersPerPixel": 194.64529418945312,
+     "bounds": null
+    }
+   }
+  },
+  "sites": {
+   "himalaya": {
+    "site": {
+     "lat": 28,
+     "lon": 86.9,
+     "altitudeKm": 25
+    },
+    "geometryLevel": 3,
+    "geometryTiles": 10,
+    "layer": {
+     "id": "viirs-daily",
+     "enabled": 1,
+     "level": 7,
+     "transparent": false,
+     "displayedMetersPerPixel": 342.87737660053784
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "mercator",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "8",
+     "nativeMetersPerPixel": 611.49622628141,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 7,
+     "cubeMetersPerPixel": 389.29058837890625,
+     "bounds": [
+      -180,
+      -85.0179431850052,
+      180,
+      85.0179431850052
+     ]
+    },
+    "upstreamRequests": 26,
+    "coarse": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 0,
+       "transparent": false,
+       "displayedMetersPerPixel": 43888.304204868844
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5486.0380256086055
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 577,
+      "textures": 185,
+      "textureBytes": 68766720,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 3,
+      "displayedLevels": {
+       "3": 4
+      },
+      "updateMs": 0.3999999985098839,
+      "sourceCache": {
+       "requests": 891,
+       "bytes": 11708735,
+       "hits": 988,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 99360000,
+       "maxBytes": 100663296,
+       "tiles": 282,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 597,
+       "decodeMs": 1647655.5999999568
+      },
+      "virtualTiles": {
+       "produced": 542,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 7927.799999989569,
+       "resampleMs": 912803.5000000186,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 8
+    },
+    "fine": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5486.0380256086055
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 7,
+       "transparent": false,
+       "displayedMetersPerPixel": 342.87737660053784
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 591,
+      "textures": 199,
+      "textureBytes": 73970688,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 7,
+      "displayedLevels": {
+       "2": 3,
+       "3": 4,
+       "7": 6
+      },
+      "updateMs": 0.5999999977648258,
+      "sourceCache": {
+       "requests": 917,
+       "bytes": 12108390,
+       "hits": 997,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 99884224,
+       "maxBytes": 100663296,
+       "tiles": 301,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 604,
+       "decodeMs": 1683848.3999999426
+      },
+      "virtualTiles": {
+       "produced": 555,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 8197.79999999702,
+       "resampleMs": 930904.1000000201,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 8,
+     "layers": [
+      {
+       "id": "blue-marble-cube",
+       "status": "ok",
+       "requests": 28,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 3,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": null
+      },
+      {
+       "id": "viirs-daily",
+       "status": "ok",
+       "requests": 172,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 7,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": "2026-11-04"
+      },
+      {
+       "id": "coastlines",
+       "status": "ok",
+       "requests": 191,
+       "failedTiles": 0,
+       "view": null,
+       "date": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "status": "ok",
+       "requests": 46,
+       "failedTiles": 0,
+       "view": null,
+       "date": "2026-11-26"
+      }
+     ],
+     "virtual": [
+      {
+       "id": "viirs-daily",
+       "date": "2026-11-04",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "mercator",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 611.49622628141,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 7,
+        "cubeMetersPerPixel": 389.29058837890625,
+        "bounds": [
+         -180,
+         -85.0179431850052,
+         180,
+         85.0179431850052
+        ]
+       },
+       "stats": {
+        "produced": 318,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 5166.100000012666,
+        "resampleMs": 543083.8000000119,
+        "maxTileMs": 14560.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "coastlines",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "12",
+        "nativeMetersPerPixel": 15.287405657035249,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 12,
+        "cubeMetersPerPixel": 12.16533088684082,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 191,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 2423.099999997765,
+        "resampleMs": 356036.3999999948,
+        "maxTileMs": 5898.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "viirs-latest-4326",
+       "date": "2026-11-26",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 244.59849051256398,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 8,
+        "cubeMetersPerPixel": 194.64529418945312,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 46,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 608.599999986589,
+        "resampleMs": 31783.90000001341,
+        "maxTileMs": 4195.20000000298
+       },
+       "degradedResident": 0
+      }
+     ]
+    },
+    "timing": {
+     "frames": 60,
+     "medianMs": 3.899999998509884,
+     "p95Ms": 10.300000000745058
+    }
+   },
+   "seam45E": {
+    "site": {
+     "lat": 12,
+     "lon": 45,
+     "altitudeKm": 25
+    },
+    "geometryLevel": 3,
+    "geometryTiles": 17,
+    "layer": {
+     "id": "viirs-daily",
+     "enabled": 1,
+     "level": 7,
+     "transparent": false,
+     "displayedMetersPerPixel": 263.29088069407004
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "mercator",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "8",
+     "nativeMetersPerPixel": 611.49622628141,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 7,
+     "cubeMetersPerPixel": 389.29058837890625,
+     "bounds": [
+      -180,
+      -85.0179431850052,
+      180,
+      85.0179431850052
+     ]
+    },
+    "upstreamRequests": 46,
+    "coarse": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 0,
+       "transparent": false,
+       "displayedMetersPerPixel": 33701.232728840965
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 4212.654091105121
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 606,
+      "textures": 214,
+      "textureBytes": 79546368,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 3,
+      "displayedLevels": {
+       "1": 2,
+       "3": 4
+      },
+      "updateMs": 0.6999999992549419,
+      "sourceCache": {
+       "requests": 1007,
+       "bytes": 13560353,
+       "hits": 1010,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 100405696,
+       "maxBytes": 100663296,
+       "tiles": 325,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 670,
+       "decodeMs": 1788030.4999999665
+      },
+      "virtualTiles": {
+       "produced": 565,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 8408.49999999255,
+       "resampleMs": 947945.1000000127,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 10
+    },
+    "fine": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 4212.654091105121
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 7,
+       "transparent": false,
+       "displayedMetersPerPixel": 263.29088069407004
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 620,
+      "textures": 228,
+      "textureBytes": 84750336,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 7,
+      "displayedLevels": {
+       "1": 2,
+       "3": 4,
+       "5": 2,
+       "7": 4
+      },
+      "updateMs": 1.199999999254942,
+      "sourceCache": {
+       "requests": 1053,
+       "bytes": 14048022,
+       "hits": 1028,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 99880960,
+       "maxBytes": 100663296,
+       "tiles": 352,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 689,
+       "decodeMs": 1839367.499999959
+      },
+      "virtualTiles": {
+       "produced": 577,
+       "degraded": 0,
+       "sourceLimited": 0,
+       "planMs": 8657.899999983609,
+       "resampleMs": 952772.7000000142,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 10,
+     "layers": [
+      {
+       "id": "blue-marble-cube",
+       "status": "ok",
+       "requests": 35,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 3,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": null
+      },
+      {
+       "id": "viirs-daily",
+       "status": "ok",
+       "requests": 194,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 7,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": "2026-11-04"
+      },
+      {
+       "id": "coastlines",
+       "status": "ok",
+       "requests": 191,
+       "failedTiles": 0,
+       "view": null,
+       "date": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "status": "ok",
+       "requests": 46,
+       "failedTiles": 0,
+       "view": null,
+       "date": "2026-11-26"
+      }
+     ],
+     "virtual": [
+      {
+       "id": "viirs-daily",
+       "date": "2026-11-04",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "mercator",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 611.49622628141,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 7,
+        "cubeMetersPerPixel": 389.29058837890625,
+        "bounds": [
+         -180,
+         -85.0179431850052,
+         180,
+         85.0179431850052
+        ]
+       },
+       "stats": {
+        "produced": 340,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 5626.199999999255,
+        "resampleMs": 564952.400000006,
+        "maxTileMs": 14560.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "coastlines",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "12",
+        "nativeMetersPerPixel": 15.287405657035249,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 12,
+        "cubeMetersPerPixel": 12.16533088684082,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 191,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 2423.099999997765,
+        "resampleMs": 356036.3999999948,
+        "maxTileMs": 5898.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "viirs-latest-4326",
+       "date": "2026-11-26",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 244.59849051256398,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 8,
+        "cubeMetersPerPixel": 194.64529418945312,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 46,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 608.599999986589,
+        "resampleMs": 31783.90000001341,
+        "maxTileMs": 4195.20000000298
+       },
+       "degradedResident": 0
+      }
+     ]
+    },
+    "timing": {
+     "frames": 60,
+     "medianMs": 4.900000002235174,
+     "p95Ms": 7.300000000745058
+    }
+   },
+   "scandinavia": {
+    "site": {
+     "lat": 66,
+     "lon": 16,
+     "altitudeKm": 25
+    },
+    "geometryLevel": 3,
+    "geometryTiles": 11,
+    "layer": {
+     "id": "viirs-daily",
+     "enabled": 1,
+     "level": 7,
+     "transparent": false,
+     "displayedMetersPerPixel": 352.452135592904
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "mercator",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "8",
+     "nativeMetersPerPixel": 611.49622628141,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 7,
+     "cubeMetersPerPixel": 389.29058837890625,
+     "bounds": [
+      -180,
+      -85.0179431850052,
+      180,
+      85.0179431850052
+     ]
+    },
+    "upstreamRequests": 59,
+    "coarse": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 0,
+       "transparent": false,
+       "displayedMetersPerPixel": 45113.873355891716
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5639.234169486464
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 641,
+      "textures": 249,
+      "textureBytes": 92556288,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 3,
+      "displayedLevels": {
+       "1": 1,
+       "2": 1,
+       "3": 3
+      },
+      "updateMs": 0.8999999985098839,
+      "sourceCache": {
+       "requests": 1189,
+       "bytes": 15369219,
+       "hits": 1111,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 100401152,
+       "maxBytes": 100663296,
+       "tiles": 365,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 812,
+       "decodeMs": 2017439.4999999516
+      },
+      "virtualTiles": {
+       "produced": 588,
+       "degraded": 0,
+       "sourceLimited": 2,
+       "planMs": 9738.599999982864,
+       "resampleMs": 983750.0000000112,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 10
+    },
+    "fine": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5639.234169486464
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 7,
+       "transparent": false,
+       "displayedMetersPerPixel": 352.452135592904
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 653,
+      "textures": 261,
+      "textureBytes": 97016832,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 7,
+      "displayedLevels": {
+       "1": 2,
+       "2": 1,
+       "3": 3,
+       "4": 1,
+       "5": 2,
+       "7": 3
+      },
+      "updateMs": 1.5999999977648258,
+      "sourceCache": {
+       "requests": 1248,
+       "bytes": 15567080,
+       "hits": 1111,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 100663296,
+       "maxBytes": 100663296,
+       "tiles": 384,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 852,
+       "decodeMs": 2096838.1999999508
+      },
+      "virtualTiles": {
+       "produced": 600,
+       "degraded": 0,
+       "sourceLimited": 2,
+       "planMs": 9932.599999979138,
+       "resampleMs": 1008012.5000000149,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 10,
+     "layers": [
+      {
+       "id": "blue-marble-cube",
+       "status": "ok",
+       "requests": 45,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 3,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": null
+      },
+      {
+       "id": "viirs-daily",
+       "status": "ok",
+       "requests": 217,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 7,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": "2026-11-04"
+      },
+      {
+       "id": "coastlines",
+       "status": "ok",
+       "requests": 191,
+       "failedTiles": 0,
+       "view": null,
+       "date": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "status": "ok",
+       "requests": 46,
+       "failedTiles": 0,
+       "view": null,
+       "date": "2026-11-26"
+      }
+     ],
+     "virtual": [
+      {
+       "id": "viirs-daily",
+       "date": "2026-11-04",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "mercator",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 611.49622628141,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 7,
+        "cubeMetersPerPixel": 389.29058837890625,
+        "bounds": [
+         -180,
+         -85.0179431850052,
+         180,
+         85.0179431850052
+        ]
+       },
+       "stats": {
+        "produced": 363,
+        "degraded": 0,
+        "sourceLimited": 2,
+        "planMs": 6900.899999994785,
+        "resampleMs": 620192.2000000067,
+        "maxTileMs": 14560.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "coastlines",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "12",
+        "nativeMetersPerPixel": 15.287405657035249,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 12,
+        "cubeMetersPerPixel": 12.16533088684082,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 191,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 2423.099999997765,
+        "resampleMs": 356036.3999999948,
+        "maxTileMs": 5898.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "viirs-latest-4326",
+       "date": "2026-11-26",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 244.59849051256398,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 8,
+        "cubeMetersPerPixel": 194.64529418945312,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 46,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 608.599999986589,
+        "resampleMs": 31783.90000001341,
+        "maxTileMs": 4195.20000000298
+       },
+       "degradedResident": 0
+      }
+     ]
+    },
+    "timing": {
+     "frames": 60,
+     "medianMs": 3.599999997764826,
+     "p95Ms": 10
+    }
+   },
+   "fiji": {
+    "site": {
+     "lat": -17.5,
+     "lon": 179.5,
+     "altitudeKm": 25
+    },
+    "geometryLevel": 3,
+    "geometryTiles": 10,
+    "layer": {
+     "id": "viirs-daily",
+     "enabled": 1,
+     "level": 7,
+     "transparent": false,
+     "displayedMetersPerPixel": 370.994308743878
+    },
+    "coverage": {
+     "kind": "virtual",
+     "projection": "mercator",
+     "latitudeConvention": "geodetic",
+     "nativeMatrix": "8",
+     "nativeMetersPerPixel": 611.49622628141,
+     "firstMatrix": "0",
+     "minLevel": 0,
+     "maxLevel": 7,
+     "cubeMetersPerPixel": 389.29058837890625,
+     "bounds": [
+      -180,
+      -85.0179431850052,
+      180,
+      85.0179431850052
+     ]
+    },
+    "upstreamRequests": 24,
+    "coarse": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 0,
+       "transparent": false,
+       "displayedMetersPerPixel": 47487.27151921638
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5935.908939902048
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 666,
+      "textures": 274,
+      "textureBytes": 101849088,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 3,
+      "displayedLevels": {
+       "3": 2
+      },
+      "updateMs": 0.6000000014901161,
+      "sourceCache": {
+       "requests": 1300,
+       "bytes": 16632491,
+       "hits": 1129,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 100663296,
+       "maxBytes": 100663296,
+       "tiles": 384,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 904,
+       "decodeMs": 2143789.1999999397
+      },
+      "virtualTiles": {
+       "produced": 607,
+       "degraded": 0,
+       "sourceLimited": 2,
+       "planMs": 10113.499999981374,
+       "resampleMs": 1023131.5000000149,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 6
+    },
+    "fine": {
+     "centre": [
+      {
+       "id": "blue-marble-cube",
+       "enabled": 1,
+       "level": 3,
+       "transparent": false,
+       "displayedMetersPerPixel": 5935.908939902048
+      },
+      {
+       "id": "viirs-daily",
+       "enabled": 1,
+       "level": 7,
+       "transparent": false,
+       "displayedMetersPerPixel": 370.994308743878
+      },
+      {
+       "id": "coastlines",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "enabled": 0,
+       "level": -1,
+       "transparent": null,
+       "displayedMetersPerPixel": null
+      }
+     ],
+     "imagery": {
+      "requests": 675,
+      "textures": 283,
+      "textureBytes": 105194496,
+      "maxTextureBytes": 268435456,
+      "gpuAllocatedBytes": 269879296,
+      "failures": 0,
+      "aborted": 2,
+      "evicted": 0,
+      "budgetLimited": false,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 7,
+      "displayedLevels": {
+       "2": 1,
+       "3": 2,
+       "7": 4
+      },
+      "updateMs": 1.4000000022351742,
+      "sourceCache": {
+       "requests": 1324,
+       "bytes": 16976610,
+       "hits": 1145,
+       "nodata": 0,
+       "transparent": 240,
+       "failures": 0,
+       "aborted": 96,
+       "residentBytes": 100663296,
+       "maxBytes": 100663296,
+       "tiles": 384,
+       "inFlight": 0,
+       "queued": 0,
+       "evicted": 928,
+       "decodeMs": 2163785.39999995
+      },
+      "virtualTiles": {
+       "produced": 616,
+       "degraded": 0,
+       "sourceLimited": 2,
+       "planMs": 10260.199999988079,
+       "resampleMs": 1027105.3000000231,
+       "maxTileMs": 14560.900000002235
+      }
+     },
+     "draws": 6,
+     "layers": [
+      {
+       "id": "blue-marble-cube",
+       "status": "ok",
+       "requests": 51,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 3,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": null
+      },
+      {
+       "id": "viirs-daily",
+       "status": "ok",
+       "requests": 233,
+       "failedTiles": 0,
+       "view": {
+        "inCoverage": true,
+        "zoomLevel": 7,
+        "missingTiles": 0,
+        "degradedTiles": 0,
+        "cacheFull": false
+       },
+       "date": "2026-11-04"
+      },
+      {
+       "id": "coastlines",
+       "status": "ok",
+       "requests": 191,
+       "failedTiles": 0,
+       "view": null,
+       "date": null
+      },
+      {
+       "id": "viirs-latest-4326",
+       "status": "ok",
+       "requests": 46,
+       "failedTiles": 0,
+       "view": null,
+       "date": "2026-11-26"
+      }
+     ],
+     "virtual": [
+      {
+       "id": "viirs-daily",
+       "date": "2026-11-04",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "mercator",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 611.49622628141,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 7,
+        "cubeMetersPerPixel": 389.29058837890625,
+        "bounds": [
+         -180,
+         -85.0179431850052,
+         180,
+         85.0179431850052
+        ]
+       },
+       "stats": {
+        "produced": 379,
+        "degraded": 0,
+        "sourceLimited": 2,
+        "planMs": 7228.500000003725,
+        "resampleMs": 639285.0000000149,
+        "maxTileMs": 14560.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "coastlines",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "12",
+        "nativeMetersPerPixel": 15.287405657035249,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 12,
+        "cubeMetersPerPixel": 12.16533088684082,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 191,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 2423.099999997765,
+        "resampleMs": 356036.3999999948,
+        "maxTileMs": 5898.900000002235
+       },
+       "degradedResident": 0
+      },
+      {
+       "id": "viirs-latest-4326",
+       "date": "2026-11-26",
+       "coverage": {
+        "kind": "virtual",
+        "projection": "geographic",
+        "latitudeConvention": "geodetic",
+        "nativeMatrix": "8",
+        "nativeMetersPerPixel": 244.59849051256398,
+        "firstMatrix": "0",
+        "minLevel": 0,
+        "maxLevel": 8,
+        "cubeMetersPerPixel": 194.64529418945312,
+        "bounds": null
+       },
+       "stats": {
+        "produced": 46,
+        "degraded": 0,
+        "sourceLimited": 0,
+        "planMs": 608.599999986589,
+        "resampleMs": 31783.90000001341,
+        "maxTileMs": 4195.20000000298
+       },
+       "degradedResident": 0
+      }
+     ]
+    },
+    "timing": {
+     "frames": 60,
+     "medianMs": 3.399999998509884,
+     "p95Ms": 5.699999999254942
+    }
+   }
+  },
+  "mock": {}
+ },
+ "errors": [],
+ "environmentErrors": [],
+ "passed": false,
+ "failure": "Error: settle timed out: {\"network\":{\"requests\":98,\"queued\":0,\"downloading\":0,\"parsing\":0,\"failed\":0},\"inFlight\":6,\"queued\":11,\"budgetLimited\":false,\"failures\":0,\"sourceCache\":{\"requests\":2130,\"bytes\":17255852,\"hits\":1399,\"nodata\":350,\"transparent\":240,\"failures\":0,\"aborted\":386,\"residentBytes\":100407232,\"maxBytes\":100663296,\"tiles\":478,\"inFlight\":4,\"queued\":6,\"evicted\":1609,\"decodeMs\":3730700.6999999397},\"layers\":[[\"blue-marble-cube\",\"ok\",67,0],[\"viirs-daily\",\"ok\",49,0],[\"coastlines\",\"ok\",191,0],[\"viirs-latest-4326\",\"ok\",46,0]]}\n    at file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:75:15\n    at async Object.settle (file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:64:7)\n    at async earth (file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:306:28)\n    at async file:///home/user/cosmolabe/scripts/test-virtual-cube-imagery.mjs:350:45"
+}
