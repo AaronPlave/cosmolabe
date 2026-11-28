@@ -2,7 +2,7 @@ import { bodySurfaceCoordinates } from '@cosmolabe/core';
 import { applyGraticuleToScene, makeGraticuleUniforms } from '../GraticuleShader.js';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CubeImageryLayer, cubeBlockInsideBounds, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
+import { CubeImageryLayer, buildRadiusGrid, cubeBlockInsideBounds, cubeBlockOverlapsBounds, isDrawnCubeImagerySource, radiusGridRange } from '../CubeImageryLayer.js';
 import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
 import { injectAerialPerspectiveIntoShader } from '../AerialPerspective.js';
 import { injectShadowIntoShader, makeShadowUniforms } from '../EclipseShadow.js';
@@ -609,4 +609,23 @@ it('composes grid, current cube imagery and dynamic Surface Appearance without c
   expect(s.mesh.geometry.getAttribute('position').array).toEqual(position);
   expect(s.mesh.geometry.index!.array).toEqual(indices);
   s.layer.dispose(); style.forget(s.scene);
+});
+
+describe('local radius bounds over coarse, high-relief terrain (#136)', () => {
+  it('bounds a fine block by the surface under it, not the whole coarse tile envelope', () => {
+    // A 65×65 lattice over one tile, 1737.4 km sphere, with a 5 km massif in the far corner.
+    const n = 65, st = new Float32Array(2 * n * n), radius = new Float32Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j * n + i; st[2 * k] = i / (n - 1); st[2 * k + 1] = j / (n - 1);
+      radius[k] = 1737.4 + (i > 50 && j > 50 ? 5 : 0);
+    }
+    const grid = buildRadiusGrid(st, radius, n * n);
+    expect(radiusGridRange([grid], [0.1, 0.11, 0.1, 0.11])).toEqual([1737.4, 1737.4].map(Math.fround));
+    expect(radiusGridRange([grid], [0.9, 0.95, 0.9, 0.95])![1]).toBeCloseTo(1742.4, 3);
+    // Conservative across cell borders: a block straddling the massif's edge sees both.
+    const edge = radiusGridRange([grid], [0.77, 0.8, 0.77, 0.8])!;
+    expect(edge[0]).toBeCloseTo(1737.4, 3); expect(edge[1]).toBeCloseTo(1742.4, 3);
+    // A cell without vertices proves nothing.
+    expect(radiusGridRange([buildRadiusGrid(st, radius, 10)], [0.9, 0.95, 0.9, 0.95])).toBeNull();
+  });
 });

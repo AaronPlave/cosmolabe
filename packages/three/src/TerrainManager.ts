@@ -87,6 +87,12 @@ export interface TerrainImageryConfig {
   transparent?: boolean;
   /** Bounding box [west, south, east, north] in degrees. Tiles outside are skipped. */
   bounds?: [number, number, number, number];
+  /** Latitude convention of the source's grid (and `bounds`). Default `'geodetic'`.
+   *  Over cube terrain a non-cube source is resampled into cube tiles (#136),
+   *  so on an ellipsoidal body this decides where its pixels land: declare
+   *  `'planetocentric'` for grids on a planetocentric datum (e.g. Mars 2000
+   *  sphere products). Cube products are always planetocentric. */
+  latitudeConvention?: 'planetocentric' | 'geodetic';
   /** Minimum zoom level. Tiles below this are skipped (regional data doesn't exist at low zoom). */
   minZoom?: number;
   /** Stretch the top/bottom tile row to ±90° latitude when using Mercator (EPSG:3857).
@@ -1111,10 +1117,20 @@ export class TerrainManager {
     // What a pixel no imagery draws is: the tileset's own texture, never the imagery's declaration.
     this.noImageryIllumination = config.illumination ?? (config.type === 'quantized-mesh' ? 'reflectance' : DEFAULT_IMAGERY_ILLUMINATION);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
-    if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
+    if (cubeSources && !config.cubeSphere) throw new Error('Cube imagery sources require cubeSphere terrain');
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
-    if (cubeSources) {
-      this.cubeImagery = new CubeImageryLayer({ ...config.cubeSphere!.imagery, url: imageryConfigs[0].url, layers: imageryConfigs }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
+    // Over cube terrain every imagery layer is drawn by the independent cube
+    // renderer: cube products directly, XYZ/TMS/WMTS sources resampled into
+    // virtual cube tiles on demand (#136), in one stack with shared budgets.
+    if (config.cubeSphere && imageryConfigs.length) {
+      this.cubeImagery = new CubeImageryLayer({ ...config.cubeSphere!.imagery, url: imageryConfigs[0].url, layers: imageryConfigs }, {
+        frame: config.frame, radiusKm: rxKm, ellipsoidM: [rxKm * 1000, rzKm * 1000], bodyId: config.bodyId,
+        fetchCapabilities: url => this.fetchCapabilities(url),
+        onCapabilities: (id, capabilities) => {
+          this.discoverAvailability(id, capabilities);
+          this.applyCubeDate(id);
+        },
+        horizonRadiusKm: () => {
         const manifest = this.cube?.source.manifest;
         // The new ellipsoidal imagery cull needs an emitted-mesh rounding
         // bound as well as the explicit radial payload. Unknown means no cull.
@@ -1127,6 +1143,7 @@ export class TerrainManager {
     this.refreshIllumination();
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this.initTemporal(imageryConfigs);
+    if (this.cubeImagery) for (const id of this.temporal.keys()) this.applyCubeDate(id);
     this._overlayResolution = config.overlayResolution ?? 256;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
     this.showAtPixels = config.showAtPixels ?? 80;
@@ -2015,7 +2032,10 @@ export class TerrainManager {
 
   /** The imagery stack, bottom → top, with each layer's current load health. */
   get imageryLayers(): ImageryLayerInfo[] {
-    if (this.cubeImagery && this.layers.length) return this.cubeImagery.imageryLayers;
+    if (this.cubeImagery && this.layers.length) return this.cubeImagery.imageryLayers.map(l => ({
+      ...l, temporal: this.temporalInfo(l.id),
+      status: this.setupFailed.has(l.id) ? 'failed' : l.status,
+    }));
     return this.layers.map((l) => ({
       ...l,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
@@ -2072,6 +2092,9 @@ export class TerrainManager {
     if (this.cubeImagery) {
       const changed = this.cubeImagery.setLayerVisible(id, visible);
       if (changed) this.refreshIllumination();
+      // A hidden layer was not following; the day it comes back with is the current one.
+      const rt = this.temporal.get(id);
+      if (changed && visible && rt) { rt.follower.force(this.resolveFor(rt), performance.now()); this.applyCubeDate(id); }
       return changed;
     }
     const layer = this.layer(id);
@@ -2231,7 +2254,7 @@ export class TerrainManager {
     this.simulationMs = Number.isFinite(simulationMs) ? simulationMs : null;
     for (const [id, rt] of this.temporal) {
       // A hidden layer does not follow; re-enabling resolves the current day at once.
-      if (rt.base || rt.policy === 'fixed' || !this.layer(id)?.visible) continue;
+      if (rt.base || rt.policy === 'fixed' || !this.layerVisible(id)) continue;
       if (rt.follower.offer(this.resolveFor(rt), now)) this.applyTemporalCommit(id);
     }
   }
@@ -2278,6 +2301,23 @@ export class TerrainManager {
     this._imageryTimeRevision++;
   }
 
+  /**
+   * Give a cube-stack layer its displayed day (null: none, request nothing). A
+   * source URL that cannot carry the day fails closed: the layer shows nothing
+   * and is reported failed, never one unlabelled image under a dated name.
+   */
+  private applyCubeDate(id: string): void {
+    if (!this.cubeImagery || !this.temporal.has(id)) return;
+    try {
+      this.cubeImagery.setSourceDate(id, this.displayedDate(id));
+      this.setupFailed.delete(id);
+    } catch (err) {
+      this.setupFailed.add(id);
+      try { this.cubeImagery.setSourceDate(id, null); } catch { /* already none */ }
+      this.warnOnce(`imagery-setup:${id}`, `[Cosmolabe:Imagery] Layer "${this.layer(id)?.name ?? id}" could not be set up; the layers beneath it stay visible.`, err);
+    }
+  }
+
   /** A layer's source day changed: drop the old day's overlay and load the new one. */
   private applyTemporalCommit(id: string): void {
     const rt = this.temporal.get(id);
@@ -2290,6 +2330,7 @@ export class TerrainManager {
     layer.failedTiles = 0;
     this.degradedTiles.delete(id);
     this.setupFailed.delete(id);
+    if (this.cubeImagery) { this.applyCubeDate(id); return; }
     if (rt.base || !layer.visible || !this.overlayPlugin) return;
     // Removing the overlay aborts its queued fetches and releases its textures
     // before the new day's is built, so two days never share a layer; the
@@ -2391,6 +2432,11 @@ export class TerrainManager {
     return this.layers.find((l) => l.id === id);
   }
 
+  /** Whether a layer is switched on, from whichever renderer owns the stack. */
+  private layerVisible(id: string): boolean {
+    return this.cubeImagery ? this.cubeImagery.imageryLayers.find(l => l.id === id)?.visible ?? false : this.layer(id)?.visible ?? false;
+  }
+
   private registerOverlayPlugin(renderer: THREE.WebGLRenderer, enableTileSplitting: boolean): void {
     this.overlayPlugin = new ImageOverlayPlugin({
       overlays: [],
@@ -2407,6 +2453,9 @@ export class TerrainManager {
     if (!p) {
       p = new WMTSCapabilitiesLoader().loadAsync(url) as Promise<WMTSCapabilitiesResult>;
       this.capabilitiesCache.set(url, p);
+      // An outage must not be cached: a later retry or re-enable asks the server again.
+      const pending = p;
+      pending.catch(() => { if (this.capabilitiesCache.get(url) === pending) this.capabilitiesCache.delete(url); });
     }
     return p;
   }

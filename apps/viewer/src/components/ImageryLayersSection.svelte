@@ -142,7 +142,8 @@
       return { text: 'No imagery', tone: 'error', title: `The provider has no tiles for ${t.date}; the layers beneath are shown` };
     }
     if (layer.status === 'failed' || (layer.role === 'base' && s.state === 'fallback')) {
-      return { text: 'Unavailable', tone: 'error', title: 'This source could not be loaded; the layers beneath it are shown' };
+      const why = layer.setupError ? ` (${layer.setupError})` : '';
+      return { text: 'Unavailable', tone: 'error', title: `This source could not be loaded${why}; the layers beneath it are shown` };
     }
     // Off the streamed surface the header already says why nothing streams.
     if (s.state !== 'streamed') return null;
@@ -162,7 +163,7 @@
       return { text: 'Gaps', tone: 'warn', title: `${plural(v.missingTiles, 'tile')} in view could not load this layer; the layers beneath show through` };
     }
     if (v.degradedTiles > 0) {
-      return { text: 'Lower res', tone: 'warn', title: `${plural(v.degradedTiles, 'source tile')} in view failed to load; coarser tiles stand in` };
+      return { text: 'Lower res', tone: 'warn', title: `${plural(v.degradedTiles, 'tile')} in view could not load (or read) at full detail; coarser tiles stand in` };
     }
     return null;
   }

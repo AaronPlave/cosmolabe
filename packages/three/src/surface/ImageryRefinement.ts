@@ -20,20 +20,26 @@ export interface ImageryRefinementFrame {
  * ancestor. Parents absent from a sparse inventory are virtual traversal nodes.
  */
 export class ImageryRefinement {
-  private readonly available: Set<string>;
+  private readonly available: { has(id: string): boolean };
   readonly branches = new Set<string>();
   private readonly lastSplitWanted = new Map<string, number>();
   private readonly recovering = new Set<string>();
   private previousCover: ImageryCover[] = [];
-  readonly topology: Set<string>;
+  readonly topology: { has(id: string): boolean };
 
-  constructor(ids: Iterable<string>, readonly coarsenDelayFrames = 30) {
-    this.available = new Set(ids);
-    this.topology = new Set(this.available);
-    for (const id of this.available) {
-      let a = parseImageryAddress(id);
-      while (a.level > 0) { a = imageryParent(a); this.topology.add(cubeTileId(a)); }
+  /** A finite tile list (ancestors become virtual traversal nodes), or a computed
+   * inventory whose `available`/`topology` sets answer membership directly. */
+  constructor(ids: Iterable<string> | { available: { has(id: string): boolean }; topology: { has(id: string): boolean } }, readonly coarsenDelayFrames = 30) {
+    if (!(Symbol.iterator in ids)) {
+      this.available = ids.available; this.topology = ids.topology;
+      return;
     }
+    const available = new Set(ids), topology = new Set(available);
+    for (const id of available) {
+      let a = parseImageryAddress(id);
+      while (a.level > 0) { a = imageryParent(a); topology.add(cubeTileId(a)); }
+    }
+    this.available = available; this.topology = topology;
   }
 
   ancestor(a: ImageryAddress): ImageryAddress | null {

@@ -200,10 +200,21 @@ class CubeXYZTests(unittest.TestCase):
         np.testing.assert_array_equal(in_bounds(np.array([179., -179., 0.]), np.zeros(3), [170, -1, -170, 1]), [True, True, False])
 
     def test_refuses_implicit_latitude_or_other_source_grids(self):
-        for cfg in ({}, {'latitudeConvention': 'planetographic'}, {'latitudeConvention': 'planetocentric', 'projection': 'EPSG:3857'}):
+        for cfg in ({}, {'latitudeConvention': 'planetographic'}, {'latitudeConvention': 'planetocentric', 'projection': 'EPSG:32610'},
+                    {'latitudeConvention': 'geodetic'}, {'latitudeConvention': 'geodetic', 'ellipsoidRadiiKm': [6356.752, 6378.137]}):
             with self.assertRaises(ValueError):
                 validate({'url': 'https://example/{z}/{x}/{y}', **cfg})
         validate({'url': 'https://example/{z}/{x}/{y}', 'latitudeConvention': 'planetocentric'})
+        validate({'url': 'https://example/{z}/{x}/{y}', 'latitudeConvention': 'geodetic', 'projection': 'EPSG:3857', 'ellipsoidRadiiKm': [6378.137, 6356.752]})
+
+    def test_web_mercator_rows_and_polar_limit(self):
+        # Level 0, 256 px: the equator is the middle row boundary; 85.0511° the top edge.
+        x, y = source_pixel(np.array([0.0, -180.0]), np.array([0.0, 85.0511287798]), 0, 256, 'EPSG:3857')
+        np.testing.assert_allclose(x, [127.5, -0.5])
+        np.testing.assert_allclose(y, [127.5, 0.0], atol=1e-6)
+        config = {'dimension': 1, 'projection': 'EPSG:3857'}
+        num, alpha = sample(config, np.array([0.0, 0.0]), np.array([0.0, 89.0]), 0, '', lambda *a: np.full((1, 1, 4), 255, np.uint8))
+        np.testing.assert_array_equal(alpha > 0, [True, False])  # no data poleward of the Mercator limit
 
 
 if __name__ == '__main__':

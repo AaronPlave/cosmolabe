@@ -212,7 +212,7 @@ const IMAGERY: NestedSpec = {
     'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
-    'attribution', 'description', 'resolutionMeters', 'visible', 'temporal', 'illumination',
+    'attribution', 'description', 'resolutionMeters', 'visible', 'temporal', 'illumination', 'latitudeConvention',
   ),
   children: {
     temporal: {

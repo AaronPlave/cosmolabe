@@ -215,3 +215,5 @@ export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations
 export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';
 
 export type { PolarRasterManifest, SouthPolarRaster } from './surface/SouthPolarRaster.js';
+
+export { setVirtualImageryWorkerFactory, SourceTileCache, type VirtualSourceCoverage, type SourceTileCacheStats } from './VirtualCubeImagery.js';
