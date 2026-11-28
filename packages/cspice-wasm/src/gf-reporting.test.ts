@@ -169,13 +169,13 @@ describe('general GF entry points vs the simplified wrappers', () => {
   it('keeps the first pass inside the first half while it runs', () => {
     // The test above only sees the reports CSPICE makes at the head of each
     // pass, because a six-hour window outruns the reporter's 100 ms throttle.
-    // This one searches four days at a ten-second step -- long enough that the
+    // This one searches four days at a one-second step -- enough margin that the
     // throttle actually fires mid-pass -- so there is a fraction from *inside*
     // pass 1 to check, which is where a wrong slice width would show up.
     const long1 = et0 + 4 * 86_400;
     const seen: { fraction: number; pass: number }[] = [];
     spice.gfdistReporting(
-      'SATURN', 'NONE', CASSINI, '<', 1.5e6, 10, et0, long1,
+      'SATURN', 'NONE', CASSINI, '<', 1.5e6, 1, et0, long1,
       { onProgress: (fraction, pass) => seen.push({ fraction, pass }) },
     );
 
