@@ -7,6 +7,10 @@ import type { BodyMesh } from '../BodyMesh.js';
 export function* placeRaycast(ray: Ray, far: number, bodies: readonly BodyMesh[]):
   Generator<void, { body: BodyMesh; point: Vector3; distance: number } | null> {
   let best: { body: BodyMesh; point: Vector3; distance: number } | null = null;
+  const unitScale = new Vector3(1, 1, 1);
+  // Meshes may be visited in later animation frames. Keep each body at the
+  // query's pose while allowing its resident LOD geometry to remain shared.
+  const poses = new Map(bodies.map(body => [body, new Matrix4().compose(body.position, body.mesh.quaternion, unitScale)]));
   const queue = bodies.filter(b => b.visible).map(body => ({ object: body as import('three').Object3D, body }));
   const a = new Vector3(), b = new Vector3(), c = new Vector3(), hit = new Vector3();
   while (queue.length) {
@@ -24,7 +28,8 @@ export function* placeRaycast(ray: Ray, far: number, bodies: readonly BodyMesh[]
     if (!(object instanceof Mesh) || (object.layers.mask & 1) === 0) continue;
     const geometry = object.geometry, position = geometry.getAttribute('position');
     if (!position) continue;
-    const matrix = object.matrixWorld.clone();
+    const currentPoseInverse = new Matrix4().compose(body.position, body.mesh.quaternion, unitScale).invert();
+    const matrix = new Matrix4().multiplyMatrices(poses.get(body)!, currentPoseInverse).multiply(object.matrixWorld);
     const local = ray.clone().applyMatrix4(new Matrix4().copy(matrix).invert());
     if (geometry.boundingSphere && !local.intersectsSphere(geometry.boundingSphere)) continue;
     if (geometry.boundingBox && !local.intersectsBox(geometry.boundingBox)) continue;

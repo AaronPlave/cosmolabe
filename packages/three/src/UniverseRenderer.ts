@@ -3251,11 +3251,11 @@ export class UniverseRenderer {
       if (hit) anchor = { offsetKm: hit.point.sub(origin).applyQuaternion(rotation.clone().invert()).divideScalar(scale), source: 'rendered-surface' };
       else if (previous) anchor = previous;
     }
-    const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(rotation).add(origin);
+    const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
     const eye = this.camera.position.clone(), direction = world.clone().sub(eye), distance = direction.length();
     this.placeNames.metrics.raycasts++;
     const hit = yield* placeRaycast(new THREE.Ray(eye, direction.divideScalar(distance)), distance, bodies);
-    return { anchor, hidden: !!hit && hit.distance < distance - .01 * scale };
+    return { anchor, eye, point: world, hidden: !!hit && hit.distance < distance - .01 * scale };
   }
 
   private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {

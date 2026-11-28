@@ -17,7 +17,7 @@ interface Projection extends LabelCandidate {
   source: PlaceAnchor['source'];
   font: number;
 }
-export interface PlaceWorkResult { anchor: PlaceAnchor; hidden: boolean }
+export interface PlaceWorkResult { anchor: PlaceAnchor; hidden: boolean; eye?: Vector3; point?: Vector3 }
 interface Visibility { anchor: NonNullable<ReturnType<typeof placeAnchor>>; eye: Vector3; point: Vector3; hidden: boolean; at: number; anchoredAt: number; revision: number | null; body: BodyMesh }
 
 /** Text-only cartographic annotations over the existing scientific features.
@@ -175,8 +175,8 @@ export class PlaceNames {
             const steps = (function* (): Generator<void, Visibility | null> {
               const value = yield* query;
               if (!value) return null;
-              const point = value.anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
-              return { ...value, point, eye, at: performance.now(), anchoredAt: refresh ? performance.now() : los!.anchoredAt, revision, body };
+              const point = value.point ?? value.anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
+              return { ...value, point, eye: value.eye ?? eye, at: performance.now(), anchoredAt: refresh ? performance.now() : los!.anchoredAt, revision, body };
             })();
             pending = { body, steps };
             this.pending.set(p.id, pending);
