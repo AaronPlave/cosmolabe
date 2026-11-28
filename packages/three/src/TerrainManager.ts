@@ -1810,8 +1810,13 @@ export class TerrainManager {
   }
 
   /** Annotation planning reads resident coverage without changing CPU residency. */
-  sampleResident(latDeg: number, lonDeg: number, maxSteps = Infinity): TerrainSample | null {
-    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg, maxSteps) ?? null : this.sampler.sample(latDeg, lonDeg);
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
+  }
+
+  *sampleResidentSteps(latDeg: number, lonDeg: number): Generator<void, TerrainSample | null> {
+    if (this.cubeConfigured) return this.cube ? yield* this.cube.source.sampleResidentSteps(latDeg, lonDeg) : null;
+    return this.sampler.sample(latDeg, lonDeg);
   }
 
   /** Analytical query of finest available physical CPU geometry, independent of

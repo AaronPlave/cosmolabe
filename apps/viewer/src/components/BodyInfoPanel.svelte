@@ -34,6 +34,7 @@
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
+    void vs.frameTick;
     void vs.et; // trigger reactivity each frame
     const r = getRenderer();
     if (!r || !vs.selectedBodyName) return null;
@@ -49,6 +50,7 @@
   // (Mars: ~20 km gap, Earth: ~21 km gap).
   let altitude = $derived.by((): { value: number; sampled: boolean } | null => {
     void vs.et;
+    void vs.frameTick;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName || distance == null) return null;
     const bm = r.getBodyMesh(vs.selectedBodyName);

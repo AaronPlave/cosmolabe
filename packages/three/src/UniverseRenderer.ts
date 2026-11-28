@@ -4,6 +4,8 @@ import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridS
 import * as THREE from 'three';
 import type { SolarShadowDebugMode, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry, type ImageryLightingMode } from './SurfaceIllumination.js';
+import { placeRaycast } from './geographic/PlaceRaycast.js';
+import { placeAnchor } from './geographic/PlaceSurface.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -1379,7 +1381,8 @@ export class UniverseRenderer {
         const hit = this._castSurfaces();
         this._surfaceRaycaster.far = Infinity;
         return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
-      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
+      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor),
+      (place, body, previous, refresh) => this._placeWork(place, body, previous, refresh));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain) bm.updateTerrainLabels(this.camera, this.renderer, contourLabelObstacles);
@@ -3218,6 +3221,35 @@ export class UniverseRenderer {
   /** Presentation anchor on the currently drawn surface, like probe pin
    * re-seating. This is a ray hit, not a conversion of an unknown areoid datum.
    * Keep explicit source heights intact; PlaceNames only calls for heightless points. */
+  private *_placeWork(place: import('@cosmolabe/core').Place, body: BodyMesh, previous: PlaceAnchor | undefined, refresh: boolean):
+    Generator<void, import('./geographic/PlaceNames.js').PlaceWorkResult | null> {
+    // Reference/source height conversion is cheap; rendered triangles supply
+    // heightless label attachment without an analytical CPU terrain sample.
+    let anchor = refresh ? placeAnchor(place, body, 'reference') : previous;
+    if (!anchor) return null;
+    const scale = this.scaleFactor, rotation = body.mesh.quaternion.clone(), origin = body.position.clone();
+    const bodies = [...this.bodyMeshes.values()];
+    if (refresh && body.hasTerrain && anchor.source !== 'source-height') {
+      const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(rotation).add(origin);
+      if (place.feature.geometry.type !== 'Point') return null;
+      const { latDeg, lonDeg } = place.feature.geometry.coordinates;
+      const lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
+      // Follow the datum normal so the source latitude/longitude stays fixed
+      // on oblate bodies; no analytical height query is needed for attachment.
+      const up = new THREE.Vector3(Math.cos(lat)*Math.cos(lon), Math.sin(lat), -Math.cos(lat)*Math.sin(lon)).applyQuaternion(rotation);
+      const span = (body.displayRadius * .01 + 30) * scale;
+      this.placeNames.metrics.raycasts++;
+      const hit = yield* placeRaycast(new THREE.Ray(world.clone().addScaledVector(up, span), up.negate()), span * 2, [body]);
+      if (hit) anchor = { offsetKm: hit.point.sub(origin).applyQuaternion(rotation.clone().invert()).divideScalar(scale), source: 'rendered-surface' };
+      else if (previous) anchor = previous;
+    }
+    const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(rotation).add(origin);
+    const eye = this.camera.position.clone(), direction = world.clone().sub(eye), distance = direction.length();
+    this.placeNames.metrics.raycasts++;
+    const hit = yield* placeRaycast(new THREE.Ray(eye, direction.divideScalar(distance)), distance, bodies);
+    return { anchor, hidden: !!hit && hit.distance < distance - .01 * scale };
+  }
+
   private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {
     if (!body.hasTerrain) return null;
     const local = anchor.offsetKm.clone();

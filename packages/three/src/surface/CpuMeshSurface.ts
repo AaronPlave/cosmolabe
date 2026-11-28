@@ -12,19 +12,33 @@ const TRIANGLES_PER_GROUP = 4;
 
 /** Bounded proof intersector; large mission meshes still require a source BVH. */
 export class CpuMeshSurface implements PhysicalSurface {
-  private readonly mesh: CpuSurfaceMesh | null;
-  readonly retainedBytes: number;
-  private readonly groupBounds: Float64Array;
+  private mesh: CpuSurfaceMesh | null = null;
+  private _retainedBytes = 0;
+  get retainedBytes(): number { return this._retainedBytes; }
+  private groupBounds = new Float64Array(0);
   /** Actual triangle tests in the last query, excluding groups rejected by bounds. */
   trianglesTested = 0;
-  private readonly trianglesPerGroup: number;
+  private trianglesPerGroup = TRIANGLES_PER_GROUP;
   constructor(
     readonly metadata: PhysicalSurfaceMetadata,
     mesh: CpuSurfaceMesh,
     readonly accuracy: SurfaceAccuracy,
     maxBytes = 8 * 1024 * 1024,
     rejectGroups = false,
+    defer = false,
   ) {
+    if (!defer) { const work = this.initialize(mesh, maxBytes, rejectGroups); while (!work.next().done) { /* synchronous compatibility */ } }
+  }
+
+  static *createSteps(metadata: PhysicalSurfaceMetadata, mesh: CpuSurfaceMesh, accuracy: SurfaceAccuracy,
+    maxBytes = 8 * 1024 * 1024, rejectGroups = false): Generator<void, CpuMeshSurface> {
+    const surface = new CpuMeshSurface(metadata, mesh, accuracy, maxBytes, rejectGroups, true);
+    yield* surface.initialize(mesh, maxBytes, rejectGroups);
+    return surface;
+  }
+
+  private *initialize(mesh: CpuSurfaceMesh, maxBytes: number, rejectGroups: boolean): Generator<void> {
+    const accuracy = this.accuracy;
     if (!Number.isFinite(maxBytes) || maxBytes < 0) throw new Error('Invalid CPU mesh budget');
     if (accuracy.meshDeviationBoundKm != null && (!Number.isFinite(accuracy.meshDeviationBoundKm) || accuracy.meshDeviationBoundKm < 0)) {
       throw new Error('Invalid mesh deviation bound');
@@ -40,20 +54,27 @@ export class CpuMeshSurface implements PhysicalSurface {
     const groupCount = rejectGroups && spareBytes >= 48 ? Math.ceil(mesh.indices.length / (3 * groupSize)) : 0;
     this.trianglesPerGroup = groupSize;
     const bytes = meshBytes + groupCount * 48;
-    this.retainedBytes = bytes <= maxBytes ? bytes : 0;
-    this.mesh = bytes <= maxBytes ? { positionsKm: mesh.positionsKm.slice(), indices: mesh.indices.slice() } : null;
+    this._retainedBytes = bytes <= maxBytes ? bytes : 0;
+    this.mesh = bytes <= maxBytes ? { positionsKm: new Float64Array(mesh.positionsKm.length), indices: mesh.indices instanceof Uint16Array ? new Uint16Array(mesh.indices.length) : new Uint32Array(mesh.indices.length) } : null;
+    if (this.mesh) {
+      for (let i = 0; i < mesh.positionsKm.length; i += 1024) { yield; this.mesh.positionsKm.set(mesh.positionsKm.subarray(i, i + 1024), i); }
+      for (let i = 0; i < mesh.indices.length; i += 1024) { yield; this.mesh.indices.set(mesh.indices.subarray(i, i + 1024), i); }
+    }
     this.groupBounds = new Float64Array(this.mesh ? groupCount * 6 : 0);
     if (!this.mesh) return;
     const { positionsKm, indices } = this.mesh;
-    if (positionsKm.length < 9 || positionsKm.length % 3 !== 0 || indices.length < 3 || indices.length % 3 !== 0
-      || !positionsKm.every(Number.isFinite) || indices.some(i => i >= positionsKm.length / 3)) {
+    if (positionsKm.length < 9 || positionsKm.length % 3 !== 0 || indices.length < 3 || indices.length % 3 !== 0) {
       throw new Error('Malformed CPU surface mesh');
     }
+    for (let i = 0; i < positionsKm.length; i++) { if (i % 1024 === 0) yield; if (!Number.isFinite(positionsKm[i])) throw new Error('Malformed CPU surface mesh'); }
+    for (let i = 0; i < indices.length; i++) { if (i % 1024 === 0) yield; if (indices[i] >= positionsKm.length / 3) throw new Error('Malformed CPU surface mesh'); }
     for (let group = 0; group < groupCount; group++) {
+      if (group % 32 === 0) yield;
       const b = group * 6;
       this.groupBounds.set([Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], b);
       const end = Math.min(indices.length, (group + 1) * this.trianglesPerGroup * 3);
       for (let i = group * this.trianglesPerGroup * 3; i < end; i++) {
+        if (i % 384 === 0) yield;
         for (let axis = 0; axis < 3; axis++) {
           const v = positionsKm[indices[i] * 3 + axis];
           this.groupBounds[b + axis] = Math.min(this.groupBounds[b + axis], v);

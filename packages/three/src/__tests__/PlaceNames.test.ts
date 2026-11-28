@@ -130,6 +130,55 @@ describe('optional geographic name annotations', () => {
     expect(f.elements[0]).toBe(element);expect(element.style.left).not.toBe(originalLeft);
     expect(f.names.metrics.drawn).toBe(1);
   });
+  it('resumes cooperative work across frames instead of restarting or blocking on a full raycast', () => {
+    const f = fixture();
+    f.names.selectedRef = f.names.index.places[0].ref;
+    let chunks = 0, calls = 0, now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const work = function* () {
+      calls++;
+      for (let i = 0; i < 40; i++) { chunks++; yield; }
+      return { anchor: { offsetKm: new Vector3(0, 0, 1), source: 'rendered-surface' as const }, hidden: false };
+    };
+    for (let i = 0; i < 3; i++) {
+      f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+      now += 50;
+      expect(chunks).toBeLessThanOrEqual((i + 1) * 16);
+    }
+    expect(chunks).toBe(40);
+    expect(calls).toBe(1);
+    expect(f.names.metrics.losChecks).toBe(1);
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+    expect(calls).toBe(1);
+  });
+  it('preserves admission priority when a lower-priority cold query finishes first', () => {
+    const f = fixture(); f.names.setBodyVisible('Moon', true);
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const work = function* (place: Place) {
+      if (place.name.startsWith('Front')) for (let i = 0; i < 40; i++) yield;
+      return { anchor: { offsetKm: new Vector3(0, 0, 1), source: 'rendered-surface' as const }, hidden: false };
+    };
+    for (let i = 0; i < 6; i++) {
+      f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+      now += 40;
+    }
+    expect(f.elements[0]).toMatchObject({ textContent: 'Front <script>' });
+    expect(f.names.pick(400, 400)?.featureId).toBe('string:front');
+  });
+  it('cancels unfinished work when the body mesh is replaced', () => {
+    const f = fixture(); f.names.selectedRef = f.names.index.places[0].ref;
+    let cancelled = 0;
+    const work = function* () {
+      try { for (let i = 0; i < 100; i++) yield; return null; }
+      finally { cancelled++; }
+    };
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+    const replacement = { ...f.body } as BodyMesh;
+    f.names.update(f.camera, new Map([['Moon', replacement]]), 1, 800, 800, [], () => false, undefined, work);
+    expect(cancelled).toBe(1);
+    f.names.dispose();
+    expect(cancelled).toBe(2);
+  });
   it('reuses anchors while camera motion refreshes LOS and invalidates on terrain revision', () => {
     const f = fixture(); Object.assign(f.body, { hasTerrain: true, terrainRevision: 1 });
     f.names.selectedRef = f.names.index.places[0].ref;

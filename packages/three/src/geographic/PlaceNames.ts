@@ -17,6 +17,7 @@ interface Projection extends LabelCandidate {
   source: PlaceAnchor['source'];
   font: number;
 }
+export interface PlaceWorkResult { anchor: PlaceAnchor; hidden: boolean }
 interface Visibility { anchor: NonNullable<ReturnType<typeof placeAnchor>>; eye: Vector3; point: Vector3; hidden: boolean; at: number; anchoredAt: number; revision: number | null; body: BodyMesh }
 
 /** Text-only cartographic annotations over the existing scientific features.
@@ -27,7 +28,7 @@ export class PlaceNames {
   selectedRef: string | null = null;
   readonly bodies = new Set<string>();
   readonly hiddenLayers = new Set<string>();
-  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0, handoffs: 0 };
+  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0, handoffs: 0, raycasts: 0 };
   indexBuildMs = 0;
   private drawn: Array<{ place: Place; box: ScreenRect }> = [];
   private readonly labels = new Map<string, HTMLDivElement>();
@@ -36,6 +37,8 @@ export class PlaceNames {
   private readonly widths = new Map<string, number>();
   private readonly visibility = new Map<string, Visibility>();
   private readonly anchors = new Map<string, { offset: Vector3; normal: Vector3 }>();
+  private readonly advancedAt = new Map<string, number>();
+  private readonly pending = new Map<string, { body: BodyMesh; steps: Generator<void, Visibility | null> }>();
   private readonly unsubscribe: () => void;
 
   constructor(universe: Universe, private readonly container: HTMLElement) {
@@ -43,7 +46,8 @@ export class PlaceNames {
     const rebuild = () => {
       const start = performance.now();
       this.index = new PlaceIndex(universe.geographicLayers.layers);
-      this.widths.clear(); this.visibility.clear(); this.anchors.clear(); this.layout.clear();
+      for (const pending of this.pending.values()) pending.steps.return(null); this.pending.clear();
+      this.advancedAt.clear(); this.widths.clear(); this.visibility.clear(); this.anchors.clear(); this.layout.clear();
       for (const place of this.index.places) {
         if (place.feature.geometry.type !== 'Point') continue;
         const pos = place.feature.geometry.coordinates, p = geodeticToBodyFixed(pos, place.layer.datum);
@@ -64,9 +68,10 @@ export class PlaceNames {
 
   update(camera: PerspectiveCamera, meshes: ReadonlyMap<string, BodyMesh>, scale: number, width: number, height: number,
     obstacles: readonly ScreenRect[], occluded: (world: Vector3) => boolean,
-    renderedAnchor?: (place: Place, body: BodyMesh, anchor: PlaceAnchor) => PlaceAnchor | null): void {
+    renderedAnchor?: (place: Place, body: BodyMesh, anchor: PlaceAnchor) => PlaceAnchor | null,
+    work?: (place: Place, body: BodyMesh, anchor: PlaceAnchor | undefined, refresh: boolean) => Generator<void, PlaceWorkResult | null>): void {
     const start = performance.now();
-    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0, handoffs: 0 };
+    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0, handoffs: 0, raycasts: 0 };
     const candidates: Projection[] = [];
     const invalidated = new Set<string>();
     const considered = new Set<string>();
@@ -150,6 +155,7 @@ export class PlaceNames {
     const budget = new AnnotationBudget(2);
     // Oldest result first guarantees refresh progress during continuous motion.
     const scheduled = [...projected].sort((a,b) => Number(!!b.selected) - Number(!!a.selected)
+      || (this.advancedAt.get(a.id) ?? -Infinity) - (this.advancedAt.get(b.id) ?? -Infinity)
       || Number(!!this.layout.states.get(b.id)?.accepted) - Number(!!this.layout.states.get(a.id)?.accepted)
       || (this.visibility.get(a.id)?.at ?? -Infinity) - (this.visibility.get(b.id)?.at ?? -Infinity) || b.priority - a.priority);
     for (const p of scheduled) {
@@ -158,9 +164,35 @@ export class PlaceNames {
       const tolerance = Math.max(1e-10, camera.position.distanceTo(p.world) * .002);
       const due = !los || los.body !== body || los.revision !== body.terrainRevision || start - los.at >= 200 || los.eye.distanceTo(camera.position) > tolerance || los.point.distanceTo(p.world) > tolerance * .1;
       if (due) {
-        const result = budget.run(() => {
+        let result: { value: Visibility | null } | undefined;
+        if (work) {
+          let pending = this.pending.get(p.id);
+          if (pending && pending.body !== body) { pending.steps.return(null); this.pending.delete(p.id); pending = undefined; }
+          if (!pending) {
+            const eye = camera.position.clone(), revision = body.terrainRevision;
+            const refresh = !los || los.body !== body || los.revision !== revision || start - los.anchoredAt >= 200;
+            const query = work(p.place, body, los?.body === body ? los.anchor : undefined, refresh);
+            const steps = (function* (): Generator<void, Visibility | null> {
+              const value = yield* query;
+              if (!value) return null;
+              const point = value.anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
+              return { ...value, point, eye, at: performance.now(), anchoredAt: refresh ? performance.now() : los!.anchoredAt, revision, body };
+            })();
+            pending = { body, steps };
+            this.pending.set(p.id, pending);
+          }
+          // Advance small chunks under one shared deadline, including cold queries.
+          let step = budget.run(() => pending!.steps.next());
+          let chunks = 0;
+          while (step) {
+            this.advancedAt.set(p.id, start);
+            if (step.value.done) { result = { value: step.value.value }; this.pending.delete(p.id); break; }
+            if (++chunks >= 16) break;
+            step = budget.run(() => pending!.steps.next());
+          }
+        } else result = budget.run(() => {
           const refreshAnchor = !los || los.body !== body || los.revision !== body.terrainRevision || start - los.anchoredAt >= 200;
-          let anchor = refreshAnchor ? placeAnchor(p.place, body, true) : los.anchor;
+          let anchor = refreshAnchor ? placeAnchor(p.place, body, 'resident') : los.anchor;
           if (refreshAnchor && anchor && renderedAnchor && anchor.source !== 'source-height') anchor = renderedAnchor(p.place, body, anchor) ?? anchor;
           if (!anchor) return null;
           const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
@@ -189,7 +221,16 @@ export class PlaceNames {
       if (p.box.x0 < 8 || p.box.x1 > width - 8 || p.box.y0 < 8 || p.box.y1 > height - 8) p.eligibility = 0;
     }
     for (const p of projected) if (this.visibility.get(p.id)?.hidden) invalidated.add(p.id);
-    const visible = projected.filter(p => !invalidated.has(p.id) && this.visibility.get(p.id)?.hidden === false);
+    // Cooperative completion order must not let a cheap low-priority query
+    // claim incumbency before a higher-priority cold candidate has answered.
+    // Existing labels remain eligible while any other work is deferred.
+    let awaitingHigher = false;
+    const admitted = new Set<string>();
+    for (const p of projected) {
+      if (!this.visibility.has(p.id) && !invalidated.has(p.id)) awaitingHigher = true;
+      if (!work || !awaitingHigher || this.layout.states.get(p.id)?.accepted) admitted.add(p.id);
+    }
+    const visible = projected.filter(p => admitted.has(p.id) && !invalidated.has(p.id) && this.visibility.get(p.id)?.hidden === false);
     // Area-aware spacing: sparse at a whole globe, progressively more at a
     // regional/surface view. This is a layout clearance, not a source footprint.
     const layoutCandidates = visible.map(p => {
@@ -235,7 +276,9 @@ export class PlaceNames {
     // Keep offscreen samples in the current region: deleting them on a
     // frustum exit would admit their provisional reference points again next
     // frame and repeatedly raycast them. Bound the warm cache independently.
+    for (const id of this.advancedAt.keys()) if (!considered.has(id)) this.advancedAt.delete(id);
     for (const id of this.visibility.keys()) if (!considered.has(id)) this.visibility.delete(id);
+    for (const [id, pending] of this.pending) if (!considered.has(id)) { pending.steps.return(null); this.pending.delete(id); }
     if (this.visibility.size > 1024) {
       const cold = [...this.visibility].filter(([id]) => !projectedIds.has(id)).sort((a,b) => a[1].at-b[1].at);
       for (const [id] of cold) { if (this.visibility.size <= 1024) break; this.visibility.delete(id); }
@@ -245,5 +288,5 @@ export class PlaceNames {
     this.metrics.enters = this.layout.enters; this.metrics.exits = this.layout.exits;
     this.metrics.cpuMs = performance.now() - start;
   }
-  dispose(): void { this.unsubscribe(); for (const label of this.labels.values()) label.remove(); this.labels.clear(); this.layout.clear(); }
+  dispose(): void { for (const pending of this.pending.values()) pending.steps.return(null); this.pending.clear(); this.unsubscribe(); for (const label of this.labels.values()) label.remove(); this.labels.clear(); this.layout.clear(); }
 }
