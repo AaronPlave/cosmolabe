@@ -195,10 +195,10 @@ export class CubeSphereGridSource {
   }
 
   /** Read only already resident physical grids; annotations must not request detail. */
-  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+  sampleResident(latDeg: number, lonDeg: number, maxSteps = Infinity): TerrainSample | null {
     if (!this.manifest.geometry) return this.sampler.sample(latDeg, lonDeg);
     this.querySurface ??= new CubeGridSurface(this, '', 'body-fixed');
-    return this.querySurface.sampleElevation(latDeg, lonDeg, false);
+    return this.querySurface.sampleElevation(latDeg, lonDeg, false, maxSteps);
   }
 
   /** Analytical normal-height query, including finest coverage along the normal. */
@@ -414,11 +414,17 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
   /** Forget a derived mesh when its grid changes or leaves. */
   invalidate(id: string): void { this.meshes.delete(id); }
 
-  sampleElevation(latDeg: number, lonDeg: number, requestCoverage = true): TerrainSample | null {
+  sampleElevation(latDeg: number, lonDeg: number, requestCoverage = true, maxSteps = Infinity): TerrainSample | null {
     if (!this.source.manifest.geometry) return this.source.sampler.sample(latDeg, lonDeg);
     const { ray, extent, longitude } = this.normalRay(latDeg, lonDeg);
     if (requestCoverage) void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
-    const hit = this.consume(this.intersections(ray, { maxMeshErrorKm: 0 }, true));
+    const steps = this.intersections(ray, { maxMeshErrorKm: 0 }, true);
+    let step = steps.next(), count = 0;
+    while (!step.done) {
+      if (++count >= maxSteps) { steps.return({ kind: 'unavailable', reason: 'budget', metadata: this.metadata }); return null; }
+      step = steps.next();
+    }
+    const hit = step.value;
     if (hit.kind !== 'hit') return null;
     return { position: { latDeg, lonDeg: longitude }, elevationKm: extent - hit.distanceKm,
       datum: this.source.manifest.datum, source: hit.metadata.source, tileId: hit.tileId };

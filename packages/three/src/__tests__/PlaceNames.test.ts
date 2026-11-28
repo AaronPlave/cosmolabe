@@ -130,6 +130,25 @@ describe('optional geographic name annotations', () => {
     expect(f.elements[0]).toBe(element);expect(element.style.left).not.toBe(originalLeft);
     expect(f.names.metrics.drawn).toBe(1);
   });
+  it('reuses anchors while camera motion refreshes LOS and invalidates on terrain revision', () => {
+    const f = fixture(); Object.assign(f.body, { hasTerrain: true, terrainRevision: 1 });
+    f.names.selectedRef = f.names.index.places[0].ref;
+    const rendered = vi.fn(() => ({ offsetKm: new Vector3(0, 0, .9), source: 'rendered-surface' as const }));
+    f.update(false, [], rendered);
+    rendered.mockClear();
+    let now = 401; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const los = vi.fn(() => false);
+    for (let i = 0; i < 5; i++) {
+      f.camera.position.x += .1; f.camera.updateMatrixWorld(true);
+      f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], los, rendered);
+      now++;
+    }
+    expect(los).toHaveBeenCalled();
+    expect(rendered).not.toHaveBeenCalled();
+    Object.assign(f.body, { terrainRevision: 2 });
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], los, rendered);
+    expect(rendered).toHaveBeenCalledTimes(1);
+  });
   it('preserves explicit source heights when rendered terrain is available', () => {
     const f=fixture();Object.assign(f.body,{hasTerrain:true});
     const place=f.names.index.places[0];

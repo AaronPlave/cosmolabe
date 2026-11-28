@@ -17,7 +17,7 @@ interface Projection extends LabelCandidate {
   source: PlaceAnchor['source'];
   font: number;
 }
-interface Visibility { anchor: NonNullable<ReturnType<typeof placeAnchor>>; eye: Vector3; point: Vector3; hidden: boolean; at: number }
+interface Visibility { anchor: NonNullable<ReturnType<typeof placeAnchor>>; eye: Vector3; point: Vector3; hidden: boolean; at: number; anchoredAt: number; revision: number | null; body: BodyMesh }
 
 /** Text-only cartographic annotations over the existing scientific features.
  * Cheap projection covers every relevant indexed point before admission; only
@@ -156,14 +156,15 @@ export class PlaceNames {
       const body = meshes.get(p.place.layer.body)!;
       const los = this.visibility.get(p.id);
       const tolerance = Math.max(1e-10, camera.position.distanceTo(p.world) * .002);
-      const due = !los || start - los.at >= 200 || los.eye.distanceTo(camera.position) > tolerance || los.point.distanceTo(p.world) > tolerance * .1;
+      const due = !los || los.body !== body || los.revision !== body.terrainRevision || start - los.at >= 200 || los.eye.distanceTo(camera.position) > tolerance || los.point.distanceTo(p.world) > tolerance * .1;
       if (due) {
         const result = budget.run(() => {
-          let anchor = placeAnchor(p.place, body);
-          if (anchor && renderedAnchor && anchor.source !== 'source-height') anchor = renderedAnchor(p.place, body, anchor) ?? anchor;
+          const refreshAnchor = !los || los.body !== body || los.revision !== body.terrainRevision || start - los.anchoredAt >= 200;
+          let anchor = refreshAnchor ? placeAnchor(p.place, body, true) : los.anchor;
+          if (refreshAnchor && anchor && renderedAnchor && anchor.source !== 'source-height') anchor = renderedAnchor(p.place, body, anchor) ?? anchor;
           if (!anchor) return null;
           const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
-          return { anchor, eye: camera.position.clone(), point: world, hidden: occluded(world), at: start };
+          return { anchor, eye: camera.position.clone(), point: world, hidden: occluded(world), at: start, anchoredAt: refreshAnchor ? start : los!.anchoredAt, revision: body.terrainRevision, body };
         });
         if (result) {
           if (result.value) this.visibility.set(p.id, result.value);

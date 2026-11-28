@@ -1314,8 +1314,8 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /** Read-only planning query; unlike analytical sampling, never refines CPU grids. */
-  sampleResidentTerrain(latDeg: number, lonDeg: number): TerrainSample | null {
-    return this.terrainManager?.sampleResident(latDeg, lonDeg) ?? null;
+  sampleResidentTerrain(latDeg: number, lonDeg: number, maxSteps = Infinity): TerrainSample | null {
+    return this.terrainManager?.sampleResident(latDeg, lonDeg, maxSteps) ?? null;
   }
 
   /** Async source analysis; never depends on renderer zoom or substitutes a sphere. */

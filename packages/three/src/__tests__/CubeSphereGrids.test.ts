@@ -56,6 +56,7 @@ describe('cube-sphere CPU grid source', () => {
       requests++; return new Float32Array(W * W).fill(100).buffer;
     }, { residentLevel: 0 });
     await source.ready; const initial = requests;
+    if (lattice) expect(source.sampleResident(-90, 0, 1)).toBeNull();
     for (let i = 0; i < 20; i++) expect(source.sampleResident(-90, i)?.tileId).toBe('nz/0/0/0');
     await Promise.resolve();
     expect(requests).toBe(initial);

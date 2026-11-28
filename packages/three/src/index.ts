@@ -1,3 +1,4 @@
+export { ReadoutTerrain } from './ReadoutTerrain.js';
 export type { SolarExposurePolicy } from './SolarRadiometry.js';
 
 // Main renderer

@@ -1,12 +1,15 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
   import { getUniverse } from '../lib/loader';
-  import type { InfoRow } from '@cosmolabe/three';
+  import { ReadoutTerrain, type InfoRow } from '@cosmolabe/three';
   import type { StateAvailability } from '@cosmolabe/core';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
+
+  const cameraTerrain = new ReadoutTerrain();
+  const parentTerrain = new ReadoutTerrain();
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
   let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
@@ -61,7 +64,7 @@
     // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
     // intersects the ellipsoid along the camera's radial direction.
     const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
+    const terrainSample = terrainPosition ? cameraTerrain.sample(bm, terrainPosition.latDeg, terrainPosition.lonDeg) : null;
     const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
     const sampled = terrainSample != null && terrainPosition?.heightKm != null;
     return {
@@ -110,7 +113,7 @@
 
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
-      const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
+      const sample = terrainPosition ? parentTerrain.sample(parentBm, terrainPosition.latDeg, terrainPosition.lonDeg) : null;
       if (sample && terrainPosition?.heightKm != null) {
         aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
       }
