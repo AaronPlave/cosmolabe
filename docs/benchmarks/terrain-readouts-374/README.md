@@ -37,7 +37,7 @@ Resident readouts make no further queries after warming at an unchanged location
 
 Place LOS and attachment use an incremental triangle scan with at most 128 triangles per chunk, a shared 2 ms scheduling deadline, and a 16-chunk cold / 64-chunk accepted-label turn. Cold physical grid construction, copying, validation and group bounds also yield, so scheduling is not merely a deadline check around a full synchronous sample. Last completed label results are reprojected while refresh work is pending. A terrain visibility/LOD handoff restarts in-flight queries before publication. Each ray query pins body poses across frames and retains its actual camera/point snapshot, preserving placement during body motion. Horizontal altitude changes hold a complete prior reading; vertical motion over the same subpoint reuses the ground sample without resampling. Cold admission respects candidate priority; explicit source heights and datum-normal locations remain intact.
 
-Task populations differ: for Gale with both UI features, main has 2,899 traced tasks and head has 961, so the all-task p95 can increase despite fewer long tasks. Assess frame callbacks and threshold counts alongside that percentile.
+Task populations differ: for Gale with both UI features, main has 2,899 traced tasks and head has 981, so the all-task p95 can increase despite fewer long tasks. Assess frame callbacks and threshold counts alongside that percentile.
 
 The remaining callback and task outliers include unchanged terrain/render work, projection/layout, browser scheduling and GC. The complete table includes baseline-only cases and noise/regressions; this is one paired run, not a claim that every frame becomes faster.
 
