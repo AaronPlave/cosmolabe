@@ -137,7 +137,7 @@ describe('optional geographic name annotations', () => {
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     const work = function* () {
       calls++;
-      for (let i = 0; i < 40; i++) { chunks++; yield; }
+      for (let i = 0; i < (calls === 1 ? 40 : 100); i++) { chunks++; yield; }
       return { anchor: { offsetKm: new Vector3(0, 0, 1), source: 'rendered-surface' as const }, hidden: false };
     };
     for (let i = 0; i < 3; i++) {
@@ -150,6 +150,17 @@ describe('optional geographic name annotations', () => {
     expect(f.names.metrics.losChecks).toBe(1);
     f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
     expect(calls).toBe(1);
+    now = 200;
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+    const element = f.elements[0];
+    now = 350;
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+    expect(chunks).toBe(104); // accepted labels receive a longer bounded turn
+    expect(f.names.metrics.drawn).toBe(1);
+    now = 400;
+    f.names.update(f.camera, new Map([['Moon', f.body]]), 1, 800, 800, [], () => false, undefined, work);
+    expect(f.names.metrics.losChecks).toBe(1);
+    expect(f.elements[0]).toBe(element);
   });
   it('preserves admission priority when a lower-priority cold query finishes first', () => {
     const f = fixture(); f.names.setBodyVisible('Moon', true);

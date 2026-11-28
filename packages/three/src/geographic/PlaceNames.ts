@@ -155,8 +155,8 @@ export class PlaceNames {
     const budget = new AnnotationBudget(2);
     // Oldest result first guarantees refresh progress during continuous motion.
     const scheduled = [...projected].sort((a,b) => Number(!!b.selected) - Number(!!a.selected)
-      || (this.advancedAt.get(a.id) ?? -Infinity) - (this.advancedAt.get(b.id) ?? -Infinity)
       || Number(!!this.layout.states.get(b.id)?.accepted) - Number(!!this.layout.states.get(a.id)?.accepted)
+      || (this.advancedAt.get(a.id) ?? -Infinity) - (this.advancedAt.get(b.id) ?? -Infinity)
       || (this.visibility.get(a.id)?.at ?? -Infinity) - (this.visibility.get(b.id)?.at ?? -Infinity) || b.priority - a.priority);
     for (const p of scheduled) {
       const body = meshes.get(p.place.layer.body)!;
@@ -176,7 +176,7 @@ export class PlaceNames {
               const value = yield* query;
               if (!value) return null;
               const point = value.point ?? value.anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
-              return { ...value, point, eye: value.eye ?? eye, at: performance.now(), anchoredAt: refresh ? performance.now() : los!.anchoredAt, revision, body };
+              return { ...value, point, eye: value.eye ?? eye, at: performance.now(), anchoredAt: refresh || value.anchor !== los?.anchor ? performance.now() : los!.anchoredAt, revision, body };
             })();
             pending = { body, steps };
             this.pending.set(p.id, pending);
@@ -184,10 +184,11 @@ export class PlaceNames {
           // Advance small chunks under one shared deadline, including cold queries.
           let step = budget.run(() => pending!.steps.next());
           let chunks = 0;
+          const turnLimit = this.layout.states.get(p.id)?.accepted ? 64 : 16;
           while (step) {
             this.advancedAt.set(p.id, start);
             if (step.value.done) { result = { value: step.value.value }; this.pending.delete(p.id); break; }
-            if (++chunks >= 16) break;
+            if (++chunks >= turnLimit) break;
             step = budget.run(() => pending!.steps.next());
           }
         } else result = budget.run(() => {

@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Ray, Raycaster, SphereGeometry, Vector3 } from 'three';
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Ray, Raycaster, SphereGeometry, Vector3 } from 'three';
 import type { BodyMesh } from '../BodyMesh.js';
 import { placeRaycast } from '../geographic/PlaceRaycast.js';
 
 describe('cooperative place raycasts', () => {
+  it('restarts across a rendered LOD visibility handoff', () => {
+    const body = new Group() as unknown as BodyMesh;
+    const globe = new Mesh(); globe.visible = false;
+    const terrain = new Group(), coarse = new Group(), fine = new Group();
+    const oldMesh = new Mesh(new PlaneGeometry(1, 1, 32, 32), new MeshBasicMaterial());
+    oldMesh.position.z = 1.2; coarse.add(oldMesh);
+    const newMesh = new Mesh(new PlaneGeometry(1, 1, 32, 32), new MeshBasicMaterial());
+    newMesh.position.z = .9; fine.add(newMesh); fine.visible = false;
+    terrain.add(coarse, fine); body.add(terrain);
+    Object.assign(body, { mesh: globe, terrainTileGroup: terrain, getDskMeshes: () => [] }); body.updateMatrixWorld(true);
+    const query = placeRaycast(new Ray(new Vector3(0, 0, 4), new Vector3(0, 0, -1)), 10, [body]);
+    for (let i = 0; i < 5; i++) expect(query.next().done).toBe(false);
+    coarse.visible = false; fine.visible = true;
+    let step = query.next(); while (!step.done) step = query.next();
+    expect(step.value?.object).toBe(newMesh);
+    expect(step.value?.distance).toBeCloseTo(3.1, 9);
+  });
   it('keeps the query pose while a body moves and rotates between chunks', () => {
     const body = new Group() as unknown as BodyMesh;
     const globe = new Mesh(new SphereGeometry(1, 16, 8), new MeshBasicMaterial());

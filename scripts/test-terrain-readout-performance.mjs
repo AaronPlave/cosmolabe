@@ -94,6 +94,36 @@ try {
       await page.waitForTimeout(1200);
       if (names) await page.waitForFunction(() => window.renderer.placeNames.metrics.drawn > 0, {}, { timeout: 120000 });
       if (panel && scene === 'ingenuity') await page.waitForFunction(() => document.body.innerText.includes('Above Mars terrain'), {}, { timeout: 120000 });
+      if (visual && names) {
+        await page.evaluate(() => {
+          window.checkPlaceAttachments = () => {
+            const r = window.renderer, differences = [];
+            let checked = 0;
+            for (const { place } of r.placeNames.drawn) {
+              const cached = r.placeNames.visibility.get(place.ref), body = r.getBodyMesh(place.layer.body);
+              if (!cached || cached.anchor.source === 'source-height') continue;
+              const local = cached.anchor.offsetKm.clone();
+              const geo = body.terrainBodyFixedToGeodetic({ xKm: local.x, yKm: -local.z, zKm: local.y });
+              const up = local.clone().normalize();
+              if (geo) {
+                const lat = geo.latDeg * Math.PI / 180, lon = geo.lonDeg * Math.PI / 180;
+                up.set(Math.cos(lat)*Math.cos(lon), Math.sin(lat), -Math.cos(lat)*Math.sin(lon));
+              }
+              up.applyQuaternion(body.mesh.quaternion);
+              const point = local.multiplyScalar(r.scaleFactor).applyQuaternion(body.mesh.quaternion).add(body.position);
+              r._surfaceRaycaster.set(point.addScaledVector(up, .1*r.scaleFactor), up.negate());
+              r._surfaceRaycaster.far = .2*r.scaleFactor;
+              let hit;
+              try { hit = r._castSurfaces(); } finally { r._surfaceRaycaster.far = Infinity; }
+              const gapM = hit ? Math.abs(hit.distance/r.scaleFactor-.1)*1000 : null;
+              checked++;
+              if (gapM === null || gapM > 1) differences.push({ name: place.name, gapM });
+            }
+            return { checked, differences };
+          };
+        });
+        await page.waitForFunction(() => { const result = window.checkPlaceAttachments(); return result.checked > 0 && result.differences.length === 0; }, {}, { timeout: 120000 });
+      }
       console.log('CAPTURE', scene, panel, names);
       const session = await page.context().newCDPSession(page);
       await session.send('Profiler.enable');
@@ -180,6 +210,7 @@ try {
         }
         return { checked, differences };
       });
+      if (visual && names) row.attachmentParity = await page.evaluate(() => window.checkPlaceAttachments());
       results.push(row); console.log(JSON.stringify(row));
       await page.screenshot({ path: out + '/' + scene + '-' + panel + '-' + names + '.png' });
       await writeFile(out + '/metrics.json', JSON.stringify({ base, browserVersion, nodeVersion: process.version, cpuOnly, frames, dpr: Number(process.env.CL_DPR ?? 1), errors, results }, null, 2));
@@ -187,4 +218,4 @@ try {
   }
 } finally { await writeFile(out + '/metrics.json', JSON.stringify({ base, browserVersion, nodeVersion: process.version, cpuOnly, frames, dpr: Number(process.env.CL_DPR ?? 1), errors, results }, null, 2)); await browser.close(); }
 if (errors.length) throw new Error(errors.join('\n'));
-if (results.some(r=>r.losParity?.differences.length)) throw new Error('Rendered LOS parity failed; see metrics.json');
+if (results.some(r=>r.losParity?.differences.length || r.attachmentParity?.differences.length)) throw new Error('Rendered LOS parity failed; see metrics.json');
