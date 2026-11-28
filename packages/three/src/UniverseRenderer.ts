@@ -3230,13 +3230,21 @@ export class UniverseRenderer {
     const scale = this.scaleFactor, rotation = body.mesh.quaternion.clone(), origin = body.position.clone();
     const bodies = [...this.bodyMeshes.values()];
     if (refresh && body.hasTerrain && anchor.source !== 'source-height') {
-      const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(rotation).add(origin);
-      if (place.feature.geometry.type !== 'Point') return null;
-      const { latDeg, lonDeg } = place.feature.geometry.coordinates;
-      const lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
-      // Follow the datum normal so the source latitude/longitude stays fixed
-      // on oblate bodies; no analytical height query is needed for attachment.
-      const up = new THREE.Vector3(Math.cos(lat)*Math.cos(lon), Math.sin(lat), -Math.cos(lat)*Math.sin(lon)).applyQuaternion(rotation);
+      const local = anchor.offsetKm.clone();
+      let normal = local.clone().normalize();
+      const datum = body.terrainDatum;
+      const geo = body.terrainBodyFixedToGeodetic({ xKm: local.x, yKm: -local.z, zKm: local.y });
+      // Keep the old sampler's location when the place and terrain declare
+      // different reference shapes. Only the coordinate conversion is needed;
+      // rendered triangles supply the height along that same datum normal.
+      if (datum && geo && isSupportedGeodeticDatum(datum)) {
+        const zero = geodeticToBodyFixed({ ...geo, heightKm: 0 }, datum);
+        const above = geodeticToBodyFixed({ ...geo, heightKm: 1 }, datum);
+        local.set(zero.xKm, zero.zKm, -zero.yKm);
+        normal = new THREE.Vector3(above.xKm-zero.xKm, above.zKm-zero.zKm, -(above.yKm-zero.yKm)).normalize();
+      }
+      const world = local.multiplyScalar(scale).applyQuaternion(rotation).add(origin);
+      const up = normal.applyQuaternion(rotation);
       const span = (body.displayRadius * .01 + 30) * scale;
       this.placeNames.metrics.raycasts++;
       const hit = yield* placeRaycast(new THREE.Ray(world.clone().addScaledVector(up, span), up.negate()), span * 2, [body]);
