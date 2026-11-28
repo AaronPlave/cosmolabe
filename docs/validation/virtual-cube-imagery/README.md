@@ -192,18 +192,20 @@ tile ids, vertex buffers and CPU surface hits between the two, and an imagery le
 finer than the terrain level. *Native* is the level and texel size `sampleAt()` reports
 for the committed cover at the view centre.
 
-| Site | Note | Terrain level | Layer | Capped (L / m·px⁻¹) | Native (L / m·px⁻¹) | Source native m/px | Geometry tiles | Upstream requests | Frame median / p95 ms |
+| Site | Note | Terrain level | Layer | Capped (L / m·px⁻¹) | Native (L / m·px⁻¹) | Source m/px here | Geometry tiles | Upstream requests | Frame median / p95 ms |
 |---|---|---|---|---|---|---|---|---|---|
-| gale | py/nx face seam (135°E), southern hemisphere | L5 | ctx-global | L5 / 605.9 | L13 / 2.37 | 5.09 | 25 | 67 | 4.4 / 6.8 |
-| olympus | nx face, northern hemisphere, high relief | L5 | ctx-global | L5 / 541.8 | L13 / 2.12 | 5.09 | 47 | 66 | 6.2 / 12.9 |
-| hale | px face, southern mid-latitude | L5 | ctx-global | L5 / 473.7 | L13 / 1.85 | 5.09 | 39 | 70 | 6.3 / 9.4 |
-| korolev | pz face, northern high latitude | L5 | ctx-global | L5 / 785.6 | L13 / 3.07 | 5.09 | 19 | 147 | 5 / 15.8 |
-| antimeridian | near the source antimeridian on the nx face | L5 | ctx-global | L5 / 826.1 | L13 / 3.23 | 5.09 | 21 | 42 | 4 / 6 |
-| seam135 | on the py/nx cube-face edge (135°E), west of Gale | L5 | ctx-global | L5 / 582.3 | L13 / 2.27 | 5.09 | 35 | 72 | 5.6 / 9.3 |
-| wrap180 | on the source antimeridian (±180°): longitude wrap mid-view | L5 | ctx-global | L5 / 826.1 | L13 / 3.23 | 5.09 | 20 | 34 | 5 / 8.8 |
-| jezero | regional HiRISE bounds | L5 | jezero-hirise | L7 / 187.6 | L16 / 0.37 | 0.64 | 26 | 184 | 7.6 / 18.9 |
+| gale | py/nx face seam (135°E), southern hemisphere | L5 | ctx-global | L5 / 605.9 | L13 / 2.37 | 5.09 | 25 | 67 | 4.7 / 7.3 |
+| olympus | nx face, northern hemisphere, high relief | L5 | ctx-global | L5 / 541.8 | L13 / 2.12 | 5.09 | 47 | 66 | 6.0 / 13.9 |
+| hale | px face, southern mid-latitude | L5 | ctx-global | L5 / 473.7 | L13 / 1.85 | 5.09 | 39 | 70 | 6.5 / 11.0 |
+| korolev | pz face, northern high latitude | L5 | ctx-global | L5 / 785.6 | L13 / 3.07 | 5.09 | 19 | 147 | 4.6 / 9.0 |
+| antimeridian | near the source antimeridian on the nx face | L5 | ctx-global | L5 / 826.1 | L13 / 3.23 | 5.09 | 21 | 45 | 4.7 / 8.9 |
+| seam135 | on the py/nx cube-face edge (135°E), west of Gale | L5 | ctx-global | L5 / 582.3 | L13 / 2.27 | 5.09 | 35 | 72 | 5.8 / 13.6 |
+| wrap180 | on the source antimeridian (±180°): longitude wrap mid-view | L5 | ctx-global | L5 / 826.1 | L13 / 3.23 | 5.09 | 20 | 33 | 4.9 / 8.5 |
+| jezero | regional HiRISE bounds | L5 | jezero-hirise | L7 / 187.6 | L16 / 0.37 | 0.64 | 26 | 184 | 7.4 / 14.3 |
 
-All eight pass. (A regional source cannot be capped above its first level: HiRISE starts
+All eight pass (rerun after the #398 review fixes; levels and texel sizes are unchanged
+from the first run). Beyond the level, the script asserts that the displayed texel
+resolves the source pixel at the site's latitude (≤ 1.1×). (A regional source cannot be capped above its first level: HiRISE starts
 at L7, two levels above z9, so its capped view shows L7.) Seven CTX sites outside the two #272 regions span both hemispheres,
 three cube faces (px, nx, pz), a view straddling the py/nx face edge at 135°E, and a
 view straddling the source antimeridian. All reach CTX level 13 over unchanged level-5
@@ -219,17 +221,17 @@ frames per site).
 | 0 | gale | 257.4 | 257.4 | 95.2 | 727 | 8 | 221 |
 | 0 | olympus | 257.4 | 257.4 | 96.0 | 727 | 8 | 387 |
 | 0 | hale | 257.4 | 257.4 | 95.2 | 727 | 12 | 544 |
-| 0 | korolev | 257.4 | 257.4 | 95.2 | 727 | 9 | 638 |
-| 0 | antimeridian | 257.4 | 257.4 | 95.2 | 727 | 8 | 673 |
-| 0 | seam135 | 257.4 | 257.4 | 96.0 | 726 | 9 | 766 |
-| 0 | wrap180 | 257.4 | 257.4 | 95.5 | 726 | 8 | 797 |
-| 1 | gale | 257.4 | 257.4 | 95.5 | 726 | 8 | 798 |
-| 1 | olympus | 257.4 | 257.4 | 95.2 | 726 | 8 | 799 |
-| 1 | hale | 257.4 | 257.4 | 95.0 | 726 | 12 | 800 |
-| 1 | korolev | 257.4 | 257.4 | 95.0 | 726 | 9 | 800 |
-| 1 | antimeridian | 257.4 | 257.4 | 95.0 | 726 | 8 | 802 |
-| 1 | seam135 | 257.4 | 257.4 | 95.0 | 726 | 9 | 803 |
-| 1 | wrap180 | 257.4 | 257.4 | 95.0 | 726 | 8 | 804 |
+| 0 | korolev | 257.4 | 257.4 | 95.2 | 727 | 9 | 641 |
+| 0 | antimeridian | 257.4 | 257.4 | 95.5 | 727 | 8 | 676 |
+| 0 | seam135 | 257.4 | 257.4 | 96.0 | 726 | 9 | 769 |
+| 0 | wrap180 | 257.4 | 257.4 | 95.5 | 726 | 8 | 800 |
+| 1 | gale | 257.4 | 257.4 | 95.5 | 726 | 8 | 801 |
+| 1 | olympus | 257.4 | 257.4 | 95.2 | 726 | 8 | 802 |
+| 1 | hale | 257.4 | 257.4 | 95.5 | 726 | 12 | 803 |
+| 1 | korolev | 257.4 | 257.4 | 95.5 | 726 | 9 | 803 |
+| 1 | antimeridian | 257.4 | 257.4 | 95.5 | 726 | 8 | 805 |
+| 1 | seam135 | 257.4 | 257.4 | 95.5 | 726 | 9 | 806 |
+| 1 | wrap180 | 257.4 | 257.4 | 95.5 | 726 | 8 | 807 |
 
 Residency is bounded by the configured budgets (`maxTextureBytes` 256 MiB, source cache
 96 MiB), with LRU eviction and flat draw counts. The second pass needed almost no new
@@ -243,14 +245,16 @@ restored and `retryFailed()` called, CTX recovered to level
 13 at the
 view centre.
 
-**Cost (Gale, cumulative for the session at that point):** 92 virtual tiles
-produced, 20 ms planning and
-29 ms resampling per tile on average in the workers
-(slowest 659 ms). 174 upstream source tiles were fetched
-(11.3 MiB) and 105 lookups were served from the shared cache.
-Isolated from other work, decoding one 512-px PNG takes about 12 ms in a worker. In
-these runs, planning and resampling share 4 cores with SwiftShader's software rendering.
-Node, on an idle core, measures 7–16 ms planning and 8–37 ms resampling per 264-px tile.
+**Cost (Gale, cumulative for the session at that point):** 91 virtual tiles
+produced and 172 upstream source tiles fetched (11.0 MiB), with 106 lookups served from
+the shared cache. The resampling *kernel* costs 7–20 ms planning and 8–19 ms
+resampling per 264-px tile on an idle core (Node, CTX at Gale, L9–L13). The in-worker
+figures the layer reports are wall time from start to finish of a tile: 21 ms planning
+and 620 ms resampling on average (slowest 8 s). Since the yielding resampler (which
+answers aborts and day changes between row chunks), that span includes the other
+decodes and tiles the worker interleaves, on 4 cores shared with SwiftShader. It
+measures queueing under load, not kernel cost. The first run's 29 ms was recorded
+before that change. Decoding one 512-px PNG takes about 12 ms in an idle worker.
 
 ### Earth: cube terrain with a cube-native product, live daily GIBS and an EPSG:4326 WMTS layer
 
@@ -265,12 +269,11 @@ PNG); and a switched-off **VIIRS EPSG:4326 capabilities** layer with `policy: la
 
 * **Two real days** at a fixed camera (central California, 400 km): 195 requests
   for 2026-11-03, then 188 for 2026-11-04. Rendered pixels changed in
-  95.5 % of the sampled window (threshold 12 levels per
-  channel). After switching from the default day, 7 requests
-  for the superseded day still started, the last 2.7 s
-  after the switch on the browser's clock. These were fetches already handed to a busy
-  worker before its abort messages were processed. None started after the 3 s grace,
-  and no superseded-day pixels are drawn: results are retired by generation.
+  95.5 % of the sampled window (threshold 12 levels per channel). After switching
+  from the default day, 5 requests for the superseded day still started, the last 8 ms
+  after the switch on the browser's clock. These were fetches already handed to a
+  worker before its abort messages arrived. None started after the 3 s grace, and no
+  superseded-day pixels are drawn: results are retired by generation.
 * **`latest`** (EPSG:4326 capabilities): resolved to 2026-11-26, the provider's newest
   day less the declared latency. All 56 requests used that day, through
   the layer's own matrices 2, 3, 4, 5, 6, 7, 8 and `{Time}` template.
@@ -284,17 +287,22 @@ PNG); and a switched-off **VIIRS EPSG:4326 capabilities** layer with `policy: la
 **Registration and imagery-only refinement** (25 km altitude), with the same terrain
 and CPU identity assertions as Mars:
 
-| Site | lat, lon | Terrain | Cube-native Blue Marble | VIIRS (virtual, capped → native) | Upstream requests | Frame median / p95 ms |
-|---|---|---|---|---|---|---|
-| himalaya | 28, 86.9 | L3 | L3 / 5.5 km | L3 → L7 / 343 m | 26 | 3.9 / 10.3 |
-| seam45E | 12, 45 | L3 | L3 / 4.2 km | L3 → L7 / 263 m | 46 | 4.9 / 7.3 |
-| scandinavia | 66, 16 | L3 | L3 / 5.6 km | L3 → L7 / 352 m | 59 | 3.6 / 10.0 |
-| fiji | -17.5, 179.5 | L3 | L3 / 5.9 km | L3 → L7 / 371 m | 24 | 3.4 / 5.7 |
+| Site | lat, lon | Terrain | Cube-native Blue Marble | VIIRS (virtual, capped → native) | VIIRS source pixel here | Upstream requests | Frame median / p95 ms |
+|---|---|---|---|---|---|---|---|
+| himalaya | 28, 86.9 | L3 | L3 / 5.5 km | L3 → L7 / 343 m | 540 m | 26 | 3.8 / 6.9 |
+| seam45E | 12, 45 | L3 | L3 / 4.2 km | L3 → L7 / 263 m | 598 m | 46 | 4.6 / 12.8 |
+| scandinavia | 66, 16 | L3 | L3 / 5.6 km | L3 → **L8 / 176 m** | 249 m | 66 | 3.7 / 9.1 |
+| fiji | -17.5, 179.5 | L3 | L3 / 5.9 km | L3 → L7 / 371 m | 583 m | 24 | 3.3 / 6.4 |
 
-VIIRS reaches its deepest level, L7, at every site, including the px/py face edge at
-45°E, 66°N and the antimeridian. GIBS serves this product on a `Level9` grid (z0–8), so
-its finest pixel is 611 m on the meridian at the equator.
-That is coarser than the product's nominal 250 m, and the coverage report states it.
+GIBS serves this product on a `Level9` grid (z0–8), so its finest pixel is 611 m on
+the meridian at the equator. That is coarser than the product's nominal 250 m, and the
+coverage report states it. Web Mercator pixels shrink with cos φ, so the source holds
+finer detail at high latitude. The layer's coverage now reports L7 at the equator and
+L10 toward 85°. At 66°N the view reaches L8, with 176 m texels over the 249 m source
+pixel there. The first run stopped at L7 (352 m), coarser than the source, which threw
+detail away. The other sites reach L7, whose texels resolve their source pixel. Every
+site passes the source-detail assertion as well as the face-edge, antimeridian and
+terrain-identity checks.
 The cube-native base stops at its built level 3. Both layers draw in the same frame and
 share one budget.
 
@@ -304,10 +312,10 @@ share one budget.
 
 | Case | Result |
 |---|---|
-| Five day switches 60 ms apart, then a sixth (2026-11-03) | Only the final day is drawn: the centre pixel is [0, 0, 144], final-day blue with no other day's red or green. No superseded-day request started after the 3 s grace (the last at 1.3 s); 126 source requests were abandoned. |
+| Five day switches 60 ms apart, then a sixth (2026-11-03) | Only the final day is drawn: the centre pixel is [0, 0, 144], final-day blue with no other day's red or green. No superseded-day request started after the final switch; 172 source requests were abandoned. |
 | Four settled switches between two days | GPU pages stayed at 257 MiB, resident textures at 59 MiB, and the source cache at its 96 MiB budget. Nothing grew. |
 | A day the provider answers with 404 | Only that day was requested (188 requests). The VIIRS tile is transparent, never another day, and the cube-native Blue Marble shows through. |
-| A day with 503 on half its tiles | The layer reports `partial`. 66 tiles in view are drawn from true parent source tiles (*Lower res*) and none from another day; 169 source failures are remembered with backoff. |
+| A day with 503 on half its tiles | The layer reports `partial`. 66 tiles in view are drawn from true parent source tiles (*Lower res*) and none from another day. Of 452 source failures, 106 are remembered with backoff, a bounded set. The degraded tiles are refreshed on that backoff, and by `retryFailed()`, without moving the camera (unit-tested). |
 | `follow-simulation`, clock moved to 2026-11-02 | The layer showed 2026-11-02. |
 
 **Terrain across day changes** (live GIBS, same camera and clock, days 2026-11-02 → 2026-11-04 → 2026-11-02):
