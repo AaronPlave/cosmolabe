@@ -14,8 +14,7 @@
   const gradient = $derived(definition.colorScale.map(stop =>
     `${stop.color} ${100 * (stop.value - first.value) / (last.value - first.value)}%`).join(', '));
   let error = $state('');
-  let opacity = $state(0);
-  $effect(() => { opacity = product?.instance.opacity ?? definition.opacity; });
+  let opacity = $derived(product?.instance.opacity ?? definition.opacity);
 
   async function toggle() {
     error = '';

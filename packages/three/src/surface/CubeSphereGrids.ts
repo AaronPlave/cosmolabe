@@ -201,6 +201,12 @@ export class CubeSphereGridSource {
     return this.querySurface.sampleElevation(latDeg, lonDeg, false);
   }
 
+  *sampleResidentSteps(latDeg: number, lonDeg: number): Generator<void, TerrainSample | null> {
+    if (!this.manifest.geometry) return this.sampler.sample(latDeg, lonDeg);
+    this.querySurface ??= new CubeGridSurface(this, '', 'body-fixed');
+    return yield* this.querySurface.sampleResidentSteps(latDeg, lonDeg);
+  }
+
   /** Analytical normal-height query, including finest coverage along the normal. */
   async sampleAnalysis(latDeg: number, lonDeg: number, signal?: SurfaceQueryWork['signal']): Promise<TerrainSample | null> {
     if (this.disposed) return null;
@@ -361,10 +367,16 @@ function onTileBoundary(position: SurfaceHit['position'], tile: CubeHeightTile):
  * the public geodetic datum: the varying offsets encode the physical shape.
  */
 export function cubeTileMesh(tile: CubeHeightTile, radiusKm: number): { positionsKm: Float64Array; indices: Uint32Array } {
+  const steps = cubeTileMeshSteps(tile, radiusKm);
+  let step = steps.next(); while (!step.done) step = steps.next();
+  return step.value;
+}
+function* cubeTileMeshSteps(tile: CubeHeightTile, radiusKm: number): Generator<void, { positionsKm: Float64Array; indices: Uint32Array }> {
   const { width: w, height: h } = tile;
   const positionsKm = new Float64Array(w * h * 3);
   const nu = (w - 1) * 2 ** tile.level, nv = (h - 1) * 2 ** tile.level;
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    if ((j * w + i) % 128 === 0) yield;
     const u = (2 * ((w - 1) * tile.x + i) - nu) / nu, v = (2 * ((h - 1) * tile.y + j) - nv) / nv;
     const d = cubeFaceToDirection(tile.face, u, v), r = radiusKm + tile.elevationsKm[j * w + i];
     positionsKm.set([d[0] * r, d[1] * r, d[2] * r], (j * w + i) * 3);
@@ -372,6 +384,7 @@ export function cubeTileMesh(tile: CubeHeightTile, radiusKm: number): { position
   const indices = new Uint32Array((w - 1) * (h - 1) * 6);
   let k = 0;
   for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) {
+    if ((j * (w - 1) + i) % 128 === 0) yield;
     const a = j * w + i;
     indices.set([a, a + 1, a + w + 1, a, a + w + 1, a + w], k); k += 6;
   }
@@ -419,6 +432,15 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     const { ray, extent, longitude } = this.normalRay(latDeg, lonDeg);
     if (requestCoverage) void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
     const hit = this.consume(this.intersections(ray, { maxMeshErrorKm: 0 }, true));
+    if (hit.kind !== 'hit') return null;
+    return { position: { latDeg, lonDeg: longitude }, elevationKm: extent - hit.distanceKm,
+      datum: this.source.manifest.datum, source: hit.metadata.source, tileId: hit.tileId };
+  }
+
+  *sampleResidentSteps(latDeg: number, lonDeg: number): Generator<void, TerrainSample | null> {
+    if (!this.source.manifest.geometry) return this.source.sampler.sample(latDeg, lonDeg);
+    const { ray, extent, longitude } = this.normalRay(latDeg, lonDeg);
+    const hit = yield* this.intersections(ray, { maxMeshErrorKm: 0 }, true);
     if (hit.kind !== 'hit') return null;
     return { position: { latDeg, lonDeg: longitude }, elevationKm: extent - hit.distanceKm,
       datum: this.source.manifest.datum, source: hit.metadata.source, tileId: hit.tileId };
@@ -688,7 +710,7 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     const intersect = function* (this: CubeGridSurface, id: string, tile: CubeHeightTile): Generator<void> {
       if (tried.has(id) || tried.size >= this.maxTilesPerRay) return;
       tried.add(id);
-      const mesh = this.mesh(id, tile);
+      const mesh = yield* this.meshSteps(id, tile);
       for (let near = t0, attempt = 0; attempt < 64; attempt++) {
         const far = result.best ? Math.min(result.best.distanceKm, t1) : t1;
         if (near > far) break; // A rejected ancestor hit can exhaust the inclusive interval.
@@ -725,13 +747,15 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     return result.best ?? result.boundary ?? { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
   }
 
-  private mesh(id: string, tile: CubeHeightTile): CpuMeshSurface {
+  private *meshSteps(id: string, tile: CubeHeightTile): Generator<void, CpuMeshSurface> {
     let entry = this.meshes.get(id);
     if (!entry || entry.tile !== tile) {
       // The grid's uncertainty is a sampled representation error, neither a
       // validated mesh bound nor source uncertainty, so both stay unknown here.
-      entry = { tile, surface: new CpuMeshSurface({ ...this.metadata, source: tile.source ?? this.metadata.source },
-        cubeTileMesh(tile, this.radiusKm), { meshDeviationBoundKm: null }, 8 * 1024 * 1024, true) };
+      const mesh = yield* cubeTileMeshSteps(tile, this.radiusKm);
+      const surface = yield* CpuMeshSurface.createSteps({ ...this.metadata, source: tile.source ?? this.metadata.source },
+        mesh, { meshDeviationBoundKm: null }, 8 * 1024 * 1024, true);
+      entry = { tile, surface };
       this.meshes.set(id, entry);
     }
     return entry.surface;

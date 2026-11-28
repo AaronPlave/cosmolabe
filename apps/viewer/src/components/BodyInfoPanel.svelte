@@ -1,12 +1,15 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
   import { getUniverse } from '../lib/loader';
-  import type { InfoRow } from '@cosmolabe/three';
+  import { ReadoutTerrain, type InfoRow } from '@cosmolabe/three';
   import type { StateAvailability } from '@cosmolabe/core';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
+
+  const cameraTerrain = new ReadoutTerrain();
+  const parentTerrain = new ReadoutTerrain();
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
   let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
@@ -31,6 +34,7 @@
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
+    void vs.frameTick;
     void vs.et; // trigger reactivity each frame
     const r = getRenderer();
     if (!r || !vs.selectedBodyName) return null;
@@ -46,6 +50,7 @@
   // (Mars: ~20 km gap, Earth: ~21 km gap).
   let altitude = $derived.by((): { value: number; sampled: boolean } | null => {
     void vs.et;
+    void vs.frameTick;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName || distance == null) return null;
     const bm = r.getBodyMesh(vs.selectedBodyName);
@@ -61,21 +66,20 @@
     // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
     // intersects the ellipsoid along the camera's radial direction.
     const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
+    const terrainAltitude = terrainPosition?.heightKm != null
+      ? cameraTerrain.altitude(bm, { ...terrainPosition, heightKm: terrainPosition.heightKm }) : null;
     const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
-    const sampled = terrainSample != null && terrainPosition?.heightKm != null;
+    const sampled = terrainAltitude != null;
     return {
       // Both public heights use the terrain datum's normal coordinate. Adding
       // that height to a directional radius mixes geodetic and radial values.
-      value: sampled
-        ? terrainPosition!.heightKm! - terrainSample!.elevationKm
-        : referenceAltitude,
+      value: terrainAltitude ?? referenceAltitude,
       sampled,
     };
   });
 
   // Body's altitude above the parent body's surface in two flavors:
-  // - aboveTerrain: sampled at the body's CURRENT lat/lon on the parent's
+  // - aboveTerrain: bounded-refresh readout at the body's sampled lat/lon on the parent's
   //   rendered terrain. Null if the parent has no terrain, or no tile yet
   //   has decoded CPU coverage for that lat/lon.
   // - aboveRef: distance from parent's center minus parent's reference
@@ -109,11 +113,8 @@
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
-    if (parentBm.hasTerrain && rr > 1e-10) {
-      const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
-      if (sample && terrainPosition?.heightKm != null) {
-        aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
-      }
+    if (parentBm.hasTerrain && rr > 1e-10 && terrainPosition?.heightKm != null) {
+      aboveTerrain = parentTerrain.altitude(parentBm, { ...terrainPosition, heightKm: terrainPosition.heightKm });
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
   });

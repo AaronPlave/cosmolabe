@@ -4,6 +4,8 @@ import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridS
 import * as THREE from 'three';
 import type { SolarShadowDebugMode, SolarShadowQuality, SolarShadowStatus } from './SolarShadowClipmap.js';
 import { LIGHTING_MODES, aimSunLight, applyLightingMode, pickIlluminationReceiver, solarGeometryAt, type SolarGeometry, type ImageryLightingMode } from './SurfaceIllumination.js';
+import { placeRaycast, placeMeshIsVisible } from './geographic/PlaceRaycast.js';
+import { placeAnchor } from './geographic/PlaceSurface.js';
 import { ContourOcclusion } from './ContourOcclusion.js';
 import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
 export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
@@ -1379,7 +1381,8 @@ export class UniverseRenderer {
         const hit = this._castSurfaces();
         this._surfaceRaycaster.far = Infinity;
         return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
-      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
+      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor),
+      (place, body, previous, refresh) => this._placeWork(place, body, previous, refresh));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain) bm.updateTerrainLabels(this.camera, this.renderer, contourLabelObstacles);
@@ -3218,6 +3221,49 @@ export class UniverseRenderer {
   /** Presentation anchor on the currently drawn surface, like probe pin
    * re-seating. This is a ray hit, not a conversion of an unknown areoid datum.
    * Keep explicit source heights intact; PlaceNames only calls for heightless points. */
+  private *_placeWork(place: import('@cosmolabe/core').Place, body: BodyMesh, previous: PlaceAnchor | undefined, refresh: boolean):
+    Generator<void, import('./geographic/PlaceNames.js').PlaceWorkResult | null> {
+    for (;;) {
+      // Reference/source height conversion is cheap; rendered triangles supply
+      // heightless label attachment without an analytical CPU terrain sample.
+      let attachment: { object: THREE.Mesh; geometry: THREE.BufferGeometry } | undefined;
+      let anchor = refresh ? placeAnchor(place, body, 'reference') : previous;
+      if (!anchor) return null;
+      const scale = this.scaleFactor, rotation = body.mesh.quaternion.clone(), origin = body.position.clone();
+      const bodies = [...this.bodyMeshes.values()];
+      if (refresh && body.hasTerrain && anchor.source !== 'source-height') {
+        const local = anchor.offsetKm.clone();
+        let normal = local.clone().normalize();
+        const datum = body.terrainDatum;
+        const geo = body.terrainBodyFixedToGeodetic({ xKm: local.x, yKm: -local.z, zKm: local.y });
+        // Keep the old sampler's location when the place and terrain declare
+        // different reference shapes. Only the coordinate conversion is needed;
+        // rendered triangles supply the height along that same datum normal.
+        if (datum && geo && isSupportedGeodeticDatum(datum)) {
+          const zero = geodeticToBodyFixed({ ...geo, heightKm: 0 }, datum);
+          const above = geodeticToBodyFixed({ ...geo, heightKm: 1 }, datum);
+          local.set(zero.xKm, zero.zKm, -zero.yKm);
+          normal = new THREE.Vector3(above.xKm-zero.xKm, above.zKm-zero.zKm, -(above.yKm-zero.yKm)).normalize();
+        }
+        const world = local.multiplyScalar(scale).applyQuaternion(rotation).add(origin);
+        const up = normal.applyQuaternion(rotation);
+        const span = (body.displayRadius * .01 + 30) * scale;
+        this.placeNames.metrics.raycasts++;
+        const hit = yield* placeRaycast(new THREE.Ray(world.clone().addScaledVector(up, span), up.negate()), span * 2, [body]);
+        if (hit) { attachment = hit; anchor = { offsetKm: hit.point.sub(origin).applyQuaternion(rotation.clone().invert()).divideScalar(scale), source: 'rendered-surface' }; }
+        else if (previous) anchor = previous;
+      }
+      const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
+      const eye = this.camera.position.clone(), direction = world.clone().sub(eye), distance = direction.length();
+      this.placeNames.metrics.raycasts++;
+      const hit = yield* placeRaycast(new THREE.Ray(eye, direction.divideScalar(distance)), distance, bodies);
+      if (attachment && (!placeMeshIsVisible(attachment.object) || attachment.object.geometry !== attachment.geometry)) {
+        refresh = true; previous = undefined; yield; continue;
+      }
+      return { anchor, eye, point: world, hidden: !!hit && hit.distance < distance - .01 * scale };
+    }
+  }
+
   private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {
     if (!body.hasTerrain) return null;
     const local = anchor.offsetKm.clone();

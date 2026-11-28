@@ -1318,6 +1318,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.sampleResident(latDeg, lonDeg) ?? null;
   }
 
+  /** Same resident data, with bounded preparation/intersection chunks for live UI. */
+  *sampleResidentTerrainSteps(latDeg: number, lonDeg: number): Generator<void, TerrainSample | null> {
+    return this.terrainManager ? yield* this.terrainManager.sampleResidentSteps(latDeg, lonDeg) : null;
+  }
+
   /** Async source analysis; never depends on renderer zoom or substitutes a sphere. */
   async requestTerrainAnalysisSample(latDeg: number, lonDeg: number, signal?: { readonly aborted: boolean }): Promise<TerrainSample | null> {
     return await this.terrainManager?.requestAnalysisSample(latDeg, lonDeg, signal) ?? null;

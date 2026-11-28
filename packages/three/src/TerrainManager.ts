@@ -1814,6 +1814,11 @@ export class TerrainManager {
     return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
   }
 
+  *sampleResidentSteps(latDeg: number, lonDeg: number): Generator<void, TerrainSample | null> {
+    if (this.cubeConfigured) return this.cube ? yield* this.cube.source.sampleResidentSteps(latDeg, lonDeg) : null;
+    return this.sampler.sample(latDeg, lonDeg);
+  }
+
   /** Analytical query of finest available physical CPU geometry, independent of
    * camera LOD/residency. Missing grids never fall back to a reference shape. */
   async requestAnalysisSample(latDeg: number, lonDeg: number, signal?: { readonly aborted: boolean }): Promise<TerrainSample | null> {

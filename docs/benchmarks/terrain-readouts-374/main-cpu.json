@@ -1,0 +1,987 @@
+{
+  "base": "http://localhost:3001/",
+  "browserVersion": "156.0.8078.79",
+  "nodeVersion": "v24.22.3",
+  "cpuOnly": true,
+  "frames": 120,
+  "dpr": 1,
+  "errors": [],
+  "results": [
+    {
+      "scene": "ingenuity",
+      "panel": false,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 45,
+        "max": 99.6000000005588,
+        "over16_7": 29,
+        "over50": 4
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 83.39999999999782,
+        "max": 116.60000000000218,
+        "over16_7": 95,
+        "over50": 20
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.10000000055879354,
+        "max": 0.10000000055879354,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 6,
+        "p95": 100,
+        "max": 100,
+        "over16_7": 6,
+        "over50": 6
+      },
+      "counts": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 168,
+      "camera": [
+        3.271243626810711e-06,
+        -1.1537781445416661e-06,
+        -4.6664882645121465e-07
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 68,
+      "mainTasks": {
+        "count": 1653,
+        "p95": 11.898,
+        "max": 100.491,
+        "over16_7": 37,
+        "over50": 5
+      }
+    },
+    {
+      "scene": "ingenuity",
+      "panel": false,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 51.700000000186265,
+        "max": 58,
+        "over16_7": 67,
+        "over50": 8
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 66.70000000000073,
+        "max": 116.70000000000073,
+        "over16_7": 97,
+        "over50": 27
+      },
+      "labels": {
+        "count": 120,
+        "p95": 35.5,
+        "max": 43.69999999925494,
+        "over16_7": 9,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 10,
+        "p95": 61,
+        "max": 61,
+        "over16_7": 10,
+        "over50": 9
+      },
+      "counts": {
+        "analysis": 124,
+        "resident": 0,
+        "raycasts": 248,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 1.0333333333333334,
+        "resident": 0,
+        "raycasts": 2.066666666666667,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 1,
+      "visibleNames": [
+        "Wright Brothers Field"
+      ],
+      "anchors": [
+        {
+          "id": "mars:mission:ingenuity-sites/airfield-0",
+          "offset": [
+            699.1215550386236,
+            1073.1671301975998,
+            -3140.824539341548
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 9,
+      "terrainRevision": 168,
+      "camera": [
+        3.271243626810711e-06,
+        -1.1537781445416661e-06,
+        -4.6664882645121465e-07
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 68,
+      "mainTasks": {
+        "count": 1331,
+        "p95": 18.774,
+        "max": 64.656,
+        "over16_7": 84,
+        "over50": 11
+      }
+    },
+    {
+      "scene": "ingenuity",
+      "panel": true,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 41.90000000037253,
+        "max": 59,
+        "over16_7": 15,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 100,
+        "max": 133.3000000000029,
+        "over16_7": 118,
+        "over50": 84
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.20000000018626451,
+        "max": 5.3999999994412065,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 7,
+        "p95": 73,
+        "max": 73,
+        "over16_7": 7,
+        "over50": 6
+      },
+      "counts": {
+        "analysis": 120,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": "Above Mars terrain\n10 m",
+      "perFrame": {
+        "analysis": 1,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 169,
+      "camera": [
+        3.271243626810711e-06,
+        -1.1537781445416661e-06,
+        -4.6664882645121465e-07
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 68,
+      "mainTasks": {
+        "count": 964,
+        "p95": 17.621,
+        "max": 74.247,
+        "over16_7": 53,
+        "over50": 9
+      }
+    },
+    {
+      "scene": "ingenuity",
+      "panel": true,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 52.90000000037253,
+        "max": 63.200000000186265,
+        "over16_7": 66,
+        "over50": 6
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 100,
+        "max": 116.59999999999854,
+        "over16_7": 118,
+        "over50": 91
+      },
+      "labels": {
+        "count": 120,
+        "p95": 33.5,
+        "max": 47.10000000055879,
+        "over16_7": 6,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 23,
+        "p95": 69,
+        "max": 69,
+        "over16_7": 23,
+        "over50": 22
+      },
+      "counts": {
+        "analysis": 245,
+        "resident": 0,
+        "raycasts": 250,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": "Above Mars terrain\n10 m",
+      "perFrame": {
+        "analysis": 2.0416666666666665,
+        "resident": 0,
+        "raycasts": 2.0833333333333335,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 1,
+      "visibleNames": [
+        "Wright Brothers Field"
+      ],
+      "anchors": [
+        {
+          "id": "mars:mission:ingenuity-sites/airfield-0",
+          "offset": [
+            699.1215550386236,
+            1073.1671301975998,
+            -3140.824539341548
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 13,
+      "terrainRevision": 169,
+      "camera": [
+        3.271243626810711e-06,
+        -1.1537781445416661e-06,
+        -4.6664882645121465e-07
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 68,
+      "mainTasks": {
+        "count": 1473,
+        "p95": 22.09,
+        "max": 79.138,
+        "over16_7": 119,
+        "over50": 25
+      }
+    },
+    {
+      "scene": "horizon",
+      "panel": false,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 41.799999999813735,
+        "max": 128,
+        "over16_7": 15,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 66.59999999999854,
+        "max": 133.40000000000146,
+        "over16_7": 81,
+        "over50": 9
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.10000000055879354,
+        "max": 0.2999999998137355,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 1,
+        "p95": 134,
+        "max": 134,
+        "over16_7": 1,
+        "over50": 1
+      },
+      "counts": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 169,
+      "camera": [
+        0.0022442536067155084,
+        0.0021787379584312797,
+        -0.001323548088588018
+      ],
+      "target": [
+        0.0022137752026127108,
+        0.002214333501389356,
+        -0.0013057639888113556
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 819,
+        "p95": 12.211,
+        "max": 134.021,
+        "over16_7": 21,
+        "over50": 2
+      }
+    },
+    {
+      "scene": "horizon",
+      "panel": false,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 45,
+        "max": 93.79999999981374,
+        "over16_7": 27,
+        "over50": 2
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 66.69999999999709,
+        "max": 100,
+        "over16_7": 85,
+        "over50": 16
+      },
+      "labels": {
+        "count": 120,
+        "p95": 30.200000000186265,
+        "max": 37.299999999813735,
+        "over16_7": 6,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 3,
+        "p95": 95,
+        "max": 95,
+        "over16_7": 3,
+        "over50": 3
+      },
+      "counts": {
+        "analysis": 142,
+        "resident": 0,
+        "raycasts": 284,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 1.1833333333333333,
+        "resident": 0,
+        "raycasts": 2.3666666666666667,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 2,
+      "visibleNames": [
+        "Gediz Vallis",
+        "Gale"
+      ],
+      "anchors": [
+        {
+          "id": "mars:usgs:places/gazetteer:15571",
+          "offset": [
+            -2489.7583640711155,
+            -287.04870544337365,
+            -2286.548689919162
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        },
+        {
+          "id": "mars:usgs:places/gazetteer:2071",
+          "offset": [
+            -2503.6601936831253,
+            -317.4614925415659,
+            -2269.304720721
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 15,
+      "terrainRevision": 169,
+      "camera": [
+        0.0022442536067155084,
+        0.0021787379584312797,
+        -0.001323548088588018
+      ],
+      "target": [
+        0.0022137752026127108,
+        0.002214333501389356,
+        -0.0013057639888113556
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 845,
+        "p95": 16.018,
+        "max": 95.547,
+        "over16_7": 39,
+        "over50": 4
+      }
+    },
+    {
+      "scene": "horizon",
+      "panel": true,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 36.799999999813735,
+        "max": 43.90000000037253,
+        "over16_7": 10,
+        "over50": 0
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 83.40000000000873,
+        "max": 166.70000000001164,
+        "over16_7": 119,
+        "over50": 84
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.10000000055879354,
+        "max": 2.400000000372529,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 1,
+        "p95": 101,
+        "max": 101,
+        "over16_7": 1,
+        "over50": 1
+      },
+      "counts": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 169,
+      "camera": [
+        0.0022442536067155084,
+        0.0021787379584312797,
+        -0.001323548088588018
+      ],
+      "target": [
+        0.0022137752026127108,
+        0.002214333501389356,
+        -0.0013057639888113556
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 953,
+        "p95": 11.253,
+        "max": 101.214,
+        "over16_7": 22,
+        "over50": 2
+      }
+    },
+    {
+      "scene": "horizon",
+      "panel": true,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 45.700000000186265,
+        "max": 51.700000000186265,
+        "over16_7": 23,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 100,
+        "max": 150,
+        "over16_7": 119,
+        "over50": 91
+      },
+      "labels": {
+        "count": 120,
+        "p95": 30.200000000186265,
+        "max": 40.200000000186265,
+        "over16_7": 7,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 5,
+        "p95": 59,
+        "max": 59,
+        "over16_7": 5,
+        "over50": 4
+      },
+      "counts": {
+        "analysis": 136,
+        "resident": 0,
+        "raycasts": 272,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 1.1333333333333333,
+        "resident": 0,
+        "raycasts": 2.2666666666666666,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 2,
+      "visibleNames": [
+        "Gediz Vallis",
+        "Gale"
+      ],
+      "anchors": [
+        {
+          "id": "mars:usgs:places/gazetteer:15571",
+          "offset": [
+            -2489.7583640711155,
+            -287.04870544337365,
+            -2286.548689919162
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        },
+        {
+          "id": "mars:usgs:places/gazetteer:2071",
+          "offset": [
+            -2503.6601936831253,
+            -317.4614925415659,
+            -2269.304720721
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 17,
+      "terrainRevision": 169,
+      "camera": [
+        0.0022442536067155084,
+        0.0021787379584312797,
+        -0.001323548088588018
+      ],
+      "target": [
+        0.0022137752026127108,
+        0.002214333501389356,
+        -0.0013057639888113556
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 2020,
+        "p95": 13.319,
+        "max": 102.522,
+        "over16_7": 43,
+        "over50": 7
+      }
+    },
+    {
+      "scene": "gale",
+      "panel": false,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 39.59999999962747,
+        "max": 61.299999999813735,
+        "over16_7": 11,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 50.09999999999127,
+        "max": 83.30000000000291,
+        "over16_7": 61,
+        "over50": 6
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.09999999962747097,
+        "max": 2.800000000745058,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 1,
+        "p95": 63,
+        "max": 63,
+        "over16_7": 1,
+        "over50": 1
+      },
+      "counts": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 169,
+      "camera": [
+        0.002198554186252222,
+        0.0022314056164955565,
+        -0.0013152554497824584
+      ],
+      "target": [
+        0.002190598093825301,
+        0.00223662024747772,
+        -0.001310590879382715
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 811,
+        "p95": 9.885,
+        "max": 63.46,
+        "over16_7": 17,
+        "over50": 1
+      }
+    },
+    {
+      "scene": "gale",
+      "panel": false,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 46.59999999962747,
+        "max": 58.90000000037253,
+        "over16_7": 31,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 66.60000000000582,
+        "max": 66.70000000001164,
+        "over16_7": 79,
+        "over50": 13
+      },
+      "labels": {
+        "count": 120,
+        "p95": 36,
+        "max": 42.39999999944121,
+        "over16_7": 7,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 2,
+        "p95": 62,
+        "max": 62,
+        "over16_7": 2,
+        "over50": 2
+      },
+      "counts": {
+        "analysis": 132,
+        "resident": 0,
+        "raycasts": 264,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 1.1,
+        "resident": 0,
+        "raycasts": 2.2,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 1,
+      "visibleNames": [
+        "Gale"
+      ],
+      "anchors": [
+        {
+          "id": "mars:usgs:places/gazetteer:2071",
+          "offset": [
+            -2503.6601936831253,
+            -317.4614925415659,
+            -2269.304720721
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 10,
+      "terrainRevision": 169,
+      "camera": [
+        0.002198554186252222,
+        0.0022314056164955565,
+        -0.0013152554497824584
+      ],
+      "target": [
+        0.002190598093825301,
+        0.00223662024747772,
+        -0.001310590879382715
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 839,
+        "p95": 16.335,
+        "max": 62.423,
+        "over16_7": 39,
+        "over50": 2
+      }
+    },
+    {
+      "scene": "gale",
+      "panel": true,
+      "names": false,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 34.700000000186265,
+        "max": 94.79999999981374,
+        "over16_7": 6,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 83.40000000000873,
+        "max": 166.6999999999971,
+        "over16_7": 119,
+        "over50": 86
+      },
+      "labels": {
+        "count": 120,
+        "p95": 0.10000000055879354,
+        "max": 0.20000000018626451,
+        "over16_7": 0,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 1,
+        "p95": 98,
+        "max": 98,
+        "over16_7": 1,
+        "over50": 1
+      },
+      "counts": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 0,
+        "resident": 0,
+        "raycasts": 0,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 0,
+      "visibleNames": [],
+      "anchors": [],
+      "deferred": 0,
+      "terrainRevision": 169,
+      "camera": [
+        0.002198554186252222,
+        0.0022314056164955565,
+        -0.0013152554497824584
+      ],
+      "target": [
+        0.002190598093825301,
+        0.00223662024747772,
+        -0.001310590879382715
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 938,
+        "p95": 10.235,
+        "max": 98.36,
+        "over16_7": 13,
+        "over50": 2
+      }
+    },
+    {
+      "scene": "gale",
+      "panel": true,
+      "names": true,
+      "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "frame": {
+        "count": 120,
+        "p95": 47.59999999962747,
+        "max": 99.59999999962747,
+        "over16_7": 33,
+        "over50": 1
+      },
+      "intervals": {
+        "count": 119,
+        "p95": 116.69999999999709,
+        "max": 250,
+        "over16_7": 118,
+        "over50": 103
+      },
+      "labels": {
+        "count": 120,
+        "p95": 38.5,
+        "max": 41.89999999944121,
+        "over16_7": 9,
+        "over50": 0
+      },
+      "longTasks": {
+        "count": 7,
+        "p95": 148,
+        "max": 148,
+        "over16_7": 7,
+        "over50": 5
+      },
+      "counts": {
+        "analysis": 132,
+        "resident": 0,
+        "raycasts": 264,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "panelText": null,
+      "perFrame": {
+        "analysis": 1.1,
+        "resident": 0,
+        "raycasts": 2.2,
+        "placeWork": 0,
+        "labelChunks": 0
+      },
+      "drawn": 1,
+      "visibleNames": [
+        "Gale"
+      ],
+      "anchors": [
+        {
+          "id": "mars:usgs:places/gazetteer:2071",
+          "offset": [
+            -2503.6601936831253,
+            -317.4614925415659,
+            -2269.304720721
+          ],
+          "source": "rendered-surface",
+          "hidden": false
+        }
+      ],
+      "deferred": 16,
+      "terrainRevision": 169,
+      "camera": [
+        0.002198554186252222,
+        0.0022314056164955565,
+        -0.0013152554497824584
+      ],
+      "target": [
+        0.002190598093825301,
+        0.00223662024747772,
+        -0.001310590879382715
+      ],
+      "et": 678747677.5888,
+      "visibleTiles": 10,
+      "mainTasks": {
+        "count": 2899,
+        "p95": 0.971,
+        "max": 157.904,
+        "over16_7": 54,
+        "over50": 9
+      }
+    }
+  ]
+}
