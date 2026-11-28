@@ -66,21 +66,20 @@
     // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
     // intersects the ellipsoid along the camera's radial direction.
     const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const terrainSample = terrainPosition ? cameraTerrain.sample(bm, terrainPosition.latDeg, terrainPosition.lonDeg) : null;
+    const terrainAltitude = terrainPosition?.heightKm != null
+      ? cameraTerrain.altitude(bm, { ...terrainPosition, heightKm: terrainPosition.heightKm }) : null;
     const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
-    const sampled = terrainSample != null && terrainPosition?.heightKm != null;
+    const sampled = terrainAltitude != null;
     return {
       // Both public heights use the terrain datum's normal coordinate. Adding
       // that height to a directional radius mixes geodetic and radial values.
-      value: sampled
-        ? terrainPosition!.heightKm! - terrainSample!.elevationKm
-        : referenceAltitude,
+      value: terrainAltitude ?? referenceAltitude,
       sampled,
     };
   });
 
   // Body's altitude above the parent body's surface in two flavors:
-  // - aboveTerrain: sampled at the body's CURRENT lat/lon on the parent's
+  // - aboveTerrain: bounded-refresh readout at the body's sampled lat/lon on the parent's
   //   rendered terrain. Null if the parent has no terrain, or no tile yet
   //   has decoded CPU coverage for that lat/lon.
   // - aboveRef: distance from parent's center minus parent's reference
@@ -114,11 +113,8 @@
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
-    if (parentBm.hasTerrain && rr > 1e-10) {
-      const sample = terrainPosition ? parentTerrain.sample(parentBm, terrainPosition.latDeg, terrainPosition.lonDeg) : null;
-      if (sample && terrainPosition?.heightKm != null) {
-        aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
-      }
+    if (parentBm.hasTerrain && rr > 1e-10 && terrainPosition?.heightKm != null) {
+      aboveTerrain = parentTerrain.altitude(parentBm, { ...terrainPosition, heightKm: terrainPosition.heightKm });
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
   });

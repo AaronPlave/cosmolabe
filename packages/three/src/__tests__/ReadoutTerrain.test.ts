@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReadoutTerrain } from '../ReadoutTerrain.js';
 import type { BodyMesh } from '../BodyMesh.js';
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('informational terrain reads', () => {
   it('advances cold work across frames and discards work from old revisions', () => {
@@ -11,35 +13,42 @@ describe('informational terrain reads', () => {
       finally { cancelled++; }
     } } as unknown as BodyMesh;
     vi.spyOn(performance, 'now').mockReturnValue(0);
-    readout.sample(body, 1, 2, 0);
+    const point = { latDeg: 1, lonDeg: 2, heightKm: 3 };
+    readout.altitude(body, point, 0);
     expect(chunks).toBe(64);
-    readout.sample(body, 1, 2, 16);
+    readout.altitude(body, point, 16);
     expect(chunks).toBe(128);
     Object.assign(body, { terrainRevision: 2 });
-    readout.sample(body, 1, 2, 32);
+    readout.altitude(body, point, 32);
     expect(cancelled).toBe(1);
     expect(chunks).toBe(192);
-    vi.restoreAllMocks();
   });
-  it('reuses identical locations and unknowns, invalidates source revisions, and bounds motion', () => {
+
+  it('holds a coherent altitude during horizontal motion and updates vertical motion without resampling', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(0);
     const readout = new ReadoutTerrain();
-    const sample = { elevationKm: 1 };
-    const query = vi.fn(() => sample);
-    const body = { terrainRevision: 1, sampleResidentTerrainSteps: function* () { yield; return query(); } } as unknown as BodyMesh;
-    expect(readout.sample(body, 0, 0, 0)).toBe(sample);
-    expect(readout.sample(body, 0, 0, 100)).toBe(sample);
+    let unavailable = false;
+    const query = vi.fn((lat: number, lon: number) => (function* () {
+      yield; return unavailable ? null : { elevationKm: lat + lon + 1 };
+    })());
+    const body = { terrainRevision: 1, sampleResidentTerrainSteps: query } as unknown as BodyMesh;
+    expect(readout.altitude(body, { latDeg: 0, lonDeg: 0, heightKm: 100 }, 0)).toBe(99);
+    expect(readout.altitude(body, { latDeg: 0, lonDeg: 0, heightKm: 110 }, 100)).toBe(109);
     expect(query).toHaveBeenCalledTimes(1);
-    expect(readout.sample(body, 1, 0, 100)).toBe(sample);
-    expect(readout.sample(body, 1, 0, 200)).toBe(sample);
-    Object.assign(body, { terrainRevision: 2 });
-    query.mockReturnValue(null as never);
-    expect(readout.sample(body, 1, 0, 300)).toBeNull();
-    expect(readout.sample(body, 1, 0, 400)).toBeNull();
-    expect(readout.sample(body, 1, 0, 1000)).toBeNull();
+    // A different reference height must not be mixed with the old ground.
+    expect(readout.altitude(body, { latDeg: 1, lonDeg: 0, heightKm: 500 }, 100)).toBe(109);
+    expect(readout.altitude(body, { latDeg: 1, lonDeg: 0, heightKm: 500 }, 200)).toBe(498);
+    expect(query).toHaveBeenLastCalledWith(1, 0);
+    expect(readout.altitude(body, { latDeg: 1, lonDeg: 0, heightKm: 501 }, 201)).toBe(499);
+    expect(query).toHaveBeenCalledTimes(2);
+    Object.assign(body, { terrainRevision: 2 }); unavailable = true;
+    const point = { latDeg: 1, lonDeg: 0, heightKm: 501 };
+    expect(readout.altitude(body, point, 300)).toBeNull();
+    expect(readout.altitude(body, point, 400)).toBeNull();
+    expect(readout.altitude(body, point, 1000)).toBeNull();
     expect(query).toHaveBeenCalledTimes(3);
-    expect(query).toHaveBeenCalledWith();
-    const other = { terrainRevision: 2, sampleResidentTerrainSteps: function* () { yield; return query(); } } as unknown as BodyMesh;
-    readout.sample(other, 1, 0, 1001);
+    const other = { terrainRevision: 2, sampleResidentTerrainSteps: query } as unknown as BodyMesh;
+    readout.altitude(other, point, 1001);
     expect(query).toHaveBeenCalledTimes(4);
   });
 });
